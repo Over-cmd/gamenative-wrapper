@@ -724,7 +724,7 @@ wrapper_CreateImage(VkDevice _device,
 
    res = device->dispatch_table.CreateImage(device->dispatch_handle,
       &create_info, pAllocator, pImage);
-   
+
    if (res != VK_SUCCESS) {
       WRAPPER_LOG(error, "Failed to create image, res %d", res);
       return res;
@@ -751,6 +751,36 @@ wrapper_CreateImage(VkDevice _device,
    simple_mtx_unlock(&device->resource_mutex);
 
    return VK_SUCCESS;
+}
+
+static void
+wrapper_device_image_memory_requirements(struct wrapper_device *device,
+      const VkDeviceImageMemoryRequirements *pInfo,
+      VkMemoryRequirements2 *pMemoryRequirements)
+{
+   VkDeviceImageMemoryRequirements info = *pInfo;
+   VkImageCreateInfo ci;
+
+   if (pInfo->pCreateInfo &&
+       is_emulated_bcn(device->physical, pInfo->pCreateInfo->format)) {
+      ci = *pInfo->pCreateInfo;
+      ci.format = get_format_for_bcn(pInfo->pCreateInfo->format);
+      ci.flags &= ~VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT;
+      ci.pNext = NULL;
+      info.pCreateInfo = &ci;
+   }
+
+   device->dispatch_table.GetDeviceImageMemoryRequirements(device->dispatch_handle,
+      &info, pMemoryRequirements);
+}
+
+VKAPI_ATTR void VKAPI_CALL
+wrapper_GetDeviceImageMemoryRequirements(VkDevice _device,
+      const VkDeviceImageMemoryRequirements *pInfo,
+      VkMemoryRequirements2 *pMemoryRequirements)
+{
+   VK_FROM_HANDLE(wrapper_device, device, _device);
+   wrapper_device_image_memory_requirements(device, pInfo, pMemoryRequirements);
 }
 
 VKAPI_ATTR VkResult VKAPI_CALL
@@ -1136,7 +1166,6 @@ wrapper_CmdCopyBufferToImage(VkCommandBuffer commandBuffer,
    struct wrapper_image *wi = get_wrapper_image_from_handle(device, dstImage);   
    struct wrapper_buffer *wb = get_wrapper_buffer_from_handle(device, srcBuffer);
    VkFormat format = wi->info.format;
-   int texel_size = get_texel_size_for_format(get_format_for_bcn(format));
 
    if (!wi || !wb || !is_emulated_bcn(device->physical, format)) {
       device->dispatch_table.CmdCopyBufferToImage(wcb->dispatch_handle,
@@ -1164,13 +1193,14 @@ wrapper_CmdCopyBufferToImage(VkCommandBuffer commandBuffer,
       int w = copy_region.imageExtent.width;
       int h = copy_region.imageExtent.height;
       int offset = copy_region.bufferOffset;
+      VkDeviceSize upload_size = bcn_upload_size(format, w, h);
 
       struct wrapper_buffer *staging_wb = vk_object_zalloc(&device->vk,
          &device->vk.alloc, sizeof(struct wrapper_buffer), VK_OBJECT_TYPE_BUFFER);
 
       VkBufferCreateInfo buffer_create_info = {
          .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-         .size = w * h * texel_size,
+         .size = upload_size,
          .usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
          .flags = 0,
          .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
@@ -1187,7 +1217,7 @@ wrapper_CmdCopyBufferToImage(VkCommandBuffer commandBuffer,
 
       VkMemoryAllocateInfo allocate_info = {
          .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-         .allocationSize = w * h * texel_size,
+         .allocationSize = upload_size,
          .memoryTypeIndex = wrapper_select_device_memory_type(device,
             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT),
       };
@@ -1211,7 +1241,7 @@ wrapper_CmdCopyBufferToImage(VkCommandBuffer commandBuffer,
       }
 
       res = device->dispatch_table.MapMemory(device->dispatch_handle,
-         staging_wb->memory, 0, w * h * texel_size, 0, &staging_wb->mapped_address);
+         staging_wb->memory, 0, upload_size, 0, &staging_wb->mapped_address);
 
       if (res != VK_SUCCESS) {
          WRAPPER_LOG(error, "Failed to map staging buffer memory, res %d", res);

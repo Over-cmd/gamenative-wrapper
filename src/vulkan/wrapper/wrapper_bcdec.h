@@ -6,6 +6,15 @@
 VkFormat
 get_format_for_bcn(VkFormat bcn_format);
 
+VkFormat
+get_decode_format_for_bcn(VkFormat bcn_format);
+
+int
+is_astc_4x4(VkFormat format);
+
+size_t
+bcn_upload_size(VkFormat bcn_format, int w, int h);
+
 int
 get_texel_size_for_format(VkFormat format);
 

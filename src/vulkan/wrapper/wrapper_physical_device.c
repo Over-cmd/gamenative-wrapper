@@ -290,7 +290,7 @@ VkResult enumerate_physical_device(struct vk_instance *_instance)
             supported_features->dualSrcBlend = true;
             supported_features->multiDrawIndirect = true;
          }
-         if (is_d3d && pdevice->base_supported_extensions.KHR_vertex_attribute_divisor) {
+         if (pdevice->base_supported_extensions.KHR_vertex_attribute_divisor) {
             WRAPPER_LOG(info, "Aliasing VK_EXT_vertex_attribute_divisor -> KHR (Mali has KHR)");
             pdevice->vk.supported_extensions.EXT_vertex_attribute_divisor = true;
             pdevice->vk.supported_extensions.KHR_vertex_attribute_divisor = false;
@@ -739,9 +739,9 @@ wrapper_GetPhysicalDeviceImageFormatProperties2(VkPhysicalDevice physicalDevice,
       break;
    }
   
-   return pdevice->dispatch_table.GetPhysicalDeviceImageFormatProperties2(pdevice->dispatch_handle, 
+   return pdevice->dispatch_table.GetPhysicalDeviceImageFormatProperties2(pdevice->dispatch_handle,
       pImageFormatInfo, pImageFormatProperties);
-}                                                
+}
 
 VKAPI_ATTR void VKAPI_CALL
 wrapper_GetPhysicalDeviceFormatProperties(VkPhysicalDevice physicalDevice,
@@ -780,8 +780,59 @@ wrapper_GetPhysicalDeviceFormatProperties(VkPhysicalDevice physicalDevice,
       break;   
    }
    
-   pdevice->dispatch_table.GetPhysicalDeviceFormatProperties(pdevice->dispatch_handle, 
-      format, pFormatProperties);  
+   pdevice->dispatch_table.GetPhysicalDeviceFormatProperties(pdevice->dispatch_handle,
+      format, pFormatProperties);
+}
+
+VKAPI_ATTR void VKAPI_CALL
+wrapper_GetPhysicalDeviceFormatProperties2(VkPhysicalDevice physicalDevice,
+                                           VkFormat format,
+                                           VkFormatProperties2* pFormatProperties)
+{
+   VK_FROM_HANDLE(wrapper_physical_device, pdevice, physicalDevice);
+
+   pdevice->dispatch_table.GetPhysicalDeviceFormatProperties2(pdevice->dispatch_handle,
+      format, pFormatProperties);
+
+   switch (format) {
+   case VK_FORMAT_BC1_RGB_UNORM_BLOCK:
+   case VK_FORMAT_BC1_RGB_SRGB_BLOCK:
+   case VK_FORMAT_BC1_RGBA_UNORM_BLOCK:
+   case VK_FORMAT_BC1_RGBA_SRGB_BLOCK:
+   case VK_FORMAT_BC2_UNORM_BLOCK:
+   case VK_FORMAT_BC2_SRGB_BLOCK:
+   case VK_FORMAT_BC3_UNORM_BLOCK:
+   case VK_FORMAT_BC3_SRGB_BLOCK:
+   case VK_FORMAT_BC4_UNORM_BLOCK:
+   case VK_FORMAT_BC4_SNORM_BLOCK:
+   case VK_FORMAT_BC5_UNORM_BLOCK:
+   case VK_FORMAT_BC5_SNORM_BLOCK:
+   case VK_FORMAT_BC6H_UFLOAT_BLOCK:
+   case VK_FORMAT_BC6H_SFLOAT_BLOCK:
+   case VK_FORMAT_BC7_UNORM_BLOCK:
+   case VK_FORMAT_BC7_SRGB_BLOCK:
+      if (pdevice->driver_properties.driverID == VK_DRIVER_ID_SAMSUNG_PROPRIETARY &&
+          format <= 138 && pdevice->emulate_bcn == 3)
+         break;
+
+      if (pdevice->emulate_bcn > 0) {
+         VkFormatFeatureFlags bc = VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT |
+            VK_FORMAT_FEATURE_BLIT_SRC_BIT |
+            VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT |
+            VK_FORMAT_FEATURE_TRANSFER_SRC_BIT | VK_FORMAT_FEATURE_TRANSFER_DST_BIT;
+         pFormatProperties->formatProperties.optimalTilingFeatures |= bc;
+
+         VkBaseOutStructure *s = (VkBaseOutStructure *)pFormatProperties->pNext;
+         while (s) {
+            if (s->sType == VK_STRUCTURE_TYPE_FORMAT_PROPERTIES_3)
+               ((VkFormatProperties3 *)s)->optimalTilingFeatures |= bc;
+            s = s->pNext;
+         }
+      }
+      break;
+   default:
+      break;
+   }
 }
 
 VKAPI_ATTR void VKAPI_CALL
