@@ -84,6 +84,15 @@ struct wrapper_device {
    VkDeviceMemory null_image_memory;
    VkImageView null_image_view;
    VkSampler null_sampler;
+
+   /* BCn->ASTC GPU transcode (compute), lazily initialized. */
+   simple_mtx_t bcn_gpu_mutex;
+   int bcn_gpu_state;                    /* 0 uninit, 1 ready, -1 disabled */
+   VkShaderModule bcn_shader;
+   VkDescriptorSetLayout bcn_set_layout;
+   VkPipelineLayout bcn_pipe_layout;
+   VkPipeline bcn_pipeline;
+   VkDeviceSize bcn_gpu_inflight;        /* transient GPU-transcode bytes not yet freed */
 };
 
 VK_DEFINE_HANDLE_CASTS(wrapper_device, vk.base, VkDevice,
@@ -101,6 +110,10 @@ struct wrapper_buffer {
    int is_mapped;
    VkDeviceMemory memory;
    struct wrapper_command_buffer *wcb;
+   /* For transient GPU-transcode buffers: a descriptor pool destroyed with it,
+    * and bytes to release from the device's in-flight counter when freed. */
+   VkDescriptorPool desc_pool;
+   VkDeviceSize bcn_inflight;
 };
 
 struct wrapper_image {
