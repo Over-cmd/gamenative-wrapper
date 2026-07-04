@@ -52,7 +52,7 @@ bcn_has_alpha(VkFormat bcn_format)
    }
 }
 
-#define WRAPPER_CACHE_DIR "/data/data/com.winlator.cmod/files/imagefs/usr/cache"
+#define WRAPPER_CACHE_DIR "/data/data/app.gamenative/files/imagefs/usr/cache"
 
 struct decompression_params {
    int block_x;
@@ -407,27 +407,32 @@ decompress_bcn_format(void *srcBuffer,
       return;
    }
 
-   CREATE_FOLDER(WRAPPER_CACHE_DIR, 0700);
-   
-   XXH64_hash_t hash = XXH64(src, compressed_size, 0);
-   char *cache_filename;
-   asprintf(&cache_filename, "%s/%s_%llu.cache", wrapper_cache_path, get_executable_name(), (unsigned long long)hash);
+   /* Optional disk cache of the transcoded output, keyed by a hash of the
+    * compressed source. Skips decode+encode on subsequent loads. Only touched
+    * when explicitly enabled, so there is zero overhead by default. */
+   char *cache_filename = NULL;
+   if (wrapper_use_bcn_cache) {
+      CREATE_FOLDER(wrapper_cache_path, 0700);
+      XXH64_hash_t hash = XXH64(src, compressed_size, 0);
+      asprintf(&cache_filename, "%s/%s_%llu.cache", wrapper_cache_path,
+         get_executable_name(), (unsigned long long)hash);
 
-   if (access(cache_filename, F_OK) == 0 && wrapper_use_bcn_cache) {
-      FILE *fp = fopen(cache_filename, "rb");
-      size_t length = fread(dst, 1, uncompressed_size, fp);
-      fclose(fp);
-      if (length == uncompressed_size) {
-         WRAPPER_LOG(bcn, "Successfully restored texture %s from cache", cache_filename);
-         free(cache_filename);
-         return;
+      if (access(cache_filename, F_OK) == 0) {
+         FILE *fp = fopen(cache_filename, "rb");
+         if (fp) {
+            size_t length = fread(dst, 1, uncompressed_size, fp);
+            fclose(fp);
+            if (length == uncompressed_size) {
+               WRAPPER_LOG(bcn, "Restored texture %s from cache", cache_filename);
+               free(cache_filename);
+               return;
+            }
+            unlink(cache_filename);
+         }
       }
-      else {
-         WRAPPER_LOG(bcn, "Failed to restore texture %s from cache, decompressing from huffer", cache_filename);
-         unlink(cache_filename);
-      }   
-   }  
-   
+   }
+
+
    if (wrapper_no_bcn_thread) {
       WRAPPER_LOG(bcn, "Decompressing %dx%d BCN %d texture from main thread", 
          w, h, format);
@@ -490,15 +495,17 @@ decompress_bcn_format(void *srcBuffer,
       free(args);
    }
 
-   if (access(cache_filename, F_OK) != 0 && wrapper_use_bcn_cache) {
+   if (wrapper_use_bcn_cache && cache_filename) {
       FILE *fp = fopen(cache_filename, "wb");
-      size_t length = fwrite(dst, 1, uncompressed_size, fp);
-      fclose(fp);
-      if (length == uncompressed_size)
-         WRAPPER_LOG(bcn, "Saved texture %s to cache", cache_filename);
-      else {
-         WRAPPER_LOG(bcn, "Failed to save texture %s to cache", cache_filename);
-         unlink(cache_filename);
+      if (fp) {
+         size_t length = fwrite(dst, 1, uncompressed_size, fp);
+         fclose(fp);
+         if (length == uncompressed_size)
+            WRAPPER_LOG(bcn, "Saved texture %s to cache", cache_filename);
+         else {
+            WRAPPER_LOG(bcn, "Failed to save texture %s to cache", cache_filename);
+            unlink(cache_filename);
+         }
       }
    }
 
