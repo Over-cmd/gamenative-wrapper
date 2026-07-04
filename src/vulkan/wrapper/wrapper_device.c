@@ -91,6 +91,13 @@ wrapper_filter_enabled_extensions(const struct wrapper_device *device,
       enable_extensions[(*enable_extension_count)++] =
          vk_device_extensions[idx].extensionName;
    }
+
+   if (device->vk.enabled_extensions.EXT_vertex_attribute_divisor &&
+       !device->vk.enabled_extensions.KHR_vertex_attribute_divisor &&
+       device->physical->base_supported_extensions.KHR_vertex_attribute_divisor) {
+      enable_extensions[(*enable_extension_count)++] =
+         "VK_KHR_vertex_attribute_divisor";
+   }
 }
 
 static inline void
@@ -150,6 +157,14 @@ static void process_pnext_chain(VkBaseInStructure *create_info, struct wrapper_p
              WRAPPER_LOG(info, "Unlinking VkPhysicalDeviceRobustness2FeaturesEXT from pNext chain");
              unlink_vk_struct(create_info, &current, &prev);
              continue;
+          case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VERTEX_ATTRIBUTE_DIVISOR_FEATURES_EXT:
+             if (!pdevice->base_supported_extensions.EXT_vertex_attribute_divisor &&
+                  pdevice->base_supported_extensions.KHR_vertex_attribute_divisor) {
+                WRAPPER_LOG(info, "Aliasing VertexAttributeDivisorFeatures EXT->KHR in device pNext");
+                ((VkBaseOutStructure *)current)->sType =
+                   VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VERTEX_ATTRIBUTE_DIVISOR_FEATURES_KHR;
+             }
+             break;
           case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES:
              if (api_version >= VK_MAKE_VERSION(1, 1, 0))
                 break;
@@ -218,6 +233,187 @@ wrapper_create_device_queue(struct wrapper_device *device,
    }
 
    return VK_SUCCESS;
+}
+
+static void
+wrapper_create_null_resources(struct wrapper_device *device)
+{
+   const struct vk_device_dispatch_table *dt = &device->dispatch_table;
+   VkDevice dev = device->dispatch_handle;
+   VkPhysicalDeviceMemoryProperties *mp = &device->physical->memory_properties;
+
+   VkBufferCreateInfo bci = {
+      .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+      .size = 65536,
+      .usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
+               VK_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_TEXEL_BUFFER_BIT,
+      .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+   };
+   if (dt->CreateBuffer(dev, &bci, NULL, &device->null_buffer) != VK_SUCCESS)
+      return;
+   VkMemoryRequirements mr;
+   dt->GetBufferMemoryRequirements(dev, device->null_buffer, &mr);
+   uint32_t mt = UINT32_MAX;
+   for (uint32_t i = 0; i < mp->memoryTypeCount; i++)
+      if ((mr.memoryTypeBits & (1u << i)) &&
+          (mp->memoryTypes[i].propertyFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)) { mt = i; break; }
+   if (mt == UINT32_MAX) return;
+   VkMemoryAllocateInfo mai = {
+      .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+      .allocationSize = mr.size, .memoryTypeIndex = mt,
+   };
+   if (dt->AllocateMemory(dev, &mai, NULL, &device->null_buffer_memory) != VK_SUCCESS)
+      return;
+   dt->BindBufferMemory(dev, device->null_buffer, device->null_buffer_memory, 0);
+   void *ptr = NULL;
+   if (dt->MapMemory(dev, device->null_buffer_memory, 0, VK_WHOLE_SIZE, 0, &ptr) == VK_SUCCESS) {
+      memset(ptr, 0, mr.size);
+      dt->UnmapMemory(dev, device->null_buffer_memory);
+   }
+
+   VkImageCreateInfo ici = {
+      .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+      .imageType = VK_IMAGE_TYPE_2D, .format = VK_FORMAT_R8G8B8A8_UNORM,
+      .extent = { 1, 1, 1 }, .mipLevels = 1, .arrayLayers = 1,
+      .samples = VK_SAMPLE_COUNT_1_BIT, .tiling = VK_IMAGE_TILING_OPTIMAL,
+      .usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT,
+      .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+   };
+   if (dt->CreateImage(dev, &ici, NULL, &device->null_image) == VK_SUCCESS) {
+      VkMemoryRequirements imr;
+      dt->GetImageMemoryRequirements(dev, device->null_image, &imr);
+      uint32_t imt = UINT32_MAX;
+      for (uint32_t i = 0; i < mp->memoryTypeCount; i++)
+         if (imr.memoryTypeBits & (1u << i)) { imt = i; break; }
+      VkMemoryAllocateInfo imai = {
+         .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+         .allocationSize = imr.size, .memoryTypeIndex = imt,
+      };
+      if (imt != UINT32_MAX &&
+          dt->AllocateMemory(dev, &imai, NULL, &device->null_image_memory) == VK_SUCCESS) {
+         dt->BindImageMemory(dev, device->null_image, device->null_image_memory, 0);
+         VkImageViewCreateInfo vci = {
+            .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+            .image = device->null_image, .viewType = VK_IMAGE_VIEW_TYPE_2D,
+            .format = VK_FORMAT_R8G8B8A8_UNORM,
+            .subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 },
+         };
+         dt->CreateImageView(dev, &vci, NULL, &device->null_image_view);
+      }
+   }
+   VkSamplerCreateInfo sci = { .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO };
+   dt->CreateSampler(dev, &sci, NULL, &device->null_sampler);
+}
+
+VKAPI_ATTR void VKAPI_CALL
+wrapper_UpdateDescriptorSets(VkDevice _device, uint32_t descriptorWriteCount,
+                             const VkWriteDescriptorSet *pDescriptorWrites,
+                             uint32_t descriptorCopyCount,
+                             const VkCopyDescriptorSet *pDescriptorCopies)
+{
+   VK_FROM_HANDLE(wrapper_device, device, _device);
+
+   if (!device->emulate_null_descriptor || descriptorWriteCount == 0) {
+      device->dispatch_table.UpdateDescriptorSets(device->dispatch_handle,
+         descriptorWriteCount, pDescriptorWrites, descriptorCopyCount, pDescriptorCopies);
+      return;
+   }
+
+   VkWriteDescriptorSet *writes =
+      malloc(sizeof(VkWriteDescriptorSet) * descriptorWriteCount);
+   memcpy(writes, pDescriptorWrites, sizeof(VkWriteDescriptorSet) * descriptorWriteCount);
+
+   for (uint32_t i = 0; i < descriptorWriteCount; i++) {
+      const VkWriteDescriptorSet *w = &pDescriptorWrites[i];
+      uint32_t n = w->descriptorCount;
+      switch (w->descriptorType) {
+      case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER:
+      case VK_DESCRIPTOR_TYPE_STORAGE_BUFFER:
+      case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC:
+      case VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC: {
+         VkDescriptorBufferInfo *bi = malloc(sizeof(*bi) * n);
+         memcpy(bi, w->pBufferInfo, sizeof(*bi) * n);
+         for (uint32_t j = 0; j < n; j++)
+            if (bi[j].buffer == VK_NULL_HANDLE) {
+               bi[j].buffer = device->null_buffer;
+               bi[j].offset = 0; bi[j].range = VK_WHOLE_SIZE;
+            }
+         writes[i].pBufferInfo = bi;
+         break;
+      }
+      case VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE:
+      case VK_DESCRIPTOR_TYPE_STORAGE_IMAGE:
+      case VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER:
+      case VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT:
+      case VK_DESCRIPTOR_TYPE_SAMPLER: {
+         VkDescriptorImageInfo *ii = malloc(sizeof(*ii) * n);
+         memcpy(ii, w->pImageInfo, sizeof(*ii) * n);
+         for (uint32_t j = 0; j < n; j++) {
+            if ((w->descriptorType != VK_DESCRIPTOR_TYPE_SAMPLER) &&
+                ii[j].imageView == VK_NULL_HANDLE) {
+               ii[j].imageView = device->null_image_view;
+               ii[j].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+            }
+            if ((w->descriptorType == VK_DESCRIPTOR_TYPE_SAMPLER ||
+                 w->descriptorType == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER) &&
+                ii[j].sampler == VK_NULL_HANDLE)
+               ii[j].sampler = device->null_sampler;
+         }
+         writes[i].pImageInfo = ii;
+         break;
+      }
+      default:
+         break;
+      }
+   }
+
+   device->dispatch_table.UpdateDescriptorSets(device->dispatch_handle,
+      descriptorWriteCount, writes, descriptorCopyCount, pDescriptorCopies);
+
+   for (uint32_t i = 0; i < descriptorWriteCount; i++) {
+      if (writes[i].pBufferInfo != pDescriptorWrites[i].pBufferInfo)
+         free((void *)writes[i].pBufferInfo);
+      if (writes[i].pImageInfo != pDescriptorWrites[i].pImageInfo)
+         free((void *)writes[i].pImageInfo);
+   }
+   free(writes);
+}
+
+VKAPI_ATTR void VKAPI_CALL
+wrapper_CmdBindVertexBuffers2(VkCommandBuffer commandBuffer, uint32_t firstBinding,
+                             uint32_t bindingCount, const VkBuffer *pBuffers,
+                             const VkDeviceSize *pOffsets, const VkDeviceSize *pSizes,
+                             const VkDeviceSize *pStrides)
+{
+   VK_FROM_HANDLE(wrapper_command_buffer, wcb, commandBuffer);
+   struct wrapper_device *device = wcb->device;
+   VkBuffer *bufs = NULL;
+   if (device->emulate_null_descriptor && pBuffers) {
+      bufs = malloc(sizeof(VkBuffer) * bindingCount);
+      for (uint32_t i = 0; i < bindingCount; i++)
+         bufs[i] = pBuffers[i] ? pBuffers[i] : device->null_buffer;
+   }
+   device->dispatch_table.CmdBindVertexBuffers2(wcb->dispatch_handle, firstBinding,
+      bindingCount, bufs ? bufs : pBuffers, pOffsets, pSizes, pStrides);
+   free(bufs);
+}
+
+VKAPI_ATTR void VKAPI_CALL
+wrapper_CmdBindVertexBuffers(VkCommandBuffer commandBuffer, uint32_t firstBinding,
+                            uint32_t bindingCount, const VkBuffer *pBuffers,
+                            const VkDeviceSize *pOffsets)
+{
+   VK_FROM_HANDLE(wrapper_command_buffer, wcb, commandBuffer);
+   struct wrapper_device *device = wcb->device;
+   VkBuffer *bufs = NULL;
+   if (device->emulate_null_descriptor && pBuffers) {
+      bufs = malloc(sizeof(VkBuffer) * bindingCount);
+      for (uint32_t i = 0; i < bindingCount; i++)
+         bufs[i] = pBuffers[i] ? pBuffers[i] : device->null_buffer;
+   }
+   device->dispatch_table.CmdBindVertexBuffers(wcb->dispatch_handle, firstBinding,
+      bindingCount, bufs ? bufs : pBuffers, pOffsets);
+   free(bufs);
 }
 
 VKAPI_ATTR VkResult VKAPI_CALL
@@ -341,6 +537,14 @@ if (pdf2 && pdf2->features.f) { \
       physical_device->instance->dispatch_handle, "vkGetDeviceProcAddr");
    vk_device_dispatch_table_load(&device->dispatch_table, gdpa,
                                  device->dispatch_handle);
+
+   device->emulate_null_descriptor =
+      physical_device->vk.supported_extensions.EXT_robustness2 &&
+      !physical_device->base_supported_features.nullDescriptor;
+   if (device->emulate_null_descriptor) {
+      WRAPPER_LOG(info, "Emulating nullDescriptor with canonical zero resources");
+      wrapper_create_null_resources(device);
+   }
 
    result = wrapper_create_device_queue(device, pCreateInfo);
    if (result != VK_SUCCESS) {
@@ -504,6 +708,18 @@ wrapper_CreateImage(VkDevice _device,
       create_info.format = get_format_for_bcn(pCreateInfo->format);
       if (create_info.flags & VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT)
          create_info.flags &= ~VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT;
+
+      for (const VkBaseInStructure *s = pCreateInfo->pNext; s; s = s->pNext) {
+         if (s->sType == VK_STRUCTURE_TYPE_IMAGE_FORMAT_LIST_CREATE_INFO) {
+            const VkImageFormatListCreateInfo *fl =
+               (const VkImageFormatListCreateInfo *)s;
+            for (uint32_t i = 0; i < fl->viewFormatCount; i++) {
+               if (is_emulated_bcn(device->physical, fl->pViewFormats[i]))
+                  ((VkFormat *)fl->pViewFormats)[i] =
+                     get_format_for_bcn(fl->pViewFormats[i]);
+            }
+         }
+      }
    }
 
    res = device->dispatch_table.CreateImage(device->dispatch_handle,

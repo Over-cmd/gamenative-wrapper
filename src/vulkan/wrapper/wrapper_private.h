@@ -35,6 +35,7 @@ struct wrapper_physical_device {
 
    int dma_heap_fd;
    int emulate_bcn;
+   bool is_vkd3d;
    char *resource_type;
    VkPhysicalDevice dispatch_handle;
    VkPhysicalDeviceProperties2 properties2;
@@ -75,6 +76,14 @@ struct wrapper_device {
    struct hash_table_u64 *fence_table;
    struct wrapper_physical_device *physical;
    struct vk_device_dispatch_table dispatch_table;
+
+   bool emulate_null_descriptor;
+   VkBuffer null_buffer;
+   VkDeviceMemory null_buffer_memory;
+   VkImage null_image;
+   VkDeviceMemory null_image_memory;
+   VkImageView null_image_view;
+   VkSampler null_sampler;
 };
 
 VK_DEFINE_HANDLE_CASTS(wrapper_device, vk.base, VkDevice,

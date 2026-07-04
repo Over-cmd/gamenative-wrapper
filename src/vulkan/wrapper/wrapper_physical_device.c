@@ -1,4 +1,5 @@
 #include <math.h>
+#include <fcntl.h>
 
 #include "wrapper_private.h"
 #include "wrapper_log.h"
@@ -237,7 +238,7 @@ VkResult enumerate_physical_device(struct vk_instance *_instance)
 
      WRAPPER_LOG(info, "GPU Name: %s", pdevice->properties2.properties.deviceName);
      WRAPPER_LOG(info, "Driver Version: %s", get_driver_version(pdevice->properties2.properties.driverVersion));
-     
+
       const char *app_name = instance->vk.app_info.app_name
          ? instance->vk.app_info.app_name : "wrapper";
 
@@ -271,19 +272,36 @@ VkResult enumerate_physical_device(struct vk_instance *_instance)
       }
 
       if (pdevice->driver_properties.driverID == VK_DRIVER_ID_ARM_PROPRIETARY) {
-         if (strstr(engine_name, "DXVK")) {
-            WRAPPER_LOG(info, "Faking VK_EXT_robustness2");
+         bool is_dxvk = strstr(engine_name, "DXVK");
+         bool is_vkd3d = strstr(engine_name, "vkd3d");
+         bool is_d3d = is_dxvk || is_vkd3d;
+         pdevice->is_vkd3d = is_vkd3d;
+         if (is_d3d) {
+            WRAPPER_LOG(info, "Faking VK_EXT_robustness2 for engine '%s'", engine_name);
             pdevice->vk.supported_extensions.EXT_robustness2 = true;
-            WRAPPER_LOG(info, "Faking dualSrcBlend feature");
+            supported_features->robustBufferAccess2 = true;
+            supported_features->nullDescriptor = true;
+            if (is_dxvk && engine_version >= VK_MAKE_VERSION(2, 7, 0)) {
+               WRAPPER_LOG(info, "Faking VK_KHR_pipeline_library");
+               pdevice->vk.supported_extensions.KHR_pipeline_library = true;
+            }
+            supported_features->extendedDynamicState = true;
+            supported_features->extendedDynamicState2 = true;
             supported_features->dualSrcBlend = true;
-         	WRAPPER_LOG(info, "Faking multiDrawIndirect feature");
             supported_features->multiDrawIndirect = true;
+         }
+         if (is_d3d && pdevice->base_supported_extensions.KHR_vertex_attribute_divisor) {
+            WRAPPER_LOG(info, "Aliasing VK_EXT_vertex_attribute_divisor -> KHR (Mali has KHR)");
+            pdevice->vk.supported_extensions.EXT_vertex_attribute_divisor = true;
+            pdevice->vk.supported_extensions.KHR_vertex_attribute_divisor = false;
          }
          WRAPPER_LOG(info, "Disabling VK_EXT_calibrated_timestamps");
          pdevice->vk.supported_extensions.EXT_calibrated_timestamps = false;
-         WRAPPER_LOG(info, "Disabling VK_EXT_extended_dynamic_state and VK_EXT_extended_dynamic_state2");
-         pdevice->vk.supported_extensions.EXT_extended_dynamic_state = false;
-         pdevice->vk.supported_extensions.EXT_extended_dynamic_state2 = false;
+         if (!is_d3d) {
+            WRAPPER_LOG(info, "Disabling VK_EXT_extended_dynamic_state and VK_EXT_extended_dynamic_state2");
+            pdevice->vk.supported_extensions.EXT_extended_dynamic_state = false;
+            pdevice->vk.supported_extensions.EXT_extended_dynamic_state2 = false;
+         }
       }
 
       char *wrapper_emulate_bcn_env = getenv("WRAPPER_EMULATE_BCN");
@@ -357,8 +375,35 @@ wrapper_GetPhysicalDeviceFeatures(VkPhysicalDevice physicalDevice,
 
 VKAPI_ATTR void VKAPI_CALL
 wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
-                                   VkPhysicalDeviceFeatures2* pFeatures) {                                                              
+                                   VkPhysicalDeviceFeatures2* pFeatures) {
+   VK_FROM_HANDLE(wrapper_physical_device, pdevice, physicalDevice);
    vk_common_GetPhysicalDeviceFeatures2(physicalDevice, pFeatures);
+
+   if (pdevice->driver_properties.driverID == VK_DRIVER_ID_ARM_PROPRIETARY &&
+       pdevice->vk.supported_extensions.EXT_robustness2) {
+      vk_foreach_struct(s, pFeatures->pNext) {
+         if (s->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ROBUSTNESS_2_FEATURES_EXT) {
+            VkPhysicalDeviceRobustness2FeaturesEXT *r2 =
+               (VkPhysicalDeviceRobustness2FeaturesEXT *)s;
+            r2->robustBufferAccess2 = VK_TRUE;
+            r2->nullDescriptor = VK_TRUE;
+            if (pdevice->is_vkd3d)
+               r2->robustImageAccess2 = VK_TRUE;
+         }
+         if (s->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTENDED_DYNAMIC_STATE_FEATURES_EXT) {
+            ((VkPhysicalDeviceExtendedDynamicStateFeaturesEXT *)s)->extendedDynamicState = VK_TRUE;
+         }
+         if (s->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTENDED_DYNAMIC_STATE_2_FEATURES_EXT) {
+            ((VkPhysicalDeviceExtendedDynamicState2FeaturesEXT *)s)->extendedDynamicState2 = VK_TRUE;
+         }
+         if (s->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VERTEX_ATTRIBUTE_DIVISOR_FEATURES_EXT) {
+            VkPhysicalDeviceVertexAttributeDivisorFeaturesEXT *vad =
+               (VkPhysicalDeviceVertexAttributeDivisorFeaturesEXT *)s;
+            vad->vertexAttributeInstanceRateDivisor = VK_TRUE;
+            vad->vertexAttributeInstanceRateZeroDivisor = VK_TRUE;
+         }
+      }
+   }
 }
 
 VKAPI_ATTR void VKAPI_CALL
@@ -426,6 +471,21 @@ wrapper_GetPhysicalDeviceProperties2(VkPhysicalDevice physicalDevice,
 
    vk_foreach_struct(prop, pProperties->pNext) {
       switch (prop->sType) {
+      case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VERTEX_ATTRIBUTE_DIVISOR_PROPERTIES_EXT:
+      {
+         VkPhysicalDeviceVertexAttributeDivisorPropertiesKHR khr_vad = {
+            .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VERTEX_ATTRIBUTE_DIVISOR_PROPERTIES_KHR,
+         };
+         VkPhysicalDeviceProperties2 p2 = {
+            .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2,
+            .pNext = &khr_vad,
+         };
+         pdevice->dispatch_table.GetPhysicalDeviceProperties2(
+            pdevice->dispatch_handle, &p2);
+         ((VkPhysicalDeviceVertexAttributeDivisorPropertiesEXT *)prop)->maxVertexAttribDivisor =
+            khr_vad.maxVertexAttribDivisor;
+         break;
+      }
       case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAP_MEMORY_PLACED_PROPERTIES_EXT:
       {
          VkPhysicalDeviceMapMemoryPlacedPropertiesEXT *placed_prop =
