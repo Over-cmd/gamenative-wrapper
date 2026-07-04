@@ -274,4 +274,164 @@ astc_encode_block_4x4(const uint8_t texels[64], int has_alpha, uint8_t out[16])
       astc_encode_rgb_4x4(texels, out);
 }
 
+/* ---- 8x8 blocks: same encoders but over 64 texels with a 4x4 weight grid, the
+ * grid weights least-squares-fit to the per-texel ideal weights via the infill
+ * pseudo-inverse (x256 fixed point). The block mode is identical to 4x4 (it
+ * encodes the weight grid, not the block); ASTC_8x8 format tells the decoder to
+ * infill the grid up to 64 texels. ---- */
+static const int16_t astc_pinv8[16][64] = {
+  {166,75,-16,-25,-4,10,4,-3,75,33,-9,-10,-3,5,2,-2,-16,-9,-2,5,-1,-1,0,0,-25,-10,5,5,0,-2,-1,0,-4,-3,-1,0,1,0,0,0,10,5,-1,-2,0,0,0,0,4,2,0,-1,0,0,0,0,-3,-2,0,0,0,0,0,0},
+  {-42,45,132,93,17,-39,-14,12,-20,21,62,39,10,-19,-6,6,3,-3,-8,-15,4,1,1,0,5,-8,-21,-16,-1,6,2,-1,1,-1,-3,-1,-2,1,0,0,-2,3,7,6,1,-2,-1,0,-1,1,2,2,0,-1,0,0,1,-1,-2,-2,-1,0,0,0},
+  {12,-14,-39,17,93,132,45,-42,6,-6,-19,10,39,62,21,-20,0,1,1,4,-15,-8,-3,3,-1,2,6,-1,-16,-21,-8,5,0,0,1,-2,-1,-3,-1,1,0,-1,-2,1,6,7,3,-2,0,0,-1,0,2,2,1,-1,0,0,0,-1,-2,-2,-1,1},
+  {-3,4,10,-4,-25,-16,75,166,-2,2,5,-3,-10,-9,33,75,0,0,-1,-1,5,-2,-9,-16,0,-1,-2,0,5,5,-10,-25,0,0,0,1,0,-1,-3,-4,0,0,0,0,-2,-1,5,10,0,0,0,0,-1,0,2,4,0,0,0,0,0,0,-2,-3},
+  {-42,-20,3,5,1,-2,-1,1,45,21,-3,-8,-1,3,1,-1,132,62,-8,-21,-3,7,2,-2,93,39,-15,-16,-1,6,2,-2,17,10,4,-1,-2,1,0,-1,-39,-19,1,6,1,-2,-1,0,-14,-6,1,2,0,-1,0,0,12,6,0,-1,0,0,0,0},
+  {12,-10,-32,-23,-5,9,3,-3,-10,12,34,28,2,-9,-3,3,-32,34,99,79,10,-27,-9,9,-23,28,79,59,4,-22,-8,7,-5,2,10,4,8,-4,-1,2,9,-9,-27,-22,-4,6,2,-2,3,-3,-9,-8,-1,2,1,-1,-3,3,9,7,2,-2,-1,1},
+  {-3,3,9,-5,-23,-32,-10,12,3,-3,-9,2,28,34,12,-10,9,-9,-27,10,79,99,34,-32,7,-8,-22,4,59,79,28,-23,2,-1,-4,8,4,10,2,-5,-2,2,6,-4,-22,-27,-9,9,-1,1,2,-1,-8,-9,-3,3,1,-1,-2,2,7,9,3,-3},
+  {1,-1,-2,1,5,3,-20,-42,-1,1,3,-1,-8,-3,21,45,-2,2,7,-3,-21,-8,62,132,-2,2,6,-1,-16,-15,39,93,-1,0,1,-2,-1,4,10,17,0,-1,-2,1,6,1,-19,-39,0,0,-1,0,2,1,-6,-14,0,0,0,0,-1,0,6,12},
+  {12,6,0,-1,0,0,0,0,-14,-6,1,2,0,-1,0,0,-39,-19,1,6,1,-2,-1,0,17,10,4,-1,-2,1,0,-1,93,39,-15,-16,-1,6,2,-2,132,62,-8,-21,-3,7,2,-2,45,21,-3,-8,-1,3,1,-1,-42,-20,3,5,1,-2,-1,1},
+  {-3,3,9,7,2,-2,-1,1,3,-3,-9,-8,-1,2,1,-1,9,-9,-27,-22,-4,6,2,-2,-5,2,10,4,8,-4,-1,2,-23,28,79,59,4,-22,-8,7,-32,34,99,79,10,-27,-9,9,-10,12,34,28,2,-9,-3,3,12,-10,-32,-23,-5,9,3,-3},
+  {1,-1,-2,2,7,9,3,-3,-1,1,2,-1,-8,-9,-3,3,-2,2,6,-4,-22,-27,-9,9,2,-1,-4,8,4,10,2,-5,7,-8,-22,4,59,79,28,-23,9,-9,-27,10,79,99,34,-32,3,-3,-9,2,28,34,12,-10,-3,3,9,-5,-23,-32,-10,12},
+  {0,0,0,0,-1,0,6,12,0,0,-1,0,2,1,-6,-14,0,-1,-2,1,6,1,-19,-39,-1,0,1,-2,-1,4,10,17,-2,2,6,-1,-16,-15,39,93,-2,2,7,-3,-21,-8,62,132,-1,1,3,-1,-8,-3,21,45,1,-1,-2,1,5,3,-20,-42},
+  {-3,-2,0,0,0,0,0,0,4,2,0,-1,0,0,0,0,10,5,-1,-2,0,0,0,0,-4,-3,-1,0,1,0,0,0,-25,-10,5,5,0,-2,-1,0,-16,-9,-2,5,-1,-1,0,0,75,33,-9,-10,-3,5,2,-2,166,75,-16,-25,-4,10,4,-3},
+  {1,-1,-2,-2,-1,0,0,0,-1,1,2,2,0,-1,0,0,-2,3,7,6,1,-2,-1,0,1,-1,-3,-1,-2,1,0,0,5,-8,-21,-16,-1,6,2,-1,3,-3,-8,-15,4,1,1,0,-20,21,62,39,10,-19,-6,6,-42,45,132,93,17,-39,-14,12},
+  {0,0,0,-1,-2,-2,-1,1,0,0,-1,0,2,2,1,-1,0,-1,-2,1,6,7,3,-2,0,0,1,-2,-1,-3,-1,1,-1,2,6,-1,-16,-21,-8,5,0,1,1,4,-15,-8,-3,3,6,-6,-19,10,39,62,21,-20,12,-14,-39,17,93,132,45,-42},
+  {0,0,0,0,0,0,-2,-3,0,0,0,0,-1,0,2,4,0,0,0,0,-2,-1,5,10,0,0,0,1,0,-1,-3,-4,0,-1,-2,0,5,5,-10,-25,0,0,-1,-1,5,-2,-9,-16,-2,2,5,-3,-10,-9,33,75,-3,4,10,-4,-25,-16,75,166},
+};
+
+static inline int astc_round(double x) { return (int)(x >= 0 ? x + 0.5 : x - 0.5); }
+
+/* Farthest RGB pair over 64 texels. */
+static inline void
+astc_rgb_endpoints64(const uint8_t texels[256], int *ai, int *bi)
+{
+   long best = -1;
+   *ai = 0; *bi = 0;
+   for (int i = 0; i < 64; i++)
+      for (int j = i + 1; j < 64; j++) {
+         long d2 = 0;
+         for (int c = 0; c < 3; c++) {
+            long dc = (long)texels[i * 4 + c] - texels[j * 4 + c];
+            d2 += dc * dc;
+         }
+         if (d2 > best) { best = d2; *ai = i; *bi = j; }
+      }
+}
+
+static inline void
+astc_encode_rgb_8x8(const uint8_t texels[256], uint8_t out[16])
+{
+   memset(out, 0, 16);
+   int ai, bi;
+   astc_rgb_endpoints64(texels, &ai, &bi);
+   const uint8_t *pa = &texels[ai * 4], *pb = &texels[bi * 4];
+   int sa = pa[0] + pa[1] + pa[2], sb = pb[0] + pb[1] + pb[2];
+   const uint8_t *lo = (sb >= sa) ? pa : pb, *hi = (sb >= sa) ? pb : pa;
+   int e0[3] = { lo[0], lo[1], lo[2] }, e1[3] = { hi[0], hi[1], hi[2] };
+
+   astc_set_bits(out, 0, 11, 0x53);
+   astc_set_bits(out, 13, 4, 8);
+   astc_set_bits(out, 17 + 0, 8, e0[0]);  astc_set_bits(out, 17 + 8, 8, e1[0]);
+   astc_set_bits(out, 17 + 16, 8, e0[1]); astc_set_bits(out, 17 + 24, 8, e1[1]);
+   astc_set_bits(out, 17 + 32, 8, e0[2]); astc_set_bits(out, 17 + 40, 8, e1[2]);
+
+   int dir[3]; long dlen2 = 0;
+   for (int c = 0; c < 3; c++) { dir[c] = e1[c] - e0[c]; dlen2 += (long)dir[c] * dir[c]; }
+
+   double ideal[64];
+   for (int t = 0; t < 64; t++) {
+      double w;
+      if (dlen2 == 0) w = 0;
+      else {
+         long dot = 0;
+         for (int c = 0; c < 3; c++) dot += (long)(texels[t * 4 + c] - e0[c]) * dir[c];
+         double f = (double)dot / (double)dlen2;
+         if (f < 0) f = 0; if (f > 1) f = 1;
+         w = f * 7.0;
+      }
+      ideal[t] = w;
+   }
+   for (int g = 0; g < 16; g++) {
+      double a = 0;
+      for (int t = 0; t < 64; t++) a += astc_pinv8[g][t] * ideal[t];
+      int q = astc_round(a / 256.0);
+      if (q < 0) q = 0; if (q > 7) q = 7;
+      astc_set_bits(out, 128 - (g + 1) * 3, 3, astc_reverse_bits((uint32_t)q, 3));
+   }
+}
+
+static inline void
+astc_encode_rgba_8x8(const uint8_t texels[256], uint8_t out[16])
+{
+   memset(out, 0, 16);
+   astc_set_bits(out, 0, 11, 0x442);
+   astc_set_bits(out, 13, 4, 12);
+   int ai, bi;
+   astc_rgb_endpoints64(texels, &ai, &bi);
+   const uint8_t *pa = &texels[ai * 4], *pb = &texels[bi * 4];
+   int sa = pa[0] + pa[1] + pa[2], sb = pb[0] + pb[1] + pb[2];
+   const uint8_t *lo = (sb >= sa) ? pa : pb, *hi = (sb >= sa) ? pb : pa;
+   int amin = 255, amax = 0;
+   for (int i = 0; i < 64; i++) { int a = texels[i * 4 + 3]; if (a < amin) amin = a; if (a > amax) amax = a; }
+   int e0[4] = { lo[0], lo[1], lo[2], amin }, e1[4] = { hi[0], hi[1], hi[2], amax };
+
+   int q[8] = {
+      astc_quantize_ce(e0[0]), astc_quantize_ce(e1[0]),
+      astc_quantize_ce(e0[1]), astc_quantize_ce(e1[1]),
+      astc_quantize_ce(e0[2]), astc_quantize_ce(e1[2]),
+      astc_quantize_ce(e0[3]), astc_quantize_ce(e1[3]),
+   };
+   int s0 = astc_ce_unq[q[0]] + astc_ce_unq[q[2]] + astc_ce_unq[q[4]];
+   int s1 = astc_ce_unq[q[1]] + astc_ce_unq[q[3]] + astc_ce_unq[q[5]];
+   int swap = s1 < s0;
+   if (swap)
+      for (int k = 0; k < 8; k += 2) { int tmp = q[k]; q[k] = q[k + 1]; q[k + 1] = tmp; }
+   astc_write_trit_endpoints(out, q);
+   astc_set_bits(out, 62, 2, 3);
+
+   int dir[3]; long dlen2 = 0;
+   for (int c = 0; c < 3; c++) { dir[c] = e1[c] - e0[c]; dlen2 += (long)dir[c] * dir[c]; }
+   int arange = amax - amin;
+
+   double id0[64], id1[64];
+   for (int t = 0; t < 64; t++) {
+      double w0;
+      if (dlen2 == 0) w0 = 0;
+      else {
+         long dot = 0;
+         for (int c = 0; c < 3; c++) dot += (long)(texels[t * 4 + c] - e0[c]) * dir[c];
+         double f = (double)dot / (double)dlen2;
+         if (f < 0) f = 0; if (f > 1) f = 1;
+         w0 = f * 3.0;
+      }
+      double w1;
+      if (arange == 0) w1 = 0;
+      else {
+         double f = (double)(texels[t * 4 + 3] - amin) / (double)arange;
+         if (f < 0) f = 0; if (f > 1) f = 1;
+         w1 = f * 3.0;
+      }
+      if (swap) { w0 = 3.0 - w0; w1 = 3.0 - w1; }
+      id0[t] = w0; id1[t] = w1;
+   }
+   for (int g = 0; g < 16; g++) {
+      double a0 = 0, a1 = 0;
+      for (int t = 0; t < 64; t++) { a0 += astc_pinv8[g][t] * id0[t]; a1 += astc_pinv8[g][t] * id1[t]; }
+      int q0 = astc_round(a0 / 256.0), q1 = astc_round(a1 / 256.0);
+      if (q0 < 0) q0 = 0; if (q0 > 3) q0 = 3;
+      if (q1 < 0) q1 = 0; if (q1 > 3) q1 = 3;
+      astc_set_bits(out, 128 - (2 * g + 1) * 2, 2, astc_reverse_bits((uint32_t)q0, 2));
+      astc_set_bits(out, 128 - (2 * g + 2) * 2, 2, astc_reverse_bits((uint32_t)q1, 2));
+   }
+}
+
+/* Encode an 8x8 RGBA8 block (64 texels, row-major) into a 16-byte ASTC block. */
+static inline void
+astc_encode_block_8x8(const uint8_t texels[256], int has_alpha, uint8_t out[16])
+{
+   if (has_alpha)
+      astc_encode_rgba_8x8(texels, out);
+   else
+      astc_encode_rgb_8x8(texels, out);
+}
+
 #endif /* WRAPPER_ASTC_H */

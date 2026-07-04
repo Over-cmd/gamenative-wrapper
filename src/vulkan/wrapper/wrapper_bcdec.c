@@ -28,11 +28,37 @@ astc_enabled(void)
    return e;
 }
 
+/* ASTC block footprint: 0 = 4x4 (8bpp, crisp), 1 = 8x8 (2bpp, 4x smaller/softer).
+ * Selected by WRAPPER_ASTC_BLOCK ("4x4" default, "8x8"). */
+static int
+astc_block8(void)
+{
+   static int b = -1;
+   if (b == -1) {
+      const char *e = getenv("WRAPPER_ASTC_BLOCK");
+      b = (e && strstr(e, "8x8")) ? 1 : 0;
+   }
+   return b;
+}
+
 int
 is_astc_4x4(VkFormat format)
 {
    return format == VK_FORMAT_ASTC_4x4_UNORM_BLOCK ||
           format == VK_FORMAT_ASTC_4x4_SRGB_BLOCK;
+}
+
+int
+is_astc_8x8(VkFormat format)
+{
+   return format == VK_FORMAT_ASTC_8x8_UNORM_BLOCK ||
+          format == VK_FORMAT_ASTC_8x8_SRGB_BLOCK;
+}
+
+int
+is_astc(VkFormat format)
+{
+   return is_astc_4x4(format) || is_astc_8x8(format);
 }
 
 static int
@@ -62,6 +88,9 @@ struct decompression_params {
    int stride;
    int texel_size;
    int astc;
+   int astc8;
+   int bc_bx;      /* BC grid width in blocks (astc8 bounds) */
+   int bc_by;      /* BC grid height in blocks (astc8 bounds) */
    int has_alpha;
    VkFormat format;
    char *src;
@@ -91,6 +120,48 @@ decompression_routine(void *args)
 
    char *dst_base = params->dst;
    int block_size = get_block_size(params->format);
+
+   /* 8x8 ASTC: one block per 2x2 group of BC blocks. Decode the 4 BC blocks into
+    * an 8x8 RGBA scratch (row stride 32 bytes), then encode one ASTC 8x8 block. */
+   if (params->astc8) {
+      for (int by = 0; by < params->block_y_count; by++) {
+         int BY = params->block_y_start + by;
+         for (int BX = 0; BX < params->block_x; BX++) {
+            unsigned char scratch[256];
+            memset(scratch, 0, sizeof(scratch));
+            for (int dy = 0; dy < 2; dy++) {
+               for (int dx = 0; dx < 2; dx++) {
+                  int bcx = 2 * BX + dx, bcy = 2 * BY + dy;
+                  if (bcx >= params->bc_bx || bcy >= params->bc_by)
+                     continue;
+                  char *sblk = params->src +
+                     ((size_t)bcy * params->block_x_src + bcx) * block_size;
+                  unsigned char *dsub = scratch + (dy * 4) * 32 + (dx * 4) * 4;
+                  switch (params->format) {
+                  case VK_FORMAT_BC1_RGB_UNORM_BLOCK:
+                  case VK_FORMAT_BC1_RGB_SRGB_BLOCK:
+                  case VK_FORMAT_BC1_RGBA_SRGB_BLOCK:
+                  case VK_FORMAT_BC1_RGBA_UNORM_BLOCK:
+                     bcdec_bc1(sblk, dsub, 32); break;
+                  case VK_FORMAT_BC2_SRGB_BLOCK:
+                  case VK_FORMAT_BC2_UNORM_BLOCK:
+                     bcdec_bc2(sblk, dsub, 32); break;
+                  case VK_FORMAT_BC3_UNORM_BLOCK:
+                  case VK_FORMAT_BC3_SRGB_BLOCK:
+                     bcdec_bc3(sblk, dsub, 32); break;
+                  case VK_FORMAT_BC7_SRGB_BLOCK:
+                  case VK_FORMAT_BC7_UNORM_BLOCK:
+                     bcdec_bc7(sblk, dsub, 32); break;
+                  default: break;
+                  }
+               }
+            }
+            astc_encode_block_8x8(scratch, params->has_alpha,
+               (unsigned char *)dst_base + ((size_t)BY * params->block_x + BX) * 16);
+         }
+      }
+      return NULL;
+   }
 
    for (int by = 0; by < params->block_y_count; by++) {
       for (int bx = 0; bx < params->block_x; bx++) {
@@ -209,19 +280,20 @@ VkFormat
 get_format_for_bcn(VkFormat bcn_format)
 {
    if (astc_enabled()) {
+      int b8 = astc_block8();
       switch (bcn_format) {
       case VK_FORMAT_BC1_RGB_SRGB_BLOCK:
       case VK_FORMAT_BC1_RGBA_SRGB_BLOCK:
       case VK_FORMAT_BC2_SRGB_BLOCK:
       case VK_FORMAT_BC3_SRGB_BLOCK:
       case VK_FORMAT_BC7_SRGB_BLOCK:
-         return VK_FORMAT_ASTC_4x4_SRGB_BLOCK;
+         return b8 ? VK_FORMAT_ASTC_8x8_SRGB_BLOCK : VK_FORMAT_ASTC_4x4_SRGB_BLOCK;
       case VK_FORMAT_BC1_RGB_UNORM_BLOCK:
       case VK_FORMAT_BC1_RGBA_UNORM_BLOCK:
       case VK_FORMAT_BC2_UNORM_BLOCK:
       case VK_FORMAT_BC3_UNORM_BLOCK:
       case VK_FORMAT_BC7_UNORM_BLOCK:
-         return VK_FORMAT_ASTC_4x4_UNORM_BLOCK;
+         return b8 ? VK_FORMAT_ASTC_8x8_UNORM_BLOCK : VK_FORMAT_ASTC_4x4_UNORM_BLOCK;
       default:
          break;
       }
@@ -234,7 +306,10 @@ get_format_for_bcn(VkFormat bcn_format)
 size_t
 bcn_upload_size(VkFormat bcn_format, int w, int h)
 {
-   if (is_astc_4x4(get_format_for_bcn(bcn_format)))
+   VkFormat img = get_format_for_bcn(bcn_format);
+   if (is_astc_8x8(img))
+      return (size_t)((w + 7) / 8) * ((h + 7) / 8) * 16;
+   if (is_astc_4x4(img))
       return (size_t)((w + 3) / 4) * ((h + 3) / 4) * 16;
    return (size_t)w * h *
       get_texel_size_for_format(get_decode_format_for_bcn(bcn_format));
@@ -325,6 +400,7 @@ decompress_bcn_format(void *srcBuffer,
       wrapper_cache_path = getenv("WRAPPER_CACHE_PATH") ? getenv("WRAPPER_CACHE_PATH") : WRAPPER_CACHE_DIR;
 
    int astc = is_astc_4x4(get_format_for_bcn(format));
+   int astc8 = is_astc_8x8(get_format_for_bcn(format));
    int has_alpha = bcn_has_alpha(format);
    int texel_size = get_texel_size_for_format(get_decode_format_for_bcn(format));
    int block_size = get_block_size(format);
@@ -332,9 +408,12 @@ decompress_bcn_format(void *srcBuffer,
    /* source row stride in blocks (bufferRowLength may pad rows wider than w) */
    int block_x_src = ((src_w > 0 ? src_w : w) + 3) / 4;
    int block_y = (h + 3) / 4;
+   int block_x8 = (w + 7) / 8;
+   int block_y8 = (h + 7) / 8;
    int stride = w * texel_size;
    int compressed_size = (block_x * block_y * block_size);
-   int uncompressed_size = astc ? (block_x * block_y * 16) : (w * h * texel_size);
+   int uncompressed_size = astc8 ? (block_x8 * block_y8 * 16)
+                                 : (astc ? (block_x * block_y * 16) : (w * h * texel_size));
    char *src = srcBuffer + offset;
    char *dst = dstBuffer;
 
@@ -433,8 +512,39 @@ decompress_bcn_format(void *srcBuffer,
    }
 
 
-   if (wrapper_no_bcn_thread) {
-      WRAPPER_LOG(bcn, "Decompressing %dx%d BCN %d texture from main thread", 
+   if (astc8) {
+      /* 8x8 ASTC: each block covers a 2x2 group of BC blocks (8 = 2*4, aligned).
+       * Decode the 4 BC blocks into an 8x8 RGBA scratch, then encode one ASTC
+       * 8x8 block. Threaded over 8x8-block rows. */
+      int core_count = sysconf(_SC_NPROCESSORS_CONF);
+      int num_threads = (block_y8 >= core_count) ? core_count : (block_y8 >= 4 ? 4 : 1);
+      int rows_per = block_y8 / num_threads, rem = block_y8 % num_threads;
+      pthread_t *threads = malloc(sizeof(pthread_t) * num_threads);
+      struct decompression_params *args = malloc(sizeof(struct decompression_params) * num_threads);
+      int cur = 0;
+      for (int i = 0; i < num_threads; i++) {
+         int rows = rows_per + ((i < rem) ? 1 : 0);
+         args[i].src = src;                 /* full src; absolute BC addressing */
+         args[i].dst = dst;
+         args[i].block_x = block_x8;         /* ASTC 8x8 grid width */
+         args[i].block_x_src = block_x_src;  /* BC source row stride (blocks) */
+         args[i].format = format;
+         args[i].block_y_count = rows;
+         args[i].block_y_start = cur;
+         args[i].texel_size = block_size;    /* BC block bytes */
+         args[i].bc_bx = block_x;
+         args[i].bc_by = block_y;
+         args[i].astc = 0;
+         args[i].astc8 = 1;
+         args[i].has_alpha = has_alpha;
+         pthread_create(&threads[i], NULL, decompression_routine, &args[i]);
+         cur += rows;
+      }
+      for (int i = 0; i < num_threads; i++) pthread_join(threads[i], NULL);
+      free(threads);
+      free(args);
+   } else if (wrapper_no_bcn_thread) {
+      WRAPPER_LOG(bcn, "Decompressing %dx%d BCN %d texture from main thread",
          w, h, format);
          
       struct decompression_params args[1];
@@ -448,6 +558,7 @@ decompress_bcn_format(void *srcBuffer,
       args[0].stride = stride;
       args[0].texel_size = texel_size;
       args[0].astc = astc;
+      args[0].astc8 = 0;
       args[0].has_alpha = has_alpha;
       decompression_routine(&args[0]);
    } else {
@@ -482,6 +593,7 @@ decompress_bcn_format(void *srcBuffer,
          args[i].stride = stride;
          args[i].texel_size = texel_size;
          args[i].astc = astc;
+         args[i].astc8 = 0;
          args[i].has_alpha = has_alpha;
          pthread_create(&threads[i], NULL, decompression_routine, &args[i]);
          current_row += rows;

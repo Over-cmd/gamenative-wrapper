@@ -1192,10 +1192,12 @@ wrapper_AllocateCommandBuffers(VkDevice _device,
 
 struct wrapper_bcn_pc {
    uint32_t block_x, block_x_src, block_y, src_word_off, format, has_alpha;
+   uint32_t astc8, bc_bx, bc_by;
 };
 
-/* Shader format id for a BC format, or -1 if the GPU shader can't decode it yet
- * (those fall back to the CPU path). Milestone 1: BC1 only. */
+/* Shader format id for a BC format, or -1 if the GPU shader can't decode it
+ * (those fall back to the CPU path). The shader now produces ASTC 4x4 OR 8x8
+ * (selected per-dispatch via the astc8 push constant), so both are on the GPU. */
 static int
 wrapper_bcn_gpu_format_id(VkFormat format)
 {
@@ -1349,6 +1351,7 @@ wrapper_bcn_gpu_copy(struct wrapper_command_buffer *wcb,
 {
    int block_size = (fmt_id == 0) ? 8 : 16;   /* BC1=8, BC7=16 bytes/block */
    uint32_t has_alpha = (fmt_id == 0) ? 0 : 1; /* BC1 opaque, BC7 alpha */
+   int astc8 = is_astc_8x8(get_format_for_bcn(format)) ? 1 : 0;
    /* In-flight transient ceiling; beyond it, uploads fall back to CPU. Tunable
     * per device RAM via WRAPPER_BCN_GPU_CAP_MB (default 128 MB). */
    static VkDeviceSize CAP = 0;
@@ -1366,10 +1369,14 @@ wrapper_bcn_gpu_copy(struct wrapper_command_buffer *wcb,
       if (offset % 4 != 0)
          return false; /* CmdCopyBuffer needs 4-aligned offsets; fall back to CPU */
       int src_w = region.bufferRowLength ? (int)region.bufferRowLength : w;
-      int block_x = (w + 3) / 4;
-      int block_y = (h + 3) / 4;
+      /* BC-block extents of the real texture, and the source row stride. */
+      int bc_bx = (w + 3) / 4;
+      int bc_by = (h + 3) / 4;
       int block_x_src = (src_w + 3) / 4;
-      VkDeviceSize src_size = (VkDeviceSize)block_x_src * block_y * block_size;
+      /* Destination ASTC block grid: 8x8 blocks pack 2x2 BC blocks each. */
+      int block_x = astc8 ? (w + 7) / 8 : bc_bx;
+      int block_y = astc8 ? (h + 7) / 8 : bc_by;
+      VkDeviceSize src_size = (VkDeviceSize)block_x_src * bc_by * block_size;
       VkDeviceSize dst_size = (VkDeviceSize)block_x * block_y * 16;
       VkDeviceSize total = src_size + dst_size;
 
@@ -1461,6 +1468,7 @@ wrapper_bcn_gpu_copy(struct wrapper_command_buffer *wcb,
       struct wrapper_bcn_pc pc = {
          .block_x = block_x, .block_x_src = block_x_src, .block_y = block_y,
          .src_word_off = 0, .format = fmt_id, .has_alpha = has_alpha,
+         .astc8 = astc8, .bc_bx = bc_bx, .bc_by = bc_by,
       };
       device->dispatch_table.CmdPushConstants(wcb->dispatch_handle,
          device->bcn_pipe_layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pc), &pc);
