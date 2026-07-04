@@ -26,6 +26,7 @@ decompress_bcn_format(void *srcBuffer,
                       void *dstBuffer,
                       int w,
                       int h,
+                      int src_w,
                       VkFormat format,
                       int offset);
 

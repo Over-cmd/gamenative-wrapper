@@ -662,6 +662,34 @@ wrapper_BindBufferMemory(VkDevice _device,
    return VK_SUCCESS;
 }
 
+VKAPI_ATTR VkResult VKAPI_CALL
+wrapper_BindBufferMemory2(VkDevice _device,
+                          uint32_t bindInfoCount,
+                          const VkBindBufferMemoryInfo *pBindInfos)
+{
+   VK_FROM_HANDLE(wrapper_device, device, _device);
+   VkResult res;
+
+   res = device->dispatch_table.BindBufferMemory2(device->dispatch_handle,
+      bindInfoCount, pBindInfos);
+
+   if (res != VK_SUCCESS) {
+      WRAPPER_LOG(error, "Failed to bind buffer memory2, res %d", res);
+      return res;
+   }
+
+   for (uint32_t i = 0; i < bindInfoCount; i++) {
+      struct wrapper_buffer *wb =
+         get_wrapper_buffer_from_handle(device, pBindInfos[i].buffer);
+      if (wb) {
+         wb->memory = pBindInfos[i].memory;
+         wb->offset = pBindInfos[i].memoryOffset;
+      }
+   }
+
+   return VK_SUCCESS;
+}
+
 VKAPI_ATTR void VKAPI_CALL
 wrapper_DestroyBuffer(VkDevice _device,
 					  VkBuffer buffer,
@@ -1151,34 +1179,24 @@ wrapper_AllocateCommandBuffers(VkDevice _device,
    return result;
 }
 
-VKAPI_ATTR void VKAPI_CALL
-wrapper_CmdCopyBufferToImage(VkCommandBuffer commandBuffer,
-							 VkBuffer srcBuffer,
-							 VkImage dstImage,
-							 VkImageLayout dstLayout,
-							 uint32_t regionCount,
-							 const VkBufferImageCopy *pRegions)
+static void
+wrapper_bcn_do_copy(struct wrapper_command_buffer *wcb,
+                    struct wrapper_device *device,
+                    struct wrapper_buffer *wb,
+                    VkImage dstImage,
+                    VkImageLayout dstLayout,
+                    VkFormat format,
+                    uint32_t regionCount,
+                    const VkBufferImageCopy *pRegions)
 {
-   VK_FROM_HANDLE(wrapper_command_buffer, wcb, commandBuffer);
    VkResult res;
 
-   struct wrapper_device *device = wcb->device;
-   struct wrapper_image *wi = get_wrapper_image_from_handle(device, dstImage);   
-   struct wrapper_buffer *wb = get_wrapper_buffer_from_handle(device, srcBuffer);
-   VkFormat format = wi->info.format;
-
-   if (!wi || !wb || !is_emulated_bcn(device->physical, format)) {
-      device->dispatch_table.CmdCopyBufferToImage(wcb->dispatch_handle,
-         srcBuffer, dstImage, dstLayout, regionCount, pRegions);
-      return;
-   }
-
    simple_mtx_lock(&device->resource_mutex);
-   
+
    if (!wb->is_mapped) {
       res = device->dispatch_table.MapMemory(device->dispatch_handle,
          wb->memory, wb->offset, wb->size, 0, &wb->mapped_address);
-         
+
       if (res != VK_SUCCESS) {
          WRAPPER_LOG(error, "Failed to map source buffer memory, res %d", res);
          simple_mtx_unlock(&device->resource_mutex);
@@ -1187,7 +1205,7 @@ wrapper_CmdCopyBufferToImage(VkCommandBuffer commandBuffer,
 
       wb->is_mapped = 1;
    }
-   
+
    for (int i = 0; i < regionCount; i++) {
       VkBufferImageCopy copy_region = pRegions[i];
       int w = copy_region.imageExtent.width;
@@ -1249,8 +1267,9 @@ wrapper_CmdCopyBufferToImage(VkCommandBuffer commandBuffer,
          return;
       }
 
-      decompress_bcn_format(wb->mapped_address, staging_wb->mapped_address, w, h, format, offset);
-      
+      int src_w = copy_region.bufferRowLength ? (int)copy_region.bufferRowLength : w;
+      decompress_bcn_format(wb->mapped_address, staging_wb->mapped_address, w, h, src_w, format, offset);
+
       copy_region.bufferOffset = 0;
       copy_region.bufferRowLength = 0;
       copy_region.bufferImageHeight = 0;
@@ -1273,6 +1292,62 @@ wrapper_CmdCopyBufferToImage(VkCommandBuffer commandBuffer,
    }
 
    simple_mtx_unlock(&device->resource_mutex);
+}
+
+VKAPI_ATTR void VKAPI_CALL
+wrapper_CmdCopyBufferToImage(VkCommandBuffer commandBuffer,
+							 VkBuffer srcBuffer,
+							 VkImage dstImage,
+							 VkImageLayout dstLayout,
+							 uint32_t regionCount,
+							 const VkBufferImageCopy *pRegions)
+{
+   VK_FROM_HANDLE(wrapper_command_buffer, wcb, commandBuffer);
+   struct wrapper_device *device = wcb->device;
+   struct wrapper_image *wi = get_wrapper_image_from_handle(device, dstImage);
+   struct wrapper_buffer *wb = get_wrapper_buffer_from_handle(device, srcBuffer);
+   VkFormat format = wi ? wi->info.format : VK_FORMAT_UNDEFINED;
+
+   if (!wi || !wb || !is_emulated_bcn(device->physical, format)) {
+      device->dispatch_table.CmdCopyBufferToImage(wcb->dispatch_handle,
+         srcBuffer, dstImage, dstLayout, regionCount, pRegions);
+      return;
+   }
+
+   wrapper_bcn_do_copy(wcb, device, wb, dstImage, dstLayout, format,
+      regionCount, pRegions);
+}
+
+VKAPI_ATTR void VKAPI_CALL
+wrapper_CmdCopyBufferToImage2(VkCommandBuffer commandBuffer,
+                             const VkCopyBufferToImageInfo2 *pInfo)
+{
+   VK_FROM_HANDLE(wrapper_command_buffer, wcb, commandBuffer);
+   struct wrapper_device *device = wcb->device;
+   struct wrapper_image *wi = get_wrapper_image_from_handle(device, pInfo->dstImage);
+   struct wrapper_buffer *wb = get_wrapper_buffer_from_handle(device, pInfo->srcBuffer);
+   VkFormat format = wi ? wi->info.format : VK_FORMAT_UNDEFINED;
+
+   if (!wi || !wb || !is_emulated_bcn(device->physical, format)) {
+      device->dispatch_table.CmdCopyBufferToImage2(wcb->dispatch_handle, pInfo);
+      return;
+   }
+
+   VkBufferImageCopy regions[pInfo->regionCount];
+   for (uint32_t i = 0; i < pInfo->regionCount; i++) {
+      const VkBufferImageCopy2 *r = &pInfo->pRegions[i];
+      regions[i] = (VkBufferImageCopy){
+         .bufferOffset = r->bufferOffset,
+         .bufferRowLength = r->bufferRowLength,
+         .bufferImageHeight = r->bufferImageHeight,
+         .imageSubresource = r->imageSubresource,
+         .imageOffset = r->imageOffset,
+         .imageExtent = r->imageExtent,
+      };
+   }
+
+   wrapper_bcn_do_copy(wcb, device, wb, pInfo->dstImage, pInfo->dstImageLayout,
+      format, pInfo->regionCount, regions);
 }
 
 VKAPI_ATTR void VKAPI_CALL

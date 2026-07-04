@@ -56,6 +56,7 @@ bcn_has_alpha(VkFormat bcn_format)
 
 struct decompression_params {
    int block_x;
+   int block_x_src;
    int block_y_count;
    int block_y_start;
    int stride;
@@ -88,13 +89,17 @@ decompression_routine(void *args)
 {
    struct decompression_params *params = args;
 
-   char *src = params->src;
    char *dst_base = params->dst;
-   
+   int block_size = get_block_size(params->format);
+
    for (int by = 0; by < params->block_y_count; by++) {
       for (int bx = 0; bx < params->block_x; bx++) {
          int pixel_x = (bx * 4);
          int pixel_y = (by + params->block_y_start) * 4;
+         /* Explicit source addressing using the source row block stride, so a
+          * padded bufferRowLength does not misalign subsequent rows. */
+         char *src = params->src +
+            ((size_t)by * params->block_x_src + bx) * block_size;
 
          /* ASTC target: decode the BCn block into a 4x4 RGBA scratch, then
           * re-encode it as one ASTC 4x4 block written to the block grid. */
@@ -106,22 +111,18 @@ decompression_routine(void *args)
             case VK_FORMAT_BC1_RGBA_SRGB_BLOCK:
             case VK_FORMAT_BC1_RGBA_UNORM_BLOCK:
                bcdec_bc1(src, scratch, 16);
-               src += BCDEC_BC1_BLOCK_SIZE;
                break;
             case VK_FORMAT_BC2_SRGB_BLOCK:
             case VK_FORMAT_BC2_UNORM_BLOCK:
                bcdec_bc2(src, scratch, 16);
-               src += BCDEC_BC2_BLOCK_SIZE;
                break;
             case VK_FORMAT_BC3_UNORM_BLOCK:
             case VK_FORMAT_BC3_SRGB_BLOCK:
                bcdec_bc3(src, scratch, 16);
-               src += BCDEC_BC3_BLOCK_SIZE;
                break;
             case VK_FORMAT_BC7_SRGB_BLOCK:
             case VK_FORMAT_BC7_UNORM_BLOCK:
                bcdec_bc7(src, scratch, 16);
-               src += BCDEC_BC7_BLOCK_SIZE;
                break;
             default:
                break;
@@ -142,37 +143,30 @@ decompression_routine(void *args)
             case VK_FORMAT_BC1_RGBA_SRGB_BLOCK:
             case VK_FORMAT_BC1_RGBA_UNORM_BLOCK:
                bcdec_bc1(src, dst, params->stride);
-               src += BCDEC_BC1_BLOCK_SIZE;
                break;
             case VK_FORMAT_BC2_SRGB_BLOCK:
             case VK_FORMAT_BC2_UNORM_BLOCK:
                bcdec_bc2(src, dst, params->stride);
-               src += BCDEC_BC2_BLOCK_SIZE;
                break;
             case VK_FORMAT_BC3_UNORM_BLOCK:
             case VK_FORMAT_BC3_SRGB_BLOCK:
                bcdec_bc3(src, dst, params->stride);
-               src += BCDEC_BC3_BLOCK_SIZE;
                break;
             case VK_FORMAT_BC4_UNORM_BLOCK:
             case VK_FORMAT_BC4_SNORM_BLOCK:
                bcdec_bc4(src, dst, params->stride, params->format == VK_FORMAT_BC4_SNORM_BLOCK);
-               src += BCDEC_BC4_BLOCK_SIZE;
                break;
             case VK_FORMAT_BC5_SNORM_BLOCK:
             case VK_FORMAT_BC5_UNORM_BLOCK:
                bcdec_bc5(src, dst, params->stride, params->format == VK_FORMAT_BC5_SNORM_BLOCK);
-               src += BCDEC_BC5_BLOCK_SIZE;
                break;
             case VK_FORMAT_BC6H_SFLOAT_BLOCK:
             case VK_FORMAT_BC6H_UFLOAT_BLOCK:
                bcdec_bc6h_half(src, dst, (params->stride / params->texel_size) * 3, params->format == VK_FORMAT_BC6H_SFLOAT_BLOCK);
-               src += BCDEC_BC6H_BLOCK_SIZE;
                break;
             case VK_FORMAT_BC7_SRGB_BLOCK:
             case VK_FORMAT_BC7_UNORM_BLOCK:
                bcdec_bc7(src, dst, params->stride);
-               src += BCDEC_BC7_BLOCK_SIZE;
                break;
             default:
                break;
@@ -304,11 +298,12 @@ is_emulated_bcn(struct wrapper_physical_device *pdev, VkFormat format)
    }
 }
 
-void 
+void
 decompress_bcn_format(void *srcBuffer,
 					  void *dstBuffer,
 					  int w,
 					  int h,
+					  int src_w,
 					  VkFormat format,
 					  int offset)
 {
@@ -334,6 +329,8 @@ decompress_bcn_format(void *srcBuffer,
    int texel_size = get_texel_size_for_format(get_decode_format_for_bcn(format));
    int block_size = get_block_size(format);
    int block_x = (w + 3) / 4;
+   /* source row stride in blocks (bufferRowLength may pad rows wider than w) */
+   int block_x_src = ((src_w > 0 ? src_w : w) + 3) / 4;
    int block_y = (h + 3) / 4;
    int stride = w * texel_size;
    int compressed_size = (block_x * block_y * block_size);
@@ -439,6 +436,7 @@ decompress_bcn_format(void *srcBuffer,
       args[0].src = src;
       args[0].dst = dst;
       args[0].block_x = block_x;
+      args[0].block_x_src = block_x_src;
       args[0].format = format;
       args[0].block_y_count = block_y;
       args[0].block_y_start = 0;
@@ -469,9 +467,10 @@ decompress_bcn_format(void *srcBuffer,
 
       for (int i = 0; i < num_threads; i++) {
          int rows = rows_per_thread + ((i < rem) ? 1 : 0);
-         args[i].src = src + (current_row * block_x * block_size);
+         args[i].src = src + ((size_t)current_row * block_x_src * block_size);
          args[i].dst = dst;
          args[i].block_x = block_x;
+         args[i].block_x_src = block_x_src;
          args[i].format = format;
          args[i].block_y_count = rows;
          args[i].block_y_start = current_row;
