@@ -1274,9 +1274,15 @@ wrapper_bcn_gpu_init(struct wrapper_device *device)
 static bool
 wrapper_bcn_gpu_ready(struct wrapper_device *device)
 {
+   /* Default OFF. The GPU compute transcode is correct in isolation (its BC7
+    * decode is bit-identical to bcdec and the ASTC encode matches the CPU
+    * encoder), but running compute dispatches inline during Hades's launch
+    * screen corrupts that screen's rendering (it renders black), and the boot
+    * is package-load-bound so the GPU path saves no meaningful time. The CPU
+    * encoder is correct everywhere; opt into the GPU path with WRAPPER_BCN_GPU=1. */
    static int env = -1;
    if (env == -1)
-      env = getenv("WRAPPER_BCN_GPU") ? atoi(getenv("WRAPPER_BCN_GPU")) : 1;
+      env = getenv("WRAPPER_BCN_GPU") ? atoi(getenv("WRAPPER_BCN_GPU")) : 0;
    if (!env)
       return false;
 
