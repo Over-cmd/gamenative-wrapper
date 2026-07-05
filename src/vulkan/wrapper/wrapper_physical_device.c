@@ -304,6 +304,22 @@ VkResult enumerate_physical_device(struct vk_instance *_instance)
          }
       }
 
+      /* Samsung Xclipse: vkd3d 3.x needs VK_EXT_dynamic_rendering_unused_attachments
+       * for correct rendering (draws with unused/mismatched render targets get
+       * dropped -> objects vanish, e.g. the player character), but Xclipse doesn't
+       * expose it. Advertise it -- it is a validation relaxation the RDNA driver
+       * tolerates; the feature is faked in Features2 and the struct is unlinked from
+       * the real CreateDevice pNext. */
+      if (pdevice->driver_properties.driverID == VK_DRIVER_ID_SAMSUNG_PROPRIETARY) {
+         bool samsung_d3d = strstr(engine_name, "DXVK") || strstr(engine_name, "vkd3d");
+         pdevice->is_vkd3d = strstr(engine_name, "vkd3d") != NULL;
+         if (samsung_d3d &&
+             !pdevice->base_supported_extensions.EXT_dynamic_rendering_unused_attachments) {
+            WRAPPER_LOG(info, "Faking VK_EXT_dynamic_rendering_unused_attachments for Xclipse");
+            pdevice->vk.supported_extensions.EXT_dynamic_rendering_unused_attachments = true;
+         }
+      }
+
       char *wrapper_emulate_bcn_env = getenv("WRAPPER_EMULATE_BCN");
 
       if (!wrapper_emulate_bcn_env) 
@@ -402,6 +418,15 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
             vad->vertexAttributeInstanceRateDivisor = VK_TRUE;
             vad->vertexAttributeInstanceRateZeroDivisor = VK_TRUE;
          }
+      }
+   }
+
+   if (pdevice->driver_properties.driverID == VK_DRIVER_ID_SAMSUNG_PROPRIETARY &&
+       pdevice->vk.supported_extensions.EXT_dynamic_rendering_unused_attachments) {
+      vk_foreach_struct(s, pFeatures->pNext) {
+         if (s->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_UNUSED_ATTACHMENTS_FEATURES_EXT)
+            ((VkPhysicalDeviceDynamicRenderingUnusedAttachmentsFeaturesEXT *)s)
+               ->dynamicRenderingUnusedAttachments = VK_TRUE;
       }
    }
 }
