@@ -1757,9 +1757,9 @@ wrapper_bcn_do_copy(struct wrapper_command_buffer *wcb,
             const char *aid = getenv("WRAPPER_DIAG_APPID");
             char tp[256];
             snprintf(tp, sizeof(tp),
-               "/data/data/app.gamenative/files/imagefs/usr/tmp/wrapper_tex_%s.txt",
+               "/data/data/app.gamenative/files/imagefs/usr/tmp/wrapper_diag_%s.txt",
                (aid && aid[0]) ? aid : "unknown");
-            FILE *tf = fopen(tp, tex_n ? "a" : "w");
+            FILE *tf = fopen(tp, "a"); /* append into the same per-game diag file */
             if (tf) {
                fprintf(tf,
                   "[TEX %d] bc=%d %dx%d mip=%u rowLen=%u imgH=%u off=%d srcStride=%d"
