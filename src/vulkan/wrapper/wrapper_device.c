@@ -471,9 +471,13 @@ wrapper_emit_diag(struct wrapper_physical_device *pdev,
    snprintf(defpath, sizeof(defpath),
             "/data/data/app.gamenative/files/imagefs/usr/tmp/wrapper_diag_%s.txt", tag);
    const char *path = getenv("WRAPPER_DIAG_FILE") ? getenv("WRAPPER_DIAG_FILE") : defpath;
-   static int opened = 0;
-   FILE *f = fopen(path, opened ? "a" : "w");
-   opened = 1;
+   /* Always append: one launch creates several VkDevices across processes (zink
+    * GL infra, DXVK, vkd3d) that share this per-game file. Truncating would let
+    * them clobber each other and lose the D3D device's block — the one that
+    * matters for a failing game. usr/tmp is recreated per launch, so the file
+    * stays a single launch's worth. Each block is delimited and names its
+    * engine, so the DXVK/vkd3d one is easy to pick out. */
+   FILE *f = fopen(path, "a");
    fprintf(stderr, "[WRAPPER_DIAG] writing report to: %s\n",
            f ? path : "(open failed — logcat only)");
 
@@ -493,7 +497,7 @@ wrapper_emit_diag(struct wrapper_physical_device *pdev,
    else
       snprintf(detected, sizeof(detected), "native/other");
 
-   D("================ WRAPPER DIAGNOSTICS ================\n");
+   D("\n================ WRAPPER DIAGNOSTICS ================\n");
    D("build: %s %s\n", __DATE__, __TIME__);
    D("device: %s\n", p->deviceName);
    D("  driver=%s (driverID=%u)  driverVersion=0x%08x  apiVersion=%u.%u.%u\n",
