@@ -1,4 +1,5 @@
 #include <sys/stat.h>
+#include <stdarg.h>
 
 #include "wrapper_private.h"
 #include "wrapper_log.h"
@@ -1816,6 +1817,48 @@ wrapper_bcn_do_copy(struct wrapper_command_buffer *wcb,
    simple_mtx_unlock(&device->resource_mutex);
 }
 
+/* Append a line to the per-game diag file and mirror to logcat, when
+ * WRAPPER_DIAG is set. Used for the copy-level texture log below. */
+static void
+wrapper_diag_append(const char *fmt, ...)
+{
+   static int on = -1;
+   if (on == -1)
+      on = getenv("WRAPPER_DIAG") ? atoi(getenv("WRAPPER_DIAG")) : 0;
+   if (!on)
+      return;
+   const char *aid = getenv("WRAPPER_DIAG_APPID");
+   char tp[256];
+   snprintf(tp, sizeof(tp),
+      "/data/data/app.gamenative/files/imagefs/usr/tmp/wrapper_diag_%s.txt",
+      (aid && aid[0]) ? aid : "unknown");
+   FILE *f = fopen(tp, "a");
+   va_list ap;
+   va_start(ap, fmt); vfprintf(stderr, fmt, ap); va_end(ap);
+   if (f) { va_start(ap, fmt); vfprintf(f, fmt, ap); va_end(ap); fclose(f); }
+}
+
+/* Log every buffer->image copy that targets a tracked image (any format,
+ * emulated or not) so nothing that could corrupt is invisible. */
+static void
+wrapper_diag_log_copy(struct wrapper_device *device, VkImage dstImage,
+                      struct wrapper_image *wi, struct wrapper_buffer *wb,
+                      uint32_t w, uint32_t h, uint32_t mip, uint32_t rowLen,
+                      uint32_t regionCount)
+{
+   if (!wi)
+      return;
+   VkFormat req = wi->info.format;
+   int emu = is_emulated_bcn(device->physical, req);
+   wrapper_diag_append(
+      "[COPY] img=%04x fmt=%d emulated=%d -> stored=%d %ux%u mip=%u rowLen=%u"
+      " tiling=%d usage=0x%x mips=%u bufTracked=%d regions=%u\n",
+      (unsigned)((uintptr_t)dstImage & 0xffff), req, emu,
+      emu ? get_format_for_bcn(req) : req, w, h, mip, rowLen,
+      (int)wi->info.tiling, wi->info.usage, wi->info.mipLevels,
+      wb ? 1 : 0, regionCount);
+}
+
 VKAPI_ATTR void VKAPI_CALL
 wrapper_CmdCopyBufferToImage(VkCommandBuffer commandBuffer,
 							 VkBuffer srcBuffer,
@@ -1829,6 +1872,12 @@ wrapper_CmdCopyBufferToImage(VkCommandBuffer commandBuffer,
    struct wrapper_image *wi = get_wrapper_image_from_handle(device, dstImage);
    struct wrapper_buffer *wb = get_wrapper_buffer_from_handle(device, srcBuffer);
    VkFormat format = wi ? wi->info.format : VK_FORMAT_UNDEFINED;
+
+   if (regionCount)
+      wrapper_diag_log_copy(device, dstImage, wi, wb,
+         pRegions[0].imageExtent.width, pRegions[0].imageExtent.height,
+         pRegions[0].imageSubresource.mipLevel, pRegions[0].bufferRowLength,
+         regionCount);
 
    if (!wi || !wb || !is_emulated_bcn(device->physical, format)) {
       device->dispatch_table.CmdCopyBufferToImage(wcb->dispatch_handle,
@@ -1849,6 +1898,12 @@ wrapper_CmdCopyBufferToImage2(VkCommandBuffer commandBuffer,
    struct wrapper_image *wi = get_wrapper_image_from_handle(device, pInfo->dstImage);
    struct wrapper_buffer *wb = get_wrapper_buffer_from_handle(device, pInfo->srcBuffer);
    VkFormat format = wi ? wi->info.format : VK_FORMAT_UNDEFINED;
+
+   if (pInfo->regionCount)
+      wrapper_diag_log_copy(device, pInfo->dstImage, wi, wb,
+         pInfo->pRegions[0].imageExtent.width, pInfo->pRegions[0].imageExtent.height,
+         pInfo->pRegions[0].imageSubresource.mipLevel,
+         pInfo->pRegions[0].bufferRowLength, pInfo->regionCount);
 
    if (!wi || !wb || !is_emulated_bcn(device->physical, format)) {
       device->dispatch_table.CmdCopyBufferToImage2(wcb->dispatch_handle, pInfo);
