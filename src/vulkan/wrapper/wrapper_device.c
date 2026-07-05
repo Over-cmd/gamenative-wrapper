@@ -444,16 +444,38 @@ wrapper_emit_diag(struct wrapper_physical_device *pdev,
    if (!en || !atoi(en))
       return;
 
-   const char *path = getenv("WRAPPER_DIAG_FILE");
-   char defpath[512];
-   if (!path) {
-      const char *tmp = getenv("TMPDIR") ? getenv("TMPDIR") : "/tmp";
-      snprintf(defpath, sizeof(defpath), "%s/wrapper_diag.txt", tmp);
-      path = defpath;
+   /* Report file lives in the container tmp dir, one per game (unique by app
+    * name) so multiple games don't clobber each other. WRAPPER_DIAG_FILE
+    * overrides the full path. */
+   char tag[128], defpath[512];
+   /* Prefer the app id passed by the launcher (WRAPPER_DIAG_APPID); fall back
+    * to the executable name so the file is still unique per game either way. */
+   const char *app = getenv("WRAPPER_DIAG_APPID");
+   if (!app || !app[0]) {
+      app = pdev->instance->vk.app_info.app_name;
+      if (!app || !app[0])
+         app = "unknown";
+      const char *bslash = strrchr(app, '\\');   /* strip Windows/Unix path */
+      if (bslash) app = bslash + 1;
+      const char *fslash = strrchr(app, '/');
+      if (fslash) app = fslash + 1;
    }
+   size_t j = 0;
+   for (size_t i = 0; app[i] && j < sizeof(tag) - 1; i++) {
+      char c = app[i];
+      int ok = (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') ||
+               (c >= '0' && c <= '9') || c == '.' || c == '-' || c == '_';
+      tag[j++] = ok ? c : '_';
+   }
+   tag[j] = 0;
+   snprintf(defpath, sizeof(defpath),
+            "/data/data/app.gamenative/files/imagefs/usr/tmp/wrapper_diag_%s.txt", tag);
+   const char *path = getenv("WRAPPER_DIAG_FILE") ? getenv("WRAPPER_DIAG_FILE") : defpath;
    static int opened = 0;
    FILE *f = fopen(path, opened ? "a" : "w");
    opened = 1;
+   fprintf(stderr, "[WRAPPER_DIAG] writing report to: %s\n",
+           f ? path : "(open failed — logcat only)");
 
 #define D(...) do { fprintf(stderr, "[WRAPPER_DIAG] " __VA_ARGS__); if (f) fprintf(f, __VA_ARGS__); } while (0)
 
