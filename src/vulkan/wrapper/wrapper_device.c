@@ -417,6 +417,113 @@ wrapper_CmdBindVertexBuffers(VkCommandBuffer commandBuffer, uint32_t firstBindin
    free(bufs);
 }
 
+static const char *
+wrapper_driver_id_str(VkDriverId id)
+{
+   switch (id) {
+   case VK_DRIVER_ID_ARM_PROPRIETARY:         return "ARM (Mali)";
+   case VK_DRIVER_ID_QUALCOMM_PROPRIETARY:    return "Qualcomm (Adreno)";
+   case VK_DRIVER_ID_SAMSUNG_PROPRIETARY:     return "Samsung (Xclipse)";
+   case VK_DRIVER_ID_MESA_TURNIP:             return "Mesa Turnip (Adreno)";
+   case VK_DRIVER_ID_IMAGINATION_PROPRIETARY: return "Imagination (PowerVR)";
+   default:                                   return "other/unknown";
+   }
+}
+
+/* WRAPPER_DIAG=1 emits a self-contained device-capabilities report — to
+ * stderr (so it lands in logcat) and to a file (WRAPPER_DIAG_FILE, or
+ * $TMPDIR/wrapper_diag.txt) a user can share. It reports what the device
+ * NATIVELY supports vs what the wrapper advertises to the D3D layer, so a
+ * failing game on any device can be diagnosed from the report alone. Pair it
+ * with app-side VKD3D_DEBUG=warn / DXVK_LOG_LEVEL=info / WINEDEBUG=+vulkan. */
+static void
+wrapper_emit_diag(struct wrapper_physical_device *pdev,
+                  const VkDeviceCreateInfo *ci, VkResult result)
+{
+   const char *en = getenv("WRAPPER_DIAG");
+   if (!en || !atoi(en))
+      return;
+
+   const char *path = getenv("WRAPPER_DIAG_FILE");
+   char defpath[512];
+   if (!path) {
+      const char *tmp = getenv("TMPDIR") ? getenv("TMPDIR") : "/tmp";
+      snprintf(defpath, sizeof(defpath), "%s/wrapper_diag.txt", tmp);
+      path = defpath;
+   }
+   static int opened = 0;
+   FILE *f = fopen(path, opened ? "a" : "w");
+   opened = 1;
+
+#define D(...) do { fprintf(stderr, "[WRAPPER_DIAG] " __VA_ARGS__); if (f) fprintf(f, __VA_ARGS__); } while (0)
+
+   const VkPhysicalDeviceProperties *p = &pdev->properties2.properties;
+   const char *eng = pdev->instance->vk.app_info.engine_name
+      ? pdev->instance->vk.app_info.engine_name : "";
+   uint32_t ev = pdev->instance->vk.app_info.engine_version;
+   char detected[64];
+   if (strstr(eng, "DXVK"))
+      snprintf(detected, sizeof(detected), "DXVK %u.%u.%u",
+               VK_VERSION_MAJOR(ev), VK_VERSION_MINOR(ev), VK_VERSION_PATCH(ev));
+   else if (strstr(eng, "vkd3d"))
+      snprintf(detected, sizeof(detected), "vkd3d %u.%u.%u",
+               VK_VERSION_MAJOR(ev), VK_VERSION_MINOR(ev), VK_VERSION_PATCH(ev));
+   else
+      snprintf(detected, sizeof(detected), "native/other");
+
+   D("================ WRAPPER DIAGNOSTICS ================\n");
+   D("build: %s %s\n", __DATE__, __TIME__);
+   D("device: %s\n", p->deviceName);
+   D("  driver=%s (driverID=%u)  driverVersion=0x%08x  apiVersion=%u.%u.%u\n",
+     wrapper_driver_id_str(pdev->driver_properties.driverID),
+     pdev->driver_properties.driverID, p->driverVersion,
+     VK_VERSION_MAJOR(p->apiVersion), VK_VERSION_MINOR(p->apiVersion),
+     VK_VERSION_PATCH(p->apiVersion));
+   D("  vendorID=0x%04x deviceID=0x%04x\n", p->vendorID, p->deviceID);
+   D("engine: '%s' -> detected %s (app '%s')\n", eng, detected,
+     pdev->instance->vk.app_info.app_name ? pdev->instance->vk.app_info.app_name : "");
+   D("--- native capabilities (what THIS device actually has) ---\n");
+   D("  textureCompressionBC       : %d\n", pdev->base_supported_features.textureCompressionBC);
+   D("  textureCompressionASTC_LDR : %d\n", pdev->base_supported_features.textureCompressionASTC_LDR);
+   D("  robustBufferAccess2        : %d\n", pdev->base_supported_features.robustBufferAccess2);
+   D("  nullDescriptor             : %d\n", pdev->base_supported_features.nullDescriptor);
+   D("  robustImageAccess2         : %d\n", pdev->base_supported_features.robustImageAccess2);
+   D("  extendedDynamicState       : %d\n", pdev->base_supported_features.extendedDynamicState);
+   D("  extendedDynamicState2      : %d\n", pdev->base_supported_features.extendedDynamicState2);
+   D("  dualSrcBlend               : %d\n", pdev->base_supported_features.dualSrcBlend);
+   D("  multiDrawIndirect          : %d\n", pdev->base_supported_features.multiDrawIndirect);
+   D("  ext EXT_robustness2              : %d\n", pdev->base_supported_extensions.EXT_robustness2);
+   D("  ext EXT_vertex_attribute_divisor : %d\n", pdev->base_supported_extensions.EXT_vertex_attribute_divisor);
+   D("  ext KHR_vertex_attribute_divisor : %d\n", pdev->base_supported_extensions.KHR_vertex_attribute_divisor);
+   D("--- wrapper overrides advertised to the D3D layer ---\n");
+   D("  WRAPPER_VK_VERSION advertised : %s\n",
+     getenv("WRAPPER_VK_VERSION") ? getenv("WRAPPER_VK_VERSION") : "(driver default)");
+   D("  faking VK_EXT_robustness2     : %s\n",
+     (pdev->vk.supported_extensions.EXT_robustness2 && !pdev->base_supported_extensions.EXT_robustness2) ? "YES" : "no");
+   D("  vertex_attr_divisor EXT alias : %s\n",
+     (pdev->vk.supported_extensions.EXT_vertex_attribute_divisor && !pdev->base_supported_extensions.EXT_vertex_attribute_divisor) ? "YES (aliased from KHR)" : "no");
+   D("  BCn: emulate=%d  ASTC=%s  transcode=%s  cache=%s\n",
+     pdev->emulate_bcn,
+     getenv("WRAPPER_ASTC_BLOCK") ? getenv("WRAPPER_ASTC_BLOCK") : "4x4",
+     (getenv("WRAPPER_BCN_GPU") && atoi(getenv("WRAPPER_BCN_GPU"))) ? "GPU" : "CPU",
+     (getenv("WRAPPER_USE_BCN_CACHE") && atoi(getenv("WRAPPER_USE_BCN_CACHE"))) ? "on" : "off");
+   D("--- vkCreateDevice ---\n");
+   D("  result: %d (%s)\n", result, result == VK_SUCCESS ? "VK_SUCCESS" : "FAILED");
+   D("  requested device extensions (%u):\n", ci ? ci->enabledExtensionCount : 0);
+   if (ci)
+      for (uint32_t i = 0; i < ci->enabledExtensionCount; i++)
+         D("    %s\n", ci->ppEnabledExtensionNames[i]);
+   D("NOTE: seeing this block means a VkDevice was created. If a game fails\n");
+   D("  and this block never appears, the D3D layer rejected caps BEFORE\n");
+   D("  device creation -- the VKD3D_DEBUG/DXVK logs will show which.\n");
+   D("full diagnosis also needs (app-side): VKD3D_DEBUG=warn DXVK_LOG_LEVEL=info WINEDEBUG=+vulkan\n");
+   D("====================================================\n");
+
+#undef D
+   if (f)
+      fclose(f);
+}
+
 VKAPI_ATTR VkResult VKAPI_CALL
 wrapper_CreateDevice(VkPhysicalDevice physicalDevice,
                      const VkDeviceCreateInfo* pCreateInfo,
@@ -530,6 +637,7 @@ if (pdf2 && pdf2->features.f) { \
       
       if (result != VK_SUCCESS) {
          WRAPPER_LOG(error, "Failed driver createDevice, res %d", result);
+         wrapper_emit_diag(physical_device, pCreateInfo, result);
          wrapper_DestroyDevice(wrapper_device_to_handle(device),
                                &device->vk.alloc);
          return vk_error(physical_device, result);
@@ -568,6 +676,8 @@ if (pdf2 && pdf2->features.f) { \
       device->vk.dispatch_table.FreeMemory =
          wrapper_device_trampolines.FreeMemory;
    }
+
+   wrapper_emit_diag(physical_device, pCreateInfo, VK_SUCCESS);
 
    *pDevice = wrapper_device_to_handle(device);
 
