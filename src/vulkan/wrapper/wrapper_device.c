@@ -1741,7 +1741,7 @@ wrapper_bcn_do_copy(struct wrapper_command_buffer *wcb,
       int src_w = copy_region.bufferRowLength ? (int)copy_region.bufferRowLength : w;
       decompress_bcn_format(wb->mapped_address, staging_wb->mapped_address, w, h, src_w, format, offset);
 
-      /* Texture-path diagnostic (WRAPPER_DIAG_TEX=1): for each BCn CPU upload,
+      /* Texture-path diagnostic (part of WRAPPER_DIAG=1): for each BCn CPU upload,
        * record the real parameters (source stride, target format, image tiling/
        * extent/usage) and dump the leading source BC7 bytes + our transcode
        * output, so the transcode can be verified byte-for-byte offline against
@@ -1749,7 +1749,7 @@ wrapper_bcn_do_copy(struct wrapper_command_buffer *wcb,
       {
          static int tex_diag = -1;
          if (tex_diag == -1)
-            tex_diag = getenv("WRAPPER_DIAG_TEX") ? atoi(getenv("WRAPPER_DIAG_TEX")) : 0;
+            tex_diag = getenv("WRAPPER_DIAG") ? atoi(getenv("WRAPPER_DIAG")) : 0;
          if (tex_diag) {
             static int tex_n = 0;
             struct wrapper_image *twi = get_wrapper_image_from_handle(device, dstImage);
