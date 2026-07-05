@@ -1741,6 +1741,57 @@ wrapper_bcn_do_copy(struct wrapper_command_buffer *wcb,
       int src_w = copy_region.bufferRowLength ? (int)copy_region.bufferRowLength : w;
       decompress_bcn_format(wb->mapped_address, staging_wb->mapped_address, w, h, src_w, format, offset);
 
+      /* Texture-path diagnostic (WRAPPER_DIAG_TEX=1): for each BCn CPU upload,
+       * record the real parameters (source stride, target format, image tiling/
+       * extent/usage) and dump the leading source BC7 bytes + our transcode
+       * output, so the transcode can be verified byte-for-byte offline against
+       * the reference decoder and any stride/format/tiling mismatch is visible. */
+      {
+         static int tex_diag = -1;
+         if (tex_diag == -1)
+            tex_diag = getenv("WRAPPER_DIAG_TEX") ? atoi(getenv("WRAPPER_DIAG_TEX")) : 0;
+         if (tex_diag) {
+            static int tex_n = 0;
+            struct wrapper_image *twi = get_wrapper_image_from_handle(device, dstImage);
+            VkFormat tgt = get_format_for_bcn(format);
+            const char *aid = getenv("WRAPPER_DIAG_APPID");
+            char tp[256];
+            snprintf(tp, sizeof(tp),
+               "/data/data/app.gamenative/files/imagefs/usr/tmp/wrapper_tex_%s.txt",
+               (aid && aid[0]) ? aid : "unknown");
+            FILE *tf = fopen(tp, tex_n ? "a" : "w");
+            if (tf) {
+               fprintf(tf,
+                  "[TEX %d] bc=%d %dx%d mip=%u rowLen=%u imgH=%u off=%d srcStride=%d"
+                  " -> target=%d uploadSize=%llu",
+                  tex_n, format, w, h, copy_region.imageSubresource.mipLevel,
+                  copy_region.bufferRowLength, copy_region.bufferImageHeight,
+                  offset, src_w, tgt, (unsigned long long)upload_size);
+               if (twi)
+                  fprintf(tf, " | img: fmt=%d extent=%ux%ux%u mips=%u tiling=%d usage=0x%x flags=0x%x",
+                     twi->info.format, twi->info.extent.width, twi->info.extent.height,
+                     twi->info.extent.depth, twi->info.mipLevels, twi->info.tiling,
+                     twi->info.usage, twi->info.flags);
+               fprintf(tf, "\n");
+               if (tex_n < 4) {
+                  unsigned char *src = (unsigned char *)wb->mapped_address + offset;
+                  unsigned char *out = (unsigned char *)staging_wb->mapped_address;
+                  int ns = 96, no = (upload_size < 256) ? (int)upload_size : 256;
+                  fprintf(tf, "  src:");
+                  for (int b = 0; b < ns; b++) fprintf(tf, "%02x", src[b]);
+                  fprintf(tf, "\n  out:");
+                  for (int b = 0; b < no; b++) fprintf(tf, "%02x", out[b]);
+                  fprintf(tf, "\n");
+               }
+               fclose(tf);
+            }
+            fprintf(stderr, "[WRAPPER_TEX] #%d bc=%d %dx%d rowLen=%u -> target=%d tiling=%d\n",
+               tex_n, format, w, h, copy_region.bufferRowLength, tgt,
+               twi ? (int)twi->info.tiling : -1);
+            tex_n++;
+         }
+      }
+
       copy_region.bufferOffset = 0;
       copy_region.bufferRowLength = 0;
       copy_region.bufferImageHeight = 0;
