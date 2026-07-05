@@ -165,6 +165,12 @@ static void process_pnext_chain(VkBaseInStructure *create_info, struct wrapper_p
              WRAPPER_LOG(info, "Unlinking VkPhysicalDeviceDynamicRenderingUnusedAttachmentsFeaturesEXT from pNext chain");
              unlink_vk_struct(create_info, &current, &prev);
              continue;
+          case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_5_FEATURES:
+             if (pdevice->base_supported_extensions.KHR_maintenance5)
+                break;
+             WRAPPER_LOG(info, "Unlinking VkPhysicalDeviceMaintenance5Features from pNext chain");
+             unlink_vk_struct(create_info, &current, &prev);
+             continue;
           case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VERTEX_ATTRIBUTE_DIVISOR_FEATURES_EXT:
              if (!pdevice->base_supported_extensions.EXT_vertex_attribute_divisor &&
                   pdevice->base_supported_extensions.KHR_vertex_attribute_divisor) {
@@ -747,6 +753,22 @@ wrapper_CreateBuffer(VkDevice _device,
    VK_FROM_HANDLE(wrapper_device, device, _device);
    VkResult res;
 
+   /* When we fake VK_KHR_maintenance5 (base driver lacks it, e.g. Xclipse),
+    * DXVK specifies buffer usage through VkBufferUsageFlags2CreateInfo and may
+    * leave the 32-bit VkBufferCreateInfo::usage as 0. The base driver ignores
+    * the unknown pNext struct, so fold the flags2 usage back into the 32-bit
+    * field before forwarding. */
+   VkBufferCreateInfo local_create_info;
+   if (!device->physical->base_supported_extensions.KHR_maintenance5) {
+      const VkBufferUsageFlags2CreateInfo *uf2 = __vk_find_struct(
+         (void *)pCreateInfo->pNext, VK_STRUCTURE_TYPE_BUFFER_USAGE_FLAGS_2_CREATE_INFO);
+      if (uf2) {
+         local_create_info = *pCreateInfo;
+         local_create_info.usage |= (VkBufferUsageFlags)uf2->usage;
+         pCreateInfo = &local_create_info;
+      }
+   }
+
    res = device->dispatch_table.CreateBuffer(device->dispatch_handle,
       pCreateInfo, pAllocator, pBuffer);
 
@@ -1013,6 +1035,86 @@ wrapper_GetDeviceQueue2(VkDevice _device, const VkDeviceQueueInfo2* pQueueInfo,
    }
 
    *pQueue = queue ? vk_queue_to_handle(queue) : VK_NULL_HANDLE;
+}
+
+/* ---- VK_KHR_maintenance5 emulation ------------------------------------------
+ * DXVK > 2.4.1 requires VK_KHR_maintenance5, which Xclipse (and other drivers)
+ * don't expose. We advertise + fake the feature (wrapper_physical_device.c) and
+ * implement its new entrypoints here. Each prefers the base driver's native
+ * implementation when present (so this is harmless on drivers that already have
+ * maintenance5, e.g. Mali) and otherwise translates to the pre-maintenance5
+ * equivalent. */
+
+VKAPI_ATTR void VKAPI_CALL
+wrapper_CmdBindIndexBuffer2KHR(VkCommandBuffer commandBuffer, VkBuffer buffer,
+                               VkDeviceSize offset, VkDeviceSize size,
+                               VkIndexType indexType) {
+   VK_FROM_HANDLE(wrapper_command_buffer, wcb, commandBuffer);
+   struct wrapper_device *device = wcb->device;
+
+   if (device->dispatch_table.CmdBindIndexBuffer2)
+      device->dispatch_table.CmdBindIndexBuffer2(wcb->dispatch_handle, buffer, offset, size, indexType);
+   else if (device->dispatch_table.CmdBindIndexBuffer2KHR)
+      device->dispatch_table.CmdBindIndexBuffer2KHR(wcb->dispatch_handle, buffer, offset, size, indexType);
+   else /* pre-maintenance5: the size parameter is a robustness bound; dropping it is safe */
+      device->dispatch_table.CmdBindIndexBuffer(wcb->dispatch_handle, buffer, offset, indexType);
+}
+
+VKAPI_ATTR void VKAPI_CALL
+wrapper_GetRenderingAreaGranularityKHR(VkDevice _device,
+                                       const VkRenderingAreaInfo *pRenderingAreaInfo,
+                                       VkExtent2D *pGranularity) {
+   VK_FROM_HANDLE(wrapper_device, device, _device);
+
+   if (device->dispatch_table.GetRenderingAreaGranularity)
+      device->dispatch_table.GetRenderingAreaGranularity(device->dispatch_handle, pRenderingAreaInfo, pGranularity);
+   else if (device->dispatch_table.GetRenderingAreaGranularityKHR)
+      device->dispatch_table.GetRenderingAreaGranularityKHR(device->dispatch_handle, pRenderingAreaInfo, pGranularity);
+   else /* {1,1} is always a valid render-area granularity */
+      *pGranularity = (VkExtent2D){ 1, 1 };
+}
+
+VKAPI_ATTR void VKAPI_CALL
+wrapper_GetImageSubresourceLayout2KHR(VkDevice _device, VkImage image,
+                                      const VkImageSubresource2 *pSubresource,
+                                      VkSubresourceLayout2 *pLayout) {
+   VK_FROM_HANDLE(wrapper_device, device, _device);
+
+   if (device->dispatch_table.GetImageSubresourceLayout2)
+      device->dispatch_table.GetImageSubresourceLayout2(device->dispatch_handle, image, pSubresource, pLayout);
+   else if (device->dispatch_table.GetImageSubresourceLayout2KHR)
+      device->dispatch_table.GetImageSubresourceLayout2KHR(device->dispatch_handle, image, pSubresource, pLayout);
+   else if (device->dispatch_table.GetImageSubresourceLayout2EXT)
+      device->dispatch_table.GetImageSubresourceLayout2EXT(device->dispatch_handle, image, pSubresource, pLayout);
+   else
+      device->dispatch_table.GetImageSubresourceLayout(device->dispatch_handle, image,
+         &pSubresource->imageSubresource, &pLayout->subresourceLayout);
+}
+
+VKAPI_ATTR void VKAPI_CALL
+wrapper_GetDeviceImageSubresourceLayoutKHR(VkDevice _device,
+                                           const VkDeviceImageSubresourceInfo *pInfo,
+                                           VkSubresourceLayout2 *pLayout) {
+   VK_FROM_HANDLE(wrapper_device, device, _device);
+
+   if (device->dispatch_table.GetDeviceImageSubresourceLayout) {
+      device->dispatch_table.GetDeviceImageSubresourceLayout(device->dispatch_handle, pInfo, pLayout);
+      return;
+   }
+   if (device->dispatch_table.GetDeviceImageSubresourceLayoutKHR) {
+      device->dispatch_table.GetDeviceImageSubresourceLayoutKHR(device->dispatch_handle, pInfo, pLayout);
+      return;
+   }
+
+   /* Emulate via a transient image: create it, query the subresource layout,
+    * destroy it. Use the base dispatch directly to avoid wrapper bookkeeping. */
+   VkImage tmp;
+   if (device->dispatch_table.CreateImage(device->dispatch_handle,
+          pInfo->pCreateInfo, NULL, &tmp) == VK_SUCCESS) {
+      device->dispatch_table.GetImageSubresourceLayout(device->dispatch_handle, tmp,
+         &pInfo->pSubresource->imageSubresource, &pLayout->subresourceLayout);
+      device->dispatch_table.DestroyImage(device->dispatch_handle, tmp, NULL);
+   }
 }
 
 VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL

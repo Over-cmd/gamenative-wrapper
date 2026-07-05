@@ -320,6 +320,19 @@ VkResult enumerate_physical_device(struct vk_instance *_instance)
          }
       }
 
+      /* DXVK > 2.4.1 requires VK_KHR_maintenance5. Some drivers (e.g. Xclipse)
+       * don't expose it. Emulate it for any D3D client whose base driver lacks
+       * it (NOT Samsung-gated -- the base-lacks guard limits it to drivers that
+       * actually need it). Feature faked in Features2, struct unlinked from the
+       * real CreateDevice, entrypoints implemented in wrapper_device.c. */
+      {
+         bool is_d3d = strstr(engine_name, "DXVK") || strstr(engine_name, "vkd3d");
+         if (is_d3d && !pdevice->base_supported_extensions.KHR_maintenance5) {
+            WRAPPER_LOG(info, "Faking VK_KHR_maintenance5 (base driver lacks it)");
+            pdevice->vk.supported_extensions.KHR_maintenance5 = true;
+         }
+      }
+
       char *wrapper_emulate_bcn_env = getenv("WRAPPER_EMULATE_BCN");
 
       if (!wrapper_emulate_bcn_env) 
@@ -421,12 +434,15 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
       }
    }
 
-   if (pdevice->driver_properties.driverID == VK_DRIVER_ID_SAMSUNG_PROPRIETARY &&
-       pdevice->vk.supported_extensions.EXT_dynamic_rendering_unused_attachments) {
+   if (pdevice->driver_properties.driverID == VK_DRIVER_ID_SAMSUNG_PROPRIETARY) {
       vk_foreach_struct(s, pFeatures->pNext) {
-         if (s->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_UNUSED_ATTACHMENTS_FEATURES_EXT)
+         if (s->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_UNUSED_ATTACHMENTS_FEATURES_EXT &&
+             pdevice->vk.supported_extensions.EXT_dynamic_rendering_unused_attachments)
             ((VkPhysicalDeviceDynamicRenderingUnusedAttachmentsFeaturesEXT *)s)
                ->dynamicRenderingUnusedAttachments = VK_TRUE;
+         if (s->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_5_FEATURES &&
+             pdevice->vk.supported_extensions.KHR_maintenance5)
+            ((VkPhysicalDeviceMaintenance5Features *)s)->maintenance5 = VK_TRUE;
       }
    }
 }
@@ -460,6 +476,12 @@ wrapper_GetPhysicalDeviceProperties(VkPhysicalDevice physicalDevice,
 
    if (api_version > 0)
       pProperties->apiVersion = api_version;
+
+   /* See wrapper_GetPhysicalDeviceProperties2: bump push constant size to the
+    * DXVK-required minimum on Xclipse. */
+   if (pdevice->driver_properties.driverID == VK_DRIVER_ID_SAMSUNG_PROPRIETARY &&
+       pProperties->limits.maxPushConstantsSize < 256)
+      pProperties->limits.maxPushConstantsSize = 256;
 }
 
 VKAPI_ATTR void VKAPI_CALL
@@ -493,6 +515,16 @@ wrapper_GetPhysicalDeviceProperties2(VkPhysicalDevice physicalDevice,
 
    if (api_version > 0)
       pProperties->properties.apiVersion = api_version;
+
+   /* DXVK 2.6+ requires maxPushConstantsSize >= 256 (its unified "push data"
+    * model) and skips the adapter otherwise. Xclipse reports less; the RDNA
+    * hardware underneath handles 256 (desktop AMD reports it), Samsung's driver
+    * just reports conservatively -- bump it so DXVK proceeds. NOTE: unlike the
+    * extension fakes, this is a real driver limit; if the driver enforces it in
+    * vkCreatePipelineLayout this will surface as pipeline-creation failures. */
+   if (pdevice->driver_properties.driverID == VK_DRIVER_ID_SAMSUNG_PROPRIETARY &&
+       pProperties->properties.limits.maxPushConstantsSize < 256)
+      pProperties->properties.limits.maxPushConstantsSize = 256;
 
    vk_foreach_struct(prop, pProperties->pNext) {
       switch (prop->sType) {
