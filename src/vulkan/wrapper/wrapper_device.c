@@ -1,5 +1,7 @@
 #include <sys/stat.h>
 #include <stdarg.h>
+#include <unistd.h>
+#include <fcntl.h>
 
 #include "wrapper_private.h"
 #include "wrapper_log.h"
@@ -484,17 +486,31 @@ wrapper_emit_diag(struct wrapper_physical_device *pdev,
    snprintf(defpath, sizeof(defpath),
             "/data/data/app.gamenative/files/imagefs/usr/tmp/wrapper_diag_%s.txt", tag);
    const char *path = getenv("WRAPPER_DIAG_FILE") ? getenv("WRAPPER_DIAG_FILE") : defpath;
-   /* Always append: one launch creates several VkDevices across processes (zink
-    * GL infra, DXVK, vkd3d) that share this per-game file. Truncating would let
-    * them clobber each other and lose the D3D device's block — the one that
-    * matters for a failing game. usr/tmp is recreated per launch, so the file
-    * stays a single launch's worth. Each block is delimited and names its
-    * engine, so the DXVK/vkd3d one is easy to pick out. */
-   FILE *f = fopen(path, "a");
-   fprintf(stderr, "[WRAPPER_DIAG] writing report to: %s\n",
-           f ? path : "(open failed — logcat only)");
 
-#define D(...) do { fprintf(stderr, "[WRAPPER_DIAG] " __VA_ARGS__); if (f) fprintf(f, __VA_ARGS__); } while (0)
+   /* Put EVERYTHING needed to diagnose a failing game in ONE shareable file. For
+    * a D3D engine, redirect this process's stdout+stderr into the diag file once,
+    * so the vkd3d/DXVK/wine output that actually explains the failure
+    * (Heap-too-small, device-lost, format rejects, crashes) is captured in the
+    * same file as the wrapper's capability report below — instead of only the
+    * wrapper's half. Non-D3D processes (zink infra) stay on stderr/logcat, so the
+    * file is just the D3D process. usr/tmp is recreated per launch. */
+   {
+      const char *e = pdev->instance->vk.app_info.engine_name;
+      static int redirected = 0;
+      if (!redirected && e && (strstr(e, "DXVK") || strstr(e, "vkd3d"))) {
+         redirected = 1;
+         int fd = open(path, O_WRONLY | O_CREAT | O_APPEND, 0644);
+         if (fd >= 0) {
+            dup2(fd, 1);   /* stdout: vkd3d/wine 'System.out' errors */
+            dup2(fd, 2);   /* stderr */
+            if (fd > 2) close(fd);
+            setvbuf(stdout, NULL, _IONBF, 0);
+            setvbuf(stderr, NULL, _IONBF, 0);
+         }
+      }
+   }
+
+#define D(...) fprintf(stderr, "[WRAPPER_DIAG] " __VA_ARGS__)
 
    const VkPhysicalDeviceProperties *p = &pdev->properties2.properties;
    const char *eng = pdev->instance->vk.app_info.engine_name
@@ -559,8 +575,6 @@ wrapper_emit_diag(struct wrapper_physical_device *pdev,
    D("====================================================\n");
 
 #undef D
-   if (f)
-      fclose(f);
 }
 
 VKAPI_ATTR VkResult VKAPI_CALL
@@ -1863,40 +1877,30 @@ wrapper_bcn_do_copy(struct wrapper_command_buffer *wcb,
             static int tex_n = 0;
             struct wrapper_image *twi = get_wrapper_image_from_handle(device, dstImage);
             VkFormat tgt = get_format_for_bcn(format);
-            const char *aid = getenv("WRAPPER_DIAG_APPID");
-            char tp[256];
-            snprintf(tp, sizeof(tp),
-               "/data/data/app.gamenative/files/imagefs/usr/tmp/wrapper_diag_%s.txt",
-               (aid && aid[0]) ? aid : "unknown");
-            FILE *tf = fopen(tp, "a"); /* append into the same per-game diag file */
-            if (tf) {
-               fprintf(tf,
-                  "[TEX %d] bc=%d %dx%d mip=%u rowLen=%u imgH=%u off=%d srcStride=%d"
-                  " -> target=%d uploadSize=%llu",
-                  tex_n, format, w, h, copy_region.imageSubresource.mipLevel,
-                  copy_region.bufferRowLength, copy_region.bufferImageHeight,
-                  offset, src_w, tgt, (unsigned long long)upload_size);
-               if (twi)
-                  fprintf(tf, " | img: fmt=%d extent=%ux%ux%u mips=%u tiling=%d usage=0x%x flags=0x%x",
-                     twi->info.format, twi->info.extent.width, twi->info.extent.height,
-                     twi->info.extent.depth, twi->info.mipLevels, twi->info.tiling,
-                     twi->info.usage, twi->info.flags);
-               fprintf(tf, "\n");
-               if (tex_n < 4) {
-                  unsigned char *src = (unsigned char *)wb->mapped_address + offset;
-                  unsigned char *out = (unsigned char *)staging_wb->mapped_address;
-                  int ns = 96, no = (upload_size < 256) ? (int)upload_size : 256;
-                  fprintf(tf, "  src:");
-                  for (int b = 0; b < ns; b++) fprintf(tf, "%02x", src[b]);
-                  fprintf(tf, "\n  out:");
-                  for (int b = 0; b < no; b++) fprintf(tf, "%02x", out[b]);
-                  fprintf(tf, "\n");
-               }
-               fclose(tf);
+            /* Write to stderr, which for a D3D process is redirected into the
+             * diag file (wrapper_emit_diag), so this lands in the one file. */
+            fprintf(stderr,
+               "[WRAPPER_TEX %d] bc=%d %dx%d mip=%u rowLen=%u imgH=%u off=%d srcStride=%d"
+               " -> target=%d uploadSize=%llu",
+               tex_n, format, w, h, copy_region.imageSubresource.mipLevel,
+               copy_region.bufferRowLength, copy_region.bufferImageHeight,
+               offset, src_w, tgt, (unsigned long long)upload_size);
+            if (twi)
+               fprintf(stderr, " | img: fmt=%d extent=%ux%ux%u mips=%u tiling=%d usage=0x%x flags=0x%x",
+                  twi->info.format, twi->info.extent.width, twi->info.extent.height,
+                  twi->info.extent.depth, twi->info.mipLevels, twi->info.tiling,
+                  twi->info.usage, twi->info.flags);
+            fprintf(stderr, "\n");
+            if (tex_n < 4) {
+               unsigned char *src = (unsigned char *)wb->mapped_address + offset;
+               unsigned char *out = (unsigned char *)staging_wb->mapped_address;
+               int ns = 96, no = (upload_size < 256) ? (int)upload_size : 256;
+               fprintf(stderr, "  src:");
+               for (int b = 0; b < ns; b++) fprintf(stderr, "%02x", src[b]);
+               fprintf(stderr, "\n  out:");
+               for (int b = 0; b < no; b++) fprintf(stderr, "%02x", out[b]);
+               fprintf(stderr, "\n");
             }
-            fprintf(stderr, "[WRAPPER_TEX] #%d bc=%d %dx%d rowLen=%u -> target=%d tiling=%d\n",
-               tex_n, format, w, h, copy_region.bufferRowLength, tgt,
-               twi ? (int)twi->info.tiling : -1);
             tex_n++;
          }
       }

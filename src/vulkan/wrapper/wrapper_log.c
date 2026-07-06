@@ -111,6 +111,22 @@ void write_to_logfile(const char *fmt, const char *level, ...)  {
       fflush(wrapper_log_file);
    }
 
+   /* When WRAPPER_DIAG is on, also emit to stderr — which for a D3D process is
+    * redirected into the single per-game diag file, so the wrapper's own
+    * decisions (faked extensions, disabled features) join the device report and
+    * the vkd3d/DXVK output in one shareable file. */
+   static int diag = -1;
+   if (diag == -1)
+      diag = getenv("WRAPPER_DIAG") ? atoi(getenv("WRAPPER_DIAG")) : 0;
+   if (diag) {
+      va_list va2;
+      va_start(va2, level);
+      fprintf(stderr, "[%s]: ", level);
+      vfprintf(stderr, fmt, va2);
+      fprintf(stderr, "\n");
+      va_end(va2);
+   }
+
    va_end(va_args);
 }
 
