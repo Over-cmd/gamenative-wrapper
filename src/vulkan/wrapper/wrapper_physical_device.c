@@ -333,6 +333,19 @@ VkResult enumerate_physical_device(struct vk_instance *_instance)
          }
       }
 
+      /* VK_KHR_push_descriptor: vkd3d/DXVK effectively require it, but some
+       * drivers (e.g. Mali r44) don't expose it. Advertise + emulate it for D3D
+       * clients whose base driver lacks it. maxPushDescriptors is reported in
+       * wrapper_GetPhysicalDeviceProperties2; the entrypoints are emulated in
+       * wrapper_device.c. */
+      {
+         bool is_d3d = strstr(engine_name, "DXVK") || strstr(engine_name, "vkd3d");
+         if (is_d3d && !pdevice->base_supported_extensions.KHR_push_descriptor) {
+            WRAPPER_LOG(info, "Faking VK_KHR_push_descriptor (base driver lacks it)");
+            pdevice->vk.supported_extensions.KHR_push_descriptor = true;
+         }
+      }
+
       char *wrapper_emulate_bcn_env = getenv("WRAPPER_EMULATE_BCN");
 
       if (!wrapper_emulate_bcn_env) 
@@ -559,6 +572,16 @@ wrapper_GetPhysicalDeviceProperties2(VkPhysicalDevice physicalDevice,
       	 texel_prop->storageTexelBufferOffsetAlignmentBytes = 1;
       	 texel_prop->uniformTexelBufferOffsetAlignmentBytes = 1;
       	 break;
+      }
+      case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PUSH_DESCRIPTOR_PROPERTIES:
+      {
+         /* Only override when we're faking the extension; if the base driver has
+          * it natively it already filled a real limit. */
+         if (pdevice->vk.supported_extensions.KHR_push_descriptor &&
+             !pdevice->base_supported_extensions.KHR_push_descriptor)
+            ((VkPhysicalDevicePushDescriptorProperties *)prop)->maxPushDescriptors =
+               WRAPPER_MAX_PUSH_DESCRIPTORS;
+         break;
       }
       case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FLOAT_CONTROLS_PROPERTIES_KHR:
       {

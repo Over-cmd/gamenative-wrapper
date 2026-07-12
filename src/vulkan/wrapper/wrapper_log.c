@@ -1,3 +1,5 @@
+#include <time.h>
+
 #include "wrapper_log.h"
 #include "wrapper_util.h"
 
@@ -13,6 +15,7 @@ static struct wrapper_log wrapper_log_options[] = {
 	{"shader", WRAPPER_LOG_SHADER},
 	{"validation", WRAPPER_LOG_VALIDATION},
 	{"bcn", WRAPPER_LOG_BCN},
+	{"apidump", WRAPPER_LOG_APIDUMP},
 	{NULL, 0}
 };
 

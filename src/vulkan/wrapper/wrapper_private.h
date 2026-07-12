@@ -16,6 +16,10 @@
 #include "util/hash_table.h"
 #include "adrenotools/driver.h"
 
+/* Limit advertised for emulated VK_KHR_push_descriptor. 32 is the common
+ * hardware value and comfortably covers what vkd3d/DXVK push. */
+#define WRAPPER_MAX_PUSH_DESCRIPTORS 32
+
 extern const struct vk_instance_extension_table wrapper_instance_extensions;
 extern const struct vk_device_extension_table wrapper_device_extensions;
 extern const struct vk_device_extension_table wrapper_filter_extensions;
@@ -78,6 +82,18 @@ struct wrapper_device {
    struct vk_device_dispatch_table dispatch_table;
 
    bool emulate_null_descriptor;
+   bool device_fault_enabled;
+
+   /* VK_KHR_push_descriptor emulation (for drivers lacking it, e.g. Mali r44).
+    * Enabled when the app uses push descriptors and either the base driver
+    * lacks the extension or WRAPPER_EMULATE_PUSH_DESCRIPTOR forces it. */
+   bool emulate_push_descriptor;
+   uint32_t max_push_descriptors;
+   simple_mtx_t push_mutex;
+   struct hash_table_u64 *push_dsl_table;       /* VkDescriptorSetLayout -> wrapper_push_dsl */
+   struct hash_table_u64 *push_pl_table;        /* VkPipelineLayout -> wrapper_push_pl */
+   struct hash_table_u64 *push_template_table;  /* VkDescriptorUpdateTemplate -> wrapper_push_template */
+
    VkBuffer null_buffer;
    VkDeviceMemory null_buffer_memory;
    VkImage null_image;
@@ -134,6 +150,17 @@ struct wrapper_fence {
 	struct list_head staging_buffers_list;
 };
 
+/* One chunked descriptor pool used to service emulated push-descriptor sets for
+ * a single command buffer recording. Pools live on the command buffer and are
+ * reset (not freed) at Begin/Reset -- safe because a CB can't be re-recorded
+ * while still executing -- and destroyed when the command buffer is freed. */
+struct wrapper_push_pool {
+   struct wrapper_push_pool *next;
+   VkDescriptorPool pool;
+   VkDescriptorSetLayout layout;   /* the set layout this pool is sized for */
+   uint32_t remaining;             /* sets left before this pool is exhausted */
+};
+
 struct wrapper_command_buffer {
    struct vk_command_buffer vk;
 
@@ -142,6 +169,7 @@ struct wrapper_command_buffer {
    VkCommandPool pool;
    struct wrapper_fence *fence;
    VkCommandBuffer dispatch_handle;
+   struct wrapper_push_pool *push_pools;   /* emulated push-descriptor pools */
 };
 
 VK_DEFINE_HANDLE_CASTS(wrapper_command_buffer, vk.base, VkCommandBuffer,
@@ -157,6 +185,25 @@ struct wrapper_device_memory {
    size_t alloc_size;
    VkDeviceMemory dispatch_handle;
    const VkAllocationCallbacks *alloc;
+};
+
+/* Records kept for push-descriptor emulation, keyed by the driver handle. */
+struct wrapper_push_dsl {              /* per VkDescriptorSetLayout */
+   bool is_push;
+   VkDescriptorPoolSize sizes[16];     /* pool sizing derived from the bindings */
+   uint32_t size_count;
+};
+
+struct wrapper_push_pl {               /* per VkPipelineLayout */
+   uint32_t set_layout_count;
+   VkDescriptorSetLayout *set_layouts; /* owned copy of the app's set layouts */
+};
+
+struct wrapper_push_template {         /* per VkDescriptorUpdateTemplate */
+   bool is_push;
+   VkPipelineBindPoint bind_point;
+   VkPipelineLayout pipeline_layout;
+   uint32_t set;
 };
 
 VkResult enumerate_physical_device(struct vk_instance *_instance);
