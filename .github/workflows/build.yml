@@ -6,6 +6,10 @@ jobs:
   build-android-wrapper:
     runs-on: ubuntu-latest
 
+    strategy:
+          matrix:
+            build-type: [debugoptimized, release]
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -43,7 +47,7 @@ jobs:
         run: |
           meson setup _build \
             --cross-file android-cross.toml \
-            -Dbuildtype=debugoptimized \
+            -Dbuildtype=${{ matrix.build-type }} \
             -Dplatforms=android,x11 \
             -Dandroid-stub=true \
             -Dandroid-libbacktrace=disabled \
@@ -69,6 +73,6 @@ jobs:
       - name: Upload Vulkan Wrapper Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: libvulkan_wrapper-android-aarch64
+          name: libvulkan_wrapper-aarch64-${{ matrix.build-type }}
           path: _build/src/vulkan/wrapper/libvulkan_wrapper.so
           if-no-files-found: error
