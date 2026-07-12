@@ -1,0 +1,74 @@
+name: Android NDK Build (Wrapper Variant)
+
+on: [push]
+
+jobs:
+  build-android-wrapper:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Patch anon_file.c for memfd_create
+        run: |
+          # SDK 30+ has native memfd_create in NDK
+          sed -i 's/#if defined(HAVE_MEMFD_CREATE) \&\& !defined __TERMUX__/#if defined(HAVE_MEMFD_CREATE)/' src/util/anon_file.c
+          # sed -i '/with_gallium_drisw_kms = false/{n;s/if system_has_kms_drm/if false/;}' meson.build # Disables DRI in WSI
+          sed -i "s/dep_libudev = dependency('libudev', required : false)/dep_libudev = null_dep/g" meson.build
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Install Build Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install mako PyYAML meson ninja packaging
+
+      - name: Generate Meson Cross File for NDK
+        run: |
+          export ANDROID_NDK_HOME="$ANDROID_NDK_LATEST_HOME"
+          export MESON_WORKING_DIR="$GITHUB_WORKSPACE"
+          envsubst < android.toml > android-cross.toml
+
+      - name: Generate Shims
+        run: |
+          unzip shims.zip -d ./
+
+      - name: Configure Meson
+        env:
+          PKG_CONFIG_LIBDIR: ${{ github.workspace }}/shims
+        run: |
+          meson setup _build \
+            --cross-file android-cross.toml \
+            -Dbuildtype=debugoptimized \
+            -Dplatforms=android,x11 \
+            -Dandroid-stub=true \
+            -Dandroid-libbacktrace=disabled \
+            -Dplatform-sdk-version=30 \
+            -Dglx=disabled \
+            -Dgbm=disabled \
+            -Degl=disabled \
+            -Dopengl=false \
+            -Dgles1=disabled \
+            -Dgles2=disabled \
+            -Dglvnd=disabled \
+            -Dllvm=disabled \
+            -Dvalgrind=disabled \
+            -Dgallium-drivers= \
+            -Dshared-glapi=disabled \
+            -Dzstd=disabled \
+            -Dvulkan-drivers=wrapper
+
+      - name: Compile Project
+        run: |
+          meson compile -C _build
+
+      - name: Upload Vulkan Wrapper Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: libvulkan_wrapper-android-aarch64
+          path: _build/src/vulkan/wrapper/libvulkan_wrapper.so
+          if-no-files-found: error
