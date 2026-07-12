@@ -96,11 +96,22 @@ wrapper_filter_enabled_extensions(const struct wrapper_device *device,
          vk_device_extensions[idx].extensionName;
    }
 
+   /* The app enabled one of the vertex_attribute_divisor aliases (both are
+    * advertised). Forward whichever one the base driver actually supports;
+    * symmetric so a future Mali that gains EXT is handled too. On r44 (neither
+    * is present) nothing is forwarded -- the extension is purely spoofed. */
    if (device->vk.enabled_extensions.EXT_vertex_attribute_divisor &&
        !device->vk.enabled_extensions.KHR_vertex_attribute_divisor &&
        device->physical->base_supported_extensions.KHR_vertex_attribute_divisor) {
       enable_extensions[(*enable_extension_count)++] =
          "VK_KHR_vertex_attribute_divisor";
+   }
+
+   if (device->vk.enabled_extensions.KHR_vertex_attribute_divisor &&
+       !device->vk.enabled_extensions.EXT_vertex_attribute_divisor &&
+       device->physical->base_supported_extensions.EXT_vertex_attribute_divisor) {
+      enable_extensions[(*enable_extension_count)++] =
+         "VK_EXT_vertex_attribute_divisor";
    }
 }
 
@@ -174,13 +185,20 @@ static void process_pnext_chain(VkBaseInStructure *create_info, struct wrapper_p
              unlink_vk_struct(create_info, &current, &prev);
              continue;
           case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VERTEX_ATTRIBUTE_DIVISOR_FEATURES_EXT:
-             if (!pdevice->base_supported_extensions.EXT_vertex_attribute_divisor &&
-                  pdevice->base_supported_extensions.KHR_vertex_attribute_divisor) {
+             if (pdevice->base_supported_extensions.EXT_vertex_attribute_divisor)
+                break;   /* base has EXT natively -- pass through unchanged */
+             if (pdevice->base_supported_extensions.KHR_vertex_attribute_divisor) {
                 WRAPPER_LOG(info, "Aliasing VertexAttributeDivisorFeatures EXT->KHR in device pNext");
                 ((VkBaseOutStructure *)current)->sType =
                    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VERTEX_ATTRIBUTE_DIVISOR_FEATURES_KHR;
+                break;
              }
-             break;
+             /* base supports neither alias (e.g. Mali r44): the extension is
+              * purely spoofed, so drop the feature struct rather than hand the
+              * real driver a feature for an extension we didn't enable. */
+             WRAPPER_LOG(info, "Unlinking VertexAttributeDivisorFeaturesEXT (base lacks it)");
+             unlink_vk_struct(create_info, &current, &prev);
+             continue;
           case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES:
              if (api_version >= VK_MAKE_VERSION(1, 1, 0))
                 break;

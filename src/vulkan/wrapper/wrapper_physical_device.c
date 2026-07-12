@@ -290,11 +290,15 @@ VkResult enumerate_physical_device(struct vk_instance *_instance)
             supported_features->dualSrcBlend = true;
             supported_features->multiDrawIndirect = true;
          }
-         if (pdevice->base_supported_extensions.KHR_vertex_attribute_divisor) {
-            WRAPPER_LOG(info, "Aliasing VK_EXT_vertex_attribute_divisor -> KHR (Mali has KHR)");
-            pdevice->vk.supported_extensions.EXT_vertex_attribute_divisor = true;
-            pdevice->vk.supported_extensions.KHR_vertex_attribute_divisor = false;
-         }
+         /* Spoof both vertex_attribute_divisor extensions as supported. Mali r51
+          * exposes KHR (we forward that); r44 exposes neither, so we advertise
+          * it purely to get vkd3d past its requirement check. Advertising BOTH
+          * (rather than hiding KHR) is fine -- the device-side filter below
+          * forwards whichever alias the base driver actually has, and
+          * process_pnext_chain aliases the feature struct EXT<->KHR to match. */
+         WRAPPER_LOG(info, "Spoofing VK_EXT/KHR_vertex_attribute_divisor as supported");
+         pdevice->vk.supported_extensions.EXT_vertex_attribute_divisor = true;
+         pdevice->vk.supported_extensions.KHR_vertex_attribute_divisor = true;
          WRAPPER_LOG(info, "Disabling VK_EXT_calibrated_timestamps");
          pdevice->vk.supported_extensions.EXT_calibrated_timestamps = false;
          if (!is_d3d) {
@@ -497,6 +501,31 @@ wrapper_GetPhysicalDeviceProperties(VkPhysicalDevice physicalDevice,
       pProperties->limits.maxPushConstantsSize = 256;
 }
 
+/* vkd3d's bindless model needs large UpdateAfterBind descriptor limits (D3D12
+ * shader-visible heaps hold up to ~1M descriptors). Some drivers (e.g. Mali
+ * r44) report only ~500k, so vkd3d aborts at bindless_state_init with
+ * "Insufficient descriptor indexing support". Spoof the limits up to the D3D12
+ * heap size for D3D clients. NOTE: unlike a feature toggle this is a REAL
+ * hardware limit -- if the game actually binds more descriptors than the driver
+ * can back, it will fault later (VK_EXT_device_fault will report where) rather
+ * than being cleanly rejected here. Only bumps values that are below target. */
+#define WRAPPER_D3D_BINDLESS_LIMIT (1u << 20)   /* 1048576 */
+#define BUMP_UAB(p, t) do { \
+   uint32_t _t = (t); \
+   if ((p)->maxUpdateAfterBindDescriptorsInAllPools < _t)           (p)->maxUpdateAfterBindDescriptorsInAllPools = _t; \
+   if ((p)->maxPerStageDescriptorUpdateAfterBindSamplers < _t)      (p)->maxPerStageDescriptorUpdateAfterBindSamplers = _t; \
+   if ((p)->maxPerStageDescriptorUpdateAfterBindUniformBuffers < _t)(p)->maxPerStageDescriptorUpdateAfterBindUniformBuffers = _t; \
+   if ((p)->maxPerStageDescriptorUpdateAfterBindStorageBuffers < _t)(p)->maxPerStageDescriptorUpdateAfterBindStorageBuffers = _t; \
+   if ((p)->maxPerStageDescriptorUpdateAfterBindSampledImages < _t) (p)->maxPerStageDescriptorUpdateAfterBindSampledImages = _t; \
+   if ((p)->maxPerStageDescriptorUpdateAfterBindStorageImages < _t) (p)->maxPerStageDescriptorUpdateAfterBindStorageImages = _t; \
+   if ((p)->maxPerStageUpdateAfterBindResources < _t)              (p)->maxPerStageUpdateAfterBindResources = _t; \
+   if ((p)->maxDescriptorSetUpdateAfterBindSamplers < _t)          (p)->maxDescriptorSetUpdateAfterBindSamplers = _t; \
+   if ((p)->maxDescriptorSetUpdateAfterBindUniformBuffers < _t)    (p)->maxDescriptorSetUpdateAfterBindUniformBuffers = _t; \
+   if ((p)->maxDescriptorSetUpdateAfterBindStorageBuffers < _t)    (p)->maxDescriptorSetUpdateAfterBindStorageBuffers = _t; \
+   if ((p)->maxDescriptorSetUpdateAfterBindSampledImages < _t)     (p)->maxDescriptorSetUpdateAfterBindSampledImages = _t; \
+   if ((p)->maxDescriptorSetUpdateAfterBindStorageImages < _t)     (p)->maxDescriptorSetUpdateAfterBindStorageImages = _t; \
+} while (0)
+
 VKAPI_ATTR void VKAPI_CALL
 wrapper_GetPhysicalDeviceProperties2(VkPhysicalDevice physicalDevice,
                                      VkPhysicalDeviceProperties2* pProperties)
@@ -506,12 +535,15 @@ wrapper_GetPhysicalDeviceProperties2(VkPhysicalDevice physicalDevice,
    char *device_name;
    char *driver_info;
    uint32_t driver_id;
-   
+
    uint32_t api_version = parse_vk_version_from_env();
-   
+
    VK_FROM_HANDLE(wrapper_physical_device, pdevice, physicalDevice);
    pdevice->dispatch_table.GetPhysicalDeviceProperties2(
       pdevice->dispatch_handle, pProperties);
+
+   const char *eng = pdevice->instance->vk.app_info.engine_name;
+   bool is_d3d = eng && (strstr(eng, "DXVK") || strstr(eng, "vkd3d"));
 
    char *device_name_env = getenv("WRAPPER_DEVICE_NAME");
    asprintf(&device_name, "Wrapper(%s)", (device_name_env) ? device_name_env : pProperties->properties.deviceName);   
@@ -637,6 +669,17 @@ wrapper_GetPhysicalDeviceProperties2(VkPhysicalDevice physicalDevice,
          
          strcpy(vk12_prop->driverInfo, driver_info);
          strcpy(vk12_prop->driverName, "Wrapper driver");
+
+         /* Vulkan12Properties folds in the descriptor-indexing limits. */
+         if (is_d3d)
+            BUMP_UAB(vk12_prop, WRAPPER_D3D_BINDLESS_LIMIT);
+         break;
+      }
+      case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_PROPERTIES:
+      {
+         if (is_d3d)
+            BUMP_UAB((VkPhysicalDeviceDescriptorIndexingProperties *)prop,
+                     WRAPPER_D3D_BINDLESS_LIMIT);
          break;
       }
       case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_PROPERTIES:
