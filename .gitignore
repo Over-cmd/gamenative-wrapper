@@ -9,3 +9,8 @@
 
 # Local dev build notes (not part of the fork)
 BUILD-PIXEL7.md
+
+# ARM64 build shims needed for the wrapper when cross compiling on x86-64
+shims/
+
+.zed/
