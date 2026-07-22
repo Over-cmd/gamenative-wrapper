@@ -143,7 +143,7 @@ ion_heap_alloc(int heap_fd, size_t size) {
       int saved_errno = errno;
       struct ion_handle_data_1 free_data = { .handle = alloc_data.handle };
       safe_ioctl(heap_fd, ION_IOC_FREE_1, &free_data);
-      WRAPPER_LOG("error", "Failed to share handle, errno=%d", alloc_data.handle, saved_errno);
+      WRAPPER_LOG("error", "Failed to share handle, errno=%d", saved_errno);
       errno = saved_errno;
       return -1;
    }
@@ -167,7 +167,6 @@ wrapper_dmabuf_alloc(struct wrapper_device *device, size_t size)
    return fd;
 }
 
-
 uint32_t
 wrapper_select_device_memory_type(struct wrapper_device *device,
                                   VkMemoryPropertyFlags flags) {
@@ -181,6 +180,26 @@ wrapper_select_device_memory_type(struct wrapper_device *device,
       }
    }
    return idx < props->memoryTypeCount ? idx : UINT32_MAX;
+}
+
+static uint32_t
+wrapper_select_allowed_device_memory_type(struct wrapper_device *device,
+                                          uint32_t allowed_type_bits,
+                                          VkMemoryPropertyFlags flags) {
+   VkPhysicalDeviceMemoryProperties *props =
+      &device->physical->memory_properties;
+   int idx;
+
+   for (idx = 0; idx < props->memoryTypeCount; idx++) {
+      if (!(allowed_type_bits & (1U << idx))) {
+         continue;
+      }
+
+      if (props->memoryTypes[idx].propertyFlags & flags) {
+         return idx;
+      }
+   }
+   return UINT32_MAX;
 }
 
 static VkResult
@@ -209,6 +228,17 @@ wrapper_allocate_memory_dmaheap(struct wrapper_device *device,
       WRAPPER_LOG(error, "Failed to get memory fd properties, res %d", result);
       return VK_ERROR_INVALID_EXTERNAL_HANDLE;
    }
+   
+   int memory_type_index = wrapper_select_allowed_device_memory_type(device,
+      memory_fd_props.memoryTypeBits,
+      VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT |
+      VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+      VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+   if (memory_type_index == UINT32_MAX) {
+      WRAPPER_LOG(error, "No compatible memory type found for fd %d", *out_fd);
+      return VK_ERROR_INVALID_EXTERNAL_HANDLE;
+   }
 
    import_fd_info = (VkImportMemoryFdInfoKHR) {
       .sType = VK_STRUCTURE_TYPE_IMPORT_MEMORY_FD_INFO_KHR,
@@ -218,12 +248,7 @@ wrapper_allocate_memory_dmaheap(struct wrapper_device *device,
    };
    allocate_info = *pAllocateInfo;
    allocate_info.pNext = &import_fd_info;
-   allocate_info.memoryTypeIndex =
-      wrapper_select_device_memory_type(device,
-         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT |
-         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-         VK_MEMORY_PROPERTY_HOST_COHERENT_BIT |
-         memory_fd_props.memoryTypeBits);
+   allocate_info.memoryTypeIndex = memory_type_index;
 
    result = device->dispatch_table.AllocateMemory(
       device->dispatch_handle, &allocate_info,
@@ -439,6 +464,22 @@ wrapper_AllocateMemory(VkDevice _device,
    if (vk_find_struct_const(pAllocateInfo, EXPORT_MEMORY_ALLOCATE_INFO))
       goto fallback;
 
+   const VkMemoryDedicatedAllocateInfo *dedicated_allocate_info =
+         vk_find_struct_const((void*) pAllocateInfo->pNext, MEMORY_DEDICATED_ALLOCATE_INFO);
+   
+   static int bypass_swapchains = -1;
+   if (bypass_swapchains == -1) 
+      bypass_swapchains = getenv("WRAPPER_BYPASS_SWAPCHAIN_PLACED") ?
+                          atoi(getenv("WRAPPER_BYPASS_SWAPCHAIN_PLACED")) : 0; // TODO: turn on by default if safe
+
+   if (bypass_swapchains && dedicated_allocate_info && dedicated_allocate_info->image != VK_NULL_HANDLE) {
+      struct wrapper_image *img = get_wrapper_image_from_handle(device, dedicated_allocate_info->image);
+      if (img && img->is_wsi_image) {
+         WRAPPER_LOG(info, "Bypassing EXT_map_memory_placed emulation for swapchain image");
+         goto fallback;
+      }
+   }
+   
    WRAPPER_LOG(info, "Emulating vkAllocateMemory");
 
    simple_mtx_lock(&device->resource_mutex);
@@ -485,13 +526,25 @@ wrapper_AllocateMemory(VkDevice _device,
    if (result != VK_SUCCESS) {
       WRAPPER_LOG(error, "Failed to allocate memory, res %d", result);
       wrapper_device_memory_destroy(mem);
+
+      if (dedicated_allocate_info && dedicated_allocate_info->image != VK_NULL_HANDLE) {
+         struct wrapper_image *img = get_wrapper_image_from_handle(device, dedicated_allocate_info->image);
+         if (img && img->is_wsi_image) {
+            // Fixes failure to blit on ion-heap (< GKI 5.10) Mali devices at the cost of
+            // not being able to mmap these.
+            WRAPPER_LOG(error, "EXT_map_memory_placed emulation failed for swapchain image, bypassing emulation");
+            simple_mtx_lock(&device->resource_mutex);
+            goto fallback;
+         }
+      }
+
       vk_error(device, result);
    } else {
       *pMemory = mem->dispatch_handle;
    }
 
 out:
-   simple_mtx_unlock(&mem->device->resource_mutex);
+   simple_mtx_unlock(&device->resource_mutex);
    return result;
 
 fallback:
