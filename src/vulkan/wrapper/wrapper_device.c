@@ -1000,7 +1000,7 @@ wrapper_CreateImage(VkDevice _device,
 {
    VK_FROM_HANDLE(wrapper_device, device, _device);
    VkResult res;
-   VkImageCreateInfo create_info = *pCreateInfo;
+   VkImageCreateInfo create_info;
    bool is_emulated_bgra8 = false;
    bool is_wsi_image = false;
 
@@ -1024,6 +1024,12 @@ wrapper_CreateImage(VkDevice _device,
       }
       prev = (VkBaseInStructure *) s;
    }
+
+   /* Copy after the unlink above: when the emulated-bgra8 struct is the
+    * head of the pNext chain, the unlink only updates pCreateInfo->pNext,
+    * so a copy taken earlier would still pass the unknown struct to the
+    * driver. */
+   create_info = *pCreateInfo;
 
    if (is_emulated_bcn(device->physical, pCreateInfo->format)) {
       create_info.format = get_format_for_bcn(pCreateInfo->format);

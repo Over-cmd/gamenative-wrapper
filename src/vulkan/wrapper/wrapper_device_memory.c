@@ -528,12 +528,16 @@ wrapper_AllocateMemory(VkDevice _device,
       wrapper_device_memory_destroy(mem);
 
       if (dedicated_allocate_info && dedicated_allocate_info->image != VK_NULL_HANDLE) {
-         struct wrapper_image *img = get_wrapper_image_from_handle(device, dedicated_allocate_info->image);
+         /* resource_mutex is already held here and simple_mtx is not
+          * recursive, so search the image table directly instead of
+          * going through get_wrapper_image_from_handle. */
+         struct wrapper_image *img = _mesa_hash_table_u64_search(
+            device->image_table, (uint64_t)dedicated_allocate_info->image);
          if (img && img->is_wsi_image) {
             // Fixes failure to blit on ion-heap (< GKI 5.10) Mali devices at the cost of
             // not being able to mmap these.
             WRAPPER_LOG(error, "EXT_map_memory_placed emulation failed for swapchain image, bypassing emulation");
-            simple_mtx_lock(&device->resource_mutex);
+            simple_mtx_unlock(&device->resource_mutex);
             goto fallback;
          }
       }
@@ -609,23 +613,45 @@ wrapper_MapMemory2KHR(VkDevice _device,
 
    if (mem->ahardware_buffer) {
       const native_handle_t *handle;
+      int idx;
 
       handle = AHardwareBuffer_getNativeHandle(mem->ahardware_buffer);
-      fd = handle->data[0];
+      /* The AHB native handle may carry several fds (e.g. metadata pipes
+       * alongside the actual memory fd); pick the first one that is
+       * seekable and large enough to back the allocation. */
+      for (idx = 0; idx < handle->numFds; idx++) {
+         off_t size = lseek(handle->data[idx], 0, SEEK_END);
+         if (size < 0) {
+            WRAPPER_LOG(error, "lseek failed on AHB fd (idx=%d, fd=%d): errno %d, trying next fd",
+                        idx, handle->data[idx], errno);
+            continue;
+         }
+         if ((size_t)size >= mem->alloc_size)
+            break;
+      }
+      if (idx >= handle->numFds) {
+         WRAPPER_LOG(error, "No usable AHB fd with size >= alloc_size %zu", mem->alloc_size);
+         result = VK_ERROR_MEMORY_MAP_FAILED;
+         goto fail;
+      }
+      fd = handle->data[idx];
    }
    else {
       fd = mem->fd;
    }
-   
+
    if (pMemoryMapInfo->size == VK_WHOLE_SIZE) {
-      int res = lseek(fd, 0, SEEK_END);
-      if (res < 0) {
-         WRAPPER_LOG(error, "Failed lseek for file descriptor %d", fd);
-         result = VK_ERROR_MEMORY_MAP_FAILED;
-         goto fail;
+      if (mem->alloc_size > 0) {
+         mem->map_size = mem->alloc_size;
+      } else {
+         off_t res = lseek(fd, 0, SEEK_END);
+         if (res < 0) {
+            WRAPPER_LOG(error, "Failed lseek for file descriptor %d: errno %d", fd, errno);
+            result = VK_ERROR_MEMORY_MAP_FAILED;
+            goto fail;
+         }
+         mem->map_size = res;
       }
-      mem->map_size = mem->alloc_size > 0 ?
-         mem->alloc_size : res;
    }
    else
       mem->map_size = pMemoryMapInfo->size;
