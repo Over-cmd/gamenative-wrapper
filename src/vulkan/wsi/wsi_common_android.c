@@ -353,7 +353,20 @@ wsi_configure_ahardware_buffer_image(const struct wsi_swapchain *chain,
       wsi_destroy_image_info(chain, info);
       return VK_ERROR_OUT_OF_HOST_MEMORY;
    }
-   
+
+   // WARNING: The secondary AHB MUST be declared as AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM
+   // to allow certain mobile drivers to import it, but X11 treats its memory backing 
+   // as physical [B, G, R, A] (in reverse order).
+   //
+   // We CANNOT use vkCmdBlitImage: Vulkan will detect the format mismatch between 
+   // B8G8R8A8 (primary) and R8G8B8A8 (secondary) and perform an automatic channel swizzle 
+   // [B,G,R,A] -> [R,G,B,A], which breaks X11's expected layout.
+   //
+   // We MUST use vkCmdCopyImage for a pure bitwise copy, and force the primary image 
+   // to B8G8R8A8 upfront so the rendered memory is already in [B, G, R, A] order.
+   // 
+   // Similarly, we CANNOT advertise an [R,G,B,A] format for the primary image without
+   // a design to copy+swizzle the blit from the primary to the secondary.
    *info->ahardware_buffer_desc = (AHardwareBuffer_Desc) {
       .width = pCreateInfo->imageExtent.width,
       .height = pCreateInfo->imageExtent.height,
