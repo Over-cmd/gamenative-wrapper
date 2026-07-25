@@ -41,23 +41,29 @@ const struct vk_device_extension_table wrapper_filter_extensions =
    .EXT_image_compression_control_swapchain = true,
 };
 
-static struct wrapper_buffer *
-get_wrapper_buffer_from_handle(struct wrapper_device *device, VkBuffer buffer) {
-   struct wrapper_buffer *wb = NULL;
+inline struct wrapper_buffer *
+get_wrapper_buffer_from_handle_locked(struct wrapper_device *device, VkBuffer buffer) {
+   return _mesa_hash_table_u64_search(device->buffer_table, (uint64_t) buffer);
+}
 
+struct wrapper_buffer *
+get_wrapper_buffer_from_handle(struct wrapper_device *device, VkBuffer buffer) {
    simple_mtx_lock(&device->resource_mutex);
-   wb = _mesa_hash_table_u64_search(device->buffer_table, (uint64_t) buffer);
+   struct wrapper_buffer *wb = get_wrapper_buffer_from_handle_locked(device, buffer);
    simple_mtx_unlock(&device->resource_mutex);
 
    return wb;
 }
 
+inline struct wrapper_image *
+get_wrapper_image_from_handle_locked(struct wrapper_device *device, VkImage image) {
+   return _mesa_hash_table_u64_search(device->image_table, (uint64_t) image);
+}
+
 struct wrapper_image *
-get_wrapper_image_from_handle(struct wrapper_device *device, VkImage image) {
-   struct wrapper_image *wi = NULL;
-   
+get_wrapper_image_from_handle(struct wrapper_device *device, VkImage image) {   
    simple_mtx_lock(&device->resource_mutex);
-   wi = _mesa_hash_table_u64_search(device->image_table, (uint64_t) image);
+   struct wrapper_image *wi = get_wrapper_image_from_handle_locked(device, image);
    simple_mtx_unlock(&device->resource_mutex);
    
    return wi;
@@ -854,6 +860,7 @@ wrapper_CreateBuffer(VkDevice _device,
 {
    VK_FROM_HANDLE(wrapper_device, device, _device);
    VkResult res;
+   VkExternalMemoryHandleTypeFlags handle_types = 0;
 
    /* When we fake VK_KHR_maintenance5 (base driver lacks it, e.g. Xclipse),
     * DXVK specifies buffer usage through VkBufferUsageFlags2CreateInfo and may
@@ -869,6 +876,12 @@ wrapper_CreateBuffer(VkDevice _device,
          local_create_info.usage |= (VkBufferUsageFlags)uf2->usage;
          pCreateInfo = &local_create_info;
       }
+   }
+
+   const VkExternalMemoryBufferCreateInfo *ext_info =
+      vk_find_struct_const(pCreateInfo->pNext, EXTERNAL_MEMORY_BUFFER_CREATE_INFO);
+   if (ext_info) {
+      handle_types = ext_info->handleTypes;
    }
 
    res = device->dispatch_table.CreateBuffer(device->dispatch_handle,
@@ -893,6 +906,7 @@ wrapper_CreateBuffer(VkDevice _device,
    wb->device = device;
    wb->size = pCreateInfo->size;
    wb->dispatch_handle = *pBuffer;
+   wb->handle_types = handle_types;
 
    list_add(&wb->link, &device->buffer_list);
    _mesa_hash_table_u64_insert(device->buffer_table, (uint64_t)wb->dispatch_handle, wb);
@@ -1003,6 +1017,7 @@ wrapper_CreateImage(VkDevice _device,
    VkImageCreateInfo create_info;
    bool is_emulated_bgra8 = false;
    bool is_wsi_image = false;
+   VkExternalMemoryHandleTypeFlags handle_types = 0;
 
    // Wrapper specific extension for B8G8R8A8 AHB img emulation for the swapchain
    VkBaseInStructure *prev = (VkBaseInStructure *) pCreateInfo;
@@ -1016,13 +1031,16 @@ wrapper_CreateImage(VkDevice _device,
    }
 
    // Tag swapchain images using VK_STRUCTURE_TYPE_WSI_IMAGE_CREATE_INFO_MESA
-   prev = (VkBaseInStructure *) pCreateInfo;
-   for (const VkBaseInStructure *s = pCreateInfo->pNext; s; s = s->pNext) {
-      if (s->sType == VK_STRUCTURE_TYPE_WSI_IMAGE_CREATE_INFO_MESA) {
-         is_wsi_image = true;
-         break;
-      }
-      prev = (VkBaseInStructure *) s;
+   const struct wsi_image_create_info *wsi_info =
+      vk_find_struct_const(pCreateInfo->pNext, WSI_IMAGE_CREATE_INFO_MESA);
+   if (wsi_info) {
+      is_wsi_image = true;
+   }
+
+   const VkExternalMemoryImageCreateInfo *ext_info =
+      vk_find_struct_const(pCreateInfo->pNext, EXTERNAL_MEMORY_IMAGE_CREATE_INFO);
+   if (ext_info) {
+      handle_types = ext_info->handleTypes;
    }
 
    /* Copy after the unlink above: when the emulated-bgra8 struct is the
@@ -1073,6 +1091,7 @@ wrapper_CreateImage(VkDevice _device,
    wi->dispatch_handle = *pImage;
    wi->is_emulated_bgra8 = is_emulated_bgra8;
    wi->is_wsi_image = is_wsi_image;
+   wi->handle_types = handle_types;
 
    list_add(&wi->link, &device->image_list);
    _mesa_hash_table_u64_insert(device->image_table, (uint64_t)wi->dispatch_handle, wi);

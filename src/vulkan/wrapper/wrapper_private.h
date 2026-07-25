@@ -129,7 +129,14 @@ struct wrapper_buffer {
     * and bytes to release from the device's in-flight counter when freed. */
    VkDescriptorPool desc_pool;
    VkDeviceSize bcn_inflight;
+   VkExternalMemoryHandleTypeFlags handle_types;
 };
+
+struct wrapper_buffer *
+get_wrapper_buffer_from_handle_locked(struct wrapper_device *device, VkBuffer buffer);
+
+struct wrapper_buffer *
+get_wrapper_buffer_from_handle(struct wrapper_device *device, VkBuffer buffer);
 
 #define VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EMULATED_B8G8R8A8_CREATE_INFO_EXT 1000701234
 typedef struct VkEmulatedB8G8R8A8CreateInfoExt {
@@ -147,7 +154,11 @@ struct wrapper_image {
 
    bool is_emulated_bgra8;
    bool is_wsi_image;
+   VkExternalMemoryHandleTypeFlags handle_types;
 };
+
+struct wrapper_image *
+get_wrapper_image_from_handle_locked(struct wrapper_device *device, VkImage image);
 
 struct wrapper_image *
 get_wrapper_image_from_handle(struct wrapper_device *device, VkImage image);

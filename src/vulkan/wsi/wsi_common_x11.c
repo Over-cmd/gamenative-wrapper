@@ -443,12 +443,16 @@ wsi_x11_get_connection(struct wsi_device *wsi_dev,
    return entry->data;
 }
 
+// WARNING: this is the primary image format list
+// When blitting, we CANNOT advertise R8G8B8A8 as the secondary
+// image expects the physical layout order of the primary image
+// to ALWAYS be B8G8R8A8_UNORM, regardless of the advertised format.
+// Until we can swizzle+copy the image (and we cannot use a vkCmdBlitImage)
+// we must always advertise B8G8R8A8_UNORM as the primary image format.
 static const VkFormat formats[] = {
    VK_FORMAT_R5G6B5_UNORM_PACK16,
    VK_FORMAT_B8G8R8A8_SRGB,
    VK_FORMAT_B8G8R8A8_UNORM,
-   VK_FORMAT_R8G8B8A8_SRGB, // Mali only supports rgba8 direct rendering
-   VK_FORMAT_R8G8B8A8_UNORM, // Mali only supports rgba8 direct rendering
    VK_FORMAT_A2R10G10B10_UNORM_PACK32,
 };
 
@@ -865,26 +869,11 @@ get_sorted_vk_formats(VkIcdSurfaceBase *surface, struct wsi_device *wsi_device,
    /* use the root window's visual to set the default */
    *count = 0;
    for (unsigned i = 0; i < ARRAY_SIZE(formats); i++) {
-      // dxvk will prefer an rgba8 framebuffer, but x11 MUST be given
-      // a bgra8 one. Since we now expose rgba8 as an option for Mali
-      // bgra8 emulation, we need to filter them out when they're turned
-      // off or else dxvk buffers will have swapped blue/red channels.
-      if (!wsi_device->emulate_bgra8 &&
-            (formats[i] == VK_FORMAT_R8G8B8A8_UNORM ||
-            formats[i] == VK_FORMAT_R8G8B8A8_SRGB))
-         continue;
-      
       if (rgb_component_bits_are_equal(formats[i], rootvis))
          sorted_formats[(*count)++] = formats[i];
    }
 
    for (unsigned i = 0; i < ARRAY_SIZE(formats); i++) {
-      // See above
-      if (!wsi_device->emulate_bgra8 &&
-            (formats[i] == VK_FORMAT_R8G8B8A8_UNORM ||
-            formats[i] == VK_FORMAT_R8G8B8A8_SRGB))
-         continue;
-
       for (unsigned j = 0; j < *count; j++)
          if (formats[i] == sorted_formats[j])
             goto next_format;
@@ -892,15 +881,8 @@ get_sorted_vk_formats(VkIcdSurfaceBase *surface, struct wsi_device *wsi_device,
          sorted_formats[(*count)++] = formats[i];
 next_format:;
    }
-   if (wsi_device->emulate_bgra8) {
-      for (unsigned i = 0; i < *count; i++) {
-         if (sorted_formats[i] == VK_FORMAT_R8G8B8A8_UNORM) {
-            sorted_formats[i] = sorted_formats[0];
-            sorted_formats[0] = VK_FORMAT_R8G8B8A8_UNORM;
-            break;
-         }
-      }
-   } else if (wsi_device->force_bgra8_unorm_first) {
+
+   if (wsi_device->force_bgra8_unorm_first) {
       for (unsigned i = 0; i < *count; i++) {
          if (sorted_formats[i] == VK_FORMAT_B8G8R8A8_UNORM) {
             sorted_formats[i] = sorted_formats[0];
