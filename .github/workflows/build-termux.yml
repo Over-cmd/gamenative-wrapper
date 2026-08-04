@@ -28,17 +28,31 @@ jobs:
           git clone --depth 1 "$B_HEADERS" spirv_source/external/spirv-headers
           git clone --depth 1 --recursive "$B_ADRENO" adrenotools_source
 
-      - name: compilador-envoltorio (Procesamiento Atómico de Factoría de la Scene)
+      - name: compilador-envoltorio (Inicialización y Forja Atómica Dual MALI)
         run: |
-          mkdir -p ${{ env.BUILD_DIR }}
-          docker run --rm -v "${{ github.workspace }}:/workspace" ${{ env.IMAGE_TAG }} ${{ env.BUILD_DIR }}
+          # Aseguramos los permisos lícitos de factoría en el workspace virtual
+          chmod -R 777 ${{ github.workspace }}
+          
+          # LA JUGADA MAESTRA: Forzamos a Docker a entrar con bash, crear el setup de Meson directo en la raíz y luego disparar el compilador nativo de la scene
+          docker run --rm -v "${{ github.workspace }}:/workspace" --entrypoint /bin/bash ${{ env.IMAGE_TAG }} -c "
+            cd /workspace && \
+            meson setup ${{ env.BUILD_DIR }} \
+              -Dvulkan-drivers=wrapper \
+              -Dgallium-drivers=[] \
+              -Dplatforms=android \
+              -Dplatform-sdk-version=26 \
+              -Dshared-glapi=enabled \
+              -Dllvm=disabled \
+              -Dwerror=false && \
+            ninja -C ${{ env.BUILD_DIR }}
+          "
 
       - name: Cargar libvulkan_wrapper.so sin formato
         uses: actions/upload-artifact@v4
         with:
           name: libvulkan_wrapper
           path: |
-            ${{ env.BUILD_DIR }}/libvulkan_wrapper.so
+            ${{ env.BUILD_DIR }}/src/vulkan/wrapper/libvulkan_wrapper.so
           if-no-files-found: error
           
       - name: cargar libvulkan_wrapper.so sin eliminar
@@ -46,5 +60,5 @@ jobs:
         with:
           name: libvulkan_wrapper-unstripped
           path: |
-            ${{ env.BUILD_DIR }}/libvulkan_wrapper.so.unstripped
+            ${{ env.BUILD_DIR }}/src/vulkan/wrapper/libvulkan_wrapper.so.unstripped
           if-no-files-found: error
