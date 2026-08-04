@@ -28,24 +28,10 @@ jobs:
           git clone --depth 1 "$B_HEADERS" spirv_source/external/spirv-headers
           git clone --depth 1 --recursive "$B_ADRENO" adrenotools_source
 
-      - name: compilador-envoltorio (Procesamiento Atómico Dual 64/32 bits MALI)
+      - name: compilador-envoltorio (Procesamiento Atómico de Factoría de la Scene)
         run: |
           mkdir -p ${{ env.BUILD_DIR }}
-          chmod -R 777 ${{ github.workspace }}
-          
-          # FORJA MAESTRA DUAL: Obligamos a Docker a compilar y unificar los dos mundos de forma lícita para que WineHQ lea ambas cabeceras ELF
-          docker run --rm -v "${{ github.workspace }}:/workspace" --entrypoint /bin/bash ${{ env.IMAGE_TAG }} -c "
-            echo '-> Forjando el ecosistema de 64 bits puro...' && \
-            /entrypoint.sh /workspace/${{ env.BUILD_DIR }} || true && \
-            echo '-> Forjando la costura de 32 bits cruzada para juegos clásicos...' && \
-            cd /workspace && \
-            if [ -d 'build32' ]; then ninja -C build32; else /entrypoint.sh /workspace/${{ env.BUILD_DIR }} --arch32 || true; fi
-          "
-          
-          # Si el Docker por defecto no autocompleta la inyección ELF, forzamos un respaldo de copia local en el volumen mapeado
-          if [ ! -f "${{ env.BUILD_DIR }}/libvulkan_wrapper.so" ]; then
-            docker run --rm -v "${{ github.workspace }}:/workspace" ${{ env.IMAGE_TAG }} ${{ env.BUILD_DIR }}
-          fi
+          docker run --rm -v "${{ github.workspace }}:/workspace" ${{ env.IMAGE_TAG }} ${{ env.BUILD_DIR }}
 
       - name: Cargar libvulkan_wrapper.so sin formato
         uses: actions/upload-artifact@v4
