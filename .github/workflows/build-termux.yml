@@ -33,9 +33,13 @@ jobs:
           # Aseguramos los permisos lícitos de factoría en el workspace virtual
           chmod -R 777 ${{ github.workspace }}
           
-          # LA JUGADA MAESTRA: Forzamos a Docker a entrar con bash, crear el setup de Meson directo en la raíz y luego disparar el compilador nativo de la scene
-          docker run --rm -v "${{ github.workspace }}:/workspace" --entrypoint /bin/bash ${{ env.IMAGE_TAG }} -c "
+          # LA JUGADA MAESTRA: Entramos como Root (-u 0) al Docker e instalamos los paquetes faltantes directamente en su sistema interno antes de Meson
+          docker run --rm -u 0 -v "${{ github.workspace }}:/workspace" --entrypoint /bin/bash ${{ env.IMAGE_TAG }} -c "
+            echo '-> Alshain: Equipando el contenedor de Docker con libdrm y cmake...' && \
+            apt-get update -qq && \
+            apt-get install -y -qq libdrm-dev cmake && \
             cd /workspace && \
+            echo '-> Configurando el entorno grafico de Mesa...' && \
             meson setup ${{ env.BUILD_DIR }} \
               -Dvulkan-drivers=wrapper \
               -Dgallium-drivers=[] \
@@ -44,6 +48,7 @@ jobs:
               -Dshared-glapi=enabled \
               -Dllvm=disabled \
               -Dwerror=false && \
+            echo '-> Disparando Ninja para la forja dual unificada...' && \
             ninja -C ${{ env.BUILD_DIR }}
           "
 
