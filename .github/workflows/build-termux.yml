@@ -18,19 +18,32 @@ jobs:
       - name: Configurar Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Descargar Componentes de Shaders y Qualcomm Nativo (Base64 Bypass de la Scene)
+      - name: Preparar Espacio de Trabajo Local
         run: |
-          B_SPIRV=$(echo "aHR0cHM6Ly9naXRodWIuY29tL2xlZWdhby9TUElSVi1Ub29scy5naXQ=" | base64 -d)
-          B_HEADERS=$(echo "aHR0cHM6Ly9naXRodWIuY29tL0tocm9ub3NHcm91cC9TUElSVi1IZWFkZXJzLmdpdA==" | base64 -d)
-          B_ADRENO=$(echo "aHR0cHM6Ly9naXRodWIuY29tL1BpcGV0dG8tY3J5cHRvL2xpYmFkcmVub3Rvb2xzLmdpdA==" | base64 -d)
-          
-          git clone --depth 1 "$B_SPIRV" spirv_source
-          git clone --depth 1 "$B_HEADERS" spirv_source/external/spirv-headers
-          git clone --depth 1 --recursive "$B_ADRENO" adrenotools_source
-
-      - name: compilador-envoltorio (Procesamiento Atómico en Docker MALI)
-        run: |
+          # Creamos el directorio limpio y aseguramos permisos lícitos de factoría
           mkdir -p ${{ env.BUILD_DIR }}
+          chmod -R 777 ${{ github.workspace }}
+
+      - name: Configurar Entorno de Construcción (Generar build.ninja)
+        run: |
+          # Forzamos a Docker a ejecutar el setup inicial de Meson en el workspace para que dibuje el mapa build.ninja de 32 y 64 bits de tu GPU Mali
+          docker run --rm -v "${{ github.workspace }}:/workspace" --entrypoint /bin/bash ${{ env.IMAGE_TAG }} -c "
+            cd /workspace && \
+            meson setup ${{ env.BUILD_DIR }} \
+              --cross-file /workspace/cross64.txt 2>/dev/null || \
+            meson setup ${{ env.BUILD_DIR }} \
+              -Dvulkan-drivers=wrapper \
+              -Dgallium-drivers=[] \
+              -Dplatforms=android \
+              -Dplatform-sdk-version=26 \
+              -Dshared-glapi=enabled \
+              -Dllvm=disabled \
+              -Dwerror=false
+          "
+
+      - name: compilador-envoltorio (Procesamiento Atómico de Factoría MALI)
+        run: |
+          # Ahora que build.ninja existe lícitamente en el silicio virtual, el compilador por defecto triturará ambos carriles
           docker run --rm -v "${{ github.workspace }}:/workspace" ${{ env.IMAGE_TAG }} ${{ env.BUILD_DIR }}
 
       - name: Cargar libvulkan_wrapper.so sin formato
