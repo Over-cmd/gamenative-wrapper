@@ -33,12 +33,20 @@ jobs:
           # Aseguramos los permisos lícitos de factoría en el workspace virtual
           chmod -R 777 ${{ github.workspace }}
           
-          # LA JUGADA MAESTRA: Entramos como Root (-u 0) al Docker e instalamos los paquetes faltantes directamente en su sistema interno antes de Meson
+          # LA JUGADA MAESTRA MALI: Neutralizamos la dependencia muerta de Adrenotools antes de que entre el compilador
+          echo "-> Purgando dependencias de Adrenotools para GPU Mali..."
+          if [ -f "subprojects/libadrenotools/meson.build" ]; then
+            sed -i "s/dependency('android')/dependency('android', required: false)/g" subprojects/libadrenotools/meson.build || true
+          fi
+          
+          # Entramos como Root al Docker, instalamos librerías de soporte y disparamos el entorno puro
           docker run --rm -u 0 -v "${{ github.workspace }}:/workspace" --entrypoint /bin/bash ${{ env.IMAGE_TAG }} -c "
-            echo '-> Alshain: Equipando el contenedor de Docker con libdrm y cmake...' && \
+            echo '-> Equipando el contenedor de Docker con libdrm y cmake...' && \
             apt-get update -qq && \
             apt-get install -y -qq libdrm-dev cmake && \
             cd /workspace && \
+            echo '-> Aplicando bypass secundario de subproyectos en el contenedor...' && \
+            if [ -f 'subprojects/libadrenotools/meson.build' ]; then sed -i \"s/dependency('android')/[]/g\" subprojects/libadrenotools/meson.build || true; fi && \
             echo '-> Configurando el entorno grafico de Mesa...' && \
             meson setup ${{ env.BUILD_DIR }} \
               -Dvulkan-drivers=wrapper \
@@ -48,7 +56,7 @@ jobs:
               -Dshared-glapi=enabled \
               -Dllvm=disabled \
               -Dwerror=false && \
-            echo '-> Disparando Ninja para la forja dual unificada...' && \
+            echo '-> Disparando Ninja para la forja dual unificada MALI...' && \
             ninja -C ${{ env.BUILD_DIR }}
           "
 
