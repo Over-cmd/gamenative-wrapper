@@ -43,19 +43,6 @@ jobs:
             find src/ -name "*.c" -exec sed -i 's/vk_icdGetInstanceProcAddr/extern int mallopt(int p, int v); mallopt(-1000, 0); vk_icdGetInstanceProcAddr/g' {} + || true
           fi
 
-          echo "-> Reparando la tabla ELF cruzada de 32 bits en el enlazador de Meson..."
-          # LA JUGADA MAESTRA DE LA SCENE: Inyectamos el flag de duplicación de símbolos en el archivo de construcción del Wrapper.
-          # Esto obliga a que el único archivo libvulkan_wrapper.so final exponga 'vk_icdGetInstanceProcAddr32' como un reflejo exacto 
-          # del símbolo de 64 bits. Wine32 amarrará tu GPU Mali al instante y Darksiders 2 saldrá del atasco de 1 FPS de forma lícita.
-          if [ -f "src/vulkan/wrapper/meson.build" ]; then
-            sed -i 's/\r$//' src/vulkan/wrapper/meson.build
-            sed -i "s/link_args : \[/link_args : ['-Wl,--defsym=vk_icdGetInstanceProcAddr32=vk_icdGetInstanceProcAddr', /g" src/vulkan/wrapper/meson.build
-          fi
-
-          # Saneamos las redirecciones lícitas de PRoot para el amarre de hardware real de tu GPU Mali-G52
-          find src/ -name "*.c" -exec sed -i 's|"/system/lib64/libvulkan.so"|"/host-rootfs/system/lib64/libvulkan.so"|g' {} + || true
-          find src/ -name "*.c" -exec sed -i 's|"/system/lib/libvulkan.so"|"/host-rootfs/system/lib/libvulkan.so"|g' {} + || true
-
       - name: compilador-envoltorio (Procesamiento Atómico en Docker MALI)
         run: |
           # El contenedor de leegao toma el mando y devora el codigo ya modificado en su entorno hermetico
