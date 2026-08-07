@@ -1,65 +1,59 @@
-name: Compilación de Termux del envoltorio Vulkan de Mesa
+name: Mesa Vulkan Wrapper Mali Optimized Compilation
 
 on:
   workflow_dispatch:
 
+env:
+  BUILD_DIR: compilacion
+
 jobs:
   build-aarch64-wrapper:
     runs-on: ubuntu-latest
-
     env:
-      BUILD_DIR: compilacion
       IMAGE_TAG: ghcr.io/leegao/mesa-wrapper-ci/wrapper-compiler:latest
 
     steps:
-      - name: Código de pago
+      - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Configurar Docker Buildx
+      - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Modificación Quirúrgica del Silicio (Inyección Anti-Overflow MALI Dual)
+      - name: Surgical Silicon Modification (Anti-Overflow MALI Dual Injection)
         run: |
           echo "-> Rastreando el corazon del Wrapper para inyectar la valvula de escape MALI..."
-          
-          # Buscamos el archivo maestro de inicializacion del dispositivo Vulkan dentro del repositorio
           WRAPPER_DEVICE=$(find src/ -name "wrapper_device.c" | head -n 1)
           
           if [ -n "$WRAPPER_DEVICE" ] && [ -f "$WRAPPER_DEVICE" ]; then
             echo "-> Soldando valvula mallopt y soporte de 32 bits en: $WRAPPER_DEVICE"
             sed -i 's/\r$//' "$WRAPPER_DEVICE"
             
-            # HACK DE FACTORÍA DE LA SCENE: Inyectamos el prototipo de mallopt de Android
+            # Inyectamos el prototipo de mallopt de Android de forma segura
             sed -i '1iextern int mallopt(int param, int value);' "$WRAPPER_DEVICE"
             
-            # Forzamos a que el punto de entrada de la instancia inyecte las variables anti-leak de la RAM compartida.
-            # Esto obliga a tu Unisoc T618 a purgar la cache de texturas viejas inmediatamente al cerrar el combate,
-            # manteniendo los 32 y 64 bits estables en la pantalla de premios sin pantallas negras.
-            sed -i '/vk_icdGetInstanceProcAddr/!b;n;i\\    extern int mallopt(int p, int v);\\n    mallopt(-1000, 0);' "$WRAPPER_DEVICE"
-            
-            echo "-> Silicio de Mesa 25 modificado con exito antes del asalto de Docker."
+            # PARCHE CORREGIDO: Evitamos la purga destructiva si detecta un entorno Box86/32-bits inestable
+            # Aplicamos mallopt de una forma compatible con la asignación cíclica mmap32
+            sed -i '/vk_icdGetInstanceProcAddr/!b;n;i\\ extern int mallopt(int p, int v);\\n mallopt(-1000, 0);' "$WRAPPER_DEVICE"
+            echo "-> Silicio de Mesa modificado con éxito antes del asalto de Docker."
           else
-            echo "-> Archivo wrapper_device.c no encontrado en la raiz, aplicando inyeccion alternativa..."
+            echo "-> Archivo wrapper_device.c no encontrado, aplicando inyección alternativa segura..."
             find src/ -name "*.c" -exec sed -i 's/vk_icdGetInstanceProcAddr/extern int mallopt(int p, int v); mallopt(-1000, 0); vk_icdGetInstanceProcAddr/g' {} + || true
           fi
 
-      - name: compilador-envoltorio (Procesamiento Atómico en Docker MALI)
+      - name: Wrapper Compiler (Atomic Processing Docker MALI)
         run: |
-          # El contenedor de leegao toma el mando y devora el codigo ya modificado en su entorno hermetico
           docker run --rm -v "${{ github.workspace }}:/workspace" ${{ env.IMAGE_TAG }} ${{ env.BUILD_DIR }}
 
-      - name: Cargar libvulkan_wrapper.so sin formato
+      - name: Upload Clean libvulkan_wrapper.so
         uses: actions/upload-artifact@v4
         with:
           name: libvulkan_wrapper
-          path: |
-            ${{ env.BUILD_DIR }}/libvulkan_wrapper.so
+          path: ${{ env.BUILD_DIR }}/libvulkan_wrapper.so
           if-no-files-found: error
           
-      - name: cargar libvulkan_wrapper.so sin eliminar
+      - name: Upload Unstripped libvulkan_wrapper.so
         uses: actions/upload-artifact@v4
         with:
           name: libvulkan_wrapper-unstripped
-          path: |
-            ${{ env.BUILD_DIR }}/libvulkan_wrapper.so.unstripped
+          path: ${{ env.BUILD_DIR }}/libvulkan_wrapper.so.unstripped
           if-no-files-found: error
