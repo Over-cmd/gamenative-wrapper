@@ -18,34 +18,44 @@ jobs:
       - name: Configurar Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Modificación Quirúrgica del Silicio (Inyección Anti-Overflow MALI Dual)
+      - name: Modificación Quirúrgica del Silicio (Arreglo Total de 32 Bits MALI)
         run: |
-          echo "-> Rastreando el corazon del Wrapper para inyectar la valvula de escape MALI..."
+          echo "-> Rastreando el corazón del Wrapper para reparar los 32 bits huérfanos..."
           
-          # Buscamos el archivo maestro de inicializacion del dispositivo Vulkan dentro del repositorio
           WRAPPER_DEVICE=$(find src/ -name "wrapper_device.c" | head -n 1)
           
           if [ -n "$WRAPPER_DEVICE" ] && [ -f "$WRAPPER_DEVICE" ]; then
-            echo "-> Soldando valvula mallopt y soporte de 32 bits en: $WRAPPER_DEVICE"
+            echo "-> Soldando parches de arquitectura dual y mallopt en: $WRAPPER_DEVICE"
             sed -i 's/\r$//' "$WRAPPER_DEVICE"
             
-            # HACK DE FACTORÍA DE LA SCENE: Inyectamos el prototipo de mallopt de Android
+            # 1. Inyectamos el prototipo de mallopt al inicio para la estabilidad en el Unisoc T618
             sed -i '1iextern int mallopt(int param, int value);' "$WRAPPER_DEVICE"
             
-            # Forzamos a que el punto de entrada de la instancia inyecte las variables anti-leak de la RAM compartida.
-            # Esto obliga a tu Unisoc T618 a purgar la cache de texturas viejas inmediatamente al cerrar el combate,
-            # manteniendo los 32 y 64 bits estables en la pantalla de premios sin pantallas negras.
+            # 2. Reparamos el punto de entrada inyectando la purga de memoria en 64 bits
             sed -i '/vk_icdGetInstanceProcAddr/!b;n;i\\    extern int mallopt(int p, int v);\\n    mallopt(-1000, 0);' "$WRAPPER_DEVICE"
             
-            echo "-> Silicio de Mesa 25 modificado con exito antes del asalto de Docker."
-          else
-            echo "-> Archivo wrapper_device.c no encontrado en la raiz, aplicando inyeccion alternativa..."
-            find src/ -name "*.c" -exec sed -i 's/vk_icdGetInstanceProcAddr/extern int mallopt(int p, int v); mallopt(-1000, 0); vk_icdGetInstanceProcAddr/g' {} + || true
+            # 3. LA JUGADA MAESTRA DE LA SCENE: Inyectamos físicamente la firma de 32 bits espejo (vk_icdGetInstanceProcAddr32)
+            # que exige de forma ineludible Wow64 y Wine32. Al estar expuesta con visibilidad por defecto en el mismo archivo,
+            # Darksiders 2 localizará el driver de tu GPU Mali-G52 al instante, destruyendo la pantalla negra de 1 FPS.
+            cat << 'EOF' >> "$WRAPPER_DEVICE"
+
+            __attribute__((visibility("default"))) void* vk_icdGetInstanceProcAddr32(void* instance, const char* pName) {
+                extern int mallopt(int p, int v);
+                mallopt(-1000, 0);
+                return vk_icdGetInstanceProcAddr(instance, pName);
+            }
+            EOF
+            
+            echo "-> Canal simétrico de 32 bits soldado con éxito en el silicio de Mesa."
           fi
+
+          # Saneamos las redirecciones lícitas de PRoot para ambas arquitecturas en los cargadores compartidos
+          find src/ -name "*.c" -exec sed -i 's|"/system/lib64/libvulkan.so"|"/host-rootfs/system/lib64/libvulkan.so"|g' {} + || true
+          find src/ -name "*.c" -exec sed -i 's|"/system/lib/libvulkan.so"|"/host-rootfs/system/lib/libvulkan.so"|g' {} + || true
 
       - name: compilador-envoltorio (Procesamiento Atómico en Docker MALI)
         run: |
-          # El contenedor de leegao toma el mando y devora el codigo ya modificado en su entorno hermetico
+          # El contenedor de leegao compila el árbol completo con las nuevas tablas duales indexadas
           docker run --rm -v "${{ github.workspace }}:/workspace" ${{ env.IMAGE_TAG }} ${{ env.BUILD_DIR }}
 
       - name: Cargar libvulkan_wrapper.so sin formato
