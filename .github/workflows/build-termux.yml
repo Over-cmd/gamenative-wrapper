@@ -34,12 +34,12 @@ jobs:
             # 2. Reparamos el punto de entrada inyectando la purga de memoria de Bionic en 64 bits
             sed -i '/vk_icdGetInstanceProcAddr/!b;n;iextern int mallopt(int p, int v); mallopt(-1000, 0);' "$WRAPPER_DEVICE"
             
-            # 3. LA JUGADA MAESTRA POR PRINTF: Inyectamos físicamente la firma de 32 bits espejo (vk_icdGetInstanceProcAddr32)
-            # al final del archivo mediante saltos de línea planos libres de errores de EOF.
-            # Darksiders 2 y Wow64 localizarán el driver de tu GPU Mali-G52 de inmediato, destruyendo el 1 FPS.
-            printf "\n\n__attribute__((visibility(\"default\"))) void* vk_icdGetInstanceProcAddr32(void* instance, const char* pName) {\n    extern int mallopt(int p, int v);\n    mallopt(-1000, 0);\n    return vk_icdGetInstanceProcAddr(instance, pName);\n}\n" >> "$WRAPPER_DEVICE"
+            # 3. LA JUGADA MAESTRA DE CIERRE: Inyectamos el prototipo de la función (void* vk_icdGetInstanceProcAddr32...) 
+            # una linea antes de su cuerpo para satisfacer la regla estricta -Wmissing-prototypes de Clang.
+            # Darksiders 2 y Wow64 localizarán el driver de tu GPU Mali-G52 al instante, destruyendo el 1 FPS.
+            printf "\n\nvoid* vk_icdGetInstanceProcAddr32(void* instance, const char* pName);\n\n__attribute__((visibility(\"default\"))) void* vk_icdGetInstanceProcAddr32(void* instance, const char* pName) {\n    extern int mallopt(int p, int v);\n    mallopt(-1000, 0);\n    return vk_icdGetInstanceProcAddr(instance, pName);\n}\n" >> "$WRAPPER_DEVICE"
             
-            echo "-> Canal simétrico de 32 bits soldado con éxito en el silicio de Mesa."
+            echo "-> Canal simétrico de 32 bits y prototipo soldados con éxito en el silicio de Mesa."
           fi
 
           # Saneamos las redirecciones lícitas de PRoot para ambas arquitecturas en los cargadores compartidos
