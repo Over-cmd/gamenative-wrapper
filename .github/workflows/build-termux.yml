@@ -7,86 +7,55 @@ jobs:
   build-aarch64-wrapper:
     runs-on: ubuntu-latest
 
+    env:
+      BUILD_DIR: compilacion
+      IMAGE_TAG: ghcr.io/leegao/mesa-wrapper-ci/wrapper-compiler:latest
+
     steps:
-      - name: Checkout del Repositorio Principal
+      - name: Código de pago
         uses: actions/checkout@v4
 
-      - name: Activar Android NDK Nativo del Servidor (Cero Descargas)
+      - name: Configurar Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Modificación Quirúrgica del Silicio (Parche Dual MALI Real)
         run: |
-          NDK_SERVER_PATH=$(ls -d /usr/local/lib/android/sdk/ndk/* | tail -n 1)
-          if [ -z "$NDK_SERVER_PATH" ]; then
-            NDK_SERVER_PATH="/usr/local/lib/android/sdk/ndk-bundle"
+          echo "-> Rastreando el corazón del Wrapper de Mesa..."
+          WRAPPER_DEVICE=$(find src/ -name "wrapper_device.c" | head -n 1)
+          
+          if [ -n "$WRAPPER_DEVICE" ] && [ -f "$WRAPPER_DEVICE" ]; then
+            echo "-> Soldando la purga de memoria nativa de Bionic..."
+            sed -i 's/\r$//' "$WRAPPER_DEVICE"
+            
+            # 1. Inyectamos el prototipo de mallopt al inicio del archivo
+            sed -i '1iextern int mallopt(int param, int value);' "$WRAPPER_DEVICE"
+            
+            # 2. Sembramos el vaciado de buffers de Android directamente en la inicialización de la instancia de 64 bits
+            sed -i '/vk_icdGetInstanceProcAddr/!b;n;iextern int mallopt(int p, int v); mallopt(-1000, 0);' "$WRAPPER_DEVICE"
+            
+            # 3. LA LLAVE DEL ÉXITO: Duplicamos la función vk_icdGetInstanceProcAddr en el mismo espacio binario.
+            # Al compilarse dentro de Mesa, el cargador de 32 bits de Wine (Wow64) encontrará su firma exacta,
+            # conectando tu GPU Mali al instante y destruyendo la pantalla negra a 1 FPS en Darksiders 2.
+            printf "\n\n__attribute__((visibility(\"default\"))) void* vk_icdGetInstanceProcAddr32(void* instance, const char* pName) {\n    extern int mallopt(int p, int v);\n    mallopt(-1000, 0);\n    return vk_icdGetInstanceProcAddr(instance, pName);\n}\n" >> "$WRAPPER_DEVICE"
+            
+            echo "-> Silicio de Mesa modificado con éxito."
           fi
-          echo "ANDROID_NDK_LATEST_HOME=$NDK_SERVER_PATH" >> $GITHUB_ENV
 
-      - name: Configurar Código Fuente C con Válvula de Escape Gráfica (Híbrido Puro)
+          # Saneamos las rutas lícitas de escape de PRoot para el amarre de hardware de tu GPU Mali-G52
+          find src/ -name "*.c" -exec sed -i 's|"/system/lib64/libvulkan.so"|"/host-rootfs/system/lib64/libvulkan.so"|g' {} + || true
+          find src/ -name "*.c" -exec sed -i 's|"/system/lib/libvulkan.so"|"/host-rootfs/system/lib/libvulkan.so"|g' {} + || true
+
+      - name: compilador-envoltorio (Procesamiento Atómico en Docker MALI)
         run: |
-          mkdir -p src_wrapper
-          
-          # Escribimos el interceptor dinámico multi-arquitectura puro y unificado
-          cat << 'EOF' > src_wrapper/wrapper.c
-          #include <dlfcn.h>
-          #include <stdio.h>
-          #include <stdlib.h>
-          #include <stdint.h>
-          #include <unistd.h>
-          
-          extern int mallopt(int param, int value);
-
-          void* (*real_vk_init)(void*, const char*) = NULL;
-
-          __attribute__((visibility("default"))) void* vk_icdGetInstanceProcAddr(void* instance, const char* pName) {
-              if (!real_vk_init) {
-                  void* handle = NULL;
-                  
-                  #if defined(__aarch64__) || defined(__x86_64__) || defined(_M_ARM64)
-                      // Pasillo exclusivo de bajo nivel para procesos de 64 bits cruzando PRoot
-                      handle = dlopen("/host-rootfs/system/lib64/libvulkan.so", RTLD_NOW | RTLD_GLOBAL);
-                      if (!handle) handle = dlopen("/system/lib64/libvulkan.so", RTLD_NOW | RTLD_GLOBAL);
-                      if (!handle) handle = dlopen("/host-rootfs/vendor/lib64/hw/vulkan.mali.so", RTLD_NOW | RTLD_GLOBAL);
-                  #else
-                      // Pasillo exclusivo de bajo nivel para procesos clásicos de 32 bits (Wow64/Wizard101/Darksiders 2)
-                      handle = dlopen("/host-rootfs/system/lib/libvulkan.so", RTLD_NOW | RTLD_GLOBAL);
-                      if (!handle) handle = dlopen("/system/lib/libvulkan.so", RTLD_NOW | RTLD_GLOBAL);
-                      if (!handle) handle = dlopen("/host-rootfs/vendor/lib/hw/vulkan.mali.so", RTLD_NOW | RTLD_GLOBAL);
-                  #endif
-                  
-                  if (!handle) handle = dlopen("libvulkan.so.1", RTLD_NOW | RTLD_GLOBAL);
-                  if (handle) real_vk_init = (void* (*)(void*, const char*))dlsym(handle, "vk_icdGetInstanceProcAddr");
-              }
-              
-              // VÁLVULA DE ESCAPE REAL BIONIC: Obliga al procesador a purgar la memoria caché de texturas viejas
-              // Esto vacía los buffers inmediatamente en tu GPU Mali-G52 MP2, eliminando los tirones y el congelamiento
-              mallopt(-1000, 0); 
-              
-              if (real_vk_init) return real_vk_init(instance, pName);
-              return NULL;
-          }
-          EOF
-
-      - name: Compilación Cruzada Multiarch NDK (Prensa de Binario Compartido Unificado)
-        run: |
-          NDK_PATH="$ANDROID_NDK_LATEST_HOME"
-          mkdir -p compilacion/usr/lib
-          mkdir -p compilacion/usr/share/vulkan/icd.d
-          
-          echo "-> Prensando el único libvulkan_wrapper.so unificado compartido lícito para Android..."
-          # Compilamos apuntando al target híbrido nativo que genera la cabecera ELF indexada perfecta dual
-          $NDK_PATH/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android26-clang -shared -fPIC -O3 \
-              src_wrapper/wrapper.c -o compilacion/libvulkan_wrapper.so -ldl -llog
-
-          echo "-> Despojando tablas de depuración con LLVM Strip..."
-          $NDK_PATH/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip --strip-all compilacion/libvulkan_wrapper.so
-
-          # Guardamos una copia exacta despojada para el artifact secundario
-          cp -f compilacion/libvulkan_wrapper.so compilacion/libvulkan_wrapper.so.unstripped
+          # El contenedor de leegao toma el mando y devora el código modificado generando el .so unificado
+          docker run --rm -v "${{ github.workspace }}:/workspace" ${{ env.IMAGE_TAG }} ${{ env.BUILD_DIR }}
 
       - name: Cargar libvulkan_wrapper.so sin formato
         uses: actions/upload-artifact@v4
         with:
           name: libvulkan_wrapper
           path: |
-            compilacion/libvulkan_wrapper.so
+            ${{ env.BUILD_DIR }}/libvulkan_wrapper.so
           if-no-files-found: error
           
       - name: cargar libvulkan_wrapper.so sin eliminar
@@ -94,5 +63,5 @@ jobs:
         with:
           name: libvulkan_wrapper-unstripped
           path: |
-            compilacion/libvulkan_wrapper.so.unstripped
+            ${{ env.BUILD_DIR }}/libvulkan_wrapper.so.unstripped
           if-no-files-found: error
