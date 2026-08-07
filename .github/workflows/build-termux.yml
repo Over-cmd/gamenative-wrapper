@@ -1,5 +1,4 @@
 name: Compilación de Termux del envoltorio Vulkan de Mesa
-name: Compilación de Termux del envoltorio Vulkan de Mesa
 
 on:
   workflow_dispatch:
@@ -49,72 +48,6 @@ jobs:
       - name: compilador-envoltorio (Procesamiento Atómico en Docker MALI)
         run: |
           # El contenedor de leegao toma el mando y devora el código modificado generando el .so unificado dual real
-          docker run --rm -v "${{ github.workspace }}:/workspace" ${{ env.IMAGE_TAG }} ${{ env.BUILD_DIR }}
-
-      - name: Cargar libvulkan_wrapper.so sin formato
-        uses: actions/upload-artifact@v4
-        with:
-          name: libvulkan_wrapper
-          path: |
-            ${{ env.BUILD_DIR }}/libvulkan_wrapper.so
-          if-no-files-found: error
-          
-      - name: cargar libvulkan_wrapper.so sin eliminar
-        uses: actions/upload-artifact@v4
-        with:
-          name: libvulkan_wrapper-unstripped
-          path: |
-            ${{ env.BUILD_DIR }}/libvulkan_wrapper.so.unstripped
-          if-no-files-found: error
-
-on:
-  workflow_dispatch:
-
-jobs:
-  build-aarch64-wrapper:
-    runs-on: ubuntu-latest
-
-    env:
-      BUILD_DIR: compilacion
-      IMAGE_TAG: ghcr.io/leegao/mesa-wrapper-ci/wrapper-compiler:latest
-
-    steps:
-      - name: Código de pago
-        uses: actions/checkout@v4
-
-      - name: Configurar Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Modificación Quirúrgica del Silicio (Parche Dual MALI Real)
-        run: |
-          echo "-> Rastreando el corazón del Wrapper de Mesa..."
-          WRAPPER_DEVICE=$(find src/ -name "wrapper_device.c" | head -n 1)
-          
-          if [ -n "$WRAPPER_DEVICE" ] && [ -f "$WRAPPER_DEVICE" ]; then
-            echo "-> Soldando la purga de memoria nativa de Bionic..."
-            sed -i 's/\r$//' "$WRAPPER_DEVICE"
-            
-            # 1. Inyectamos el prototipo de mallopt al inicio del archivo
-            sed -i '1iextern int mallopt(int param, int value);' "$WRAPPER_DEVICE"
-            
-            # 2. Sembramos el vaciado de buffers de Android directamente en la inicialización de la instancia de 64 bits
-            sed -i '/vk_icdGetInstanceProcAddr/!b;n;iextern int mallopt(int p, int v); mallopt(-1000, 0);' "$WRAPPER_DEVICE"
-            
-            # 3. LA LLAVE DEL ÉXITO: Duplicamos la función vk_icdGetInstanceProcAddr en el mismo espacio binario.
-            # Al compilarse dentro de Mesa, el cargador de 32 bits de Wine (Wow64) encontrará su firma exacta,
-            # conectando tu GPU Mali al instante y destruyendo la pantalla negra a 1 FPS en Darksiders 2.
-            printf "\n\n__attribute__((visibility(\"default\"))) void* vk_icdGetInstanceProcAddr32(void* instance, const char* pName) {\n    extern int mallopt(int p, int v);\n    mallopt(-1000, 0);\n    return vk_icdGetInstanceProcAddr(instance, pName);\n}\n" >> "$WRAPPER_DEVICE"
-            
-            echo "-> Silicio de Mesa modificado con éxito."
-          fi
-
-          # Saneamos las rutas lícitas de escape de PRoot para el amarre de hardware de tu GPU Mali-G52
-          find src/ -name "*.c" -exec sed -i 's|"/system/lib64/libvulkan.so"|"/host-rootfs/system/lib64/libvulkan.so"|g' {} + || true
-          find src/ -name "*.c" -exec sed -i 's|"/system/lib/libvulkan.so"|"/host-rootfs/system/lib/libvulkan.so"|g' {} + || true
-
-      - name: compilador-envoltorio (Procesamiento Atómico en Docker MALI)
-        run: |
-          # El contenedor de leegao toma el mando y devora el código modificado generando el .so unificado
           docker run --rm -v "${{ github.workspace }}:/workspace" ${{ env.IMAGE_TAG }} ${{ env.BUILD_DIR }}
 
       - name: Cargar libvulkan_wrapper.so sin formato
