@@ -49,28 +49,43 @@ jobs:
             sed -i 's|"/system/lib/libvulkan.so"|"/host-rootfs/system/lib/libvulkan.so"|g' "$WRAPPER_DEVICE"
           fi
 
-          # LA JUGADA MAESTRA: Reconfiguramos android.toml para adaptarlo al servidor de GitHub Actions de forma lícita
-          if [ -f "android.toml" ]; then
-            echo "-> Reparando las rutas fantasmas de android.toml..."
-            sed -i 's/\r$//' android.toml
-            
-            # Localizamos la ruta física del binario de Clang real del NDK del servidor
-            CLANG_REAL_PATH=$(find $ANDROID_NDK_LATEST_HOME -name "*clang" | grep "linux-x86_64" | head -n 1)
-            CLANGXX_REAL_PATH=$(find $ANDROID_NDK_LATEST_HOME -name "*clang++" | grep "linux-x86_64" | head -n 1)
-            AR_REAL_PATH=$(find $ANDROID_NDK_LATEST_HOME -name "llvm-ar" | grep "linux-x86_64" | head -n 1)
-            
-            # Sobreescribimos las variables literales de Termux por las del NDK real del sistema virtual
-            sed -i "s|\$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android30-clang|$CLANG_REAL_PATH|g" android.toml
-            sed -i "s|\$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android30-clang++|$CLANGXX_REAL_PATH|g" android.toml
-            sed -i "s|\$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar|$AR_REAL_PATH|g" android.toml
-          fi
+          echo "-> Destruyendo android.toml viejo y forjando la tabla cruzada limpia del NDK..."
+          rm -f android.toml
+          
+          # Mapeamos los ejecutables binarios reales del sistema virtual
+          CLANG_REAL_PATH="${{ env.ANDROID_NDK_LATEST_HOME }}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android26-clang"
+          CLANGXX_REAL_PATH="${{ env.ANDROID_NDK_LATEST_HOME }}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android26-clang++"
+          AR_REAL_PATH="${{ env.ANDROID_NDK_LATEST_HOME }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar"
+          STRIP_REAL_PATH="${{ env.ANDROID_NDK_LATEST_HOME }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip"
+          SYSROOT_REAL_PATH="${{ env.ANDROID_NDK_LATEST_HOME }}/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
+
+          # Escribimos el toml inmaculado de factoría
+          cat << EOF > android.toml
+          [binaries]
+          c = '$CLANG_REAL_PATH'
+          cpp = '$CLANGXX_REAL_PATH'
+          ar = '$AR_REAL_PATH'
+          strip = '$STRIP_REAL_PATH'
+          pkg-config = '/usr/bin/pkg-config'
+
+          [built-in options]
+          c_args = ['--sysroot=$SYSROOT_REAL_PATH', '-w', '-D_GNU_SOURCE']
+          cpp_args = ['--sysroot=$SYSROOT_REAL_PATH', '-w', '-D_GNU_SOURCE']
+          c_link_args = ['--sysroot=$SYSROOT_REAL_PATH', '-Wl,--allow-shlib-undefined']
+          cpp_link_args = ['--sysroot=$SYSROOT_REAL_PATH', '-Wl,--allow-shlib-undefined']
+
+          [host_machine]
+          system = 'android'
+          cpu_family = 'aarch64'
+          cpu = 'armv8-a'
+          endian = 'little'
+          EOF
 
           find src/ -name "wrapper_device_memory.c" -exec sed -i '1i#include <fcntl.h>' {} + || true
           find src/ -name "wrapper_physical_device.c" -exec sed -i '1i#include <fcntl.h>' {} + || true
 
       - name: Configurar e Inicializar Entorno Gráfico (Meson Setup)
         run: |
-          # Inicializamos el entorno cruzado aplicando las banderas de linkado dinámico permisivo para silenciar duplicados
           meson setup ${{ env.BUILD_DIR }} \
             --cross-file android.toml \
             -Dvulkan-drivers=wrapper \
@@ -79,9 +94,7 @@ jobs:
             -Dplatform-sdk-version=26 \
             -Dshared-glapi=enabled \
             -Dllvm=disabled \
-            -Dwerror=false \
-            -Dc_link_args="-Wl,--allow-shlib-undefined" \
-            -Dcpp_link_args="-Wl,--allow-shlib-undefined"
+            -Dwerror=false
 
       - name: Disparar la Forja Principal (Ninja Build)
         run: |
