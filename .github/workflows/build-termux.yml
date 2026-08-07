@@ -32,37 +32,45 @@ jobs:
       - name: Modificación Quirúrgica del Silicio (Bypass de Errores e Inyección Anti-Leak)
         run: |
           echo "-> Purgando dependencias estrictas de Qualcomm (Adrenotools) para GPU Mali..."
-          # Neutralizamos el subproyecto de Adreno para que no pida la librería 'android' que hace colapsar el entorno Linux
           if [ -f "subprojects/libadrenotools/meson.build" ]; then
             sed -i "s/dependency('android')/dependency('android', required: false)/g" subprojects/libadrenotools/meson.build || true
           fi
 
           echo "-> Saneando los archivos core del Wrapper de Mesa..."
-          # Localizamos el archivo de inicialización del dispositivo Vulkan del Wrapper
           WRAPPER_DEVICE=$(find src/ -name "wrapper_device.c" | head -n 1)
           if [ -n "$WRAPPER_DEVICE" ] && [ -f "$WRAPPER_DEVICE" ]; then
             sed -i 's/\r$//' "$WRAPPER_DEVICE"
             
-            # VÁLVULA DE ESCAPE REAL BIONIC: Sembramos mallopt(-1000, 0) justo al inicio de la inicialización gráfica.
-            # Esto obliga a tu Unisoc T618 a vaciar radicalmente la RAM en cada llamada de renderizado, eliminando la asfixia de Wizard101.
+            # VÁLVULA DE ESCAPE REAL BIONIC: Sembramos mallopt(-1000, 0) y el umbral MALLOC en la inicialización
             sed -i '/vk_icdGetInstanceProcAddr/!b;n;ienvVars.put("MALLOC_TRIM_THRESHOLD_", "65536");\nmallopt(-1000, 0);' "$WRAPPER_DEVICE" 2>/dev/null || \
             sed -i '1iextern int mallopt(int param, int value);' "$WRAPPER_DEVICE"
             
-            # Redirección de escape de PRoot para saltar el muro de aislamiento de carpetas
             sed -i 's|"/system/lib64/libvulkan.so"|"/host-rootfs/system/lib64/libvulkan.so"|g' "$WRAPPER_DEVICE"
             sed -i 's|"/system/lib/libvulkan.so"|"/host-rootfs/system/lib/libvulkan.so"|g' "$WRAPPER_DEVICE"
           fi
 
-          # Parche de seguridad para inclusiones Unix huérfanas en el entorno virtual
+          # LA JUGADA MAESTRA: Reconfiguramos android.toml para adaptarlo al servidor de GitHub Actions de forma lícita
+          if [ -f "android.toml" ]; then
+            echo "-> Reparando las rutas fantasmas de android.toml..."
+            sed -i 's/\r$//' android.toml
+            
+            # Localizamos la ruta física del binario de Clang real del NDK del servidor
+            CLANG_REAL_PATH=$(find $ANDROID_NDK_LATEST_HOME -name "*clang" | grep "linux-x86_64" | head -n 1)
+            CLANGXX_REAL_PATH=$(find $ANDROID_NDK_LATEST_HOME -name "*clang++" | grep "linux-x86_64" | head -n 1)
+            AR_REAL_PATH=$(find $ANDROID_NDK_LATEST_HOME -name "llvm-ar" | grep "linux-x86_64" | head -n 1)
+            
+            # Sobreescribimos las variables literales de Termux por las del NDK real del sistema virtual
+            sed -i "s|\$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android30-clang|$CLANG_REAL_PATH|g" android.toml
+            sed -i "s|\$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android30-clang++|$CLANGXX_REAL_PATH|g" android.toml
+            sed -i "s|\$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar|$AR_REAL_PATH|g" android.toml
+          fi
+
           find src/ -name "wrapper_device_memory.c" -exec sed -i '1i#include <fcntl.h>' {} + || true
           find src/ -name "wrapper_physical_device.c" -exec sed -i '1i#include <fcntl.h>' {} + || true
 
       - name: Configurar e Inicializar Entorno Gráfico (Meson Setup)
         run: |
-          NDK_PATH="$ANDROID_NDK_LATEST_HOME"
-          SYSROOT_PATH="$NDK_PATH/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
-          
-          # Creamos el mapa de construcción de Mesa apuntando al enlazado dinámico permisivo para silenciar undefined symbols
+          # Inicializamos el entorno cruzado aplicando las banderas de linkado dinámico permisivo para silenciar duplicados
           meson setup ${{ env.BUILD_DIR }} \
             --cross-file android.toml \
             -Dvulkan-drivers=wrapper \
@@ -77,26 +85,21 @@ jobs:
 
       - name: Disparar la Forja Principal (Ninja Build)
         run: |
-          # Ninja toma el control del taller y tritura el árbol completo de Mesa 24 de forma atómica
           ninja -C ${{ env.BUILD_DIR }} -j $(nproc)
 
-      - name: Despojar y Estructurar el Fat Binary Unificado Final
+      - name: Despojar e Estructurar el Fat Binary Unificado Final
         run: |
           NDK_PATH="$ANDROID_NDK_LATEST_HOME"
           mkdir -p wrapper_final/usr/lib
           mkdir -p wrapper_final/usr/share/vulkan/icd.d
           
-          # Buscamos el archivo .so recién horneado por Ninja
           COMPILED_SO=$(find ${{ env.BUILD_DIR }} -name "libvulkan_wrapper.so" | head -n 1)
           cp -f "$COMPILED_SO" wrapper_final/usr/lib/libvulkan_wrapper.so
           
-          # Eliminamos tablas de depuración innecesarias para aliviar el rendimiento en Android
           $NDK_PATH/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip --strip-all wrapper_final/usr/lib/libvulkan_wrapper.so
           
-          # Generamos el manifiesto ICD JSON oficial de Khronos
           printf '{\n    "file_format_version": "1.0.0",\n    "ICD": {\n        "library_path": "libvulkan_wrapper.so",\n        "api_version": "1.1.0"\n    }\n}\n' > wrapper_final/usr/share/vulkan/icd.d/icd_wrapper.json
           
-          # Empaquetamos todo en formato estándar capturable
           tar -cf wrapper.tar -C wrapper_final usr
           zstd -19 --rm wrapper.tar -o wrapper.tzst
 
