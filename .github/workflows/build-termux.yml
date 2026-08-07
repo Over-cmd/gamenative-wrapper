@@ -31,20 +31,13 @@ jobs:
             # 1. Inyectamos el prototipo de mallopt al inicio para la estabilidad en el Unisoc T618
             sed -i '1iextern int mallopt(int param, int value);' "$WRAPPER_DEVICE"
             
-            # 2. Reparamos el punto de entrada inyectando la purga de memoria en 64 bits
-            sed -i '/vk_icdGetInstanceProcAddr/!b;n;i\\    extern int mallopt(int p, int v);\\n    mallopt(-1000, 0);' "$WRAPPER_DEVICE"
+            # 2. Reparamos el punto de entrada inyectando la purga de memoria de Bionic en 64 bits
+            sed -i '/vk_icdGetInstanceProcAddr/!b;n;iextern int mallopt(int p, int v); mallopt(-1000, 0);' "$WRAPPER_DEVICE"
             
-            # 3. LA JUGADA MAESTRA DE LA SCENE: Inyectamos físicamente la firma de 32 bits espejo (vk_icdGetInstanceProcAddr32)
-            # que exige de forma ineludible Wow64 y Wine32. Al estar expuesta con visibilidad por defecto en el mismo archivo,
-            # Darksiders 2 localizará el driver de tu GPU Mali-G52 al instante, destruyendo la pantalla negra de 1 FPS.
-            cat << 'EOF' >> "$WRAPPER_DEVICE"
-
-            __attribute__((visibility("default"))) void* vk_icdGetInstanceProcAddr32(void* instance, const char* pName) {
-                extern int mallopt(int p, int v);
-                mallopt(-1000, 0);
-                return vk_icdGetInstanceProcAddr(instance, pName);
-            }
-            EOF
+            # 3. LA JUGADA MAESTRA POR PRINTF: Inyectamos físicamente la firma de 32 bits espejo (vk_icdGetInstanceProcAddr32)
+            # al final del archivo mediante saltos de línea planos libres de errores de EOF.
+            # Darksiders 2 y Wow64 localizarán el driver de tu GPU Mali-G52 de inmediato, destruyendo el 1 FPS.
+            printf "\n\n__attribute__((visibility(\"default\"))) void* vk_icdGetInstanceProcAddr32(void* instance, const char* pName) {\n    extern int mallopt(int p, int v);\n    mallopt(-1000, 0);\n    return vk_icdGetInstanceProcAddr(instance, pName);\n}\n" >> "$WRAPPER_DEVICE"
             
             echo "-> Canal simétrico de 32 bits soldado con éxito en el silicio de Mesa."
           fi
