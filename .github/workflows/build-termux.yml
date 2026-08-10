@@ -27,27 +27,20 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y zstd
 
-      - name: Surgical Silicon Modification (Anti-Overflow & Smooth Cutscenes MALI)
+      - name: Surgical Silicon Modification (Anti-Overflow MALI Dual Injection)
         run: |
-          echo "-> Rastreando el corazon del Wrapper para balancear la inyección MALI..."
+          echo "-> Rastreando el corazon del Wrapper para inyectar la valvula de escape MALI..."
           WRAPPER_DEVICE=$(find src/ -name "wrapper_device.c" | head -n 1)
           
           if [ -n "$WRAPPER_DEVICE" ] && [ -f "$WRAPPER_DEVICE" ]; then
-            echo "-> Soldando valvula mallopt optimizada para secuencias de video..."
+            echo "-> Soldando valvula mallopt y soporte de 32 bits en: $WRAPPER_DEVICE"
             sed -i 's/\r$//' "$WRAPPER_DEVICE"
-            
-            # Inyectamos prototipos estándar de gestión de memoria
             sed -i '1iextern int mallopt(int param, int value);' "$WRAPPER_DEVICE"
-            sed -i '1iextern int setenv(const char *name, const char *value, int overwrite);' "$WRAPPER_DEVICE"
-            
-            # MODIFICACIÓN CLAVE: Cambiamos mallopt(-1000, 0) que rompía los videos por M_DECOMMIT (Purga suavizada de páginas vacías)
-            # Además inyectamos variables internas en el arranque de la API para silenciar el retraso de sincronización en Mali
-            sed -i '/vk_icdGetInstanceProcAddr/!b;n;i\\ extern int mallopt(int p, int v);\\n extern int setenv(const char *n, const char *v, int o);\\n mallopt(-1002, 0);\\n setenv("MESA_VK_WSI_PRESENT_MODE", "mailbox", 1);\\n setenv("vblank_mode", "0", 1);' "$WRAPPER_DEVICE"
-            
-            echo "-> Silicio de Mesa modificado con éxito (Modo fluido activo)."
+            sed -i '/vk_icdGetInstanceProcAddr/!b;n;i\\ extern int mallopt(int p, int v);\\n mallopt(-1000, 0);' "$WRAPPER_DEVICE"
+            echo "-> Silicio de Mesa modificado con éxito antes del asalto de Docker."
           else
-            echo "-> Archivo wrapper_device.c no encontrado, aplicando inyección alternativa balanceada..."
-            find src/ -name "*.c" -exec sed -i 's/vk_icdGetInstanceProcAddr/extern int mallopt(int p, int v); extern int setenv(const char *n, const char *v, int o); mallopt(-1002, 0); setenv("MESA_VK_WSI_PRESENT_MODE", "mailbox", 1); setenv("vblank_mode", "0", 1); vk_icdGetInstanceProcAddr/g' {} + || true
+            echo "-> Archivo wrapper_device.c no encontrado, aplicando inyección alternativa segura..."
+            find src/ -name "*.c" -exec sed -i 's/vk_icdGetInstanceProcAddr/extern int mallopt(int p, int v); mallopt(-1000, 0); vk_icdGetInstanceProcAddr/g' {} + || true
           fi
 
       - name: Wrapper Compiler (Atomic Processing Docker MALI)
