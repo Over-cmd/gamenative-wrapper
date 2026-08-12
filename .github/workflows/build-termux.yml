@@ -27,7 +27,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y zstd
 
-      # INYECCIÓN DE CONTROL DE FLUJO HÍBRIDO EN EL CÓDIGO
+      # INYECCIÓN DE CONTROL DE FLUJO HÍBRIDO EN EL CÓDIGO C
       - name: Surgical Silicon Modification (Anti-Overflow MALI Hybrid 32/64 Injection)
         run: |
           echo "-> Rastreando el corazon del Wrapper para soldar compatibilidad hibrida Vulkan..."
@@ -52,9 +52,11 @@ jobs:
       # COMPILACIÓN ORIGINAL DEL DOCKER NATIVO
       - name: Wrapper Compiler (Atomic Processing Docker MALI)
         run: |
-          docker run --rm -v "${{ github.workspace }}:/workspace" ${{ env.IMAGE_TAG }} ${{ env.BUILD_DIR }}
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            ${{ env.IMAGE_TAG }} ${{ env.BUILD_DIR }}
 
-      # ¡ESTE PASO CREA LOS MANIFIESTOS DUALES EXIGIDOS POR BOX86 Y BOX64 PARA BANNERLATOR!
+      # ¡ESTE PASO GENERA EL MANIFIESTICO ÚNICO E HÍBRIDO COMPATIBLE CON TODO!
       - name: Structure and Pack wrapper.tzst
         run: |
           echo "-> Creando arbol de directorios de Linux para Bannerlator..."
@@ -64,8 +66,11 @@ jobs:
           echo "-> Moviendo el driver compilado a usr/lib..."
           cp ${{ env.BUILD_DIR }}/libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
           
-          echo "-> Inyectando manifiesto JSON ICD oficial de 64 bits (AArch64)..."
-          cat << 'EOF' > pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
+          echo "-> Inyectando el manifiesto JSON ICD unico, universal e hibrido..."
+          # Al llamarlo simplemente 'wrapper_icd.json' y omitir la extension de arquitectura de Linux (.aarch64),
+          # forzamos a que el cargador interno de Bannerlator lo asimile como el driver por defecto
+          # tanto para los hilos de ejecucion de Box86 (32 bits) como para Box64 (64 bits). T618 blindado.
+          cat << 'EOF' > pkg/usr/share/vulkan/icd.d/wrapper_icd.json
           {
               "ICD": {
                   "api_version": "1.3.289",
@@ -75,18 +80,7 @@ jobs:
           }
           EOF
           
-          echo "-> Inyectando manifiesto JSON ICD oficial de 32 bits (ARM) para salvar Box86..."
-          cat << 'EOF' > pkg/usr/share/vulkan/icd.d/wrapper_icd.arm.json
-          {
-              "ICD": {
-                  "api_version": "1.3.289",
-                  "library_path": "libvulkan_wrapper.so"
-              },
-              "file_format_version": "1.0.0"
-          }
-          EOF
-          
-          echo "-> Comprimiendo la estructura dual en formato wrapper.tzst..."
+          echo "-> Comprimiendo la estructura en formato unico wrapper.tzst..."
           cd pkg
           tar -I 'zstd -19 -T0' -cf ../wrapper.tzst usr/
           cd ..
