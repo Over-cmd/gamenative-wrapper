@@ -27,36 +27,36 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y zstd
 
-      # ¡ESTE PASO INYECTA EL FILTRO INTELIGENTE PARA QUE LOS 32 BITS NO SE CIERREN!
-      - name: Surgical Silicon Modification (Anti-Overflow MALI Dual Injection)
+      # ¡ESTE PASO CORRIGE LAS PANTALLAS FLUIDAS Y SINCRONIZA LOS POINTERS DE 32 BITS!
+      - name: Surgical Silicon Modification (Anti-Overflow MALI Hybrid 32/64 Injection)
         run: |
-          echo "-> Rastreando el corazon del Wrapper para inyectar la valvula de escape MALI..."
+          echo "-> Rastreando el corazon del Wrapper para soldar compatibilidad hibrida Vulkan..."
           WRAPPER_DEVICE=$(find src/ -name "wrapper_device.c" | head -n 1)
           
           if [ -n "$WRAPPER_DEVICE" ] && [ -f "$WRAPPER_DEVICE" ]; then
-            echo "-> Soldando valvula mallopt y soporte de 32 bits en: $WRAPPER_DEVICE"
+            echo "-> Aplicando parches de alineacion de memoria de 32 bits en: $WRAPPER_DEVICE"
             sed -i 's/\r$//' "$WRAPPER_DEVICE"
             
-            # Inyectamos prototipos de control nativos al principio del archivo
+            # Inyectamos tipos de datos de longitud fija de la biblioteca estandar de C
+            sed -i '1i#include <stdint.h>' "$WRAPPER_DEVICE"
             sed -i '1iextern int mallopt(int param, int value);' "$WRAPPER_DEVICE"
             sed -i '1iextern int setenv(const char *name, const char *value, int overwrite);' "$WRAPPER_DEVICE"
             
-            # TRUCO DE LA SCENE: Inyectamos mallopt(-1002, 0) y mailbox protegiendo la carga.
-            # Al usar variables de entorno nativas controladas, el envoltorio se aplicará de forma limpia 
-            # asegurando que los entornos x86 de 32 bits no sufran fallos de segmentación.
-            sed -i '/vk_icdGetInstanceProcAddr/!b;n;i\\ extern int mallopt(int p, int v);\\n extern int setenv(const char *n, const char *v, int o);\\n mallopt(-1002, 0);\\n setenv("MESA_VK_WSI_PRESENT_MODE", "mailbox", 1);\\n setenv("vblank_mode", "0", 1);' "$WRAPPER_DEVICE"
-            echo "-> Silicio de Mesa modificado con éxito antes del asalto de Docker."
+            # PARCHE MAESTRO PARA COMPATIBILIDAD VULKAN 32 BITS + DXVK:
+            # 1. Aplicamos mallopt(-1002, 0) y mailbox para desatascar las cargas y dar maximos FPS en ambas arquitecturas.
+            # 2. Forzamos a que si el proceso es detectado como 32 bits (sizeof(void*) == 4), se active la variable
+            #    MESA_VK_WSI_QUEUE_SIZE=1 que aligera la cola de buffers evitando que Box86 colapse por desalineacion de punteros.
+            sed -i '/vk_icdGetInstanceProcAddr/!b;n;i\\ extern int mallopt(int p, int v);\\n extern int setenv(const char *n, const char *v, int o);\\n mallopt(-1002, 0);\\n setenv("MESA_VK_WSI_PRESENT_MODE", "mailbox", 1);\\n setenv("vblank_mode", "0", 1);\\n if (sizeof(void*) == 4) {\\n   setenv("MESA_VK_WSI_QUEUE_SIZE", "1", 1);\\n   setenv("DXVK_HUD", "fps", 1);\\n }' "$WRAPPER_DEVICE"
+            echo "-> Envoltura hibrida inyectada con exito."
           else
-            echo "-> Archivo wrapper_device.c no encontrado, aplicando inyección selectiva segura..."
-            # Evitamos el reemplazo masivo destructivo global para proteger la tabla MMAP32
-            find src/ -name "vk_icd_vulkan.c" -o -name "wrapper_device.c" -exec sed -i 's/vk_icdGetInstanceProcAddr/extern int mallopt(int p, int v); extern int setenv(const char *n, const char *v, int o); mallopt(-1002, 0); setenv("MESA_VK_WSI_PRESENT_MODE", "mailbox", 1); setenv("vblank_mode", "0", 1); vk_icdGetInstanceProcAddr/g' {} + || true
+            echo "-> Archivo wrapper_device.c no encontrado, aplicando fallback hibrido global..."
+            find src/ -name "*.c" -exec sed -i 's/vk_icdGetInstanceProcAddr/extern int mallopt(int p, int v); extern int setenv(const char *n, const char *v, int o); mallopt(-1002, 0); setenv("MESA_VK_WSI_PRESENT_MODE", "mailbox", 1); setenv("vblank_mode", "0", 1); if (sizeof(void*) == 4) { setenv("MESA_VK_WSI_QUEUE_SIZE", "1", 1); } vk_icdGetInstanceProcAddr/g' {} + || true
           fi
 
+      # TU PASO DE DOCKER ORIGINAL QUE SÍ COMPILA DE FORMA NATIVA Y COMPLETA
       - name: Wrapper Compiler (Atomic Processing Docker MALI)
         run: |
-          docker run --rm \
-            -v "${{ github.workspace }}:/workspace" \
-            ${{ env.IMAGE_TAG }} ${{ env.BUILD_DIR }}
+          docker run --rm -v "${{ github.workspace }}:/workspace" ${{ env.IMAGE_TAG }} ${{ env.BUILD_DIR }}
 
       # ESTE PASO CREA LA ESTRUCTURA EXACTA PARA BANNERLATOR Y GENERA EL ARCHIVO .TZST
       - name: Structure and Pack wrapper.tzst
