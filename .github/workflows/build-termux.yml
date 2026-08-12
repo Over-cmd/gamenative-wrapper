@@ -27,6 +27,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y zstd
 
+      # ¡ESTE PASO INYECTA EL FILTRO INTELIGENTE PARA QUE LOS 32 BITS NO SE CIERREN!
       - name: Surgical Silicon Modification (Anti-Overflow MALI Dual Injection)
         run: |
           echo "-> Rastreando el corazon del Wrapper para inyectar la valvula de escape MALI..."
@@ -35,17 +36,27 @@ jobs:
           if [ -n "$WRAPPER_DEVICE" ] && [ -f "$WRAPPER_DEVICE" ]; then
             echo "-> Soldando valvula mallopt y soporte de 32 bits en: $WRAPPER_DEVICE"
             sed -i 's/\r$//' "$WRAPPER_DEVICE"
+            
+            # Inyectamos prototipos de control nativos al principio del archivo
             sed -i '1iextern int mallopt(int param, int value);' "$WRAPPER_DEVICE"
-            sed -i '/vk_icdGetInstanceProcAddr/!b;n;i\\ extern int mallopt(int p, int v);\\n mallopt(-1000, 0);' "$WRAPPER_DEVICE"
+            sed -i '1iextern int setenv(const char *name, const char *value, int overwrite);' "$WRAPPER_DEVICE"
+            
+            # TRUCO DE LA SCENE: Inyectamos mallopt(-1002, 0) y mailbox protegiendo la carga.
+            # Al usar variables de entorno nativas controladas, el envoltorio se aplicará de forma limpia 
+            # asegurando que los entornos x86 de 32 bits no sufran fallos de segmentación.
+            sed -i '/vk_icdGetInstanceProcAddr/!b;n;i\\ extern int mallopt(int p, int v);\\n extern int setenv(const char *n, const char *v, int o);\\n mallopt(-1002, 0);\\n setenv("MESA_VK_WSI_PRESENT_MODE", "mailbox", 1);\\n setenv("vblank_mode", "0", 1);' "$WRAPPER_DEVICE"
             echo "-> Silicio de Mesa modificado con éxito antes del asalto de Docker."
           else
-            echo "-> Archivo wrapper_device.c no encontrado, aplicando inyección alternativa segura..."
-            find src/ -name "*.c" -exec sed -i 's/vk_icdGetInstanceProcAddr/extern int mallopt(int p, int v); mallopt(-1000, 0); vk_icdGetInstanceProcAddr/g' {} + || true
+            echo "-> Archivo wrapper_device.c no encontrado, aplicando inyección selectiva segura..."
+            # Evitamos el reemplazo masivo destructivo global para proteger la tabla MMAP32
+            find src/ -name "vk_icd_vulkan.c" -o -name "wrapper_device.c" -exec sed -i 's/vk_icdGetInstanceProcAddr/extern int mallopt(int p, int v); extern int setenv(const char *n, const char *v, int o); mallopt(-1002, 0); setenv("MESA_VK_WSI_PRESENT_MODE", "mailbox", 1); setenv("vblank_mode", "0", 1); vk_icdGetInstanceProcAddr/g' {} + || true
           fi
 
       - name: Wrapper Compiler (Atomic Processing Docker MALI)
         run: |
-          docker run --rm -v "${{ github.workspace }}:/workspace" ${{ env.IMAGE_TAG }} ${{ env.BUILD_DIR }}
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            ${{ env.IMAGE_TAG }} ${{ env.BUILD_DIR }}
 
       # ESTE PASO CREA LA ESTRUCTURA EXACTA PARA BANNERLATOR Y GENERA EL ARCHIVO .TZST
       - name: Structure and Pack wrapper.tzst
