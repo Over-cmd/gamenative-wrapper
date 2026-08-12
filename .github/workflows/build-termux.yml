@@ -14,8 +14,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # ¡ESTE PARÁMETRO CLONA ABSOLUTAMENTE TODOS LOS SUBMÓDULOS EN LIMPIO DESDE FUERA EVITANDO EL CONGELAMIENTO!
       - name: Checkout Code
         uses: actions/checkout@v4
+        with:
+          submodules: 'recursive' # Fuerza a GitHub Actions a bajar libadrenotools y linkernsbypass de inmediato
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -26,13 +29,12 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y zstd python3
 
-      # ¡ESTE BLOQUE SQUIVA EL ATASCO DE INTERNET CARGANDO EXPAT LOCALMENTE!
+      # EVITA LAS 5 HORAS DE ATASCO INYECTANDO EXPAT LOCALMENTE EN MESA 25
       - name: Generate Local Minimal Expat Structure (Zero Downloads)
         run: |
           echo "-> Fabricando subproyecto Expat nativo en la raiz..."
           mkdir -p subprojects/expat/lib
           
-          # Escribimos las cabeceras básicas de Expat para que Mesa las encuentre
           cat << 'EOF' > subprojects/expat/lib/expat.h
           #ifndef EXPAT_H
           #define EXPAT_H
@@ -44,7 +46,6 @@ jobs:
           #endif
           EOF
           
-          # Escribimos el codigo fuente C plano limpio
           cat << 'EOF' > subprojects/expat/lib/expat.c
           #include "expat.h"
           XML_Parser XML_ParserCreate(const XML_Char *encoding) { return (XML_Parser)1; }
@@ -52,7 +53,6 @@ jobs:
           int dummy_expat_stub(void) { return 0; }
           EOF
           
-          # Creamos el archivo de construccion Meson real dentro de la misma carpeta
           cat << 'EOF' > subprojects/expat/meson.build
           project('expat', 'c', version: '2.5.0')
           expat_inc = include_directories('lib')
@@ -61,7 +61,6 @@ jobs:
           meson.override_dependency('expat', expat_dep)
           EOF
           
-          # Machacamos el archivo .wrap para que lea estrictamente la carpeta local y no toque internet
           cat << 'EOF' > subprojects/expat.wrap
           [wrap-file]
           directory = expat
@@ -78,15 +77,13 @@ jobs:
             sed -i "s/choices : \[/choices : ['wrapper', 'swrast', /g" meson.options
           fi
 
-      # ¡INYECTAMOS EL CÓDIGO POR PYTHON EXCLUSIVAMENTE EN EL MAESTRO DE INSTANCIAS (COMPATIBLE 32/64)!
+      # INYECTAMOS EL CÓDIGO POR PYTHON EXCLUSIVAMENTE EN EL MAESTRO DE INSTANCIAS (COMPATIBLE 32/64)
       - name: Surgical Silicon Modification (Anti-Overflow & 32-bit GameNative Fix)
         run: |
           echo "-> Ejecutando parche de aislamiento de arquitectura con Python..."
           python3 -c "
           import os
           
-          # En Mesa 25 de GameNative, parchar vk_icdGetInstanceProcAddr globalmente rompe los 32 bits.
-          # Forzamos la inyeccion nativa unicamente en el punto de entrada real de la carga del driver.
           target = 'src/vulkan/runtime/vk_instance.c'
           if os.path.exists(target):
               print(f'-> Parchando de forma segura el runtime comun de Vulkan: {target}')
@@ -94,13 +91,9 @@ jobs:
                   content = f.read()
               
               content = content.replace('\r\n', '\n')
-              
-              # Inyectamos prototipos estables al inicio del archivo
               headers = '\nextern int mallopt(int param, int value);\nextern int setenv(const char *name, const char *value, int overwrite);\n'
               content = headers + content
               
-              # Soldamos el parche condicional: si es 32 bits (sizeof(void*) == 4), limitamos el tamano del buffer de colas
-              # (MESA_VK_WSI_QUEUE_SIZE=1) para evitar que Box86 colapse la pila de memoria del Unisoc T618
               patch = 'extern int mallopt(int p, int v); extern int setenv(const char *n, const char *v, int o); mallopt(-1002, 0); setenv(\"MESA_VK_WSI_PRESENT_MODE\", \"mailbox\", 1); setenv(\"vblank_mode\", \"0\", 1); if(sizeof(void*) == 4) { setenv(\"MESA_VK_WSI_QUEUE_SIZE\", \"1\", 1); } vk_icdGetInstanceProcAddr'
               content = content.replace('vk_icdGetInstanceProcAddr', patch, 1)
               
