@@ -14,11 +14,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # ¡ESTE PARÁMETRO CLONA ABSOLUTAMENTE TODOS LOS SUBMÓDULOS EN LIMPIO DESDE FUERA EVITANDO EL CONGELAMIENTO!
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
-          submodules: 'recursive' # Fuerza a GitHub Actions a bajar libadrenotools y linkernsbypass de inmediato
+          submodules: 'recursive' # Mantenemos la clonacion nativa exterior por seguridad
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -28,6 +27,25 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y zstd python3
+
+      # ¡ESTE PASO ENGAÑA AL SCRIPT DE GIT INTERNO DEL DOCKER ANULANDO LA ESPERA INFINITA!
+      - name: Hijack Git Submodules Config (Force Local Null Bypass)
+        run: |
+          echo "-> Detectando y saboteando los archivos de configuracion de submodulos..."
+          # Buscamos el archivo .gitmodules maestro y forzamos a que las URLs apunten a rutas locales muertas
+          if [ -f ".gitmodules" ]; then
+            sed -i 's/\r$//' .gitmodules
+            sed -i 's|url = .*|url = /dev/null|g' .gitmodules
+            echo "-> .gitmodules de la raiz parchado con exito:"
+            cat .gitmodules
+          fi
+          
+          # Hacemos lo mismo con cualquier archivo de configuracion interno de libadrenotools
+          find . -name ".gitmodules" -exec sed -i 's|url = .*|url = /dev/null|g' {} + || true
+          
+          # Tambien borramos preventivamente los archivos de configuracion de Git ocultos para evitar bucles
+          find . -name ".git" -not -path "./.git" -exec rm -rf {} + || true
+          echo "-> Redireccion de submodulos Git completada."
 
       # EVITA LAS 5 HORAS DE ATASCO INYECTANDO EXPAT LOCALMENTE EN MESA 25
       - name: Generate Local Minimal Expat Structure (Zero Downloads)
@@ -107,7 +125,7 @@ jobs:
                   with open(device_file, 'r', encoding='utf-8') as f:
                       content = f.read()
                   content = content.replace('\r\n', '\n')
-                  patch = 'extern int mallopt(int p, int v); extern int setenv(const char *n, const char *v, int o); mallopt(-1002, 0); setenv(\"MESA_VK_WSI_PRESENT_MODE\", \"mailbox\", 1); setenv(\"vblank_mode\", \"0\", 1); if(sizeof(void*) == 4) { setenv(\"MESA_VK_WSI_QUEUE_SIZE\", \"1\", 1); } vk_icdGetInstanceProcAddr'
+                  patch = 'extern int mallopt(int p, int v); extern int setenv(const char *n, const char *v, int o); mallopt(-1002, 0); setenv(\"MESA_VK_WSI_PRESENT_MODE\", \"mailbox\", 1); setenv("vblank_mode", "0", 1); if(sizeof(void*) == 4) { setenv(\"MESA_VK_WSI_QUEUE_SIZE\", \"1\", 1); } vk_icdGetInstanceProcAddr'
                   content = '\nextern int mallopt(int p, int v);\nextern int setenv(const char *n, const char *v, int o);\n' + content.replace('vk_icdGetInstanceProcAddr', patch, 1)
                   with open(device_file, 'w', encoding='utf-8') as f:
                       f.write(content)
