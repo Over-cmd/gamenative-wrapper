@@ -26,42 +26,15 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y zstd python3
 
-      # ¡ESTE PASO PARCHA LA LÍNEA 69 DE FORMA LIMPIA SIN ROMPER LA SINTAXIS DE MESON!
+      # ¡PASO CORREGIDO: COMPILACIÓN QUIRÚRGICA EN UNA SOLA LÍNEA SIN ERRORES DE SANGRÍA!
       - name: Nuclear Purge for External Repositories (Aniquilar Libadrenotools)
         run: |
           echo "-> Reescribiendo el meson.build del wrapper de forma limpia con Python..."
           TARGET_MESON="src/vulkan/wrapper/meson.build"
           
           if [ -f "$TARGET_MESON" ]; then
-            # El truco definitivo de la scene: abrimos el archivo y buscamos la linea que contiene 'subproject' de adrenotools.
-            # En lugar de recortarla, la desactivamos comentandola por completo con un '#' al principio,
-            # y redefinimos 'libadrenotools_dep' como una lista vacia [] valida para que compile sin pedir red.
-            python3 -c "
-            target = '$TARGET_MESON'
-            with open(target, 'r', encoding='utf-8', errors='ignore') as f:
-                lines = f.readlines()
-            
-            new_lines = []
-            for line in lines:
-                clean_line = line.strip()
-                # Comentamos la inicializacion del subproyecto de internet
-                if 'subproject' in clean_line and 'libadrenotools' in clean_line:
-                    new_lines.append('# ' + line)
-                    continue
-                # Comentamos la busqueda de la dependencia de adrenotools
-                if 'libadrenotools_dep' in clean_line and 'dependency' in clean_line:
-                    new_lines.append('# ' + line)
-                    continue
-                # Si Ninja o Meson piden la variable, les inyectamos un array vacio [] inofensivo
-                if 'libadrenotools_dep' in clean_line and '=' in clean_line and not 'dependency' in clean_line:
-                    new_lines.append('libadrenotools_dep = []\n')
-                    continue
-                new_lines.append(line)
-                
-            with open(target, 'w', encoding='utf-8') as f:
-                f.writelines(new_lines)
-            print('-> ¡Linea 69 anulada mediante comentarios de Meson con exito total!')
-            "
+            # El truco definitivo: procesamos el archivo en una sola linea plana de comandos para evitar el IndentationError de Bash
+            python3 -c "target='$TARGET_MESON'; f=open(target,'r',encoding='utf-8',errors='ignore'); lines=f.readlines(); f.close(); new_lines=[('# ' + l if ('subproject' in l and 'libadrenotools' in l) or ('libadrenotools_dep' in l and 'dependency' in l) else ('libadrenotools_dep = []\n' if 'libadrenotools_dep' in l and '=' in l and not 'dependency' in l else l)) for l in lines]; f=open(target,'w',encoding='utf-8'); f.writelines(new_lines); f.close(); print('-> Linea 69 anulada con exito.')"
           fi
 
       # EVITA LAS 5 HORAS DE ATASCO INYECTANDO EXPAT LOCALMENTE EN MESA 25
