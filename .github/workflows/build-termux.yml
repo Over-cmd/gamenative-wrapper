@@ -26,36 +26,15 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y zstd python3
 
-      # ¡ESTE PASO REESCRIBE EL CONFIGURADOR ELIMINANDO DE RAÍZ LA LÍNEA 69 CRÍTICA!
+      # ¡PASO CORREGIDO EN UNA SOLA LÍNEA SIN ESPACIOS DE SANGRÍA DELICADOS!
       - name: Nuclear Purge for External Repositories (Aniquilar Libadrenotools)
         run: |
           echo "-> Reescribiendo el meson.build del wrapper para extirpar dependencias de red..."
           TARGET_MESON="src/vulkan/wrapper/meson.build"
           
           if [ -f "$TARGET_MESON" ]; then
-            # Usamos Python para vaciar el bloque que causaba el clonado ciego de Git
-            # Dejamos intacta la creacion del binario compartido (shared_library) del wrapper,
-            # pero eliminando los enlaces hacia objetos externos que daban el error.
-            python3 -c "
-            import os
-            target = '$TARGET_MESON'
-            with open(target, 'r', encoding='utf-8', errors='ignore') as f:
-                content = f.read()
-            
-            content = content.replace('\r\n', '\n')
-            
-            # Neutralizamos de forma masiva cualquier busqueda o ejecucion de comandos vinculados a adrenotools
-            # Reemplazando el bloque por variables vacias legales que Meson procesara sin protestar
-            if 'libadrenotools' in content:
-                content = content.replace(\"subproject('libadrenotools')\", \"# Subproyecto anulado\")
-                content = content.replace(\"dependency('libadrenotools')\", \"dependency('', required: false)\")
-                # Forzamos a que si el script busca el objeto dep de adrenotools, use una lista vacia []
-                content = content.replace(\"libadrenotools_dep\", \"[]\")
-                
-            with open(target, 'w', encoding='utf-8') as f:
-                f.write(content)
-            print('-> Estructura extirpada con exito.')
-            "
+            # Ejecutamos el reemplazo quirúrgico en una línea plana para anular los errores de IndentationError
+            python3 -c "import os; target='$TARGET_MESON'; f=open(target,'r',encoding='utf-8',errors='ignore'); content=f.read(); f.close(); content=content.replace('\r\n','\n').replace(\"subproject('libadrenotools')\",\"# Sub\").replace(\"dependency('libadrenotools')\",\"dependency('',required:false)\").replace('libadrenotools_dep','[]'); f=open(target,'w',encoding='utf-8'); f.write(content); f.close(); print('-> Estructura extirpada con exito.')"
           fi
 
       # EVITA LAS 5 HORAS DE ATASCO INYECTANDO EXPAT LOCALMENTE EN MESA 25
@@ -112,25 +91,18 @@ jobs:
           echo "-> Ejecutando parche de aislamiento de arquitectura con Python..."
           python3 -c "
           import os
-          
           target = 'src/vulkan/runtime/vk_instance.c'
           if os.path.exists(target):
-              print(f'-> Parchando de forma segura el runtime comun de Vulkan: {target}')
               with open(target, 'r', encoding='utf-8', errors='ignore') as f:
                   content = f.read()
-              
               content = content.replace('\r\n', '\n')
               headers = '\nextern int mallopt(int param, int value);\nextern int setenv(const char *name, const char *value, int overwrite);\n'
               content = headers + content
-              
               patch = 'extern int mallopt(int p, int v); extern int setenv(const char *n, const char *v, int o); mallopt(-1002, 0); setenv(\"MESA_VK_WSI_PRESENT_MODE\", \"mailbox\", 1); setenv(\"vblank_mode\", \"0\", 1); if(sizeof(void*) == 4) { setenv(\"MESA_VK_WSI_QUEUE_SIZE\", \"1\", 1); } vk_icdGetInstanceProcAddr'
               content = content.replace('vk_icdGetInstanceProcAddr', patch, 1)
-              
               with open(target, 'w', encoding='utf-8') as f:
                   f.write(content)
-              print('-> ¡Aislamiento hibrido de memoria acoplado con exito!')
           else:
-              print('-> Alerta: Usando inyeccion de dispositivo alternativa en wrapper_device.c')
               device_file = 'src/vulkan/wrapper/wrapper_device.c'
               if os.path.exists(device_file):
                   with open(device_file, 'r', encoding='utf-8') as f:
