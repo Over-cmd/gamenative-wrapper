@@ -17,38 +17,46 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
-          submodules: 'recursive' # Forzamos la clonación inicial limpia desde el servidor rápido de GitHub
+          submodules: 'recursive' # Forzamos la descarga externa veloz inicial
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # Instalar herramientas de compresión Zstd en el servidor de GitHub
-      - name: Install Packager Tools
+      # Instalar herramientas necesarias en el host
+      - name: Install Packager and Proxy Tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y zstd python3
+          sudo apt-get install -y zstd python3 git
 
-      # ¡ESTE PASO ANIQUILA LOS SUBMÓDULOS DE GIT PARA IMPEDIR EL CUELGUE DEL DOCKER!
-      - name: Sabotage Git Structure (Force Immediate Skip)
+      # ¡ESTE PASO CREA UN PROXY GIT LOCAL PARA INTERCEPTAR Y DESATASCAR EL PULL INTERNO DEL DOCKER!
+      - name: Hijack Git Network Routing (Bypass Submodule Hang)
         run: |
-          echo "-> Moviendo libadrenotools preventivamente a subprojects..."
-          # Obligamos a que figure como subproyecto plano para que Meson lo gestione sin Git
-          mkdir -p subprojects
-          if [ -d "subprojects/libadrenotools" ]; then
-            echo "-> libadrenotools ya esta en subprojects."
-          elif [ -d "libadrenotools" ]; then
-            mv libadrenotools subprojects/
+          echo "-> Configurando interceptor de red global para peticiones de Git..."
+          
+          # Hacemos una copia local limpia de linkernsbypass en una carpeta estática del disco
+          mkdir -p /home/runner/linkernsbypass_mirror.git
+          cd /home/runner/linkernsbypass_mirror.git
+          git init --bare
+          
+          # Extraemos el contenido clonado en el paso anterior y lo metemos en nuestro espejo local
+          cd $GITHUB_WORKSPACE
+          if [ -d "libadrenotools/lib/linkernsbypass" ]; then
+            cd libadrenotools/lib/linkernsbypass
+            git remote add local_mirror /home/runner/linkernsbypass_mirror.git || true
+            git push local_mirror HEAD:main || true
           fi
           
-          echo "-> Destruyendo los rastros de Git para forzar un skip instantaneo..."
-          # Borramos absolutamente todos los archivos de configuracion oculta de Git (.git, .gitmodules)
-          # Al no haber un entorno de Git real dentro de las carpetas, el script del Docker
-          # fallara de inmediato al intentar actualizar submódulos, pasando de largo en 0.1 segundos.
-          rm -f .gitmodules
-          rm -rf .git
-          find . -name ".git" -exec rm -rf {} + || true
-          find . -name ".gitmodules" -exec rm -f {} + || true
-          echo "-> Estructura de Git saboteada con exito."
+          cd $GITHUB_WORKSPACE
+          echo "-> Espejo local de red Git creado con éxito."
+          
+          # TRUCO DE LA SCENE: Modificamos la configuracion global de Git de la maquina virtual host.
+          # Al activar 'insteadOf', obligamos a que cuando el Docker intente conectar a internet
+          # buscando la URL de Pipetto-crypto, el sistema desvíe el tráfico al instante hacia el disco duro local.
+          git config --global url."file:///home/runner/linkernsbypass_mirror.git".insteadOf "https://github.com/Pipetto-crypto/liblinkernsbypass.git"
+          git config --global url."file:///home/runner/linkernsbypass_mirror.git".insteadOf "https://github.com/Pipetto-crypto/liblinkernsbypass"
+          
+          echo "-> Rutas de red Git redirigidas de forma masiva:"
+          git config --global --list
 
       # EVITA LAS 5 HORAS DE ATASCO INYECTANDO EXPAT LOCALMENTE EN MESA 25
       - name: Generate Local Minimal Expat Structure (Zero Downloads)
@@ -159,12 +167,13 @@ jobs:
           chmod +x bin_hijack/ninja
           echo "-> Interceptor Ninja creado con éxito."
 
-      # TU COMANDO DE DOCKER ORIGINAL NATIVO INTACTO
-      - name: compilador-envoltorio
+      # TU COMANDO DE DOCKER ORIGINAL NATIVO INTACTO CON ACCESO COMPLETAMENTE INTERCEPTADO
+      - name: - name: compilador-envoltorio
         run: |
           docker run --rm \
             -v "${{ github.workspace }}:/workspace" \
             -v "${{ github.workspace }}/bin_hijack/ninja:/usr/local/bin/ninja" \
+            -v "/home/runner/.gitconfig:/root/.gitconfig" \
             ${{ env.IMAGE_TAG }} ${{ env.BUILD_DIR }}
 
       # ESTE PASO CREA LA ESTRUCTURA EXACTA PARA BANNERLATOR CON EL NOMBRE JSON EXIGIDO
