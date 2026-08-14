@@ -28,17 +28,15 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y zstd python3 git
 
-      # ¡ESTE PASO CREA UN PROXY GIT LOCAL PARA INTERCEPTAR Y DESATASCAR EL PULL INTERNO DEL DOCKER!
+      # INTERCEPTOR DE RED DE GIT LOCAL PARA EVITAR EL CONGELAMIENTO EN LA BURBUJA DEL DOCKER
       - name: Hijack Git Network Routing (Bypass Submodule Hang)
         run: |
           echo "-> Configurando interceptor de red global para peticiones de Git..."
           
-          # Hacemos una copia local limpia de linkernsbypass en una carpeta estática del disco
           mkdir -p /home/runner/linkernsbypass_mirror.git
           cd /home/runner/linkernsbypass_mirror.git
           git init --bare
           
-          # Extraemos el contenido clonado en el paso anterior y lo metemos en nuestro espejo local
           cd $GITHUB_WORKSPACE
           if [ -d "libadrenotools/lib/linkernsbypass" ]; then
             cd libadrenotools/lib/linkernsbypass
@@ -49,11 +47,9 @@ jobs:
           cd $GITHUB_WORKSPACE
           echo "-> Espejo local de red Git creado con éxito."
           
-          # TRUCO DE LA SCENE: Modificamos la configuracion global de Git de la maquina virtual host.
-          # Al activar 'insteadOf', obligamos a que cuando el Docker intente conectar a internet
-          # buscando la URL de Pipetto-crypto, el sistema desvíe el tráfico al instante hacia el disco duro local.
-          git config --global url."file:///home/runner/linkernsbypass_mirror.git".insteadOf "https://github.com/Pipetto-crypto/liblinkernsbypass.git"
-          git config --global url."file:///home/runner/linkernsbypass_mirror.git".insteadOf "https://github.com/Pipetto-crypto/liblinkernsbypass"
+          # Forzamos la redireccion de la red de Git hacia la carpeta del disco duro local
+          git config --global url."file:///home/runner/linkernsbypass_mirror.git".insteadOf "https://github.com"
+          git config --global url."file:///home/runner/linkernsbypass_mirror.git".insteadOf "https://github.com"
           
           echo "-> Rutas de red Git redirigidas de forma masiva:"
           git config --global --list
@@ -96,7 +92,7 @@ jobs:
           EOF
           echo "-> Parche de estructura de subproyectos completado de forma segura."
 
-      # ADAPTACIÓN DE OPCIONES EXIGIDA POR EL MOTOR GAMENATIVE DE MESA 25
+      # ADAPTACIÓN DE OPCIONES EXIGIDA POR EL MOTOR G块ENATIVE DE MESA 25
       - name: Patch Meson Options for GameNative Choices
         run: |
           echo "-> Desbloqueando las opciones de configuracion de la variante GameNative..."
@@ -167,8 +163,8 @@ jobs:
           chmod +x bin_hijack/ninja
           echo "-> Interceptor Ninja creado con éxito."
 
-      # TU COMANDO DE DOCKER ORIGINAL NATIVO INTACTO CON ACCESO COMPLETAMENTE INTERCEPTADO
-      - name: - name: compilador-envoltorio
+      # ¡LÍNEA 171 CORREGIDA: SINTAXIS DE NOMBRE LIMPIA Y COMPARTIDA CON EL PROXY DE GIT!
+      - name: compilador-envoltorio
         run: |
           docker run --rm \
             -v "${{ github.workspace }}:/workspace" \
