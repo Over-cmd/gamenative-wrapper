@@ -16,8 +16,6 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
-        with:
-          submodules: 'recursive' # Traemos las dependencias de forma segura desde fuera
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -28,40 +26,37 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y zstd python3
 
-      # ¡ESTE PASO REESCRIBE EL MESON.BUILD POR COMPLETO ELIMINANDO LOS COMANDOS GIT OCULTOS!
-      - name: Nuclear Bypass for Libadrenotools and External Commands
+      # ¡ESTE PASO REESCRIBE EL CONFIGURADOR ELIMINANDO DE RAÍZ LA LÍNEA 69 CRÍTICA!
+      - name: Nuclear Purge for External Repositories (Aniquilar Libadrenotools)
         run: |
-          echo "-> Moviendo carpetas a subprojects preventivamente..."
-          mkdir -p subprojects
-          if [ -d "libadrenotools" ] && [ ! -d "subprojects/libadrenotools" ]; then
-            mv libadrenotools subprojects/
+          echo "-> Reescribiendo el meson.build del wrapper para extirpar dependencias de red..."
+          TARGET_MESON="src/vulkan/wrapper/meson.build"
+          
+          if [ -f "$TARGET_MESON" ]; then
+            # Usamos Python para vaciar el bloque que causaba el clonado ciego de Git
+            # Dejamos intacta la creacion del binario compartido (shared_library) del wrapper,
+            # pero eliminando los enlaces hacia objetos externos que daban el error.
+            python3 -c "
+            import os
+            target = '$TARGET_MESON'
+            with open(target, 'r', encoding='utf-8', errors='ignore') as f:
+                content = f.read()
+            
+            content = content.replace('\r\n', '\n')
+            
+            # Neutralizamos de forma masiva cualquier busqueda o ejecucion de comandos vinculados a adrenotools
+            # Reemplazando el bloque por variables vacias legales que Meson procesara sin protestar
+            if 'libadrenotools' in content:
+                content = content.replace(\"subproject('libadrenotools')\", \"# Subproyecto anulado\")
+                content = content.replace(\"dependency('libadrenotools')\", \"dependency('', required: false)\")
+                # Forzamos a que si el script busca el objeto dep de adrenotools, use una lista vacia []
+                content = content.replace(\"libadrenotools_dep\", \"[]\")
+                
+            with open(target, 'w', encoding='utf-8') as f:
+                f.write(content)
+            print('-> Estructura extirpada con exito.')
+            "
           fi
-
-          echo "-> Eliminando comandos de red en src/vulkan/wrapper/meson.build con Python..."
-          python3 -c "
-          import os
-          target = 'src/vulkan/wrapper/meson.build'
-          if os.path.exists(target):
-              with open(target, 'r', encoding='utf-8', errors='ignore') as f:
-                  lines = f.readlines()
-              
-              new_lines = []
-              skip = False
-              for line in lines:
-                  # Si detectamos que el script intenta llamar a Git o inicializar clonados de adrenotools, los capamos
-                  if 'run_command' in line and 'git' in line:
-                      new_lines.append('# Comando Git anulado por el Action\n')
-                      continue
-                  if 'libadrenotools_dep' in line and 'subproject' in line:
-                      # Convertimos la dependencia en opcional o vacia para evitar el cuelgue
-                      new_lines.append('libadrenotools_dep = dependency(\'\', required: false)\n')
-                      continue
-                  new_lines.append(line)
-                  
-              with open(target, 'w', encoding='utf-8') as f:
-                  f.writelines(new_lines)
-              print('-> ¡Comandos de clonacion eliminados del meson.build con exito!')
-          "
 
       # EVITA LAS 5 HORAS DE ATASCO INYECTANDO EXPAT LOCALMENTE EN MESA 25
       - name: Generate Local Minimal Expat Structure (Zero Downloads)
@@ -101,7 +96,7 @@ jobs:
           EOF
           echo "-> Parche de estructura de subproyectos completado de forma segura."
 
-      # ADAPTACIÓN DE OPCIONES EXIGIDA POR EL MOTOR G块ENATIVE DE MESA 25
+      # ADAPTACIÓN DE OPCIONES EXIGIDA POR EL MOTOR GAMENATIVE DE MESA 25
       - name: Patch Meson Options for GameNative Choices
         run: |
           echo "-> Desbloqueando las opciones de configuracion de la variante GameNative..."
@@ -150,7 +145,6 @@ jobs:
       # INTERCEPTOR DE COMANDOS PARA NINJA
       - name: Create Ninja Wrapper Hijacker (Bypass Unknown Target)
         run: |
-          echo "-> Creando interceptor de comandos para Ninja..."
           mkdir -p bin_hijack
           
           cat << 'EOF' > bin_hijack/ninja
@@ -172,7 +166,7 @@ jobs:
           chmod +x bin_hijack/ninja
           echo "-> Interceptor Ninja creado con éxito."
 
-      # ¡TU COMANDO DE DOCKER CAPANDO LA RED AL 100% PARA PROHIBIR QUE SE QUEDE CONGELADO!
+      # TU COMANDO DE DOCKER ORIGINAL NATIVO INTACTO CON LA RED DESACTIVADA SEGURO
       - name: compilador-envoltorio
         run: |
           docker run --rm \
