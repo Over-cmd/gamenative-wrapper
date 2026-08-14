@@ -26,21 +26,17 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y zstd python3
 
-      # ¡PASO BLINDADO: INYECTAMOS LAS DOS VARIABLES GLOBALES EN LA LÍNEA 1 EVITANDO EL DEFINE MISSING!
+      # ANULAMOS LIBADRENOTOOLS INYECTANDO LAS VARIABLES VACÍAS EN LA LÍNEA 1
       - name: Nuclear Purge for External Repositories (Aniquilar Libadrenotools)
         run: |
           echo "-> Reescribiendo el meson.build del wrapper de forma limpia con Python..."
           TARGET_MESON="src/vulkan/wrapper/meson.build"
           
           if [ -f "$TARGET_MESON" ]; then
-            # El truco maestro definitivo:
-            # 1. Comentamos las lineas que causaban la llamada a Git o inicializaciones externas.
-            # 2. Inyectamos los arrays vacios legales de adrenotools justo en la primera linea del archivo
-            #    para que sean globales y satisfagan cualquier lectura en las lineas 72, 75 o posteriores.
-            python3 -c "target='$TARGET_MESON'; f=open(target,'r',encoding='utf-8',errors='ignore'); lines=f.readlines(); f.close(); new_lines=['libadrenotools_dep = []\nadrenotools_subproj = []\n']; [new_lines.append('# ' + l if 'subproject' in l and 'libadrenotools' in l else l) for l in lines]; f=open(target,'w',encoding='utf-8'); f.writelines(new_lines); f.close(); print('-> Variables inyectadas de forma global e inalterable.')"
+            python3 -c "target='$TARGET_MESON'; f=open(target,'r',encoding='utf-8',errors='ignore'); lines=f.readlines(); f.close(); new_lines=['libadrenotools_dep = []\nadrenotools_subproj = []\n']; [new_lines.append('# ' + l if 'subproject' in l and 'libadrenotools' in l else l) for l in lines]; f=open(target,'w',encoding='utf-8'); f.writelines(new_lines); f.close(); print('-> Variables inyectadas de forma global.')"
           fi
 
-      # EVITA LAS 5 HORAS DE ATASCO INYECTANDO EXPAT LOCALMENTE EN MESA 25
+      # ¡PASO CORREGIDO: Cambiado inc por expat_inc en la linea de static_library!
       - name: Generate Local Minimal Expat Structure (Zero Downloads)
         run: |
           echo "-> Fabricando subproyecto Expat nativo en la raiz..."
@@ -64,10 +60,11 @@ jobs:
           int dummy_expat_stub(void) { return 0; }
           EOF
           
+          # Corrección en la variable de include_directories del static_library
           cat << 'EOF' > subprojects/expat/meson.build
           project('expat', 'c', version: '2.5.0')
           expat_inc = include_directories('lib')
-          expat_lib = static_library('expat', 'lib/expat.c', include_directories: inc)
+          expat_lib = static_library('expat', 'lib/expat.c', include_directories: expat_inc)
           expat_dep = declare_dependency(link_with: expat_lib, include_directories: expat_inc)
           meson.override_dependency('expat', expat_dep)
           EOF
@@ -123,7 +120,7 @@ jobs:
           mkdir -p bin_hijack
           
           cat << 'EOF' > bin_hijack/ninja
-          #!/bash/bin
+          #!/bin/bash
           ARGS=("$@")
           NEW_ARGS=()
           
