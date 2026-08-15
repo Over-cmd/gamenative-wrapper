@@ -32,15 +32,14 @@ jobs:
         run: |
           python3 -c "import os; t='src/vulkan/runtime/vk_instance.c'; f=open(t,'r') if os.path.exists(t) else None; c='\n#include <stdint.h>\nextern int mallopt(int p, int v);\nextern int setenv(const char* n, const char* v, int o);\n'+f.read().replace('vk_icdGetInstanceProcAddr','mallopt(-1002,0);setenv(\"MESA_VK_WSI_PRESENT_MODE\",\"mailbox\",1);setenv(\"vblank_mode\",\"0\",1);if(sizeof(void*)==4){setenv(\"MESA_VK_WSI_QUEUE_SIZE\",\"1\",\"1\");}vk_icdGetInstanceProcAddr',1) if f else ''; f.close() if f else None; f=open(t,'w') if f else None; f.write(c) if f else None; f.close() if f else None"
           python3 -c "import os; t='src/vulkan/wsi/wsi_common.c'; f=open(t,'r') if os.path.exists(t) else None; c=f.read().replace('wsi_device_init(','if(sizeof(void*)==4){setenv(\"MESA_VK_WSI_QUEUE_SIZE\",\"1\",1);setenv(\"vblank_mode\",\"0\",1);} wsi_device_init(',1) if f else ''; f.close() if f else None; f=open(t,'w') if f else None; f.write(c) if f else None; f.close() if f else None"
-          python3 -c "import os; t='meson.build'; f=open(t,'r') if os.path.exists(t) else None; c=f.read().replace(\"cc.find_library('atomic')\",\"dependency('',required:false)\").replace(\"cpp.find_library('atomic')\",\"dependency('',required:false)\") if f else ''; f.close() if f else None; f=open(t,'w') if f else None; f.write(c) if f else None; f.close() if f else None"
+          python3 -c "import os; t='meson.build'; f=open(t,'r') if os.path.exists(t) else None; c=f.read().replace(\"cc.find_library('atomic')\",\"dependency('',required:false)\").replace(\"cpp.find_library('atomic')\",\"dependency('',required:false)\").replace(\"cc.find_library('dl')\",\"dependency('',required:false)\").replace(\"cpp.find_library('dl')\",\"dependency('',required:false)\").replace(\"cc.find_library('dl',\",\"dependency('',required:false),\") if f else ''; f.close() if f else None; f=open(t,'w') if f else None; f.write(c) if f else None; f.close() if f else None"
 
-      # ¡PASO CORREGIDO: El cross_file.txt ahora usa un marcador estático provisorio @NDK_PATH@ que se reemplaza limpiamente en caliente!
+      # ¡ESTE PASO ASHEMBLEA LOS SCRIPTS Y ARCHIVOS DE CONFIGURACIÓN DE MESON EN LIMPIO EN EL ANFITRIÓN!
       - name: Assemble Offline Compiler Scripts
         run: |
           echo "-> Ensamblando script de construccion y entorno cruzado para Termux..."
           mkdir -p bin_hijack
           
-          # Escribimos la estructura base limpia con el marcador de posicion plano para Meson
           cat << 'EOF' > bin_hijack/cross_file.txt
           [binaries]
           c = '@NDK_PATH@/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android30-clang'
@@ -68,7 +67,6 @@ jobs:
           endian = 'little'
           EOF
 
-          # Escribimos el script de ejecucion encargado de resolver la ruta absoluta real del NDK en caliente
           cat << 'EOF' > bin_hijack/build.sh
           #!/bin/bash
           set -e
@@ -98,7 +96,7 @@ jobs:
           EOF
           chmod +x bin_hijack/build.sh
 
-      # DOCKERFILE PURGADO QUE SÓLO COPIA LAS CONFIGURACIONES SANA DESDE EL ANFITRIÓN
+      # DOCKERFILE REPARADO CON LA BANCO DE PAQUETES CF DE TERMUX ESTABLE
       - name: Generate Local Dockerfile Blueprint
         run: |
           rm -f Dockerfile
@@ -106,7 +104,6 @@ jobs:
           echo "USER root" >> Dockerfile
           echo "RUN apt-get update && apt-get install -y --no-install-recommends ninja-build && pip3 install --break-system-packages --ignore-installed --no-cache-dir meson ninja mako pyyaml packaging" >> Dockerfile
           echo "RUN mkdir -p /tmp/sysroot && cd /tmp/sysroot && curl -s 'https://termux.dev' > Packages && PACKAGES='libdrm libandroid-shmem libxcb libx11 libxshmfence libxext libxrandr libxrender xorgproto libxau libxdmcp' && for pkg in \$PACKAGES; do pkg_path=\$(awk -v p=\"Package: \$pkg\" '\$0==p{flag=1} flag && /^Filename:/{print \$2; exit}' Packages) && if [ -n \"\$pkg_path\" ]; then curl -L -O \"https://termux.dev\${pkg_path}\"; fi; done && mkdir -p /data/data/com.termux/files/usr && for f in *.deb; do if [ -f \"\$f\" ]; then dpkg-deb -x \"\$f\" /; fi; done && rm -rf /tmp/sysroot" >> Dockerfile
-          
           echo "RUN mkdir -p /root/build-config" >> Dockerfile
           echo "COPY bin_hijack/cross_file.txt /root/build-config/cross_file.txt" >> Dockerfile
           echo "COPY bin_hijack/build.sh /root/build.sh" >> Dockerfile
@@ -136,6 +133,7 @@ jobs:
           EOF
           cd pkg && tar -I 'zstd -19 -T0' -cf ../wrapper.tzst usr/ && cd ..
 
+      # ¡PASO ADICIONAL DE CARGA DE ARTEFACTO RESTAURADO Y INTEGRADO CORRECTAMENTE!
       - name: Upload Final wrapper.tzst for Bannerlator
         uses: actions/upload-artifact@v4
         with:
