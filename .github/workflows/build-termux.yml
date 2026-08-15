@@ -31,13 +31,12 @@ jobs:
           python -m pip install --upgrade pip
           pip install mako PyYAML meson ninja packaging
 
-      # ¡MÉTODO MAESTRO INALTERABLE: FABRICAMOS UN STUB DE ADRENOTOOLS EN LOCAL SIN TOCAR INTERNET!
+      # FABRICAMOS UN STUB DE ADRENOTOOLS EN LOCAL SIN RED PARA PASAR EL CONTROL DE MESON
       - name: Generate Local Minimal Libadrenotools Stub (Zero Downloads)
         run: |
           echo "-> Fabricando subproyecto local simulado de libadrenotools..."
           mkdir -p subprojects/libadrenotools/lib
           
-          # Escribimos un archivo de cabecera vacio basico con las firmas que el wrapper busca
           cat << 'EOF' > subprojects/libadrenotools/lib/adrenotools.h
           #ifndef ADRENOTOOLS_H
           #define ADRENOTOOLS_H
@@ -48,13 +47,11 @@ jobs:
           #endif
           EOF
           
-          # Escribimos el codigo fuente C plano limpio vacio
           cat << 'EOF' > subprojects/libadrenotools/lib/adrenotools.c
           #include "adrenotools.h"
           int dummy_adrenotools_func(void) { return 0; }
           EOF
           
-          # Creamos el archivo de construccion Meson estatico nativo
           cat << 'EOF' > subprojects/libadrenotools/meson.build
           project('libadrenotools', 'c', version: '1.0.0')
           adrenotools_inc = include_directories('lib')
@@ -63,14 +60,13 @@ jobs:
           meson.override_dependency('libadrenotools', libadrenotools_dep)
           EOF
           
-          # Registramos el archivo .wrap plano para obligar a Meson a no usar la red
           cat << 'EOF' > subprojects/libadrenotools.wrap
           [wrap-file]
           directory = libadrenotools
           EOF
-          echo "-> Subproyecto simulado de libadrenotools montado con éxito en local."
+          echo "-> Subproyecto simulado de libadrenotools montado en local."
 
-      # ¡MÉTODO AUTOMÁTICO DE SOPORTE EXPAT LOCAL SEGURO!
+      # MÉTODO AUTOMÁTICO DE SOPORTE EXPAT LOCAL SEGURO
       - name: Generate Local Minimal Expat Structure (Zero Downloads)
         run: |
           echo "-> Fabricando subproyecto Expat nativo en la raiz..."
@@ -108,7 +104,7 @@ jobs:
           EOF
           echo "-> Parche de estructura de subproyectos completado de forma segura."
 
-      # ¡INYECTAMOS EL CÓDIGO POR PYTHON EXCLUSIVAMENTE EN EL MAESTRO DE INSTANCIAS (COMPATIBLE 32/64)!
+      # INYECTAMOS EL PARCHE HÍBRIDO 32/64 BITS EN EL RUNTIME MAESTRO DE VULKAN
       - name: Surgical Silicon Modification (Anti-Overflow & 32-bit GameNative Fix)
         run: |
           echo "-> Ejecutando parche de aislamiento de arquitectura con Python..."
@@ -121,7 +117,6 @@ jobs:
               content = content.replace('\r\n', '\n')
               headers = '\nextern int mallopt(int param, int value);\nextern int setenv(const char *name, const char *value, int overwrite);\n'
               content = headers + content
-              # Filtro hibrido: si sizeof(void*) == 4 (proceso 32 bits en Box86) limita la cola del WSI para que no crashee la memoria del T618
               patch = 'extern int mallopt(int p, int v); extern int setenv(const char *n, const char *v, int o); mallopt(-1002, 0); setenv(\"MESA_VK_WSI_PRESENT_MODE\", \"mailbox\", 1); setenv(\"vblank_mode\", \"0\", 1); if(sizeof(void*) == 4) { setenv(\"MESA_VK_WSI_QUEUE_SIZE\", \"1\", 1); } vk_icdGetInstanceProcAddr'
               content = content.replace('vk_icdGetInstanceProcAddr', patch, 1)
               with open(target, 'w', encoding='utf-8') as f:
@@ -154,17 +149,15 @@ jobs:
           endian = 'little'
           EOF
 
-      # LANZAMOS EL CONFIGURADOR DE MESON EN EL ENTORNO NATIVO DEL SERVIDOR
+      # LANZAMOS EL CONFIGURADOR DE MESON EN EL ENTORNO NATIVO (Opcion obsoleta precomp-compiler eliminada)
       - name: Configure Meson Build
         run: |
-          # Activamos la opcion wrapper en las opciones oficiales del repositorio
           if [ -f "meson.options" ]; then
             sed -i "s/choices : \[/choices : ['wrapper', 'swrast', /g" meson.options
           elif [ -f "meson_options.txt" ]; then
             sed -i "s/choices : \[/choices : ['wrapper', 'swrast', /g" meson_options.txt
           fi
           
-          # Setup limpio e independiente de Docker.
           meson setup ${{ env.BUILD_DIR }} \
             --cross-file android-cross.txt \
             -Dbuildtype=release \
@@ -178,15 +171,14 @@ jobs:
             -Dgles1=disabled \
             -Dgles2=disabled \
             -Dllvm=disabled \
-            -Dprecomp-compiler=auto \
             -Dxmlconfig=disabled
 
-      # COMPILACIÓN MASIVA REAL DE LOS COMPONENTES GRÁFICOS CON NINJA NATIVO
+      # COMPILACIÓN MASIVA CON NINJA NATIVO
       - name: Compile Mesa GameNative Driver
         run: |
           meson compile -C ${{ env.BUILD_DIR }}
 
-      # RECOLECTAMOS EL BINARIO COMPILADO REAL Y LO CONVERTIMOS A WRAPPER.TZST PARA BANNERLATOR
+      # PACK COMPRIMIDO WRAPPER.TZST CON MANIFIESTO ORIGINAL DE 64 BITS DE BANNERLATOR
       - name: Structure and Pack wrapper.tzst
         run: |
           echo "-> Creando arbol de directorios de Linux para Bannerlator..."
