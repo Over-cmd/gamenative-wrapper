@@ -27,40 +27,43 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y zstd python3
 
-      # ¡ESTE PASO EXTIRPA EL BLOQUE DE ADRENOTOOLS EN FORMATO MULTILÍNEA SIN DEJAR PARÉNTESIS ROTOS!
-      - name: Nuclear Purge for External Repositories (Aniquilar Libadrenotools)
+      # ¡ESTE PASO MONTA EL SUBPROYECTO FALSO DE ADRENOTOOLS EN LOCAL EVITANDO LA RED Y LOS ERRORES DE SINTAXIS!
+      - name: Generate Local Minimal Libadrenotools Stub (Zero Downloads)
         run: |
-          echo "-> Reescribiendo el meson.build del wrapper de forma limpia con Python..."
-          TARGET_MESON="src/vulkan/wrapper/meson.build"
-          if [ -f "$TARGET_MESON" ]; then
-            python3 -c "
-          import os, re
-          target = '$TARGET_MESON'
-          with open(target, 'r', encoding='utf-8', errors='ignore') as f:
-              content = f.read()
+          echo "-> Fabricando subproyecto local simulado de libadrenotools..."
+          mkdir -p subprojects/libadrenotools/lib
           
-          # Limpiamos formatos de linea de Windows
-          content = content.replace('\r\n', '\n')
+          # Escribimos un archivo de cabecera vacio basico
+          cat << 'EOF' > subprojects/libadrenotools/lib/adrenotools.h
+          #ifndef ADRENOTOOLS_H
+          #define ADRENOTOOLS_H
+          void dummy_adrenotools_stub(void) {}
+          #endif
+          EOF
           
-          # 1. Comentamos de raiz la llamada al subproyecto conflictivo de internet
-          content = re.sub(r'(subproject\s*\(\s*\'libadrenotools\'\s*\))', r'# \1', content)
+          # Escribimos el codigo fuente C plano limpio
+          cat << 'EOF' > subprojects/libadrenotools/lib/adrenotools.c
+          #include "adrenotools.h"
+          int dummy_adrenotools_func(void) { return 0; }
+          EOF
           
-          # 2. Buscamos y borramos por completo CUALQUIER declaracion multilineas de declare_dependency de adrenotools
-          # El patron busca desde 'adrenotools_dep = declare_dependency' hasta su parentesis de cierre ')', sin importar los saltos de linea
-          content = re.sub(r'adrenotools_dep\s*=\s*declare_dependency\s*\((.*?)\)', '# Bloque de dependencia adrenotools eliminado', content, flags=re.DOTALL)
+          # Creamos el archivo de construccion Meson real para libadrenotools exigido por Mesa 25
+          cat << 'EOF' > subprojects/libadrenotools/meson.build
+          project('libadrenotools', 'c', 'cpp', version: '1.0.0')
+          adrenotools_inc = include_directories('lib')
+          adrenotools_lib = static_library('adrenotools', 'lib/adrenotools.c', include_directories: adrenotools_inc)
+          libadrenotools_dep = declare_dependency(link_with: adrenotools_lib, include_directories: adrenotools_inc)
+          meson.override_dependency('libadrenotools', libadrenotools_dep)
+          EOF
           
-          # 3. Inyectamos variables planas, limpias y globales en la primera linea del archivo
-          # Esto satisface todas las lecturas posteriores del codigo de Mesa 25 sin romper la sintaxis
-          header = 'libadrenotools_dep = []\nadrenotools_subproj = meson\nadrenotools_inc = include_directories(\'.\')\nadrenotools_dep = declare_dependency()\n'
-          final_content = header + content
-          
-          with open(target, 'w', encoding='utf-8') as f:
-              f.write(final_content)
-          print('-> ¡Estructura de adrenotools extirpada limpiamente sin errores de parentesis!')
-          "
-          fi
+          # Registramos el archivo .wrap plano para que Meson no intente clonar de GitHub
+          cat << 'EOF' > subprojects/libadrenotools.wrap
+          [wrap-file]
+          directory = libadrenotools
+          EOF
+          echo "-> Subproyecto simulado de libadrenotools montado con éxito en local."
 
-      # EVITA LAS 5 HORAS DE ATASCO INYECTANDO EXPAT LOCALMENTE EN MESA 25
+      # ¡ESTE BLOQUE EVITA LAS 5 HORAS DE ATASCO INYECTANDO EXPAT LOCALMENTE EN MESA 25!
       - name: Generate Local Minimal Expat Structure (Zero Downloads)
         run: |
           echo "-> Fabricando subproyecto Expat nativo en la raiz..."
@@ -200,6 +203,6 @@ jobs:
       - name: Upload Final wrapper.tzst for Bannerlator
         uses: actions/upload-artifact@v4
         with:
-          name: Bannerlator-Mali-Wrapper
+          name: Bannerlator-GameNative-Wrapper
           path: wrapper.tzst
           if-no-files-found: error
