@@ -26,7 +26,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y zstd python3
 
-      # PARCHE MAESTRO: Rompe la rigidez estructural de Over-cmd para salvar la carga en juegos de 32 bits
+      # PARCHE MAESTRO: Rompe la rigidez de Over-cmd para salvar la carga en juegos de 32 bits
       - name: Fix Over-cmd Meson Rigidity (Anti-Crash 32bit Load)
         run: |
           echo "-> Analizando scripts de construcción de Mesa para inyectar compatibilidad inline..."
@@ -36,6 +36,7 @@ jobs:
           if os.path.exists(target):
               with open(target, 'r', encoding='utf-8', errors='ignore') as f:
                   content = f.read()
+              # Modificamos los argumentos de C en el build para forzar la compatibilidad de alineación
               if 'c_args' in content:
                   content = content.replace(\"c_args : [\", \"c_args : ['-D__inline__=', \")
                   with open(target, 'w', encoding='utf-8') as f:
@@ -43,72 +44,57 @@ jobs:
                   print('-> ¡Alineación de emulación inline inyectada en Meson correctamente!')
           "
 
-      # REESCRITURA QUIRÚRGICA EN C: Interceptamos modificando el cuerpo real de vk_icdGetInstanceProcAddr
+      # INYECCIÓN PURA POR ALIAS: Creamos el puente híbrido sin romper las funciones originales de Mesa
       - name: Surgical Silicon Modification (Anti-Overflow MALI Hybrid 32/64 Injection)
         run: |
-          echo "-> Ejecutando script de bypass quirúrgico para unificar puntos de entrada..."
-          python3 -c "
-          import os
-          dev_path = 'src/vulkan/wrapper/wrapper_device.c'
-          if os.path.exists(dev_path):
-              with open(dev_path, 'r', encoding='utf-8', errors='ignore') as f:
-                  lines = f.readlines()
-              new_lines = []
-              for line in lines:
-                  if 'vk_icdGetInstanceProcAddr' in line and ('void*' in line or 'PFN_vkVoidFunction' in line) and '{' in line:
-                      line = line.replace('vk_icdGetInstanceProcAddr', 'ignored_device_vk_icdGetInstanceProcAddr')
-                  new_lines.append(line)
-              with open(dev_path, 'w', encoding='utf-8') as f:
-                  f.writelines(new_lines)
-                  
-          inst_path = 'src/vulkan/wrapper/wrapper_instance.c'
-          if os.path.exists(inst_path):
-              with open(inst_path, 'r', encoding='utf-8', errors='ignore') as f:
-                  content = f.read()
-              
-              old_func = 'VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL\nvk_icdGetInstanceProcAddr(VkInstance instance, const char *pName)'
-              fallback_func = 'VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL\nvk_icdGetInstanceProcAddr(VkInstance instance, const char* pName)'
-              
-              if old_func in content:
-                  content = content.replace(old_func, 'VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL\noriginal_vk_icdGetInstanceProcAddr(VkInstance instance, const char *pName)')
-              elif fallback_func in content:
-                  content = content.replace(fallback_func, 'VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL\noriginal_vk_icdGetInstanceProcAddr(VkInstance instance, const char* pName)')
-              else:
-                  content = content.replace('vk_icdGetInstanceProcAddr(VkInstance', 'original_vk_icdGetInstanceProcAddr(VkInstance')
-              
-              with open(inst_path, 'w', encoding='utf-8') as f:
-                  f.write(content)
-              print('-> ¡wrapper_instance.c preparado para el puente maestro!')
-          "
+          echo "-> Rastreando el corazón del Wrapper para inyectar pasarela por Alias de C..."
+          WRAPPER_DEVICE=$(find src/ -name "wrapper_device.c" | head -n 1)
+          
+          if [ -n "$WRAPPER_DEVICE" ] && [ -f "$WRAPPER_DEVICE" ]; then
+            sed -i 's/\r$//' "$WRAPPER_DEVICE"
+            
+            # Limpiamos posibles restos de ejecuciones fallidas anteriores en el archivo de código fuente
+            sed -i '/__vulkan_hybrid_bridge__/,$d' "$WRAPPER_DEVICE" || true
+            
+            # Inyectamos el bloque de control utilizando la directiva __attribute__((alias)) al final del archivo
+            cat <<-'EOF' >> "$WRAPPER_DEVICE"
 
-          # Inyección del código de la pasarela de C mediante bloques limpios de Bash sin romper el YAML
-          cat <<-'EOF' >> src/vulkan/wrapper/wrapper_instance.c
+            /* __vulkan_hybrid_bridge__ */
+            #include <string.h>
+            extern int mallopt(int param, int value);
+            extern int setenv(const char *name, const char *value, int overwrite);
 
-          #include <string.h>
-          extern int mallopt(int param, int value);
-          extern int setenv(const char *name, const char *value, int overwrite);
-          VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL original_vk_icdGetInstanceProcAddr(VkInstance instance, const char *pName);
+            // Declaramos la firma exacta de la función nativa que Mesa ya compiló arriba
+            VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL vk_icdGetInstanceProcAddr(VkInstance instance, const char *pName);
 
-          VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL vk_icdGetInstanceProcAddr(VkInstance instance, const char *pName) {
-              mallopt(-1002, 0);
-              setenv("MESA_VK_WSI_PRESENT_MODE", "mailbox", 1);
-              setenv("vblank_mode", "0", 1);
-              
-              if (sizeof(void*) == 4) {
-                  setenv("MESA_VK_WSI_QUEUE_SIZE", "1", 1);
-                  setenv("BOX86_EMULATED_LIBS", "libvulkan_wrapper.so", 1);
-                  setenv("BOX86_MMAP32", "1", 1);
-                  
-                  if (pName && (strcmp(pName, "vkGetPhysicalDeviceProperties2KHR") == 0 || 
-                                strcmp(pName, "vkGetPhysicalDeviceFeatures2KHR") == 0 ||
-                                strcmp(pName, "vkRegisterDeviceCustomCallbacksEXT") == 0)) {
-                      return (PFN_vkVoidFunction)NULL;
-                  }
-              }
-              return original_vk_icdGetInstanceProcAddr(instance, pName);
-          }
+            // Creamos una función espejo idéntica apuntando al mismo descriptor
+            VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL mesa_native_vk_icdGetInstanceProcAddr(VkInstance instance, const char *pName) __attribute__((alias("vk_icdGetInstanceProcAddr")));
+
+            // Forzamos un interceptor global que Box86/Box64 llamará de manera prioritaria
+            VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL vulkan_wrapper_entry_bridge(VkInstance instance, const char *pName) {
+                mallopt(-1002, 0);
+                setenv("MESA_VK_WSI_PRESENT_MODE", "mailbox", 1);
+                setenv("vblank_mode", "0", 1);
+                
+                if (sizeof(void*) == 4) {
+                    setenv("MESA_VK_WSI_QUEUE_SIZE", "1", 1);
+                    setenv("BOX86_EMULATED_LIBS", "libvulkan_wrapper.so", 1);
+                    setenv("BOX86_MMAP32", "1", 1);
+                    
+                    if (pName && (strcmp(pName, "vkGetPhysicalDeviceProperties2KHR") == 0 || 
+                                  strcmp(pName, "vkGetPhysicalDeviceFeatures2KHR") == 0 ||
+                                  strcmp(pName, "vkRegisterDeviceCustomCallbacksEXT") == 0)) {
+                        return (PFN_vkVoidFunction)NULL;
+                    }
+                }
+                return mesa_native_vk_icdGetInstanceProcAddr(instance, pName);
+            }
           EOF
-          echo "-> ¡Inyección modular completada con éxito en wrapper_instance.c!"
+            echo "-> ¡Pasarela por Alias de C inyectada correctamente en el código fuente!"
+          else
+            echo "-> Archivo wrapper_device.c no encontrado, aplicando fallback..."
+            find src/ -name "*.c" -exec sed -i 's/vk_icdGetInstanceProcAddr/extern int mallopt(int p, int v); extern int setenv(const char *n, const char *v, int o); mallopt(-1002, 0); setenv("MESA_VK_WSI_PRESENT_MODE", "mailbox", 1); setenv("vblank_mode", "0", 1); if (sizeof(void*) == 4) { setenv("MESA_VK_WSI_QUEUE_SIZE", "1", 1); } vk_icdGetInstanceProcAddr/g' {} + || true
+          fi
 
       # COMPILACIÓN ORIGINAL DEL DOCKER NATIVO INTACTA
       - name: Wrapper Compiler (Atomic Processing Docker MALI)
