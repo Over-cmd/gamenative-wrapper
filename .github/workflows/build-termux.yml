@@ -44,7 +44,7 @@ jobs:
                   print('-> ¡Alineación de emulación inline inyectada en Meson correctamente!')
           "
 
-      # TU INYECCIÓN DE CONTROL DE FLUJO HÍBRIDO NATIVA INTACTA
+      # TU INYECCIÓN DE CONTROL DE FLUJO HÍBRIDO NATIVA REPARADA CON TRUCO DE MEMORIA BOX86
       - name: Surgical Silicon Modification (Anti-Overflow MALI Hybrid 32/64 Injection)
         run: |
           echo "-> Rastreando el corazon del Wrapper para soldar compatibilidad hibrida Vulkan..."
@@ -59,11 +59,12 @@ jobs:
             sed -i '1iextern int setenv(const char *name, const char *value, int overwrite);' "$WRAPPER_DEVICE"
             
             # Inyectamos mallopt(-1002, 0), mailbox y forzamos estabilidad de buffer en procesos de 32 bits
-            sed -i '/vk_icdGetInstanceProcAddr/!b;n;i\\ extern int mallopt(int p, int v);\\n extern int setenv(const char *n, const char *v, int o);\\n mallopt(-1002, 0);\\n setenv("MESA_VK_WSI_PRESENT_MODE", "mailbox", 1);\\n setenv("vblank_mode", "0", 1);\\n if (sizeof(void*) == 4) {\\n   setenv("MESA_VK_WSI_QUEUE_SIZE", "1", 1);\\n }' "$WRAPPER_DEVICE"
+            # ADEMÁS: Forzamos de forma interna que Box86 emule correctamente la carga de la librería evitando el desborde del HUD
+            sed -i '/vk_icdGetInstanceProcAddr/!b;n;i\\ extern int mallopt(int p, int v);\\n extern int setenv(const char *n, const char *v, int o);\\n mallopt(-1002, 0);\\n setenv("MESA_VK_WSI_PRESENT_MODE", "mailbox", 1);\\n setenv("vblank_mode", "0", 1);\\n if (sizeof(void*) == 4) {\\n   setenv("MESA_VK_WSI_QUEUE_SIZE", "1", 1);\\n   setenv("BOX86_EMULATED_LIBS", "libvulkan_wrapper.so", 1);\\n   setenv("BOX86_MMAP32", "1", 1);\\n }' "$WRAPPER_DEVICE"
             echo "-> Envoltura hibrida inyectada con exito."
           else
-            echo "-> Archivo wrapper_device.c no encontrado, aplicando fallback hibrido global..."
-            find src/ -name "*.c" -exec sed -i 's/vk_icdGetInstanceProcAddr/extern int mallopt(int p, int v); extern int setenv(const char *n, const char *v, int o); mallopt(-1002, 0); setenv("MESA_VK_WSI_PRESENT_MODE", "mailbox", 1); setenv("vblank_mode", "0", 1); if (sizeof(void*) == 4) { setenv("MESA_VK_WSI_QUEUE_SIZE", "1", 1); } vk_icdGetInstanceProcAddr/g' {} + || true
+            echo "-> Archivo wrapper_device.c no encontrado, aplicando fallback hibrido global con seguro MMAP32..."
+            find src/ -name "*.c" -exec sed -i 's/vk_icdGetInstanceProcAddr/extern int mallopt(int p, int v); extern int setenv(const char *n, const char *v, int o); mallopt(-1002, 0); setenv("MESA_VK_WSI_PRESENT_MODE", "mailbox", 1); setenv("vblank_mode", "0", 1); if (sizeof(void*) == 4) { setenv("MESA_VK_WSI_QUEUE_SIZE", "1", 1); setenv("BOX86_EMULATED_LIBS", "libvulkan_wrapper.so", 1); setenv("BOX86_MMAP32", "1", 1); } vk_icdGetInstanceProcAddr/g' {} + || true
           fi
 
       # COMPILACIÓN ORIGINAL DEL DOCKER NATIVO INTACTA
