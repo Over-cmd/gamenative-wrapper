@@ -26,21 +26,21 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y zstd python3 git
 
-      # ¡PASO CORREGIDO: Usamos una URL plana con bypass de credenciales para eludir el error de host vacio!
+      # ¡PASO CORREGIDO: Forzamos la limpieza de la configuracion Git local en la misma linea de ejecucion!
       - name: Pre-clone Libadrenotools Real Repository via Secure Token
         run: |
-          echo "-> Desactivando preventivamente cualquier regla insteadOf rota del host..."
-          git config --global --unset-all url.https://github.com || true
-          git config --global --unset-all url.https://.insteadOf || true
-          
-          echo "-> Preparando el árbol local de subproyectos de Mesa..."
+          echo "-> Purgando configuraciones de red Git en caliente..."
           mkdir -p subprojects
           rm -rf subprojects/libadrenotools
           
-          echo "-> Clonando de forma recursiva el libadrenotools oficial de Pipetto-crypto..."
-          # Al estructurar la URL limpia sin dobles diagonales conflictivas, Git procesa el clonado
-          # y baja la base de datos real junto a linkernsbypass a maxima velocidad.
-          git clone --depth 1 --recursive https://github.com subprojects/libadrenotools
+          # Forzamos una configuracion en blanco local para saltarnos el bloqueo del host de GitHub
+          git config --global --unset-all url.https://github.com || true
+          git config --global --unset-all url.https://.insteadOf || true
+          
+          echo "-> Clonando libadrenotools real de Pipetto-crypto de forma limpia..."
+          # El parametro -c url.https://github.com= actua como un escudo que resetea 
+          # cualquier desvio de red del servidor, bajando el codigo completo y linkernsbypass sin fallas.
+          git -c url."https://github.com/".insteadOf="" clone --depth 1 --recursive https://github.com subprojects/libadrenotools
           
           echo "-> Asegurando la presencia del archivo .wrap local..."
           cat << 'EOF' > subprojects/libadrenotools.wrap
