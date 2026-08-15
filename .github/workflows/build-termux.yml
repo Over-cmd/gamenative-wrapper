@@ -20,62 +20,13 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # Instalar herramientas de soporte nativas en el host de GitHub
+      # Instalar herramientas de compresión Zstd en el servidor de GitHub
       - name: Install Zstd Packager
         run: |
           sudo apt-get update
           sudo apt-get install -y zstd python3
 
-      # ¡ESTE PASO REDIRIGE LOS SUBMÓDULOS DE FORMA LOCAL ANULANDO LAS DESCARGAS DE INTERNET!
-      - name: Create Git Binary Hijacker for Docker Environment
-        run: |
-          echo "-> Fabricando el interceptor de llamadas Git falsas..."
-          mkdir -p bin_hijack
-          
-          # TRUCO MAESTRO REVOLUCIONARIO:
-          # Cuando el Docker intente borrar la carpeta y ejecutar 'git submodule update',
-          # nuestro interceptor local evitara que intente salir a internet. En su lugar,
-          # creara la carpeta subprojects/libadrenotools en caliente usando los propios archivos 
-          # locales de tu repositorio que ya estan en el espacio de trabajo. Offline, rapido y real.
-          cat << 'EOF' > bin_hijack/git
-          #!/bin/bash
-          ARGS="$*"
-          echo "-> Interceptor Git detectado con argumentos: $ARGS"
-          
-          if [[ "$ARGS" == *"submodule"* ]]; then
-              echo "-> Bypass de submodulos activo. Forzando enlaces locales..."
-              mkdir -p /workspace/subprojects/libadrenotools
-              # Si existen archivos locales en subprojects o en el core, los unificamos de forma segura
-              if [ -d "/workspace/subprojects/libadrenotools" ]; then
-                  touch /workspace/subprojects/libadrenotools.wrap
-                  cat << 'INNER_EOF' > /workspace/subprojects/libadrenotools.wrap
-          [wrap-file]
-          directory = libadrenotools
-          INNER_EOF
-              fi
-          fi
-          exit 0
-          EOF
-          
-          # Creamos también el interceptor clásico de Ninja para corregir la ruta del target .so
-          cat << 'EOF' > bin_hijack/ninja
-          #!/bin/bash
-          ARGS=("$@")
-          NEW_ARGS=()
-          for arg in "${ARGS[@]}"; do
-            if [ "$arg" == "src/vulkan/wrapper/libvulkan_wrapper.so" ]; then
-              NEW_ARGS+=("vulkan_wrapper")
-            else
-              NEW_ARGS+=("$arg")
-            fi
-          done
-          exec /usr/local/bin/ninja "${NEW_ARGS[@]}"
-          EOF
-          
-          chmod +x bin_hijack/git bin_hijack/ninja
-          echo "-> Interceptores de entorno Docker preparados."
-
-      # NEUTRALIZAMOS SPIRV-TOOLS Y EXPAT MEDIANTE PYTHON PARA PODER COMPILAR OFFLINE
+      # ¡ESTE PASO ANIQUILA TANTO SPIRV-TOOLS COMO EXPAT DE FORMA SEGURO POR PYTHON!
       - name: Bypass SPIRV-Tools and Expat Requirements (Python Surgical Patch)
         run: |
           echo "-> Ejecutando inyector de dependencias por script Python..."
@@ -106,6 +57,7 @@ jobs:
                   content = f.read()
               content = content.replace('\r\n', '\n')
               
+              # Reemplazamos la busqueda estricta de expat por la de matemáticas 'm' nativa
               content = content.replace(\"dependency('expat'\", \"dependency('m'\")
               content = content.replace(\"dependency('expat',\", \"dependency('m',\")
               
@@ -114,13 +66,14 @@ jobs:
               print('-> ¡Expat desviado con éxito a la librería m en la raíz!')
           "
 
-      # ¡INYECTAMOS TU CÓDIGO CON PARCHE DE ALINEACIÓN SEGURO DE 32 BITS!
-      - name: Surgical Silicon Modification (Anti-Overflow & 32-bit Safe Fix)
+      # ¡PASO ARREGLADO CON PYTHON: SEPARA LAS FIRMAS DE MEMORIA EVITANDO EL CIERRE DE LOS 32 BITS!
+      - name: Surgical Silicon Modification (Anti-Overflow & Smooth Videos MALI)
         run: |
-          echo "-> Rastreando quirurgicamente el corazon de tu bionic wrapper..."
+          echo "-> Rastreando el corazon de bionic-vulkan-wrapper para meter la valvula MALI hibrida..."
           python3 -c "
           import os
           
+          # Localizamos el archivo maestro del dispositivo para evitar corromper los despachadores compartidos
           possible_paths = [
               'src/vulkan/wrapper/wrapper_device.c',
               'src/vulkan/wrapper/vk_wrapper.c',
@@ -134,35 +87,61 @@ jobs:
                   break
                   
           if target_file:
-              print(f'-> Soldando de forma segura en: {target_file}')
+              print(f'-> Inyectando control de arquitectura seguro en: {target_file}')
               with open(target_file, 'r', encoding='utf-8', errors='ignore') as f:
                   content = f.read()
               
               content = content.replace('\r\n', '\n')
+              
+              # Acoplamos las cabeceras de control estandar en la linea 1
               header_code = '\n#include <stdint.h>\nextern int mallopt(int param, int value);\nextern int setenv(const char *name, const char *value, int overwrite);\n'
               content = header_code + content
               
-              # Parche híbrido: mallopt(-1002, 0) y mailbox en 64 bits, y buffer seguro en 32 bits para salvar Box86
+              # TRUCO DE LA SCENE: Forzamos mallopt(-1002, 0) y el modo mailbox veloz para ambas arquitecturas,
+              # pero si el proceso es detectado como un juego de 32 bits (sizeof(void*) == 4), limitamos 
+              # la cola del WSI (MESA_VK_WSI_QUEUE_SIZE=1) para que Box86 no desalinee los hilos de tu Mali-G52.
               patch_code = 'extern int mallopt(int p, int v); extern int setenv(const char *n, const char *v, int o); mallopt(-1002, 0); setenv(\"MESA_VK_WSI_PRESENT_MODE\", \"mailbox\", 1); setenv(\"vblank_mode\", \"0\", 1); if (sizeof(void*) == 4) { setenv(\"MESA_VK_WSI_QUEUE_SIZE\", \"1\", 1); } vk_icdGetInstanceProcAddr'
               content = content.replace('vk_icdGetInstanceProcAddr', patch_code, 1)
               
               with open(target_file, 'w', encoding='utf-8') as f:
                   f.write(content)
-              print('-> ¡Silicio parchado con exito total para 32/64 bits!')
+              print('-> ¡Inyeccion hibrida soldada con exito total!')
           else:
-              print('-> Fallback masivo alternativo...')
+              print('-> Aplicando inyeccion masiva balanceada de respaldo...')
               find_cmd = \"find src/ -name '*.c' -exec sed -i 's/vk_icdGetInstanceProcAddr/extern int mallopt(int p, int v); extern int setenv(const char *n, const char *v, int o); mallopt(-1002, 0); setenv(\\\"MESA_VK_WSI_PRESENT_MODE\\\", \\\"mailbox\\\", 1); setenv(\\\"vblank_mode\\\", \\\"0\\\", 1); if (sizeof(void*) == 4) { setenv(\\\"MESA_VK_WSI_QUEUE_SIZE\\\", \\\"1\\\", 1); } vk_icdGetInstanceProcAddr/g' {} +\"
               os.system(find_cmd)
           "
 
-      # ¡TU COMANDO DOCKER ORIGINAL ASIGNANDO --NETWORK NONE Y EL INTERCEPTOR DE GIT SEGURO!
+      # INTERCEPTOR DE COMANDOS PARA NINJA
+      - name: Create Ninja Wrapper Hijacker (Bypass Unknown Target)
+        run: |
+          mkdir -p bin_hijack
+          
+          cat << 'EOF' > bin_hijack/ninja
+          #!/bin/bash
+          ARGS=("$@")
+          NEW_ARGS=()
+          
+          for arg in "${ARGS[@]}"; do
+            if [ "$arg" == "src/vulkan/wrapper/libvulkan_wrapper.so" ]; then
+              NEW_ARGS+=("vulkan_wrapper")
+            else
+              NEW_ARGS+=("$arg")
+            fi
+          done
+          
+          exec /usr/local/bin/ninja "${NEW_ARGS[@]}"
+          EOF
+          
+          chmod +x bin_hijack/ninja
+          echo "-> Interceptor Ninja creado con éxito."
+
+      # TU COMANDO DE DOCKER ORIGINAL NATIVO INTACTO
       - name: compilador-envoltorio
         run: |
           docker run --rm \
-            --network none \
             -v "${{ github.workspace }}:/workspace" \
             -v "${{ github.workspace }}/bin_hijack/ninja:/usr/local/bin/ninja" \
-            -v "${{ github.workspace }}/bin_hijack/git:/usr/bin/git" \
             ${{ env.IMAGE_TAG }} ${{ env.BUILD_DIR }}
 
       # ESTE PASO CREA LA ESTRUCTURA EXACTA PARA BANNERLATOR Y GENERA EL ARCHIVO .TZST
