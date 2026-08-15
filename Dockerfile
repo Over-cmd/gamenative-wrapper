@@ -2,23 +2,17 @@ FROM ghcr.io/termux/package-builder:latest
 
 USER root
 
-# 1. Instalar herramientas del sistema y dependencias de Python para Mesa
+# 1. Instalar herramientas del sistema y asegurar dependencias de Python para Mesa
 RUN apt-get update && \
     apt-get install -y --no-install-recommends ninja-build && \
     pip3 install --break-system-packages --ignore-installed --no-cache-dir meson ninja mako pyyaml packaging
 
-# 2. Descargar e instalar las dependencias gráficas de Termux (AArch64) desde el CDN oficial de Cloudflare
-RUN mkdir -p /tmp/sysroot /data/data/com.termux/files/usr && \
-    cd /tmp/sysroot && \
-    curl -sL "https://termux.dev" > Packages && \
-    for p in libdrm libandroid-shmem libxcb libx11 libxshmfence libxext libxrandr libxrender xorgproto libxau libxdmcp; do \
-        path=$(awk -v pkg="Package: $p" '$0==pkg{f=1} f && /^Filename:/{print $2; exit}' Packages) && \
-        curl -sL -O "https://termux.dev{path}"; \
-    done && \
-    for f in *.deb; do dpkg-deb -x "$f" /; done && \
-    rm -rf /tmp/sysroot
+# 2. Enlazar las librerías preinstaladas locales de Termux al entorno del sistema de compilación
+RUN mkdir -p /data/data/com.termux/files && \
+    ln -s /home/builder/.termux-build/_cache/14-aarch64/bootstrap/data/data/com.termux/files/usr /data/data/com.termux/files/usr || \
+    ln -s /home/builder/lib /data/data/com.termux/files/usr || true
 
-# 3. Generar el archivo de configuración cruzada de Meson usando Python
+# 3. Generar el archivo de configuración cruzada de Meson usando Python (Evita fallos de sintaxis de Docker)
 RUN NDK_DIR=$(find /home/builder/lib -maxdepth 2 -name "android-ndk*" 2>/dev/null | head -n 1) && \
     NDK_BIN="${NDK_DIR}/toolchains/llvm/prebuilt/linux-x86_64/bin" && \
     mkdir -p /root/build-config && \
@@ -49,9 +43,8 @@ endian = 'little'\n'''; \
 with open('/root/build-config/cross_file.txt', 'w') as f: f.write(config); \
 "
 
-# 4. Generar el script de compilación usando Python (Elimina por completo el error de sintaxis 'set')
-RUN NDK_DIR=$(find /home/builder/lib -maxdepth 2 -name "android-ndk*" 2>/dev/null | head -n 1) && \
-    python3 -c " \
+# 4. Generar el script de compilación usando Python aplicando el parche de silicio de anon_file
+RUN python3 -c " \
 script = '''#!/bin/bash\n\
 set -e\n\
 BUILD_DIR=\"${{1:-build}}\"\n\
