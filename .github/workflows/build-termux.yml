@@ -26,45 +26,30 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y zstd python3
 
-      # PARCHE EXTRA 1: Rompe la rigidez estructural de Over-cmd para salvar la carga en juegos de 32 bits
-      - name: Fix Over-cmd Meson Rigidity (Anti-Crash 32bit Load)
+      # PARCHE MAESTRO: Forzamos el renombrado masivo mediante preprocesador e integramos el puente híbrido
+      - name: Surgical Silicon Modification (Anti-Overflow MALI Hybrid 32/64 Injection)
         run: |
-          echo "-> Analizando scripts de construcción de Mesa para inyectar compatibilidad inline..."
+          echo "-> Configurando inyección a nivel de compilador en meson.build..."
           python3 -c "
           import os
           target = 'src/vulkan/wrapper/meson.build'
           if os.path.exists(target):
               with open(target, 'r', encoding='utf-8', errors='ignore') as f:
                   content = f.read()
-              # Modificamos los argumentos de C en el build para forzar la compatibilidad cruzada de Box86
+              
+              # 1. Parche de alineación inline original para salvar la carga en juegos de 32 bits
               if 'c_args' in content:
-                  content = content.replace(\"c_args : [\", \"c_args : ['-D__inline__=', \")
-                  with open(target, 'w', encoding='utf-8') as f:
-                      f.write(content)
-                  print('-> ¡Alineación de emulación inline inyectada en Meson correctamente!')
-          "
-
-      # PARCHE EXTRA 2: Renombrado masivo y creación del puente C independiente (Evita Duplicate Symbols)
-      - name: Surgical Silicon Modification (Anti-Overflow MALI Hybrid 32/64 Injection)
-        run: |
-          echo "-> Aplicando renombrado quirúrgico para evitar colisiones de símbolos repetidos..."
-          python3 -c "
-          import os
-          # Rastreamos todos los archivos .c y .h del wrapper para renombrar la función original de Mesa
-          for root, dirs, files in os.walk('src/vulkan/wrapper'):
-              for file in files:
-                  if file.endswith('.c') or file.endswith('.h') or file.endswith('.cpp'):
-                      target = os.path.join(root, file)
-                      with open(target, 'r', encoding='utf-8', errors='ignore') as f:
-                          content = f.read()
-                      if 'vk_icdGetInstanceProcAddr' in content:
-                          # Renombramos solo las definiciones internas de Mesa, no las de las cabeceras del sistema
-                          content = content.replace(' VKAPI_CALL vk_icdGetInstanceProcAddr', ' VKAPI_CALL original_vk_icdGetInstanceProcAddr')
-                          content = content.replace('= vk_icdGetInstanceProcAddr', '= original_vk_icdGetInstanceProcAddr')
-                          content = content.replace('(vk_icdGetInstanceProcAddr', '(original_vk_icdGetInstanceProcAddr')
-                          with open(target, 'w', encoding='utf-8') as f:
-                              f.write(content)
-          print('-> ¡Renombrado masivo completado con éxito!')
+                  # Añadimos -Dvk_icdGetInstanceProcAddr=original_vk_icdGetInstanceProcAddr como flag global de C
+                  # Esto renombra la función en absolutamente TODO Mesa en tiempo de compilación sin romper archivos de texto
+                  content = content.replace(\"c_args : [\", \"c_args : ['-D__inline__=', '-Dvk_icdGetInstanceProcAddr=original_vk_icdGetInstanceProcAddr', \")
+                  
+              # 2. Forzamos a Meson a compilar nuestro nuevo archivo puente junto al resto del Wrapper
+              if 'wrapper_device.c' in content:
+                  content = content.replace(\"'wrapper_device.c',\", \"'wrapper_device.c',\n  'wrapper_bridge.c',\")
+                  
+              with open(target, 'w', encoding='utf-8') as f:
+                  f.write(content)
+              print('-> ¡Flags globales y puente enlazados con éxito en Meson!')
           "
 
           echo "-> Creando archivo de pasarela independiente wrapper_bridge.c..."
@@ -76,10 +61,14 @@ jobs:
           extern int mallopt(int param, int value);
           extern int setenv(const char *name, const char *value, int overwrite);
 
-          // Declaramos el prototipo de la función que acabamos de renombrar en el resto de Mesa
+          // Declaramos el prototipo de la función que el compilador renombró internamente
+          // Usamos la firma exacta de vk_icd.h
           VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL original_vk_icdGetInstanceProcAddr(VkInstance instance, const char* pName);
 
-          // Único punto de entrada oficial y maestro expuesto al enlazador dinámico
+          // Quitamos el renombrado global ÚNICAMENTE para esta definición.
+          #undef vk_icdGetInstanceProcAddr
+
+          // Único punto de entrada oficial expuesto al enlazador dinámico, libre de duplicados
           VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL vk_icdGetInstanceProcAddr(VkInstance instance, const char* pName) {
               mallopt(-1002, 0);
               setenv("MESA_VK_WSI_PRESENT_MODE", "mailbox", 1);
@@ -102,21 +91,7 @@ jobs:
               return original_vk_icdGetInstanceProcAddr(instance, pName);
           }
           EOF
-
-          echo "-> Registrando wrapper_bridge.c dentro de la automatización de Meson..."
-          python3 -c "
-          import os
-          target = 'src/vulkan/wrapper/meson.build'
-          if os.path.exists(target):
-              with open(target, 'r', encoding='utf-8', errors='ignore') as f:
-                  content = f.read()
-              if 'wrapper_device.c' in content:
-                  # Forzamos a Meson a compilar nuestro nuevo archivo puente junto al resto del Wrapper
-                  content = content.replace(\"'wrapper_device.c',\", \"'wrapper_device.c',\n  'wrapper_bridge.c',\")
-                  with open(target, 'w', encoding='utf-8') as f:
-                      f.write(content)
-                  print('-> ¡wrapper_bridge.c enlazado con éxito en el build de Meson!')
-          "
+          echo "-> ¡Archivo wrapper_bridge.c aislado generado correctamente!"
 
       # COMPILACIÓN ORIGINAL DEL DOCKER NATIVO INTACTA
       - name: Wrapper Compiler (Atomic Processing Docker MALI)
