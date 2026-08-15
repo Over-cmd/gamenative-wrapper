@@ -1,38 +1,35 @@
-name: Compilacion Termux Oficial con nuestro propio Docker Wrapper Unisoc 
-
+name: Compilacion Termux Oficial con nuestro propio Docker Wrapper Unisoc
 on:
 workflow_dispatch:
 push:
 branches:
 - main
 - master
-- wrapper-25 
-
+- wrapper-25
 jobs:
 build-driver:
 runs-on: ubuntu-latest
 steps:
-- name: Codigo de pago
+- name: Checkout codigo
 uses: actions/checkout@v4
 with:
-submodules: recursive 
-
-* name: Configurar Docker Buildx
+submodules: recursive
+- name: Configurar Docker Buildx
 uses: docker/setup-buildx-action@v3
-* name: Instalar herramientas y preparar permisos
+- name: Instalar herramientas y preparar permisos
 run: |
 sudo apt-get update
 sudo apt-get install -y zstd python3
 chmod +x generate_configs.sh generate_dockerfile.sh run_pipeline.sh
-* name: Inyeccion Quirurgica Silicio (Modo Fluido 32/64 bits)
+- name: Inyeccion Quirurgica Silicio (Modo Fluido 32/64 bits)
 run: python3 patch_mesa.py
-* name: Assemble Offline Compiler Scripts
+- name: Assemble Offline Compiler Scripts
 run: ./generate_configs.sh
-* name: Generate Local Dockerfile Blueprint
+- name: Generate Local Dockerfile Blueprint
 run: ./generate_dockerfile.sh
-* name: Ejecutar Pipeline de Compilacion Multiarch Unificado
+- name: Ejecutar Pipeline de Compilacion Multiarch Unificado
 run: ./run_pipeline.sh
-* name: Upload Final wrapper.tzst for Bannerlator
+- name: Upload Final wrapper.tzst for Bannerlator
 uses: actions/upload-artifact@v4
 with:
 name: Bannerlator-Termux-Unisoc-Wrapper
