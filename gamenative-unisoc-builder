@@ -1,6 +1,6 @@
 FROM ubuntu:22.04
 
-# Evitar preguntas interactivas molestas durante la instalacion de paquetes
+# Evitar preguntas interactivas molestas durante la instalación de paquetes
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Instalar herramientas esenciales de Linux y Python modernas para compilar Mesa 25
@@ -21,29 +21,33 @@ RUN curl -L "https://google.com{NDK_VERSION}-linux.zip" -o ndk.zip && \
 
 ENV NDK_ROOT=/opt/android-ndk-${NDK_VERSION}
 
-# Generar el archivo de configuracion cruzada nativo de Meson para compilar hacia AArch64 (Android de tu T618)
-RUN echo "[binaries]\n\
-c = '$NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android30-clang'\n\
-cpp = '$NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android30-clang++'\n\
-ar = '$NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar'\n\
-strip = '$NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip'\n\
-pkg-config = '/usr/bin/pkg-config'\n\
-cmake = '/usr/bin/cmake'\n\
-\n\
-[properties]\n\
-needs_exe_wrapper = true\n\
-\n\
-[host_machine]\n\
-system = 'android'\n\
-cpu_family = 'aarch64'\n\
-cpu = 'armv8-a'\n\
-endian = 'little'" > /opt/android-cross.txt
+# Generar el archivo de configuración cruzada nativo usando la sintaxis limpia multi-línea oficial de Docker
+RUN mkdir -p /root/build-config
+RUN <<EOF cat << 'INNER_EOF' > /root/build-config/cross_file.txt
+[binaries]
+c = '/opt/android-ndk-r25c/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android30-clang'
+cpp = '/opt/android-ndk-r25c/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android30-clang++'
+ar = '/opt/android-ndk-r25c/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar'
+strip = '/opt/android-ndk-r25c/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip'
+pkg-config = '/usr/bin/pkg-config'
+cmake = '/usr/bin/cmake'
+
+[properties]
+needs_exe_wrapper = true
+
+[host_machine]
+system = 'android'
+cpu_family = 'aarch64'
+cpu = 'armv8-a'
+endian = 'little'
+INNER_EOF
+EOF
 
 # Definir el directorio de trabajo del contenedor
 WORKDIR /workspace
 
 # Comando maestro de entrada: Configura Mesa sin red y compila directamente con Ninja en local
 ENTRYPOINT ["/bin/bash", "-c", "\
-    meson setup \$1 --cross-file /opt/android-cross.txt -Dbuildtype=release -Dplatforms=android -Dandroid-stub=true -Dvulkan-drivers=wrapper -Dgallium-drivers= -Dopengl=false -Dgbm=disabled -Degl=disabled -Dgles1=disabled -Dgles2=disabled -Dllvm=disabled -Dzstd=disabled -Dxmlconfig=disabled && \
-    meson compile -C \$1\
+    meson setup $1 --cross-file /root/build-config/cross_file.txt -Dbuildtype=release -Dplatforms=android -Dandroid-stub=true -Dvulkan-drivers=wrapper -Dgallium-drivers= -Dopengl=false -Dgbm=disabled -Degl=disabled -Dgles1=disabled -Dgles2=disabled -Dllvm=disabled -Dzstd=disabled -Dxmlconfig=disabled && \
+    meson compile -C $1\
 "]
