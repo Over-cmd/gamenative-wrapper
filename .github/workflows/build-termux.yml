@@ -66,6 +66,21 @@ jobs:
           EOF
           echo "-> Subproyecto simulado de libadrenotools montado en local."
 
+      # ¡ESTE PASO INYECTA EL COMODÍN DE CABECERA EVITANDO EL ERROR DEL ARCHIVO 184!
+      - name: Inject Missing DRM Header Stub (Fix vk_drm_syncobj Error)
+        run: |
+          echo "-> Fabricando cabecera xf86drm.h ficticia para el sysroot del NDK..."
+          # Forzamos la creacion del archivo vacio en el directorio de cabeceras de Android que usa tu compilador
+          mkdir -p include/android_stub
+          cat << 'EOF' > include/android_stub/xf86drm.h
+          #ifndef XF86DRM_H
+          #define XF86DRM_H
+          // Cabecera simulada para bypass de compilacion cruzada en Unisoc T618
+          typedef int drm_syncobj_handle;
+          #endif
+          EOF
+          echo "-> Cabecera inyectada con éxito."
+
       # MÉTODO AUTOMÁTICO DE SOPORTE EXPAT LOCAL SEGURO
       - name: Generate Local Minimal Expat Structure (Zero Downloads)
         run: |
@@ -117,7 +132,6 @@ jobs:
               content = content.replace('\r\n', '\n')
               headers = '\nextern int mallopt(int param, int value);\nextern int setenv(const char *name, const char *value, int overwrite);\n'
               content = headers + content
-              # Filtro hibrido: si sizeof(void*) == 4 (proceso 32 bits en Box86) limita la cola del WSI para que no crashee la memoria del T618
               patch = 'extern int mallopt(int p, int v); extern int setenv(const char *n, const char *v, int o); mallopt(-1002, 0); setenv(\"MESA_VK_WSI_PRESENT_MODE\", \"mailbox\", 1); setenv(\"vblank_mode\", \"0\", 1); if(sizeof(void*) == 4) { setenv(\"MESA_VK_WSI_QUEUE_SIZE\", \"1\", 1); } vk_icdGetInstanceProcAddr'
               content = content.replace('vk_icdGetInstanceProcAddr', patch, 1)
               with open(target, 'w', encoding='utf-8') as f:
@@ -150,7 +164,7 @@ jobs:
           endian = 'little'
           EOF
 
-      # LANZAMOS EL CONFIGURADOR DE MESON (Añadido -Dlibdrm=disabled de forma explicita)
+      # LANZAMOS EL CONFIGURADOR DE MESON (Opción libdrm eliminada)
       - name: Configure Meson Build
         run: |
           if [ -f "meson.options" ]; then
@@ -159,7 +173,6 @@ jobs:
             sed -i "s/choices : \[/choices : ['wrapper', 'swrast', /g" meson_options.txt
           fi
           
-          # -Dlibdrm=disabled desactiva los requisitos de escritorio que daban error en el archivo 184
           meson setup ${{ env.BUILD_DIR }} \
             --cross-file android-cross.txt \
             -Dbuildtype=release \
@@ -174,7 +187,6 @@ jobs:
             -Dgles2=disabled \
             -Dllvm=disabled \
             -Dzstd=disabled \
-            -Dlibdrm=disabled \
             -Dxmlconfig=disabled
 
       # COMPILACIÓN MASIVA CON NINJA NATIVO
