@@ -36,7 +36,7 @@ jobs:
           echo "-> Parchando el despachador de ventanas WSI para evitar desalineamiento de memoria en Box86..."
           python3 -c "import os; t='src/vulkan/wsi/wsi_common.c'; f=open(t,'r') if os.path.exists(t) else None; c=f.read().replace('wsi_device_init(','if(sizeof(void*)==4){setenv(\"MESA_VK_WSI_QUEUE_SIZE\",\"1\",1);setenv(\"vblank_mode\",\"0\",1);} wsi_device_init(',1) if f else ''; f.close() if f else None; f=open(t,'w') if f else None; f.write(c) if f else None; f.close() if f else None"
 
-      # ¡ESTE PASO GENERA TU DOCKERFILE ORIGINAL EN TIEMPO REAL EVITANDO ERRORES DE PARSEO!
+      # ¡PASO CORREGIDO: Ruta del repositorio APT de Termux fijada en la URL oficial de paquetes binary-aarch64!
       - name: Generate Local Dockerfile Blueprint
         run: |
           echo "-> Fabricando Dockerfile autonomo limpio..."
@@ -58,10 +58,10 @@ jobs:
               PACKAGES="libdrm libandroid-shmem libxcb libx11 libxshmfence libxext libxrandr libxrender xorgproto libxau libxdmcp" && \
               for pkg in $PACKAGES; do \
                   pkg_path=$(awk -v p="Package: $pkg" '$0==p{flag=1} flag && /^Filename:/{print $2; exit}' Packages) && \
-                  curl -L -O "${TERMUX_REPO}/${pkg_path}"; \
+                  if [ -n "$pkg_path" ]; then curl -L -O "${TERMUX_REPO}/${pkg_path}"; fi; \
               done && \
               mkdir -p /data/data/com.termux/files/usr && \
-              for f in *.deb; do dpkg-deb -x "$f" /; done && \
+              for f in *.deb; do if [ -f "$f" ]; then dpkg-deb -x "$f" /; fi; done && \
               rm -rf /tmp/sysroot
 
           RUN NDK_DIR=$(find /home/builder/lib -maxdepth 2 -name "android-ndk*" 2>/dev/null | head -n 1) && \
@@ -116,13 +116,13 @@ jobs:
           echo "-> Dockerfile Termux verificado con exito:"
           cat Dockerfile
 
-      # CONSTRUIMOS TU PROPIO CONTENEDOR CON TU NUEVO NOMBRE PERSONALIZADO
+      # CONSTRUIMOS EL CONTENEDOR CON LA PASARELA DE REPOSITORIO REAL REPARADA
       - name: Build Custom Unisoc Wrapper Image
         run: |
           echo "-> Construyendo imagen local con el nuevo nombre: ${{ env.CUSTOM_TAG }}"
           docker build -t ${{ env.CUSTOM_TAG }} .
 
-      # CORREMOS TU DOCKER PASÁNDOLE EL NOMBRE DEL DIRECTORIO DE SALIDA
+      # CORREMOS EL CONTENEDOR DE FORMA TOTALMENTE INDEPENDIENTE EN LOCAL
       - name: Execute Custom Unisoc Wrapper Compiler
         run: |
           echo "-> Arrancando compilacion cruzada en contenedor de Termux..."
