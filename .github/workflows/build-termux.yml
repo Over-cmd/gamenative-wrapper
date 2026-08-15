@@ -78,7 +78,8 @@ jobs:
             sed -i 's/\r$//' "$WRAPPER_DEVICE"
             
             # Inyectamos en la cabecera el cargador dinámico dlopen e interceptor de punteros
-            cat << 'EOF' > /tmp/bridge.c
+            # NOTA: Se usa el operador <<-'EOF' para permitir sangrías limpias con tabuladores/espacios
+            cat <<-'EOF' > /tmp/bridge.c
             #include <dlfcn.h>
             #include <unistd.h>
             extern int mallopt(int param, int value);
@@ -90,7 +91,7 @@ jobs:
                 setenv("MESA_VK_WSI_PRESENT_MODE", "mailbox", 1);
                 setenv("vblank_mode", "0", 1);
                 
-                // Si el tamaño de palabra de ejecución no corresponde a 64 bits nativo del driver
+                // Si el tamaño de palabra de execution no corresponde a 64 bits nativo del driver
                 if (sizeof(void*) == 4) {
                     void* handle = dlopen("/usr/lib/libvulkan_wrapper32.so", RTLD_LAZY | RTLD_GLOBAL);
                     if (handle) {
@@ -103,7 +104,8 @@ jobs:
                     }
                 }
             }
-EOF
+          EOF
+            
             # Mezclamos nuestro interceptor nativo C con el archivo original de entrada
             cat /tmp/bridge.c "$WRAPPER_DEVICE" > /tmp/wrapper_patched.c
             mv /tmp/wrapper_patched.c "$WRAPPER_DEVICE"
