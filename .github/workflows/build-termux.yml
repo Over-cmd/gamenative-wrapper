@@ -8,10 +8,9 @@ jobs:
 
     strategy:
       matrix:
-        arch: [aarch64, armhf] # Compila de forma nativa para 64 y 32 bits
+        arch: [aarch64, armhf]
 
     env:
-      BUILD_DIR: compilacion_${{ matrix.arch }}
       IMAGE_TAG: ghcr.io/leegao/mesa-wrapper-ci/wrapper-compiler:latest
 
     steps:
@@ -21,22 +20,36 @@ jobs:
       - name: Configurar Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # Se añade la bandera correspondiente según la arquitectura en la matriz de Docker
+      # Corregimos el comando Docker pasando variables de entorno según la arquitectura
       - name: compilador-envoltorio
         run: |
-          mkdir -p ${{ env.BUILD_DIR }}
-          docker run --rm -v "${{ github.workspace }}:/workspace" ${{ env.IMAGE_TAG }} ${{ env.BUILD_DIR }} --arch ${{ matrix.arch }}
+          mkdir -p build_${{ matrix.arch }}
+          if [ "${{ matrix.arch }}" = "armhf" ]; then
+            # Para 32 bits, inyectamos variables de compilación cruzada comunes en contenedores de Android/Termux
+            docker run --rm \
+              -v "${{ github.workspace }}:/workspace" \
+              -e CFLAGS="-m32 -march=armv7-a" \
+              -e CXXFLAGS="-m32 -march=armv7-a" \
+              -e LDFLAGS="-m32" \
+              -e TARGET_ARCH="arm" \
+              ${{ env.IMAGE_TAG }} build_armhf
+          else
+            # Para 64 bits por defecto
+            docker run --rm \
+              -v "${{ github.workspace }}:/workspace" \
+              ${{ env.IMAGE_TAG }} build_aarch64
+          fi
 
       - name: Cargar libvulkan_wrapper.so sin formato
         uses: actions/upload-artifact@v4
         with:
           name: libvulkan_wrapper-${{ matrix.arch }}
-          path: ${{ env.BUILD_DIR }}/libvulkan_wrapper.so
+          path: build_${{ matrix.arch }}/libvulkan_wrapper.so
           if-no-files-found: error
           
       - name: cargar libvulkan_wrapper.so sin eliminar
         uses: actions/upload-artifact@v4
         with:
           name: libvulkan_wrapper-${{ matrix.arch }}-unstripped
-          path: ${{ env.BUILD_DIR }}/libvulkan_wrapper.so.unstripped
+          path: build_${{ matrix.arch }}/libvulkan_wrapper.so.unstripped
           if-no-files-found: error
