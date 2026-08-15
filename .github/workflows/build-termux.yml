@@ -104,7 +104,7 @@ jobs:
           EOF
           echo "-> Parche de estructura de subproyectos completado de forma segura."
 
-      # INYECTAMOS EL PARCHE HÍBRIDO 32/64 BITS EN EL RUNTIME MAESTRO DE VULKAN
+      # ¡INYECTAMOS EL PARCHE HÍBRIDO 32/64 BITS EN EL RUNTIME MAESTRO DE VULKAN!
       - name: Surgical Silicon Modification (Anti-Overflow & 32-bit GameNative Fix)
         run: |
           echo "-> Ejecutando parche de aislamiento de arquitectura con Python..."
@@ -117,6 +117,7 @@ jobs:
               content = content.replace('\r\n', '\n')
               headers = '\nextern int mallopt(int param, int value);\nextern int setenv(const char *name, const char *value, int overwrite);\n'
               content = headers + content
+              # Filtro hibrido: si sizeof(void*) == 4 (proceso 32 bits en Box86) limita la cola del WSI para que no crashee la memoria del T618
               patch = 'extern int mallopt(int p, int v); extern int setenv(const char *n, const char *v, int o); mallopt(-1002, 0); setenv(\"MESA_VK_WSI_PRESENT_MODE\", \"mailbox\", 1); setenv(\"vblank_mode\", \"0\", 1); if(sizeof(void*) == 4) { setenv(\"MESA_VK_WSI_QUEUE_SIZE\", \"1\", 1); } vk_icdGetInstanceProcAddr'
               content = content.replace('vk_icdGetInstanceProcAddr', patch, 1)
               with open(target, 'w', encoding='utf-8') as f:
@@ -149,7 +150,7 @@ jobs:
           endian = 'little'
           EOF
 
-      # LANZAMOS EL CONFIGURADOR DE MESON (Añadido -Dzstd=disabled de forma explicita)
+      # LANZAMOS EL CONFIGURADOR DE MESON (Añadido -Dlibdrm=disabled de forma explicita)
       - name: Configure Meson Build
         run: |
           if [ -f "meson.options" ]; then
@@ -158,7 +159,7 @@ jobs:
             sed -i "s/choices : \[/choices : ['wrapper', 'swrast', /g" meson_options.txt
           fi
           
-          # -Dzstd=disabled evita que busquemos cabeceras cruzadas que no influyen en el wrapper final
+          # -Dlibdrm=disabled desactiva los requisitos de escritorio que daban error en el archivo 184
           meson setup ${{ env.BUILD_DIR }} \
             --cross-file android-cross.txt \
             -Dbuildtype=release \
@@ -173,6 +174,7 @@ jobs:
             -Dgles2=disabled \
             -Dllvm=disabled \
             -Dzstd=disabled \
+            -Dlibdrm=disabled \
             -Dxmlconfig=disabled
 
       # COMPILACIÓN MASIVA CON NINJA NATIVO
