@@ -34,30 +34,65 @@ jobs:
           python3 -c "import os; t='src/vulkan/wsi/wsi_common.c'; f=open(t,'r') if os.path.exists(t) else None; c=f.read().replace('wsi_device_init(','if(sizeof(void*)==4){setenv(\"MESA_VK_WSI_QUEUE_SIZE\",\"1\",1);setenv(\"vblank_mode\",\"0\",1);} wsi_device_init(',1) if f else ''; f.close() if f else None; f=open(t,'w') if f else None; f.write(c) if f else None; f.close() if f else None"
           python3 -c "import os; t='meson.build'; f=open(t,'r') if os.path.exists(t) else None; c=f.read().replace(\"cc.find_library('atomic')\",\"dependency('',required:false)\").replace(\"cpp.find_library('atomic')\",\"dependency('',required:false)\") if f else ''; f.close() if f else None; f=open(t,'w') if f else None; f.write(c) if f else None; f.close() if f else None"
 
-      # ¡ESTE PASO FABRICA EL SCRIPT DE ARRANQUE REAL SIN ERRORES DE FORMATO EXEC!
+      # ¡ESTE PASO ASEMBLEA LOS SCRIPTS Y ARCHIVOS DE CONFIGURACIÓN DE MESON EN LIMPIO EN EL ANFITRIÓN!
       - name: Assemble Offline Compiler Scripts
         run: |
-          echo "-> Ensamblando script de compilacion cruzada para Termux..."
+          echo "-> Ensamblando script de construccion y entorno cruzado para Termux..."
           mkdir -p bin_hijack
           
-          # Escribimos el script build.sh con un bloque cat limpio e independiente de Docker
+          # 1. Escribimos el cross_file.txt limpio de forma externa sin usar comandos echo de Docker
+          cat << 'EOF' > bin_hijack/cross_file.txt
+          [binaries]
+          c = '/home/builder/lib/android-ndk-r26b/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android30-clang'
+          cpp = '/home/builder/lib/android-ndk-r26b/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android30-clang++'
+          ar = '/home/builder/lib/android-ndk-r26b/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar'
+          strip = '/home/builder/lib/android-ndk-r26b/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip'
+          pkg-config = 'pkg-config'
+
+          [constants]
+          termux_dir = '/data/data/com.termux/files/usr'
+
+          [properties]
+          pkg_config_libdir = termux_dir + '/lib/pkgconfig:' + termux_dir + '/share/pkgconfig'
+
+          [built-in options]
+          c_args = ['-D__TERMUX__', '-D__USE_GNU', '-U__ANDROID__', '-I' + termux_dir + '/include', '-include', 'fcntl.h', '-include', 'unistd.h']
+          cpp_args = ['-D__TERMUX__', '-D__USE_GNU', '-U__ANDROID__', '-I' + termux_dir + '/include', '-include', 'fcntl.h', '-include', 'unistd.h']
+          c_link_args = ['-L' + termux_dir + '/lib', '-landroid-shmem', '-latomic']
+          cpp_link_args = ['-L' + termux_dir + '/lib', '-landroid-shmem', '-latomic']
+
+          [host_machine]
+          system = 'android'
+          cpu_family = 'aarch64'
+          cpu = 'armv8-a'
+          endian = 'little'
+          EOF
+          
+          # Corregimos dinámicamente la ruta del NDK buscando la carpeta exacta dentro del contenedor de Termux
+          sed -i "s|/home/builder/lib/android-ndk-r26b|\$(find /home/builder/lib -maxdepth 2 -name 'android-ndk*' 2>/dev/null \| head -n 1)|g" bin_hijack/cross_file.txt || true
+
+          # 2. Escribimos el script build.sh de forma limpia
           cat << 'EOF' > bin_hijack/build.sh
           #!/bin/bash
           set -e
           BUILD_DIR="${1:-${BUILD_DIR:-build}}"
+          
+          # Autodetectamos la ruta real del NDK en caliente y reparamos el cross_file antes de llamar a Meson
+          NDK_DIR=$(find /home/builder/lib -maxdepth 2 -name "android-ndk*" 2>/dev/null | head -n 1)
+          sed -i "s|/home/builder/lib/android-ndk-r26b|${NDK_DIR}|g" /root/build-config/cross_file.txt || true
+          
           if [ ! -d "${BUILD_DIR}" ]; then
             meson setup "${BUILD_DIR}" --cross-file /root/build-config/cross_file.txt -Dcpp_rtti=false -Dgbm=disabled -Dopengl=false -Dllvm=disabled -Dshared-llvm=disabled -Dplatforms=x11 -Dgallium-drivers= -Dxmlconfig=disabled -Dandroid-stub=true -Dvulkan-drivers=wrapper
           fi
           ninja -C "${BUILD_DIR}" src/vulkan/wrapper/libvulkan_wrapper.so
           cp "${BUILD_DIR}/src/vulkan/wrapper/libvulkan_wrapper.so" "${BUILD_DIR}/libvulkan_wrapper.so.unstripped"
-          NDK_DIR=$(find /home/builder/lib -maxdepth 2 -name "android-ndk*" 2>/dev/null | head -n 1)
           STRIP="${NDK_DIR}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip"
           "$STRIP" --strip-unneeded -o "${BUILD_DIR}/libvulkan_wrapper.so" "${BUILD_DIR}/libvulkan_wrapper.so.unstripped"
           echo "Build successful."
           EOF
           chmod +x bin_hijack/build.sh
 
-      # ¡DOCKERFILE COMPACTADO AL MÁXIMO PASÁNDOLE EL SCRIPT SANO DESDE EL ANFITRIÓN!
+      # ¡DOCKERFILE PURGADO USANDO COPY DIRECTOS DESDE NUESTRO ENTORNO DE TRABAJO SANO!
       - name: Generate Local Dockerfile Blueprint
         run: |
           rm -f Dockerfile
@@ -65,9 +100,10 @@ jobs:
           echo "USER root" >> Dockerfile
           echo "RUN apt-get update && apt-get install -y --no-install-recommends ninja-build && pip3 install --break-system-packages --ignore-installed --no-cache-dir meson ninja mako pyyaml packaging" >> Dockerfile
           echo "RUN mkdir -p /tmp/sysroot && cd /tmp/sysroot && curl -s 'https://termux.dev' > Packages && PACKAGES='libdrm libandroid-shmem libxcb libx11 libxshmfence libxext libxrandr libxrender xorgproto libxau libxdmcp' && for pkg in \$PACKAGES; do pkg_path=\$(awk -v p=\"Package: \$pkg\" '\$0==p{flag=1} flag && /^Filename:/{print \$2; exit}' Packages) && if [ -n \"\$pkg_path\" ]; then curl -L -O \"https://termux.dev\${pkg_path}\"; fi; done && mkdir -p /data/data/com.termux/files/usr && for f in *.deb; do if [ -f \"\$f\" ]; then dpkg-deb -x \"\$f\" /; fi; done && rm -rf /tmp/sysroot" >> Dockerfile
-          echo "RUN NDK_DIR=\$(find /home/builder/lib -maxdepth 2 -name 'android-ndk*' 2>/dev/null | head -n 1) && NDK_BIN=\"\s{NDK_DIR}/toolchains/llvm/prebuilt/linux-x86_64/bin\" && mkdir -p /root/build-config && echo -e \"[binaries]\nc = '\${NDK_BIN}/aarch64-linux-android30-clang'\ncpp = '\${NDK_BIN}/aarch64-linux-android30-clang++'\nar = '\${NDK_BIN}/llvm-ar'\nstrip = '\${NDK_BIN}/llvm-strip'\npkg-config = 'pkg-config'\n\n[constants]\ntermux_dir = '/data/data/com.termux/files/usr'\n\n[properties]\npkg_config_libdir = termux_dir + '/lib/pkgconfig:' + termux_dir + '/share/pkgconfig'\n\n[built-in options]\nc_args = ['-D__TERMUX__', '-D__USE_GNU', '-U__ANDROID__', '-I' + termux_dir + '/include', '-include', 'fcntl.h', '-include', 'unistd.h']\ncpp_args = ['-D__TERMUX__', '-D__USE_GNU', '-U__ANDROID__', '-I' + termux_dir + '/include', '-include', 'fcntl.h', '-include', 'unistd.h']\nc_link_args = ['-L' + termux_dir + '/lib', '-landroid-shmem', '-latomic']\ncpp_link_args = ['-L' + termux_dir + '/lib', '-landroid-shmem', '-latomic']\n\n[host_machine]\nsystem = 'android'\ncpu_family = 'aarch64'\ncpu = 'armv8-a'\nendian = 'little'\" > /root/build-config/cross_file.txt" >> Dockerfile
           
-          # Inyectamos el script limpio que fabricamos en el paso anterior directamente en /root/build.sh
+          # Inyectamos de forma segura las configuraciones limpias del anfitrión mediante COPY de Docker
+          echo "RUN mkdir -p /root/build-config" >> Dockerfile
+          echo "COPY bin_hijack/cross_file.txt /root/build-config/cross_file.txt" >> Dockerfile
           echo "COPY bin_hijack/build.sh /root/build.sh" >> Dockerfile
           echo "RUN chmod +x /root/build.sh" >> Dockerfile
           echo "WORKDIR /workspace" >> Dockerfile
