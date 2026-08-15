@@ -1,19 +1,19 @@
 FROM ubuntu:22.04
 
-# Evitar preguntas interactivas durante la instalacion
+# Evitar preguntas interactivas molestas durante la instalacion de paquetes
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Instalar herramientas esenciales de Linux y Python modernas
+# Instalar herramientas esenciales de Linux y Python modernas para compilar Mesa 25
 RUN apt-get update && apt-get install -y \
     build-essential ninja-build pkg-config zstd curl unzip bison flex cmake git \
     libdrm-dev python3 python3-pip && \
     apt-get clean
 
-# Actualizar y configurar Meson y librerias de parseo de sombreadores
+# Actualizar y configurar Meson y las librerías de parseo de sombreadores (Mako)
 RUN pip3 install --upgrade pip && \
     pip3 install mako PyYAML meson ninja packaging
 
-# Descargar e instalar de forma limpia el Android NDK estable (r25c o r26 son los mejores para Mesa)
+# Descargar e instalar de forma limpia el Android NDK estable para la scene
 ENV NDK_VERSION=r25c
 RUN curl -L "https://google.com{NDK_VERSION}-linux.zip" -o ndk.zip && \
     unzip -q ndk.zip -d /opt/ && \
@@ -21,7 +21,7 @@ RUN curl -L "https://google.com{NDK_VERSION}-linux.zip" -o ndk.zip && \
 
 ENV NDK_ROOT=/opt/android-ndk-${NDK_VERSION}
 
-# Crear el archivo de configuracion cruzada nativo de Meson para compilar hacia AArch64 (Android)
+# Generar el archivo de configuracion cruzada nativo de Meson para compilar hacia AArch64 (Android de tu T618)
 RUN echo "[binaries]\n\
 c = '$NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android30-clang'\n\
 cpp = '$NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android30-clang++'\n\
@@ -42,7 +42,7 @@ endian = 'little'" > /opt/android-cross.txt
 # Definir el directorio de trabajo del contenedor
 WORKDIR /workspace
 
-# Comando por defecto al arrancar: Configurar y compilar de forma local automatica
+# Comando maestro de entrada: Configura Mesa sin red y compila directamente con Ninja en local
 ENTRYPOINT ["/bin/bash", "-c", "\
     meson setup \$1 --cross-file /opt/android-cross.txt -Dbuildtype=release -Dplatforms=android -Dandroid-stub=true -Dvulkan-drivers=wrapper -Dgallium-drivers= -Dopengl=false -Dgbm=disabled -Degl=disabled -Dgles1=disabled -Dgles2=disabled -Dllvm=disabled -Dzstd=disabled -Dxmlconfig=disabled && \
     meson compile -C \$1\
