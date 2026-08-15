@@ -28,12 +28,12 @@ jobs:
           sudo apt-get install -y zstd python3
 
       # ¡INYECTOR HÍBRIDO ULTRA-COMPRIMIDO QUE EVITA LOS APAGONES Y CONGELAMIENTOS EN 32 BITS!
-      - name: Inyección Quirúrgica Silicio (Modo Fluido y Anti-Pagones)
+      - name: Inyección Quirúrgica Silicio (Modo Fluido y Anti-Apagones)
         run: |
           python3 -c "import os; t='src/vulkan/runtime/vk_instance.c'; f=open(t,'r') if os.path.exists(t) else None; c='\n#include <stdint.h>\nextern int mallopt(int p, int v);\nextern int setenv(const char* n, const char* v, int o);\n'+f.read().replace('vk_icdGetInstanceProcAddr','mallopt(-1002,0);setenv(\"MESA_VK_WSI_PRESENT_MODE\",\"mailbox\",1);setenv(\"vblank_mode\",\"0\",1);if(sizeof(void*)==4){setenv(\"MESA_VK_WSI_QUEUE_SIZE\",\"1\",\"1\");}vk_icdGetInstanceProcAddr',1) if f else ''; f.close() if f else None; f=open(t,'w') if f else None; f.write(c) if f else None; f.close() if f else None"
 
-      # ¡PASO CORREGIDO: URL estática blindada de Google para descargar el NDK original!
-      - name: Generate Local Dockerfile Blueprint (Anular archivo viejo del repositorio)
+      # ¡FABRICAMOS EL DOCKERFILE EN CALIENTE CON LA URL DEL NDK 100% FIJA Y LIMPIA!
+      - name: Generate Local Dockerfile Blueprint
         run: |
           echo "-> Fabricando Dockerfile autonomo limpio..."
           rm -f Dockerfile
@@ -43,46 +43,10 @@ jobs:
           echo "RUN apt-get update && apt-get install -y build-essential ninja-build pkg-config zstd curl unzip bison flex cmake git libdrm-dev python3 python3-pip && apt-get clean" >> Dockerfile
           echo "RUN pip3 install --upgrade pip && pip3 install mako PyYAML meson ninja packaging" >> Dockerfile
           
-          # Fijamos la URL real sin variables dinamicas de shell para que curl resuelva el host de Google
+          # URL fija de Google blindada con comillas simples para evitar errores de resolucion de host
           echo "RUN curl -L 'https://google.com' -o ndk.zip && unzip -q ndk.zip -d /opt/ && rm -f ndk.zip" >> Dockerfile
           
           echo "ENV NDK_ROOT=/opt/android-ndk-r25c" >> Dockerfile
-          echo "RUN mkdir -p /root/build-config" >> Dockerfile
-          echo "RUN echo '[binaries]' > /root/build-config/cross_file.txt" >> Dockerfile
-          echo "RUN echo \"c = '/opt/android-ndk-r25c/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android30-clang'\" >> /root/build-config/cross_file.txt" >> Dockerfile
-          echo "RUN echo \"cpp = '/opt/android-ndk-r25c/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android30-clang++'\" >> /root/build-config/cross_file.txt" >> Dockerfile
-          echo "RUN echo \"ar = '/opt/android-ndk-r25c/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar'\" >> /root/build-config/cross_file.txt" >> Dockerfile
-          echo "RUN echo \"strip = '/opt/android-ndk-r25c/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip'\" >> /root/build-config/cross_file.txt" >> Dockerfile
-          echo "RUN echo \"pkg-config = '/usr/bin/pkg-config'\" >> /root/build-config/cross_file.txt" >> Dockerfile
-          echo "RUN echo \"cmake = '/usr/bin/cmake'\" >> /root/build-config/cross_file.txt" >> Dockerfile
-          echo "RUN echo '[properties]' >> /root/build-config/cross_file.txt" >> Dockerfile
-          echo "RUN echo 'needs_exe_wrapper = true' >> /root/build-config/cross_file.txt" >> Dockerfile
-          echo "RUN echo '[host_machine]' >> /root/build-config/cross_file.txt" >> Dockerfile
-          echo "RUN echo \"system = 'android'\" >> /root/build-config/cross_file.txt" >> Device_config
-          echo "RUN echo \"system = 'android'\" >> /root/build-config/cross_file.txt" >> /root/build-config/cross_file.txt
-          echo "RUN echo \"cpu_family = 'aarch64'\" >> /root/build-config/cross_file.txt" >> /root/build-config/cross_file.txt
-          echo "RUN echo \"cpu = 'armv8-a'\" >> /root/build-config/cross_file.txt" >> /root/build-config/cross_file.txt
-          echo "RUN echo \"endian = 'little'\" >> /root/build-config/cross_file.txt" >> /root/build-config/cross_file.txt
-          
-          # Limpieza final del script de comandos repetidos de cross_file
-          cat << 'EOF' > /root/build-config/cross_file.txt || true
-          [binaries]
-          c = '/opt/android-ndk-r25c/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android30-clang'
-          cpp = '/opt/android-ndk-r25c/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android30-clang++'
-          ar = '/opt/android-ndk-r25c/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar'
-          strip = '/opt/android-ndk-r25c/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip'
-          pkg-config = '/usr/bin/pkg-config'
-          cmake = '/usr/bin/cmake'
-          [properties]
-          needs_exe_wrapper = true
-          [host_machine]
-          system = 'android'
-          cpu_family = 'aarch64'
-          cpu = 'armv8-a'
-          endian = 'little'
-          EOF
-          
-          # Inyectamos el cargador limpio final dentro del Dockerfile
           echo "RUN mkdir -p /root/build-config" >> Dockerfile
           echo "RUN echo '[binaries]' > /root/build-config/cross_file.txt" >> Dockerfile
           echo "RUN echo \"c = '/opt/android-ndk-r25c/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android30-clang'\" >> /root/build-config/cross_file.txt" >> Dockerfile
@@ -101,10 +65,10 @@ jobs:
           echo "WORKDIR /workspace" >> Dockerfile
           echo "ENTRYPOINT [\"/bin/bash\", \"-c\", \"meson setup \$1 --cross-file /root/build-config/cross_file.txt -Dbuildtype=release -Dplatforms=android -Dandroid-stub=true -Dvulkan-drivers=wrapper -Dgallium-drivers= -Dopengl=false -Dgbm=disabled -Degl=disabled -Dgles1=disabled -Dgles2=disabled -Dllvm=disabled -Dzstd=disabled -Dxmlconfig=disabled && meson compile -C \$1\"]" >> Dockerfile
           
-          echo "-> Dockerfile autonomo limpio verificado con exito:"
+          echo "-> Dockerfile autonomo verificado con exito:"
           cat Dockerfile
 
-      # CONSTRUIMOS TU PROPIO CONTENEDOR CON LA RUTA DE GOOGLE TOTALMENTE LIMPIA
+      # ¡CONSTRUIMOS TU PROPIO CONTENEDOR GAMENATIVE-UNISOC-BUILDER OFICIAL!
       - name: Build Custom Unisoc Wrapper Image
         run: |
           echo "-> Construyendo imagen local con el nuevo nombre: ${{ env.CUSTOM_TAG }}"
@@ -153,5 +117,4 @@ jobs:
         with:
           name: Bannerlator-Custom-Unisoc-Wrapper
           path: wrapper.tzst
-
           if-no-files-found: error
