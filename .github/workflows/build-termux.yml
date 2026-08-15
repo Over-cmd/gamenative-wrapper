@@ -27,11 +27,16 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y zstd python3
 
-      # ¡INYECTOR HÍBRIDO TOTALMENTE COMPRIMIDO QUE EVITA LOS APAGONES Y CONGELAMIENTOS EN 32 BITS!
-      - name: Inyección Quirúrgica Silicio (Modo Fluido y Anti-Cierres)
+      # ¡ESTE PASO APLICA LA INYECCIÓN BIÓNICA DOBLE Y NEUTRALIZA ATOMIC DIRECTAMENTE EN EL TEXTO MAESTRO!
+      - name: Inyección Quirúrgica Silicio (Modo Fluido y Anti-Cierres 32/64 bits)
         run: |
+          echo "-> Parchando el cargador de instancias de Vulkan..."
           python3 -c "import os; t='src/vulkan/runtime/vk_instance.c'; f=open(t,'r') if os.path.exists(t) else None; c='\n#include <stdint.h>\nextern int mallopt(int p, int v);\nextern int setenv(const char* n, const char* v, int o);\n'+f.read().replace('vk_icdGetInstanceProcAddr','mallopt(-1002,0);setenv(\"MESA_VK_WSI_PRESENT_MODE\",\"mailbox\",1);setenv(\"vblank_mode\",\"0\",1);if(sizeof(void*)==4){setenv(\"MESA_VK_WSI_QUEUE_SIZE\",\"1\",\"1\");}vk_icdGetInstanceProcAddr',1) if f else ''; f.close() if f else None; f=open(t,'w') if f else None; f.write(c) if f else None; f.close() if f else None"
           python3 -c "import os; t='src/vulkan/wsi/wsi_common.c'; f=open(t,'r') if os.path.exists(t) else None; c=f.read().replace('wsi_device_init(','if(sizeof(void*)==4){setenv(\"MESA_VK_WSI_QUEUE_SIZE\",\"1\",1);setenv(\"vblank_mode\",\"0\",1);} wsi_device_init(',1) if f else ''; f.close() if f else None; f=open(t,'w') if f else None; f.write(c) if f else None; f.close() if f else None"
+          
+          # TRUCO DEFINTIVO DE LA SCENE: Reemplazamos find_library por dependency vacio en el meson.build de forma directa
+          # Esto destruye el error de la linea 1279 y el de libdl de escritorio de un solo golpe
+          python3 -c "import os; t='meson.build'; f=open(t,'r') if os.path.exists(t) else None; c=f.read().replace(\"find_library('atomic')\",\"dependency('',required:false)\").replace(\"find_library('atomic',\",\"dependency('',required:false),\").replace(\"find_library('dl')\",\"dependency('',required:false)\").replace(\"find_library('dl',\",\"dependency('',required:false),\") if f else ''; f.close() if f else None; f=open(t,'w') if f else None; f.write(c) if f else None; f.close() if f else None"
 
       # ¡ESTE PASO ASHEMBLEA LOS SCRIPTS Y ARCHIVOS DE CONFIGURACIÓN DE MESON EN LIMPIO EN EL ANFITRIÓN!
       - name: Assemble Offline Compiler Scripts
@@ -56,8 +61,8 @@ jobs:
           [built-in options]
           c_args = ['-D__TERMUX__', '-D__USE_GNU', '-U__ANDROID__', '-I' + termux_dir + '/include', '-include', 'fcntl.h', '-include', 'unistd.h']
           cpp_args = ['-D__TERMUX__', '-D__USE_GNU', '-U__ANDROID__', '-I' + termux_dir + '/include', '-include', 'fcntl.h', '-include', 'unistd.h']
-          c_link_args = ['-L' + termux_dir + '/lib', '-landroid-shmem', '-latomic', '-ldl']
-          cpp_link_args = ['-L' + termux_dir + '/lib', '-landroid-shmem', '-latomic', '-ldl']
+          c_link_args = ['-L' + termux_dir + '/lib', '-landroid-shmem']
+          cpp_link_args = ['-L' + termux_dir + '/lib', '-landroid-shmem']
 
           [host_machine]
           system = 'android'
@@ -87,20 +92,14 @@ jobs:
           EOF
           chmod +x bin_hijack/build.sh
 
-      # ¡PASO CORREGIDO CON URL REPARADA Y LOGICA ECHO PARA GENERAR LAS PROPIAS LIBRERIAS BINARIAS .A!
+      # DOCKERFILE LIMPIO CON LA BANCO DE PAQUETES CF DE TERMUX OFICIAL
       - name: Generate Local Dockerfile Blueprint
         run: |
           rm -f Dockerfile
           echo "FROM ghcr.io/termux/package-builder:latest" > Dockerfile
           echo "USER root" >> Dockerfile
           echo "RUN apt-get update && apt-get install -y --no-install-recommends ninja-build && pip3 install --break-system-packages --ignore-installed --no-cache-dir meson ninja mako pyyaml packaging" >> Dockerfile
-          
-          # Repositorio oficial de paquetes CF de Termux restaurado al 100%
           echo "RUN mkdir -p /tmp/sysroot && cd /tmp/sysroot && curl -s 'https://termux.dev' > Packages && PACKAGES='libdrm libandroid-shmem libxcb libx11 libxshmfence libxext libxrandr libxrender xorgproto libxau libxdmcp' && for pkg in \$PACKAGES; do pkg_path=\$(awk -v p=\"Package: \$pkg\" '\$0==p{flag=1} flag && /^Filename:/{print \$2; exit}' Packages) && if [ -n \"\$pkg_path\" ]; then curl -L -O \"https://termux.dev\${pkg_path}\"; fi; done && mkdir -p /data/data/com.termux/files/usr && for f in *.deb; do if [ -f \"\$f\" ]; then dpkg-deb -x \"\$f\" /; fi; done && rm -rf /tmp/sysroot" >> Dockerfile
-          
-          # TRUCO MAESTRO: Escribimos la cabecera magica de archivo de Linux nativo sin requerir el comando externo 'ar'
-          echo "RUN mkdir -p /data/data/com.termux/files/usr/lib && echo '\!<arch>' > /data/data/com.termux/files/usr/lib/libdl.a && echo '\!<arch>' > /data/data/com.termux/files/usr/lib/libatomic.a" >> Dockerfile
-          
           echo "RUN mkdir -p /root/build-config" >> Dockerfile
           echo "COPY bin_hijack/cross_file.txt /root/build-config/cross_file.txt" >> Dockerfile
           echo "COPY bin_hijack/build.sh /root/build.sh" >> Dockerfile
