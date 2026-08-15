@@ -44,27 +44,54 @@ jobs:
                   print('-> ¡Alineación de emulación inline inyectada en Meson correctamente!')
           "
 
-      # TU INYECCIÓN DE CONTROL DE FLUJO HÍBRIDO NATIVA REPARADA CON TRUCO DE MEMORIA BOX86
+      # REESCRITURA QUIRÚRGICA EN C: Interceptamos las extensiones incompatibles del HUD en 32 bits
       - name: Surgical Silicon Modification (Anti-Overflow MALI Hybrid 32/64 Injection)
         run: |
-          echo "-> Rastreando el corazon del Wrapper para soldar compatibilidad hibrida Vulkan..."
+          echo "-> Insertando desvío de extensiones Vulkan a nivel de C para Over-cmd..."
           WRAPPER_DEVICE=$(find src/ -name "wrapper_device.c" | head -n 1)
           
           if [ -n "$WRAPPER_DEVICE" ] && [ -f "$WRAPPER_DEVICE" ]; then
-            echo "-> Aplicando parches de alineacion de memoria de 32 bits en: $WRAPPER_DEVICE"
             sed -i 's/\r$//' "$WRAPPER_DEVICE"
             
-            sed -i '1i#include <stdint.h>' "$WRAPPER_DEVICE"
-            sed -i '1iextern int mallopt(int param, int value);' "$WRAPPER_DEVICE"
-            sed -i '1iextern int setenv(const char *name, const char *value, int overwrite);' "$WRAPPER_DEVICE"
+            # Cambiamos el nombre de la función original en el código de Mesa para poder crear nuestro propio filtro encima
+            sed -i 's/vk_icdGetInstanceProcAddr/original_vk_icdGetInstanceProcAddr/g' "$WRAPPER_DEVICE"
             
-            # Inyectamos mallopt(-1002, 0), mailbox y forzamos estabilidad de buffer en procesos de 32 bits
-            # ADEMÁS: Forzamos de forma interna que Box86 emule correctamente la carga de la librería evitando el desborde del HUD
-            sed -i '/vk_icdGetInstanceProcAddr/!b;n;i\\ extern int mallopt(int p, int v);\\n extern int setenv(const char *n, const char *v, int o);\\n mallopt(-1002, 0);\\n setenv("MESA_VK_WSI_PRESENT_MODE", "mailbox", 1);\\n setenv("vblank_mode", "0", 1);\\n if (sizeof(void*) == 4) {\\n   setenv("MESA_VK_WSI_QUEUE_SIZE", "1", 1);\\n   setenv("BOX86_EMULATED_LIBS", "libvulkan_wrapper.so", 1);\\n   setenv("BOX86_MMAP32", "1", 1);\\n }' "$WRAPPER_DEVICE"
-            echo "-> Envoltura hibrida inyectada con exito."
+            # Agregamos el interceptor inteligente al final del archivo para filtrar las llamadas rotas del HUD en 32 bits
+            cat <<-'EOF' >> "$WRAPPER_DEVICE"
+            
+            #include <stdint.h>
+            #include <string.h>
+            extern int mallopt(int param, int value);
+            extern int setenv(const char *name, const char *value, int overwrite);
+            extern void* original_vk_icdGetInstanceProcAddr(void* instance, const char* pName);
+            
+            // Filtro maestro de la API de Vulkan que soluciona el bloqueo en repositorios estrictos de Mesa
+            void* vk_icdGetInstanceProcAddr(void* instance, const char* pName) {
+                mallopt(-1002, 0);
+                setenv("MESA_VK_WSI_PRESENT_MODE", "mailbox", 1);
+                setenv("vblank_mode", "0", 1);
+                
+                // Si estamos en ejecución de 32 bits emulada:
+                if (sizeof(void*) == 4) {
+                    setenv("MESA_VK_WSI_QUEUE_SIZE", "1", 1);
+                    setenv("BOX86_EMULATED_LIBS", "libvulkan_wrapper.so", 1);
+                    setenv("BOX86_MMAP32", "1", 1);
+                    
+                    // Bloqueamos extensiones de depuración/HUD de 64 bits que hacen crashear el asignador de Mesa Over-cmd
+                    if (pName && (strcmp(pName, "vkGetPhysicalDeviceProperties2KHR") == 0 || 
+                                  strcmp(pName, "vkGetPhysicalDeviceFeatures2KHR") == 0 ||
+                                  strcmp(pName, "vkRegisterDeviceCustomCallbacksEXT") == 0)) {
+                        return (void*)0; // Devolvemos puntero nulo seguro para obligar al HUD a usar el fallback de 32 bits
+                    }
+                }
+                
+                return original_vk_icdGetInstanceProcAddr(instance, pName);
+            }
+          EOF
+            echo "-> ¡Filtro dinámico de extensiones C inyectado con éxito!"
           else
-            echo "-> Archivo wrapper_device.c no encontrado, aplicando fallback hibrido global con seguro MMAP32..."
-            find src/ -name "*.c" -exec sed -i 's/vk_icdGetInstanceProcAddr/extern int mallopt(int p, int v); extern int setenv(const char *n, const char *v, int o); mallopt(-1002, 0); setenv("MESA_VK_WSI_PRESENT_MODE", "mailbox", 1); setenv("vblank_mode", "0", 1); if (sizeof(void*) == 4) { setenv("MESA_VK_WSI_QUEUE_SIZE", "1", 1); setenv("BOX86_EMULATED_LIBS", "libvulkan_wrapper.so", 1); setenv("BOX86_MMAP32", "1", 1); } vk_icdGetInstanceProcAddr/g' {} + || true
+            echo "-> Archivo wrapper_device.c no encontrado, aplicando fallback global..."
+            find src/ -name "*.c" -exec sed -i 's/vk_icdGetInstanceProcAddr/extern int mallopt(int p, int v); extern int setenv(const char *n, const char *v, int o); mallopt(-1002, 0); setenv("MESA_VK_WSI_PRESENT_MODE", "mailbox", 1); setenv("vblank_mode", "0", 1); if (sizeof(void*) == 4) { setenv("MESA_VK_WSI_QUEUE_SIZE", "1", 1); } vk_icdGetInstanceProcAddr/g' {} + || true
           fi
 
       # COMPILACIÓN ORIGINAL DEL DOCKER NATIVO INTACTA
