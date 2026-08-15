@@ -65,15 +65,13 @@ jobs:
               print('-> ¡Expat desviado con éxito a la librería m en la raíz!')
           "
 
-      # ¡PASO ARREGLADO CON PYTHON: INYECCIÓN HÍBRIDA EVITA EL CIERRE DE LOS 32 BITS!
+      # ¡PASO CORREGIDO: Escapadas las comillas dobles en la linea de fallback global!
       - name: Surgical Silicon Modification (Anti-Overflow & 32-bit Safe Fix)
         run: |
           echo "-> Rastreando quirurgicamente el corazon de tu bionic wrapper..."
           python3 -c "
           import os
           
-          # Buscamos el punto de entrada exacto del cargador de dispositivos de tu wrapper
-          # para evitar parchar a ciegas todo el arbol de Mesa que rompia Box86
           possible_paths = [
               'src/vulkan/wrapper/wrapper_device.c',
               'src/vulkan/wrapper/vk_wrapper.c',
@@ -93,24 +91,19 @@ jobs:
               
               content = content.replace('\r\n', '\n')
               
-              # Inyectamos los prototipos limpios en la cabecera
               header_code = '\n#include <stdint.h>\nextern int mallopt(int param, int value);\nextern int setenv(const char *name, const char *value, int overwrite);\n'
               content = header_code + content
               
-              # TRUCO MAESTRO DE LA SCENE:
-              # Aplicamos mallopt(-1002, 0) y el modo mailbox para maximizar los FPS en 64 bits (Deadpool),
-              # pero si se detecta un proceso de 32 bits (sizeof(void*) == 4), limitamos el tamano del buffer 
-              # de colas (MESA_VK_WSI_QUEUE_SIZE=1) para evitar que Box86 colapse la pila de memoria del T618.
               patch_code = 'extern int mallopt(int p, int v); extern int setenv(const char *n, const char *v, int o); mallopt(-1002, 0); setenv(\"MESA_VK_WSI_PRESENT_MODE\", \"mailbox\", 1); setenv(\"vblank_mode\", \"0\", 1); if (sizeof(void*) == 4) { setenv(\"MESA_VK_WSI_QUEUE_SIZE\", \"1\", 1); } vk_icdGetInstanceProcAddr'
-              content = content.replace('vk_icdGetInstanceProcAddr', patch_code, 1) # Solo reemplaza la primera coincidencia maestra
+              content = content.replace('vk_icdGetInstanceProcAddr', patch_code, 1)
               
               with open(target_file, 'w', encoding='utf-8') as f:
                   f.write(content)
               print('-> ¡Silicio parchado con exito total para 32/64 bits!')
           else:
               print('-> Fallback condicional preventivo global...')
-              # Si no encuentra el archivo maestro, aplicamos un parche masivo pero aislando la estructura por tamano de puntero
-              find_cmd = \"find src/ -name '*.c' -exec sed -i 's/vk_icdGetInstanceProcAddr/extern int mallopt(int p, int v); extern int setenv(const char *n, const char *v, int o); mallopt(-1002, 0); setenv(\"MESA_VK_WSI_PRESENT_MODE\", \"mailbox\", 1); setenv(\"vblank_mode\", \"0\", 1); if (sizeof(void*) == 4) { setenv(\"MESA_VK_WSI_QUEUE_SIZE\", \"1\", 1); } vk_icdGetInstanceProcAddr/g' {} +\"
+              # Comillas corregidas y escapadas (\") para evitar fallas de sintaxis en la shell de Python
+              find_cmd = \"find src/ -name '*.c' -exec sed -i 's/vk_icdGetInstanceProcAddr/extern int mallopt(int p, int v); extern int setenv(const char *n, const char *v, int o); mallopt(-1002, 0); setenv(\\\"MESA_VK_WSI_PRESENT_MODE\\\", \\\"mailbox\\\", 1); setenv(\\\"vblank_mode\\\", \\\"0\\\", 1); if (sizeof(void*) == 4) { setenv(\\\"MESA_VK_WSI_QUEUE_SIZE\\\", \\\"1\\\", 1); } vk_icdGetInstanceProcAddr/g' {} +\"
               os.system(find_cmd)
           "
 
