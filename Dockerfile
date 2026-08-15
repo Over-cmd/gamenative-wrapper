@@ -12,11 +12,11 @@ RUN mkdir -p /data/data/com.termux/files && \
     (ln -s /home/builder/.termux-build/_cache/14-aarch64/bootstrap/data/data/com.termux/files/usr /data/data/com.termux/files/usr || \
      ln -s /home/builder/lib /data/data/com.termux/files/usr) || true
 
-# 3. Generar el archivo de configuración cruzada de Meson de forma limpia (Blindado con 'EOF')
-RUN mkdir -p /root/build-config && \
-    NDK_DIR=$(find /home/builder/lib -maxdepth 2 -name "android-ndk*" 2>/dev/null | head -n 1) && \
-    NDK_BIN="${NDK_DIR}/toolchains/llvm/prebuilt/linux-x86_64/bin" && \
-    cat << 'EOF' > /root/build-config/cross_file.txt
+# 3. Crear el directorio de configuración de manera aislada
+RUN mkdir -p /root/build-config
+
+# 4. Generar el archivo de configuración cruzada de Meson (Aislado en su propio RUN para evitar fallos)
+RUN cat << 'EOF' > /root/build-config/cross_file.txt
 [binaries]
 c = 'NDK_BIN_PLACEHOLDER/aarch64-linux-android30-clang'
 cpp = 'NDK_BIN_PLACEHOLDER/aarch64-linux-android30-clang++'
@@ -42,9 +42,13 @@ cpu_family = 'aarch64'
 cpu = 'armv8-a'
 endian = 'little'
 EOF
+
+# 5. Remplazar el marcador dinámico con la ruta real del NDK del contenedor
+RUN NDK_DIR=$(find /home/builder/lib -maxdepth 2 -name "android-ndk*" 2>/dev/null | head -n 1) && \
+    NDK_BIN="${NDK_DIR}/toolchains/llvm/prebuilt/linux-x86_64/bin" && \
     sed -i "s|NDK_BIN_PLACEHOLDER|${NDK_BIN}|g" /root/build-config/cross_file.txt
 
-# 4. Generar el script de compilación original atómica con el parche de silicio de anon_file
+# 6. Generar el script de compilación original atómica de Mesa (Aislado en su propio RUN)
 RUN cat << 'EOF' > /root/build.sh
 #!/bin/bash
 set -e
@@ -83,6 +87,8 @@ echo "Build successful:"
 echo " - libvulkan_wrapper.so"
 echo " - libvulkan_wrapper.so.unstripped"
 EOF
+
+# 7. Otorgar permisos de ejecución finales
 RUN chmod +x /root/build.sh
 
 WORKDIR /workspace
