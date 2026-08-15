@@ -7,7 +7,7 @@ on:
 
 env:
   BUILD_DIR: compilacion
-  IMAGE_TAG: ghcr.io/leegao/mesa-wrapper-ci/wrapper-compiler:latest
+  IMAGE_TAG: wrapper-compiler
 
 jobs:
   build-aarch64-wrapper:
@@ -26,7 +26,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y zstd python3
 
-      # PASO CLAVE ESTILO PIPETTO: Forzamos que Over-cmd exponga el símbolo de interfaz ICD que Box86 exige
+      # PASO ESTILO PIPETTO: Forzamos que Over-cmd exponga el símbolo de interfaz ICD que Box86 exige
       - name: Inject Khronos ICD Interface Symbol (Pipetto-crypto Mirror Trick)
         run: |
           echo "-> Sincronizando la tabla de símbolos con el estándar de Pipetto-crypto..."
@@ -45,7 +45,7 @@ jobs:
                               f.write(content)
           "
 
-      # TU INYECCIÓN DE CONTROL DE FLUJO HÍBRIDO ORIGINAL (IGUAL A LA DE PIPETTO)
+      # TU INYECCIÓN DE CONTROL DE FLUJO HÍBRIDO ORIGINAL (CONSERVA TU CONFIGURACIÓN DEL HUD)
       - name: Surgical Silicon Modification (Anti-Overflow MALI Hybrid 32/64 Injection)
         run: |
           echo "-> Rastreando el corazon del Wrapper para soldar compatibilidad hibrida Vulkan..."
@@ -67,12 +67,18 @@ jobs:
             find src/ -name "*.c" -exec sed -i 's/vk_icdGetInstanceProcAddr/extern int mallopt(int p, int v); extern int setenv(const char *n, const char *v, int o); mallopt(-1002, 0); setenv("MESA_VK_WSI_PRESENT_MODE", "mailbox", 1); setenv("vblank_mode", "0", 1); if (sizeof(void*) == 4) { setenv("MESA_VK_WSI_QUEUE_SIZE", "1", 1); } vk_icdGetInstanceProcAddr/g' {} + || true
           fi
 
-      # COMPILACIÓN ORIGINAL DEL DOCKER NATIVO (DEJA TU DOCKERFILE COMO ESTÁ)
+      # CONSTRUCCIÓN EN VIVO DEL CONTENEDOR REPARADO
+      - name: Build Local Corrected Docker Image
+        run: |
+          echo "-> Creando imagen de compilación a partir de las cabeceras estables..."
+          docker build -t ${{ env.IMAGE_TAG }}:latest .
+
+      # COMPILACIÓN DEL DOCKER LOCAL CONSTRUIDO al vuelo
       - name: Wrapper Compiler (Atomic Processing Docker MALI)
         run: |
-          docker run --rm -v "${{ github.workspace }}:/workspace" ${{ env.IMAGE_TAG }} ${{ env.BUILD_DIR }}
+          docker run --rm -v "${{ github.workspace }}:/workspace" ${{ env.IMAGE_TAG }}:latest ${{ env.BUILD_DIR }}
 
-      # ESTE PASO CREA LOS MANIFIESTOS DUALES EXACTOS QUE USA PIPETTO PARA ENGAÑAR A BOX86
+      # MANIFIESTOS DUALES IDENTICOS A PIPETTO PARA ENGAÑAR A BOX86
       - name: Structure and Pack wrapper.tzst
         run: |
           echo "-> Creando arbol de directorios de Linux para Bannerlator..."
@@ -93,7 +99,6 @@ jobs:
           }
           EOF
           
-          # Box86 leerá este archivo y mapeará las llamadas del juego de 32 bits hacia el binario único de 64 bits
           echo "-> Inyectando manifiesto JSON ICD oficial de 32 bits (ARM) idéntico al de Pipetto..."
           cat << 'EOF' > pkg/usr/share/vulkan/icd.d/wrapper_icd.arm.json
           {
@@ -109,11 +114,11 @@ jobs:
           cd pkg
           tar -I 'zstd -19 -T0' -cf ../wrapper.tzst usr/
           cd ..
-          echo "-> ¡Empaquetado híbrido estilo Pipetto completado!"
+          echo "-> ¡Empaquetado híbrido completado con éxito!"
 
       - name: Upload Final wrapper.tzst for Bannerlator
         uses: actions/upload-artifact@v4
         with:
-          name: Bannerlator-Mali-Wrapper-PipettoStyle
+          name: Bannerlator-Mali-Wrapper-Universal
           path: wrapper.tzst
           if-no-files-found: error
