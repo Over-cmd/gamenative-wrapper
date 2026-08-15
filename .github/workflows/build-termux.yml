@@ -1,137 +1,79 @@
-name: Compilación Termux Oficial con nuestro propio Docker Wrapper Unisoc
+name: Compilación Termux Oficial con nuestro propio Docker Wrapper Unisoc 
 
 on:
-  push:
-    branches: [ "main", "master", "wrapper-25" ]
-  workflow_dispatch:
+push:
+branches: [ "main", "master", "wrapper-25" ]
+workflow_dispatch: 
 
 env:
-  BUILD_DIR: compilación
-  CUSTOM_TAG: gamenative-unisoc-builder:latest
+BUILD_DIR_64: b_64
+BUILD_DIR_32: b_32
+CUSTOM_TAG: gamenative-unisoc-builder:latest 
 
 jobs:
-  build-driver:
-    runs-on: ubuntu-latest
+build-driver:
+runs-on: ubuntu-latest 
 
-    steps:
-      - name: Código de pago
-        uses: actions/checkout@v4
-        with:
-          submodules: 'recursive'
+steps:
 
-      - name: Configurar Docker Buildx
-        uses: docker/setup-buildx-action@v3
+* name: Código de pago
+uses: actions/checkout@v4
+with:
+submodules: 'recursive'
+* name: Configurar Docker Buildx
+uses: docker/setup-buildx-action@v3
+* name: Instalar herramientas de compresión
+run: |
+sudo apt-get update
+sudo apt-get install -y zstd python3
+chmod +x generate_configs.sh generate_dockerfile.sh
+* name: Inyección Quirúrgica Silicio (Modo Fluido 32/64 bits)
+run: python3 patch_mesa.py
+* name: Assemble Offline Compiler Scripts
+run: ./generate_configs.sh
+* name: Generate Local Dockerfile Blueprint
+run: ./generate_dockerfile.sh
+* name: Build Custom Unisoc Wrapper Image
+run: docker build -t ${{ env.CUSTOM_TAG }} .
+* name: Execute Custom Unisoc Wrapper Compiler (64-bit)
+run: docker run --rm -e ARCH=aarch64 -v "${{ github.workspace }}:/workspace" 
 
-      - name: Instalar herramientas de compresión
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y zstd python3
+env.CUSTOMTAGe n v point cap C cap U cap S cap T cap O cap M sub cap T cap A cap G
+𝑒𝑛𝑣.𝐶𝑈𝑆𝑇𝑂𝑀𝑇𝐴𝐺
+{{ env.BUILD_DIR_64 }}
+* name: Execute Custom Unisoc Wrapper Compiler (32-bit)
+run: docker run --rm -e ARCH=arm -v "${{ github.workspace }}:/workspace" 
 
-      # ¡ESTE PASO APLICA LA INYECCIÓN BIÓNICA DOBLE Y NEUTRALIZA ATOMIC DIRECTAMENTE EN EL TEXTO MAESTRO!
-      - name: Inyección Quirúrgica Silicio (Modo Fluido y Anti-Cierres 32/64 bits)
-        run: |
-          echo "-> Parchando el cargador de instancias de Vulkan..."
-          python3 -c "import os; t='src/vulkan/runtime/vk_instance.c'; f=open(t,'r') if os.path.exists(t) else None; c='\n#include <stdint.h>\nextern int mallopt(int p, int v);\nextern int setenv(const char* n, const char* v, int o);\n'+f.read().replace('vk_icdGetInstanceProcAddr','mallopt(-1002,0);setenv(\"MESA_VK_WSI_PRESENT_MODE\",\"mailbox\",1);setenv(\"vblank_mode\",\"0\",1);if(sizeof(void*)==4){setenv(\"MESA_VK_WSI_QUEUE_SIZE\",\"1\",\"1\");}vk_icdGetInstanceProcAddr',1) if f else ''; f.close() if f else None; f=open(t,'w') if f else None; f.write(c) if f else None; f.close() if f else None"
-          python3 -c "import os; t='src/vulkan/wsi/wsi_common.c'; f=open(t,'r') if os.path.exists(t) else None; c=f.read().replace('wsi_device_init(','if(sizeof(void*)==4){setenv(\"MESA_VK_WSI_QUEUE_SIZE\",\"1\",1);setenv(\"vblank_mode\",\"0\",1);} wsi_device_init(',1) if f else ''; f.close() if f else None; f=open(t,'w') if f else None; f.write(c) if f else None; f.close() if f else None"
-          
-          # TRUCO DEFINTIVO DE LA SCENE: Reemplazamos find_library por dependency vacio en el meson.build de forma directa
-          # Esto destruye el error de la linea 1279 y el de libdl de escritorio de un solo golpe
-          python3 -c "import os; t='meson.build'; f=open(t,'r') if os.path.exists(t) else None; c=f.read().replace(\"find_library('atomic')\",\"dependency('',required:false)\").replace(\"find_library('atomic',\",\"dependency('',required:false),\").replace(\"find_library('dl')\",\"dependency('',required:false)\").replace(\"find_library('dl',\",\"dependency('',required:false),\") if f else ''; f.close() if f else None; f=open(t,'w') if f else None; f.write(c) if f else None; f.close() if f else None"
+env.CUSTOMTAGe n v point cap C cap U cap S cap T cap O cap M sub cap T cap A cap G
+𝑒𝑛𝑣.𝐶𝑈𝑆𝑇𝑂𝑀𝑇𝐴𝐺
+{{ env.BUILD_DIR_32 }}
+* name: Compile and Link Unified Multiarch Bridge
+run: |
+mkdir -p unified_out
+N_PATH=(docker run --rm --entrypoint /bin/bash {{ env.CUSTOM_TAG }} -c 'find /home/builder/lib -maxdepth 2 -name "android-ndk*" 2>/dev/null | head -n 1')
+docker run --rm -v "${{ github.workspace }}:/workspace" --entrypoint /bin/bash 
 
-      # ¡ESTE PASO ASHEMBLEA LOS SCRIPTS Y ARCHIVOS DE CONFIGURACIÓN DE MESON EN LIMPIO EN EL ANFITRIÓN!
-      - name: Assemble Offline Compiler Scripts
-        run: |
-          echo "-> Ensamblando script de construccion y entorno cruzado para Termux..."
-          mkdir -p bin_hijack
-          
-          cat << 'EOF' > bin_hijack/cross_file.txt
-          [binaries]
-          c = '@NDK_PATH@/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android30-clang'
-          cpp = '@NDK_PATH@/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android30-clang++'
-          ar = '@NDK_PATH@/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar'
-          strip = '@NDK_PATH@/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip'
-          pkg-config = 'pkg-config'
+env.CUSTOMTAG−c"e n v point cap C cap U cap S cap T cap O cap M sub cap T cap A cap G minus c "
+𝑒𝑛𝑣.𝐶𝑈𝑆𝑇𝑂𝑀𝑇𝐴𝐺−𝑐"
+{N_PATH}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android30-clang -shared -fPIC -O3 /root/bridge.c -o /workspace/unified_out/libvulkan_wrapper.so -ldl"
+* name: Structure and Pack wrapper.tzst
+run: |
+mkdir -p pkg/usr/lib pkg/usr/share/vulkan/icd.d
+cp 
 
-          [constants]
-          termux_dir = '/data/data/com.termux/files/usr'
+env.BUILDDIR64/libvulkanwrapper.sopkg/usr/lib/libvulkanwrapper64.so||cpe n v point cap B cap U cap I cap L cap D sub cap D cap I cap R sub 6 4 / l i b v u l k a n sub w r a p p e r point s o p k g / u s r / l i b / l i b v u l k a n sub w r a p p e r sub 6 4. s o the absolute value of  end-absolute-value  c p
+𝑒𝑛𝑣.𝐵𝑈𝐼𝐿𝐷𝐷𝐼𝑅64/𝑙𝑖𝑏𝑣𝑢𝑙𝑘𝑎𝑛𝑤𝑟𝑎𝑝𝑝𝑒𝑟.𝑠𝑜𝑝𝑘𝑔/𝑢𝑠𝑟/𝑙𝑖𝑏/𝑙𝑖𝑏𝑣𝑢𝑙𝑘𝑎𝑛𝑤𝑟𝑎𝑝𝑝𝑒𝑟64.𝑠𝑜||𝑐𝑝
+{{ env.BUILD_DIR_64 }}/src/vulkan/wrapper/libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper_64.so
+cp 
 
-          [properties]
-          pkg_config_libdir = termux_dir + '/lib/pkgconfig:' + termux_dir + '/share/pkgconfig'
-
-          [built-in options]
-          c_args = ['-D__TERMUX__', '-D__USE_GNU', '-U__ANDROID__', '-I' + termux_dir + '/include', '-include', 'fcntl.h', '-include', 'unistd.h']
-          cpp_args = ['-D__TERMUX__', '-D__USE_GNU', '-U__ANDROID__', '-I' + termux_dir + '/include', '-include', 'fcntl.h', '-include', 'unistd.h']
-          c_link_args = ['-L' + termux_dir + '/lib', '-landroid-shmem']
-          cpp_link_args = ['-L' + termux_dir + '/lib', '-landroid-shmem']
-
-          [host_machine]
-          system = 'android'
-          cpu_family = 'aarch64'
-          cpu = 'armv8-a'
-          endian = 'little'
-          EOF
-
-          cat << 'EOF' > bin_hijack/build.sh
-          #!/bin/bash
-          set -e
-          BUILD_DIR="${1:-${BUILD_DIR:-build}}"
-          
-          echo "-> Autodetectando la ruta absoluta del Android NDK..."
-          REAL_NDK=$(find /home/builder/lib -maxdepth 2 -name "android-ndk*" 2>/dev/null | head -n 1)
-          sed -i "s|@NDK_PATH@|${REAL_NDK}|g" /root/build-config/cross_file.txt
-          
-          if [ ! -d "${BUILD_DIR}" ]; then
-            meson setup "${BUILD_DIR}" --cross-file /root/build-config/cross_file.txt -Dcpp_rtti=false -Dgbm=disabled -Dopengl=false -Dllvm=disabled -Dshared-llvm=disabled -Dplatforms=x11 -Dgallium-drivers= -Dxmlconfig=disabled -Dandroid-stub=true -Dvulkan-drivers=wrapper
-          fi
-          ninja -C "${BUILD_DIR}" src/vulkan/wrapper/libvulkan_wrapper.so
-          cp "${BUILD_DIR}/src/vulkan/wrapper/libvulkan_wrapper.so" "${BUILD_DIR}/libvulkan_wrapper.so.unstripped"
-          
-          STRIP="${REAL_NDK}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip"
-          "$STRIP" --strip-unneeded -o "${BUILD_DIR}/libvulkan_wrapper.so" "${BUILD_DIR}/libvulkan_wrapper.so.unstripped"
-          echo "Build successful."
-          EOF
-          chmod +x bin_hijack/build.sh
-
-      # DOCKERFILE LIMPIO CON LA BANCO DE PAQUETES CF DE TERMUX OFICIAL
-      - name: Generate Local Dockerfile Blueprint
-        run: |
-          rm -f Dockerfile
-          echo "FROM ghcr.io/termux/package-builder:latest" > Dockerfile
-          echo "USER root" >> Dockerfile
-          echo "RUN apt-get update && apt-get install -y --no-install-recommends ninja-build && pip3 install --break-system-packages --ignore-installed --no-cache-dir meson ninja mako pyyaml packaging" >> Dockerfile
-          echo "RUN mkdir -p /tmp/sysroot && cd /tmp/sysroot && curl -s 'https://termux.dev' > Packages && PACKAGES='libdrm libandroid-shmem libxcb libx11 libxshmfence libxext libxrandr libxrender xorgproto libxau libxdmcp' && for pkg in \$PACKAGES; do pkg_path=\$(awk -v p=\"Package: \$pkg\" '\$0==p{flag=1} flag && /^Filename:/{print \$2; exit}' Packages) && if [ -n \"\$pkg_path\" ]; then curl -L -O \"https://termux.dev\${pkg_path}\"; fi; done && mkdir -p /data/data/com.termux/files/usr && for f in *.deb; do if [ -f \"\$f\" ]; then dpkg-deb -x \"\$f\" /; fi; done && rm -rf /tmp/sysroot" >> Dockerfile
-          echo "RUN mkdir -p /root/build-config" >> Dockerfile
-          echo "COPY bin_hijack/cross_file.txt /root/build-config/cross_file.txt" >> Dockerfile
-          echo "COPY bin_hijack/build.sh /root/build.sh" >> Dockerfile
-          echo "RUN chmod +x /root/build.sh" >> Dockerfile
-          echo "WORKDIR /workspace" >> Dockerfile
-          echo "ENTRYPOINT [\"/root/build.sh\"]" >> Dockerfile
-
-      - name: Build Custom Unisoc Wrapper Image
-        run: |
-          docker build -t ${{ env.CUSTOM_TAG }} .
-
-      - name: Execute Custom Unisoc Wrapper Compiler
-        run: |
-          docker run --rm \
-            -v "${{ github.workspace }}:/workspace" \
-            ${{ env.CUSTOM_TAG }} ${{ env.BUILD_DIR }}
-
-      - name: Structure and Pack wrapper.tzst
-        run: |
-          mkdir -p pkg/usr/lib pkg/usr/share/vulkan/icd.d
-          cp ${{ env.BUILD_DIR }}/libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so || cp ${{ env.BUILD_DIR }}/src/vulkan/wrapper/libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
-          cat << 'EOF' > pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
-          {
-              "ICD": { "api_version": "1.3.289", "library_path": "libvulkan_wrapper.so" },
-              "file_format_version": "1.0.0"
-          }
-          EOF
-          cd pkg && tar -I 'zstd -19 -T0' -cf ../wrapper.tzst usr/ && cd ..
-
-      - name: Upload Final wrapper.tzst for Bannerlator
-        uses: actions/upload-artifact@v4
-        with:
-          name: Bannerlator-Termux-Unisoc-Wrapper
-          path: wrapper.tzst
-          if-no-files-found: error
+env.BUILDDIR32/libvulkanwrapper.sopkg/usr/lib/libvulkanwrapper32.so||cpe n v point cap B cap U cap I cap L cap D sub cap D cap I cap R sub 3 2 / l i b v u l k a n sub w r a p p e r point s o p k g / u s r / l i b / l i b v u l k a n sub w r a p p e r sub 3 2. s o the absolute value of  end-absolute-value  c p
+𝑒𝑛𝑣.𝐵𝑈𝐼𝐿𝐷𝐷𝐼𝑅32/𝑙𝑖𝑏𝑣𝑢𝑙𝑘𝑎𝑛𝑤𝑟𝑎𝑝𝑝𝑒𝑟.𝑠𝑜𝑝𝑘𝑔/𝑢𝑠𝑟/𝑙𝑖𝑏/𝑙𝑖𝑏𝑣𝑢𝑙𝑘𝑎𝑛𝑤𝑟𝑎𝑝𝑝𝑒𝑟32.𝑠𝑜||𝑐𝑝
+{{ env.BUILD_DIR_32 }}/src/vulkan/wrapper/libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper_32.so
+cp unified_out/libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
+echo '{"ICD":{"api_version":"1.3.289","library_path":"libvulkan_wrapper.so"},"file_format_version":"1.0.0"}' > pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
+cd pkg && tar -I 'zstd -19 -T0' -cf ../wrapper.tzst usr/
+* name: Upload Final wrapper.tzst for Bannerlator
+uses: actions/upload-artifact@v4
+with:
+name: Bannerlator-Termux-Unisoc-Wrapper
+path: wrapper.tzst
