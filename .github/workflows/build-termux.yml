@@ -44,34 +44,30 @@ jobs:
                   print('-> ¡Alineación de emulación inline inyectada en Meson correctamente!')
           "
 
-      # INYECCIÓN PURA POR ALIAS: Creamos el puente híbrido sin romper las funciones originales de Mesa
+      # INYECCIÓN ATÓMICA EN LOG: Inicializamos las variables sin colisionar con la tabla de Vulkan
       - name: Surgical Silicon Modification (Anti-Overflow MALI Hybrid 32/64 Injection)
         run: |
-          echo "-> Rastreando el corazón del Wrapper para inyectar pasarela por Alias de C..."
-          WRAPPER_DEVICE=$(find src/ -name "wrapper_device.c" | head -n 1)
+          echo "-> Buscando el módulo de registros de Mesa para soldar parches de estabilidad..."
+          WRAPPER_LOG=$(find src/ -name "wrapper_log.c" | head -n 1)
           
-          if [ -n "$WRAPPER_DEVICE" ] && [ -f "$WRAPPER_DEVICE" ]; then
-            sed -i 's/\r$//' "$WRAPPER_DEVICE"
+          if [ -n "$WRAPPER_LOG" ] && [ -f "$WRAPPER_LOG" ]; then
+            sed -i 's/\r$//' "$WRAPPER_LOG"
             
-            # Limpiamos posibles restos de ejecuciones fallidas anteriores en el archivo de código fuente
-            sed -i '/__vulkan_hybrid_bridge__/,$d' "$WRAPPER_DEVICE" || true
+            # Limpiamos posibles restos de ejecuciones fallidas anteriores en el archivo de logs
+            sed -i '/__vulkan_hybrid_log_bridge__/,$d' "$WRAPPER_LOG" || true
             
-            # Inyectamos el bloque de control utilizando la directiva __attribute__((alias)) al final del archivo
-            cat <<-'EOF' >> "$WRAPPER_DEVICE"
+            # Inyectamos una función constructora pura al final del módulo de log.
+            # Los constructores marcados con __attribute__((constructor)) son cargados por Android Bionic 
+            # de manera prioritaria al mapear la librería, lo que garantiza el blindaje de 32 bits antes del renderizado.
+            cat <<-'EOF' >> "$WRAPPER_LOG"
 
-            /* __vulkan_hybrid_bridge__ */
-            #include <string.h>
+            /* __vulkan_hybrid_log_bridge__ */
+            #include <stdint.h>
             extern int mallopt(int param, int value);
             extern int setenv(const char *name, const char *value, int overwrite);
 
-            // Declaramos la firma exacta de la función nativa que Mesa ya compiló arriba
-            VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL vk_icdGetInstanceProcAddr(VkInstance instance, const char *pName);
-
-            // Creamos una función espejo idéntica apuntando al mismo descriptor
-            VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL mesa_native_vk_icdGetInstanceProcAddr(VkInstance instance, const char *pName) __attribute__((alias("vk_icdGetInstanceProcAddr")));
-
-            // Forzamos un interceptor global que Box86/Box64 llamará de manera prioritaria
-            VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL vulkan_wrapper_entry_bridge(VkInstance instance, const char *pName) {
+            // Esta función no requiere prototipos en vk_icd.h porque es un disparador estático interno
+            __attribute__((constructor)) static void init_mali_bionic_stabilizer(void) {
                 mallopt(-1002, 0);
                 setenv("MESA_VK_WSI_PRESENT_MODE", "mailbox", 1);
                 setenv("vblank_mode", "0", 1);
@@ -80,19 +76,12 @@ jobs:
                     setenv("MESA_VK_WSI_QUEUE_SIZE", "1", 1);
                     setenv("BOX86_EMULATED_LIBS", "libvulkan_wrapper.so", 1);
                     setenv("BOX86_MMAP32", "1", 1);
-                    
-                    if (pName && (strcmp(pName, "vkGetPhysicalDeviceProperties2KHR") == 0 || 
-                                  strcmp(pName, "vkGetPhysicalDeviceFeatures2KHR") == 0 ||
-                                  strcmp(pName, "vkRegisterDeviceCustomCallbacksEXT") == 0)) {
-                        return (PFN_vkVoidFunction)NULL;
-                    }
                 }
-                return mesa_native_vk_icdGetInstanceProcAddr(instance, pName);
             }
           EOF
-            echo "-> ¡Pasarela por Alias de C inyectada correctamente en el código fuente!"
+            echo "-> ¡Parche dinámico inyectado con éxito en el constructor del módulo de Log!"
           else
-            echo "-> Archivo wrapper_device.c no encontrado, aplicando fallback..."
+            echo "-> Archivo wrapper_log.c no encontrado, aplicando fallback global..."
             find src/ -name "*.c" -exec sed -i 's/vk_icdGetInstanceProcAddr/extern int mallopt(int p, int v); extern int setenv(const char *n, const char *v, int o); mallopt(-1002, 0); setenv("MESA_VK_WSI_PRESENT_MODE", "mailbox", 1); setenv("vblank_mode", "0", 1); if (sizeof(void*) == 4) { setenv("MESA_VK_WSI_QUEUE_SIZE", "1", 1); } vk_icdGetInstanceProcAddr/g' {} + || true
           fi
 
