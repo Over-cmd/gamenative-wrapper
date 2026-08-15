@@ -24,31 +24,30 @@ jobs:
       - name: Install Zstd Packager
         run: |
           sudo apt-get update
-          sudo apt-get install -y zstd python3 curl tar
+          sudo apt-get install -y zstd python3 git
 
-      # ¡ESTE PASO DESCARGA LIBADRENOTOOLS POR FUERA DIRECTAMENTE EVITANDO EL CONGELAMIENTO!
-      - name: Pre-download and Extract Libadrenotools Stable (Offline Bypass)
+      # ¡ESTE PASO DESCARGA LIBADRENOTOOLS REAL Y SUS SUBMÓDULOS USANDO TOKEN SEGURO ANTI-BLOQUEO!
+      - name: Pre-clone Libadrenotools Recursively via Secure Token
         run: |
-          echo "-> Creando la estructura local de subproyectos..."
-          mkdir -p subprojects/libadrenotools
+          echo "-> Creando la carpeta local de subproyectos..."
+          mkdir -p subprojects
           
-          echo "-> Descargando el codigo nucleo de libadrenotools via Tarball plano..."
-          curl -L "https://cors.sh" -o adrenotools.tar.gz || curl -L "https://github.com" -o adrenotools.tar.gz
-          tar -xf adrenotools.tar.gz --strip-components=1 -C subprojects/libadrenotools/
-          rm -f adrenotools.tar.gz
+          echo "-> Clonando libadrenotools real de Pipetto-crypto de forma recursiva..."
+          # Usamos el token nativo de la maquina virtual para forzar un canal cifrado limpio,
+          # lo que evita que los scripts internos alteren la URL o devuelvan un error 128 de repositorio no encontrado.
+          git clone --depth 1 --recursive https://x-access-token:${{ secrets.GITHUB_TOKEN }}@://github.com subprojects/libadrenotools
           
-          echo "-> Descargando el submodulo linkernsbypass obligatorio..."
-          mkdir -p subprojects/libadrenotools/lib/linkernsbypass
-          curl -L "https://cors.sh" -o linkernsbypass.tar.gz || curl -L "https://github.com" -o linkernsbypass.tar.gz
-          tar -xf linkernsbypass.tar.gz --strip-components=1 -C subprojects/libadrenotools/lib/linkernsbypass/
-          rm -f linkernsbypass.tar.gz
+          echo "-> Sincronizando y verificando submódulos internos..."
+          cd subprojects/libadrenotools
+          git submodule update --init --recursive
+          cd ../..
           
-          echo "-> Registrando el manifiesto .wrap local para prohibir descargas de red a Meson..."
+          echo "-> Creando el archivo .wrap local para indicarle a Meson que no toque internet..."
           cat << 'EOF' > subprojects/libadrenotools.wrap
           [wrap-file]
           directory = libadrenotools
           EOF
-          echo "-> Estructura de librerias montada con éxito en local."
+          echo "-> Estructura real de libadrenotools acoplada con éxito en local."
 
       # NEUTRALIZAMOS SPIRV-TOOLS Y EXPAT MEDIANTE PYTHON PARA PODER COMPILAR OFFLINE
       - name: Bypass SPIRV-Tools and Expat Requirements (Python Surgical Patch)
@@ -89,7 +88,7 @@ jobs:
               print('-> ¡Expat desviado con éxito a la librería m en la raíz!')
           "
 
-      # ¡INYECTAMOS TU CÓDIGO CON PARCHE DE ALINEACIÓN SEGURO DE 32 BITS!
+      # ¡INYECTAMOS EL CÓDIGO CON PARCHE DE ALINEACIÓN SEGURO DE 32 BITS!
       - name: Surgical Silicon Modification (Anti-Overflow & 32-bit Safe Fix)
         run: |
           echo "-> Rastreando quirurgicamente el corazon de tu bionic wrapper..."
@@ -117,7 +116,7 @@ jobs:
               header_code = '\n#include <stdint.h>\nextern int mallopt(int param, int value);\nextern int setenv(const char *name, const char *value, int overwrite);\n'
               content = header_code + content
               
-              # Truco maestro hibrido: mallopt(-1002, 0) y mailbox para 64 bits, y buffer seguro si sizeof(void*) == 4 para salvar Box86
+              # Parche hibrido: mallopt(-1002, 0) y mailbox para 64 bits, y buffer seguro en 32 bits para salvar Box86
               patch_code = 'extern int mallopt(int p, int v); extern int setenv(const char *n, const char *v, int o); mallopt(-1002, 0); setenv(\"MESA_VK_WSI_PRESENT_MODE\", \"mailbox\", 1); setenv(\"vblank_mode\", \"0\", 1); if (sizeof(void*) == 4) { setenv(\"MESA_VK_WSI_QUEUE_SIZE\", \"1\", 1); } vk_icdGetInstanceProcAddr'
               content = content.replace('vk_icdGetInstanceProcAddr', patch_code, 1)
               
