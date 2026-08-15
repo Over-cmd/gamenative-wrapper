@@ -24,30 +24,34 @@ jobs:
       - name: Install Zstd Packager
         run: |
           sudo apt-get update
-          sudo apt-get install -y zstd python3 git
+          sudo apt-get install -y zstd python3 curl tar
 
-      # ¡PASO CORREGIDO: Forzamos la limpieza de la configuracion Git local en la misma linea de ejecucion!
-      - name: Pre-clone Libadrenotools Real Repository via Secure Token
+      # ¡PASO BLINDADO: DESCARGA OFF-GIT USANDO ENLACES CRUDOS TARBALL RESISTENTES A DUPLICACIONES!
+      - name: Pre-download and Extract Libadrenotools Stable (Bypass URL Duplication)
         run: |
-          echo "-> Purgando configuraciones de red Git en caliente..."
+          echo "-> Fabricando el arbol local de subproyectos de Mesa..."
           mkdir -p subprojects
           rm -rf subprojects/libadrenotools
+          mkdir -p subprojects/libadrenotools
           
-          # Forzamos una configuracion en blanco local para saltarnos el bloqueo del host de GitHub
-          git config --global --unset-all url.https://github.com || true
-          git config --global --unset-all url.https://.insteadOf || true
+          echo "-> Descargando el codigo nucleo de libadrenotools via Tarball plano..."
+          # Usamos curl para esquivar el bug de duplicacion de URL de Git que rompia el host
+          curl -L "https://github.com" -o adrenotools.tar.gz
+          tar -xf adrenotools.tar.gz --strip-components=1 -C subprojects/libadrenotools/
+          rm -f adrenotools.tar.gz
           
-          echo "-> Clonando libadrenotools real de Pipetto-crypto de forma limpia..."
-          # El parametro -c url.https://github.com= actua como un escudo que resetea 
-          # cualquier desvio de red del servidor, bajando el codigo completo y linkernsbypass sin fallas.
-          git -c url."https://github.com/".insteadOf="" clone --depth 1 --recursive https://github.com subprojects/libadrenotools
+          echo "-> Descargando el submodulo linkernsbypass de Pipetto obligatorio..."
+          mkdir -p subprojects/libadrenotools/lib/linkernsbypass
+          curl -L "https://github.com" -o linkernsbypass.tar.gz
+          tar -xf linkernsbypass.tar.gz --strip-components=1 -C subprojects/libadrenotools/lib/linkernsbypass/
+          rm -f linkernsbypass.tar.gz
           
-          echo "-> Asegurando la presencia del archivo .wrap local..."
+          echo "-> Creando el archivo .wrap local para indicarle a Meson que no toque internet..."
           cat << 'EOF' > subprojects/libadrenotools.wrap
           [wrap-file]
           directory = libadrenotools
           EOF
-          echo "-> Dependencia real de Pipetto-crypto montada con éxito en local."
+          echo "-> Estructura real de libadrenotools inyectada con éxito en local de forma Offline."
 
       # ¡ESTE PASO INTERCEPTA LOS COMANDOS DE GIT DEL DOCKER PARA EVITAR EL CUELGUE INFINITO!
       - name: Create Git Binary Hijacker for Docker Environment
@@ -145,6 +149,7 @@ jobs:
               header_code = '\n#include <stdint.h>\nextern int mallopt(int param, int value);\nextern int setenv(const char *name, const char *value, int overwrite);\n'
               content = header_code + content
               
+              # Parche híbrido: mallopt(-1002, 0) y mailbox en 64 bits, y buffer seguro en 32 bits para salvar Box86
               patch_code = 'extern int mallopt(int p, int v); extern int setenv(const char *n, const char *v, int o); mallopt(-1002, 0); setenv(\"MESA_VK_WSI_PRESENT_MODE\", \"mailbox\", 1); setenv(\"vblank_mode\", \"0\", 1); if (sizeof(void*) == 4) { setenv(\"MESA_VK_WSI_QUEUE_SIZE\", \"1\", 1); } vk_icdGetInstanceProcAddr'
               content = content.replace('vk_icdGetInstanceProcAddr', patch_code, 1)
               
