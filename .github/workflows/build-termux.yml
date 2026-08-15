@@ -34,19 +34,19 @@ jobs:
           python3 -c "import os; t='src/vulkan/wsi/wsi_common.c'; f=open(t,'r') if os.path.exists(t) else None; c=f.read().replace('wsi_device_init(','if(sizeof(void*)==4){setenv(\"MESA_VK_WSI_QUEUE_SIZE\",\"1\",1);setenv(\"vblank_mode\",\"0\",1);} wsi_device_init(',1) if f else ''; f.close() if f else None; f=open(t,'w') if f else None; f.write(c) if f else None; f.close() if f else None"
           python3 -c "import os; t='meson.build'; f=open(t,'r') if os.path.exists(t) else None; c=f.read().replace(\"cc.find_library('atomic')\",\"dependency('',required:false)\").replace(\"cpp.find_library('atomic')\",\"dependency('',required:false)\") if f else ''; f.close() if f else None; f=open(t,'w') if f else None; f.write(c) if f else None; f.close() if f else None"
 
-      # ¡ESTE PASO ASEMBLEA LOS SCRIPTS Y ARCHIVOS DE CONFIGURACIÓN DE MESON EN LIMPIO EN EL ANFITRIÓN!
+      # ¡PASO CORREGIDO: El cross_file.txt ahora usa un marcador estático provisorio @NDK_PATH@ que se reemplaza limpiamente en caliente!
       - name: Assemble Offline Compiler Scripts
         run: |
           echo "-> Ensamblando script de construccion y entorno cruzado para Termux..."
           mkdir -p bin_hijack
           
-          # 1. Escribimos el cross_file.txt limpio de forma externa sin usar comandos echo de Docker
+          # Escribimos la estructura base limpia con el marcador de posicion plano para Meson
           cat << 'EOF' > bin_hijack/cross_file.txt
           [binaries]
-          c = '/home/builder/lib/android-ndk-r26b/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android30-clang'
-          cpp = '/home/builder/lib/android-ndk-r26b/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android30-clang++'
-          ar = '/home/builder/lib/android-ndk-r26b/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar'
-          strip = '/home/builder/lib/android-ndk-r26b/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip'
+          c = '@NDK_PATH@/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android30-clang'
+          cpp = '@NDK_PATH@/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android30-clang++'
+          ar = '@NDK_PATH@/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar'
+          strip = '@NDK_PATH@/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip'
           pkg-config = 'pkg-config'
 
           [constants]
@@ -67,32 +67,38 @@ jobs:
           cpu = 'armv8-a'
           endian = 'little'
           EOF
-          
-          # Corregimos dinámicamente la ruta del NDK buscando la carpeta exacta dentro del contenedor de Termux
-          sed -i "s|/home/builder/lib/android-ndk-r26b|\$(find /home/builder/lib -maxdepth 2 -name 'android-ndk*' 2>/dev/null \| head -n 1)|g" bin_hijack/cross_file.txt || true
 
-          # 2. Escribimos el script build.sh de forma limpia
+          # Escribimos el script de ejecucion encargado de resolver la ruta absoluta real del NDK en caliente
           cat << 'EOF' > bin_hijack/build.sh
           #!/bin/bash
           set -e
           BUILD_DIR="${1:-${BUILD_DIR:-build}}"
           
-          # Autodetectamos la ruta real del NDK en caliente y reparamos el cross_file antes de llamar a Meson
-          NDK_DIR=$(find /home/builder/lib -maxdepth 2 -name "android-ndk*" 2>/dev/null | head -n 1)
-          sed -i "s|/home/builder/lib/android-ndk-r26b|${NDK_DIR}|g" /root/build-config/cross_file.txt || true
+          echo "-> Autodetectando la ruta absoluta del Android NDK en el contenedor de Termux..."
+          REAL_NDK=$(find /home/builder/lib -maxdepth 2 -name "android-ndk*" 2>/dev/null | head -n 1)
+          
+          if [ -z "${REAL_NDK}" ]; then
+              echo "ERROR: No se encontro ninguna carpeta Android NDK en /home/builder/lib"
+              exit 1
+          fi
+          echo "-> NDK detectado con exito en: ${REAL_NDK}"
+          
+          echo "-> Parchando el archivo cross_file.txt con la ruta real estatica..."
+          sed -i "s|@NDK_PATH@|${REAL_NDK}|g" /root/build-config/cross_file.txt
           
           if [ ! -d "${BUILD_DIR}" ]; then
             meson setup "${BUILD_DIR}" --cross-file /root/build-config/cross_file.txt -Dcpp_rtti=false -Dgbm=disabled -Dopengl=false -Dllvm=disabled -Dshared-llvm=disabled -Dplatforms=x11 -Dgallium-drivers= -Dxmlconfig=disabled -Dandroid-stub=true -Dvulkan-drivers=wrapper
           fi
           ninja -C "${BUILD_DIR}" src/vulkan/wrapper/libvulkan_wrapper.so
           cp "${BUILD_DIR}/src/vulkan/wrapper/libvulkan_wrapper.so" "${BUILD_DIR}/libvulkan_wrapper.so.unstripped"
-          STRIP="${NDK_DIR}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip"
+          
+          STRIP="${REAL_NDK}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip"
           "$STRIP" --strip-unneeded -o "${BUILD_DIR}/libvulkan_wrapper.so" "${BUILD_DIR}/libvulkan_wrapper.so.unstripped"
           echo "Build successful."
           EOF
           chmod +x bin_hijack/build.sh
 
-      # ¡DOCKERFILE PURGADO USANDO COPY DIRECTOS DESDE NUESTRO ENTORNO DE TRABAJO SANO!
+      # DOCKERFILE PURGADO QUE SÓLO COPIA LAS CONFIGURACIONES SANA DESDE EL ANFITRIÓN
       - name: Generate Local Dockerfile Blueprint
         run: |
           rm -f Dockerfile
@@ -101,7 +107,6 @@ jobs:
           echo "RUN apt-get update && apt-get install -y --no-install-recommends ninja-build && pip3 install --break-system-packages --ignore-installed --no-cache-dir meson ninja mako pyyaml packaging" >> Dockerfile
           echo "RUN mkdir -p /tmp/sysroot && cd /tmp/sysroot && curl -s 'https://termux.dev' > Packages && PACKAGES='libdrm libandroid-shmem libxcb libx11 libxshmfence libxext libxrandr libxrender xorgproto libxau libxdmcp' && for pkg in \$PACKAGES; do pkg_path=\$(awk -v p=\"Package: \$pkg\" '\$0==p{flag=1} flag && /^Filename:/{print \$2; exit}' Packages) && if [ -n \"\$pkg_path\" ]; then curl -L -O \"https://termux.dev\${pkg_path}\"; fi; done && mkdir -p /data/data/com.termux/files/usr && for f in *.deb; do if [ -f \"\$f\" ]; then dpkg-deb -x \"\$f\" /; fi; done && rm -rf /tmp/sysroot" >> Dockerfile
           
-          # Inyectamos de forma segura las configuraciones limpias del anfitrión mediante COPY de Docker
           echo "RUN mkdir -p /root/build-config" >> Dockerfile
           echo "COPY bin_hijack/cross_file.txt /root/build-config/cross_file.txt" >> Dockerfile
           echo "COPY bin_hijack/build.sh /root/build.sh" >> Dockerfile
