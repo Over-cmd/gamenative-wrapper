@@ -26,72 +26,92 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y zstd python3
 
-      # PARCHE MAESTRO: Forzamos el renombrado masivo mediante preprocesador e integramos el puente híbrido
-      - name: Surgical Silicon Modification (Anti-Overflow MALI Hybrid 32/64 Injection)
+      # PARCHE MAESTRO: Rompe la rigidez estructural de Over-cmd para salvar la carga en juegos de 32 bits
+      - name: Fix Over-cmd Meson Rigidity (Anti-Crash 32bit Load)
         run: |
-          echo "-> Configurando inyección a nivel de compilador en meson.build..."
+          echo "-> Analizando scripts de construcción de Mesa para inyectar compatibilidad inline..."
           python3 -c "
           import os
           target = 'src/vulkan/wrapper/meson.build'
           if os.path.exists(target):
               with open(target, 'r', encoding='utf-8', errors='ignore') as f:
                   content = f.read()
-              
-              # 1. Parche de alineación inline original para salvar la carga en juegos de 32 bits
+              # Modificamos los argumentos de C en el build para forzar la compatibilidad de alineación
               if 'c_args' in content:
-                  # Añadimos -Dvk_icdGetInstanceProcAddr=original_vk_icdGetInstanceProcAddr como flag global de C
-                  # Esto renombra la función en absolutamente TODO Mesa en tiempo de compilación sin romper archivos de texto
-                  content = content.replace(\"c_args : [\", \"c_args : ['-D__inline__=', '-Dvk_icdGetInstanceProcAddr=original_vk_icdGetInstanceProcAddr', \")
-                  
-              # 2. Forzamos a Meson a compilar nuestro nuevo archivo puente junto al resto del Wrapper
-              if 'wrapper_device.c' in content:
-                  content = content.replace(\"'wrapper_device.c',\", \"'wrapper_device.c',\n  'wrapper_bridge.c',\")
-                  
-              with open(target, 'w', encoding='utf-8') as f:
-                  f.write(content)
-              print('-> ¡Flags globales y puente enlazados con éxito en Meson!')
+                  content = content.replace(\"c_args : [\", \"c_args : ['-D__inline__=', \")
+                  with open(target, 'w', encoding='utf-8') as f:
+                      f.write(content)
+                  print('-> ¡Alineación de emulación inline inyectada en Meson correctamente!')
           "
 
-          echo "-> Creando archivo de pasarela independiente wrapper_bridge.c..."
-          cat <<-'EOF' > src/vulkan/wrapper/wrapper_bridge.c
-          #include <vulkan/vulkan.h>
-          #include <vulkan/vk_icd.h>
-          #include <string.h>
-
-          extern int mallopt(int param, int value);
-          extern int setenv(const char *name, const char *value, int overwrite);
-
-          // Declaramos el prototipo de la función que el compilador renombró internamente
-          // Usamos la firma exacta de vk_icd.h
-          VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL original_vk_icdGetInstanceProcAddr(VkInstance instance, const char* pName);
-
-          // Quitamos el renombrado global ÚNICAMENTE para esta definición.
-          #undef vk_icdGetInstanceProcAddr
-
-          // Único punto de entrada oficial expuesto al enlazador dinámico, libre de duplicados
-          VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL vk_icdGetInstanceProcAddr(VkInstance instance, const char* pName) {
-              mallopt(-1002, 0);
-              setenv("MESA_VK_WSI_PRESENT_MODE", "mailbox", 1);
-              setenv("vblank_mode", "0", 1);
-              
-              // Si estamos en ejecución de 32 bits emulada por Box86:
-              if (sizeof(void*) == 4) {
-                  setenv("MESA_VK_WSI_QUEUE_SIZE", "1", 1);
-                  setenv("BOX86_EMULATED_LIBS", "libvulkan_wrapper.so", 1);
-                  setenv("BOX86_MMAP32", "1", 1);
+      # REESCRITURA QUIRÚRGICA EN C: Interceptamos modificando el cuerpo real de vk_icdGetInstanceProcAddr
+      - name: Surgical Silicon Modification (Anti-Overflow MALI Hybrid 32/64 Injection)
+        run: |
+          echo "-> Ejecutando script de bypass quirúrgico para unificar puntos de entrada..."
+          python3 -c "
+          import os
+          
+          # 1. Buscamos y renombramos la función en wrapper_device.c si existe
+          dev_path = 'src/vulkan/wrapper/wrapper_device.c'
+          if os.path.exists(dev_path):
+              with open(dev_path, 'r', encoding='utf-8', errors='ignore') as f:
+                  lines = f.readlines()
+              new_lines = []
+              for line in lines:
+                  if 'vk_icdGetInstanceProcAddr' in line and ('void*' in line or 'PFN_vkVoidFunction' in line) and '{' in line:
+                      line = line.replace('vk_icdGetInstanceProcAddr', 'ignored_device_vk_icdGetInstanceProcAddr')
+                  new_lines.append(line)
+              with open(dev_path, 'w', encoding='utf-8') as f:
+                  f.writelines(new_lines)
                   
-                  // Capamos de forma segura las extensiones KHR estrictas de 64 bits que rompen Over-cmd
-                  if (pName && (strcmp(pName, "vkGetPhysicalDeviceProperties2KHR") == 0 || 
-                                strcmp(pName, "vkGetPhysicalDeviceFeatures2KHR") == 0 ||
-                                strcmp(pName, "vkRegisterDeviceCustomCallbacksEXT") == 0)) {
-                      return (PFN_vkVoidFunction)NULL;
-                  }
-              }
+          # 2. Buscamos wrapper_instance.c para inyectar nuestro interceptor maestro directamente en su lugar nativo
+          inst_path = 'src/vulkan/wrapper/wrapper_instance.c'
+          if os.path.exists(inst_path):
+              with open(inst_path, 'r', encoding='utf-8', errors='ignore') as f:
+                  content = f.read()
               
-              return original_vk_icdGetInstanceProcAddr(instance, pName);
+              # Renombramos la implementación nativa que está causando la colisión
+              old_func = 'VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL\nvk_icdGetInstanceProcAddr(VkInstance instance, const char *pName)'
+              fallback_func = 'VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL\nvk_icdGetInstanceProcAddr(VkInstance instance, const char* pName)'
+              
+              if old_func in content:
+                  content = content.replace(old_func, 'VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL\noriginal_vk_icdGetInstanceProcAddr(VkInstance instance, const char *pName)')
+              elif fallback_func in content:
+                  content = content.replace(fallback_func, 'VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL\noriginal_vk_icdGetInstanceProcAddr(VkInstance instance, const char* pName)')
+              else:
+                  # Fallback genérico si tiene otro formato de espacios/punteros
+                  content = content.replace('vk_icdGetInstanceProcAddr(VkInstance', 'original_vk_icdGetInstanceProcAddr(VkInstance')
+              
+              # Añadimos nuestro interceptor maestro universal al final de wrapper_instance.c
+              bridge_code = '''
+  #include <string.h>
+  extern int mallopt(int param, int value);
+  extern int setenv(const char *name, const char *value, int overwrite);
+  VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL original_vk_icdGetInstanceProcAddr(VkInstance instance, const char *pName);
+
+  VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL vk_icdGetInstanceProcAddr(VkInstance instance, const char *pName) {
+      mallopt(-1002, 0);
+      setenv("MESA_VK_WSI_PRESENT_MODE", "mailbox", 1);
+      setenv("vblank_mode", "0", 1);
+      
+      if (sizeof(void*) == 4) {
+          setenv("MESA_VK_WSI_QUEUE_SIZE", "1", 1);
+          setenv("BOX86_EMULATED_LIBS", "libvulkan_wrapper.so", 1);
+          setenv("BOX86_MMAP32", "1", 1);
+          
+          if (pName && (strcmp(pName, "vkGetPhysicalDeviceProperties2KHR") == 0 || 
+                        strcmp(pName, "vkGetPhysicalDeviceFeatures2KHR") == 0 ||
+                        strcmp(pName, "vkRegisterDeviceCustomCallbacksEXT") == 0)) {
+              return (PFN_vkVoidFunction)NULL;
           }
-          EOF
-          echo "-> ¡Archivo wrapper_bridge.c aislado generado correctamente!"
+      }
+      return original_vk_icdGetInstanceProcAddr(instance, pName);
+  }
+  '''
+              with open(inst_path, 'w', encoding='utf-8') as f:
+                  f.write(content + '\n' + bridge_code)
+              print('-> ¡Inyección modular completada con éxito en wrapper_instance.c!')
+          "
 
       # COMPILACIÓN ORIGINAL DEL DOCKER NATIVO INTACTA
       - name: Wrapper Compiler (Atomic Processing Docker MALI)
