@@ -20,70 +20,74 @@ steps:
 - name: Codigo de pago
 uses: actions/checkout@v4
 with:
-submodules: 'recursive' 
-
-* name: Configurar Docker Buildx
+submodules: 'recursive'
+- name: Configurar Docker Buildx
 uses: docker/setup-buildx-action@v3
-* name: Instalar herramientas de compresion
+- name: Instalar herramientas de compresion
 run: |
 sudo apt-get update
 sudo apt-get install -y zstd python3
 chmod +x generate_configs.sh generate_dockerfile.sh
-* name: Inyeccion Quirurgica Silicio (Modo Fluido 32/64 bits)
+- name: Inyeccion Quirurgica Silicio (Modo Fluido 32/64 bits)
 run: |
 python3 patch_mesa.py
-* name: Assemble Offline Compiler Scripts
+- name: Assemble Offline Compiler Scripts
 run: |
 ./generate_configs.sh
-* name: Generate Local Dockerfile Blueprint
+- name: Generate Local Dockerfile Blueprint
 run: |
 ./generate_dockerfile.sh
-* name: Build Custom Unisoc Wrapper Image
+- name: Build Custom Unisoc Wrapper Image
 run: |
 docker build -t "$CUSTOM_TAG" .
-* name: Execute Custom Unisoc Wrapper Compiler (64-bit)
+- name: Execute Custom Unisoc Wrapper Compiler (64-bit)
 run: |
 docker run --rm -e ARCH=aarch64 -v "$GITHUB_WORKSPACE:/workspace" "
+𝐶𝑈𝑆𝑇𝑂𝑀𝑇𝐴𝐺
 
-CUSTOMTAG""cap C cap U cap S cap T cap O cap M sub cap T cap A cap G " "
-𝐶𝑈𝑆𝑇𝑂𝑀𝑇𝐴𝐺""
+"
+
+"
 BUILD_DIR_64"
-* name: Execute Custom Unisoc Wrapper Compiler (32-bit)
+- name: Execute Custom Unisoc Wrapper Compiler (32-bit)
 run: |
 docker run --rm -e ARCH=arm -v "$GITHUB_WORKSPACE:/workspace" "
+𝐶𝑈𝑆𝑇𝑂𝑀𝑇𝐴𝐺
 
-CUSTOMTAG""cap C cap U cap S cap T cap O cap M sub cap T cap A cap G " "
-𝐶𝑈𝑆𝑇𝑂𝑀𝑇𝐴𝐺""
+"
+
+"
 BUILD_DIR_32"
-* name: Compile and Link Unified Multiarch Bridge
+- name: Compile and Link Unified Multiarch Bridge
 run: |
 mkdir -p unified_out
 NDK_PATH=(docker run --rm --entrypoint /bin/bash "CUSTOM_TAG" -c 'find /home/builder/lib -maxdepth 2 -name "android-ndk*" 2>/dev/null | head -n 1')
 docker run --rm -v "$GITHUB_WORKSPACE:/workspace" --entrypoint /bin/bash "
+𝐶𝑈𝑆𝑇𝑂𝑀𝑇𝐴𝐺
 
-CUSTOMTAG"−c"cap C cap U cap S cap T cap O cap M sub cap T cap A cap G " minus c "
-𝐶𝑈𝑆𝑇𝑂𝑀𝑇𝐴𝐺"−𝑐"
+"
+
+−𝑐
+
+"
 NDK_PATH/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android30-clang -shared -fPIC -O3 /root/bridge.c -o /workspace/unified_out/libvulkan_wrapper.so -ldl"
-* name: Structure and Pack wrapper.tzst
+- name: Structure and Pack wrapper.tzst
 run: |
 mkdir -p pkg/usr/lib pkg/usr/share/vulkan/icd.d
-
 if [ -f "$BUILD_DIR_64/libvulkan_wrapper.so" ]; then
 cp "$BUILD_DIR_64/libvulkan_wrapper.so" pkg/usr/lib/libvulkan_wrapper_64.so
 else
 cp "$BUILD_DIR_64/src/vulkan/wrapper/libvulkan_wrapper.so" pkg/usr/lib/libvulkan_wrapper_64.so
 fi
-
 if [ -f "$BUILD_DIR_32/libvulkan_wrapper.so" ]; then
 cp "$BUILD_DIR_32/libvulkan_wrapper.so" pkg/usr/lib/libvulkan_wrapper_32.so
 else
 cp "$BUILD_DIR_32/src/vulkan/wrapper/libvulkan_wrapper.so" pkg/usr/lib/libvulkan_wrapper_32.so
 fi
-
 cp unified_out/libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
 echo '{"ICD":{"api_version":"1.3.289","library_path":"libvulkan_wrapper.so"},"file_format_version":"1.0.0"}' > pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
 cd pkg && tar -I 'zstd -19 -T0' -cf ../wrapper.tzst usr/
-* name: Upload Final wrapper.tzst for Bannerlator
+- name: Upload Final wrapper.tzst for Bannerlator
 uses: actions/upload-artifact@v4
 with:
 name: Bannerlator-Termux-Unisoc-Wrapper
