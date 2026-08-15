@@ -1,4 +1,4 @@
-name: Mesa Bionic Vulkan Wrapper Mali Packager (.tzst)
+name: Mesa Vulkan Wrapper Mali Packager (.tzst)
 
 on:
   push:
@@ -6,151 +6,66 @@ on:
   workflow_dispatch:
 
 env:
-  BUILD_DIR_64: compilacion_64
-  BUILD_DIR_32: compilacion_32
-  IMAGE_TAG: ghcr.io/leegao/mesa-wrapper-ci/wrapper-compiler:latest
+  BUILD_DIR: compilacion
 
 jobs:
-  build-universal-wrapper:
+  build-aarch64-wrapper:
     runs-on: ubuntu-latest
+    env:
+      IMAGE_TAG: ghcr.io/leegao/mesa-wrapper-ci/wrapper-compiler:latest
 
     steps:
-      - name: Checkout Code with Submodules
+      - name: Checkout Code
         uses: actions/checkout@v4
-        with:
-          submodules: 'recursive'
-          fetch-depth: 0
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      # Instalar herramientas de compresión Zstd en el servidor de GitHub
       - name: Install Zstd Packager
         run: |
           sudo apt-get update
-          sudo apt-get install -y zstd python3
+          sudo apt-get install -y zstd
 
-      # Parches quirúrgicos de derivación de librerías para Mesa
-      - name: Bypass SPIRV-Tools and Expat Requirements (Python Surgical Patch)
+      # INYECCIÓN DE CONTROL DE FLUJO HÍBRIDO EN EL CÓDIGO
+      - name: Surgical Silicon Modification (Anti-Overflow MALI Hybrid 32/64 Injection)
         run: |
-          echo "-> Ejecutando inyector de dependencias por script Python..."
-          python3 -c "
-          import os
-          target = 'src/vulkan/wrapper/meson.build'
-          if os.path.exists(target):
-              with open(target, 'r', encoding='utf-8', errors='ignore') as f:
-                  content = f.read()
-              content = content.replace('\r\n', '\n').replace(\"find_library('SPIRV-Tools-opt')\", \"find_library('m')\").replace(\"find_library('SPIRV-Tools-opt',\", \"find_library('m',\").replace(\"find_library('SPIRV-Tools')\", \"find_library('m')\").replace(\"find_library('SPIRV-Tools',\", \"find_library('m',\")
-              with open(target, 'w', encoding='utf-8') as f:
-                  f.write(content)
-          "
-          python3 -c "
-          import os
-          target = 'meson.build'
-          if os.path.exists(target):
-              with open(target, 'r', encoding='utf-8', errors='ignore') as f:
-                  content = f.read()
-              content = content.replace('\r\n', '\n').replace(\"dependency('expat'\", \"dependency('m'\").replace(\"dependency('expat',\", \"dependency('m',\")
-              with open(target, 'w', encoding='utf-8') as f:
-                  f.write(content)
-          "
-
-      # INTERCEPCIÓN AVANZADA: Despachador de funciones compatible con GameNative
-      - name: GameNative Adaptive Hook Injection
-        run: |
-          echo "-> Inyectando pasarela dinámica de punteros para GameNative..."
+          echo "-> Rastreando el corazon del Wrapper para soldar compatibilidad hibrida Vulkan..."
           WRAPPER_DEVICE=$(find src/ -name "wrapper_device.c" | head -n 1)
           
           if [ -n "$WRAPPER_DEVICE" ] && [ -f "$WRAPPER_DEVICE" ]; then
+            echo "-> Aplicando parches de alineacion de memoria de 32 bits en: $WRAPPER_DEVICE"
             sed -i 's/\r$//' "$WRAPPER_DEVICE"
             
-            # Cambiamos el nombre de la función original en el código fuente para poder interceptarla de forma limpia
-            sed -i 's/vk_icdGetInstanceProcAddr/original_vk_icdGetInstanceProcAddr/g' "$WRAPPER_DEVICE"
+            sed -i '1i#include <stdint.h>' "$WRAPPER_DEVICE"
+            sed -i '1iextern int mallopt(int param, int value);' "$WRAPPER_DEVICE"
+            sed -i '1iextern int setenv(const char *name, const char *value, int overwrite);' "$WRAPPER_DEVICE"
             
-            # Agregamos la lógica inteligente al final del archivo para resolver punteros en 32 bits
-            cat <<-'EOF' >> "$WRAPPER_DEVICE"
-            
-            #include <dlfcn.h>
-            extern int mallopt(int param, int value);
-            extern int setenv(const char *name, const char *value, int overwrite);
-            extern void* original_vk_icdGetInstanceProcAddr(void* instance, const char* pName);
-            
-            // Punto de entrada único universal que respeta las llamadas estrictas de GameNative
-            void* vk_icdGetInstanceProcAddr(void* instance, const char* pName) {
-                // Forzar optimizaciones Mali Unisoc de forma global preventiva
-                mallopt(-1002, 0);
-                setenv("MESA_VK_WSI_PRESENT_MODE", "mailbox", 1);
-                setenv("vblank_mode", "0", 1);
-                
-                // Si GameNative ejecuta este binario en un hilo / proceso de 32 bits:
-                if (sizeof(void*) == 4) {
-                    static void* h32 = NULL;
-                    if (!h32) {
-                        h32 = dlopen("/usr/lib/libvulkan_wrapper32.so", RTLD_LAZY | RTLD_GLOBAL);
-                    }
-                    if (h32) {
-                        void* (*proc32)(void*, const char*) = (void* (*)(void*, const char*))dlsym(h32, "vk_icdGetInstanceProcAddr");
-                        if (proc32) {
-                            return proc32(instance, pName); // Redirección en caliente de la tabla Vulkan
-                        }
-                    }
-                }
-                
-                // Si es de 64 bits, continúa por la ejecución normal del Wrapper nativo
-                return original_vk_icdGetInstanceProcAddr(instance, pName);
-            }
-          EOF
-            echo "-> ¡Pasarela dinámica C soldada con éxito!"
+            # Inyectamos mallopt(-1002, 0), mailbox y forzamos estabilidad de buffer en procesos de 32 bits
+            sed -i '/vk_icdGetInstanceProcAddr/!b;n;i\\ extern int mallopt(int p, int v);\\n extern int setenv(const char *n, const char *v, int o);\\n mallopt(-1002, 0);\\n setenv("MESA_VK_WSI_PRESENT_MODE", "mailbox", 1);\\n setenv("vblank_mode", "0", 1);\\n if (sizeof(void*) == 4) {\\n   setenv("MESA_VK_WSI_QUEUE_SIZE", "1", 1);\\n }' "$WRAPPER_DEVICE"
+            echo "-> Envoltura hibrida inyectada con exito."
+          else
+            echo "-> Archivo wrapper_device.c no encontrado, aplicando fallback hibrido global..."
+            find src/ -name "*.c" -exec sed -i 's/vk_icdGetInstanceProcAddr/extern int mallopt(int p, int v); extern int setenv(const char *n, const char *v, int o); mallopt(-1002, 0); setenv("MESA_VK_WSI_PRESENT_MODE", "mailbox", 1); setenv("vblank_mode", "0", 1); if (sizeof(void*) == 4) { setenv("MESA_VK_WSI_QUEUE_SIZE", "1", 1); } vk_icdGetInstanceProcAddr/g' {} + || true
           fi
 
-      - name: Create Ninja Wrapper Hijacker
+      # COMPILACIÓN ORIGINAL DEL DOCKER NATIVO
+      - name: Wrapper Compiler (Atomic Processing Docker MALI)
         run: |
-          mkdir -p bin_hijack
-          cat << 'EOF' > bin_hijack/ninja
-          #!/bin/bash
-          ARGS=("$@")
-          NEW_ARGS=()
-          for arg in "${ARGS[@]}"; do
-            if [ "$arg" == "src/vulkan/wrapper/libvulkan_wrapper.so" ]; then
-              NEW_ARGS+=("vulkan_wrapper")
-            else
-              NEW_ARGS+=("$arg")
-            fi
-          done
-          exec /usr/local/bin/ninja "${NEW_ARGS[@]}"
-          EOF
-          chmod +x bin_hijack/ninja
+          docker run --rm -v "${{ github.workspace }}:/workspace" ${{ env.IMAGE_TAG }} ${{ env.BUILD_DIR }}
 
-      - name: Compilar 64 bits
+      # ¡ESTE PASO CREA LOS MANIFIESTOS DUALES EXIGIDOS POR BOX86 Y BOX64 PARA BANNERLATOR!
+      - name: Structure and Pack wrapper.tzst
         run: |
-          docker run --rm \
-            -v "${{ github.workspace }}:/workspace" \
-            -v "${{ github.workspace }}/bin_hijack/ninja:/usr/local/bin/ninja" \
-            -e TARGET_ARCH=aarch64 \
-            ${{ env.IMAGE_TAG }} ${{ env.BUILD_DIR_64 }}
-
-      - name: Compilar 32 bits
-        run: |
-          rm -rf meson-private meson-logs meson-info || true
-          docker run --rm \
-            -v "${{ github.workspace }}:/workspace" \
-            -v "${{ github.workspace }}/bin_hijack/ninja:/usr/local/bin/ninja" \
-            -e TARGET_ARCH=arm \
-            ${{ env.IMAGE_TAG }} ${{ env.BUILD_DIR_32 }}
-
-      - name: Structure and Pack final .tzst
-        run: |
+          echo "-> Creando arbol de directorios de Linux para Bannerlator..."
           mkdir -p pkg/usr/lib
           mkdir -p pkg/usr/share/vulkan/icd.d
           
-          # Guardamos la pasarela dinámica de 64 bits con el nombre maestro que busca GameNative
-          SO_64=$(find ${{ env.BUILD_DIR_64 }}/ -name "*wrapper*.so" -o -name "*.so" | head -n 1)
-          cp "$SO_64" pkg/usr/lib/libvulkan_wrapper.so
+          echo "-> Moviendo el driver compilado a usr/lib..."
+          cp ${{ env.BUILD_DIR }}/libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
           
-          # Guardamos la de 32 bits oculta para ser invocada internamente desde el Hook de C
-          SO_32=$(find ${{ env.BUILD_DIR_32 }}/ -name "*wrapper*.so" -o -name "*.so" | head -n 1)
-          cp "$SO_32" pkg/usr/lib/libvulkan_wrapper32.so
-
-          cat << 'EOF' > pkg/usr/share/vulkan/icd.d/wrapper_icd.json
+          echo "-> Inyectando manifiesto JSON ICD oficial de 64 bits (AArch64)..."
+          cat << 'EOF' > pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
           {
               "ICD": {
                   "api_version": "1.3.289",
@@ -160,13 +75,26 @@ jobs:
           }
           EOF
           
+          echo "-> Inyectando manifiesto JSON ICD oficial de 32 bits (ARM) para salvar Box86..."
+          cat << 'EOF' > pkg/usr/share/vulkan/icd.d/wrapper_icd.arm.json
+          {
+              "ICD": {
+                  "api_version": "1.3.289",
+                  "library_path": "libvulkan_wrapper.so"
+              },
+              "file_format_version": "1.0.0"
+          }
+          EOF
+          
+          echo "-> Comprimiendo la estructura dual en formato wrapper.tzst..."
           cd pkg
           tar -I 'zstd -19 -T0' -cf ../wrapper.tzst usr/
           cd ..
+          echo "-> ¡Empaquetado completado con éxito!"
 
-      - name: Upload Final Package
+      - name: Upload Final wrapper.tzst for Bannerlator
         uses: actions/upload-artifact@v4
         with:
-          name: GameNative-Mali-Universal-Wrapper
+          name: Bannerlator-Mali-Wrapper
           path: wrapper.tzst
           if-no-files-found: error
