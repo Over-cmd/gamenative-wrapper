@@ -7,7 +7,7 @@ RUN apt-get update && \
     pip3 install --break-system-packages --ignore-installed --no-cache-dir meson ninja mako pyyaml packaging
 
 # Descarga y aislamiento de Sysroot para 64 bits (aarch64) y 32 bits (arm)
-RUN TERMUX_REPO="https://packages-cf.termux.dev/apt/termux-main" && \
+RUN TERMUX_REPO="https://termux.dev" && \
     PACKAGES="libdrm libandroid-shmem libxcb libx11 libxshmfence libxext libxrandr libxrender xorgproto libxau libxdmcp" && \
     \
     # --- SYSROOT 64 BITS ---
@@ -18,7 +18,6 @@ RUN TERMUX_REPO="https://packages-cf.termux.dev/apt/termux-main" && \
         curl -L -O "${TERMUX_REPO}/${pkg_path}"; \
     done && \
     mkdir -p /termux_64 && dpkg-deb -x *.deb /termux_64 && \
-    # Enlazar ruta estructural de termux para compatibilidad interna de librerías de 64 bits
     mkdir -p /data/data/com.termux/files && \
     ln -s /termux_64/data/data/com.termux/files/usr /data/data/com.termux/files/usr64 && \
     \
@@ -30,10 +29,8 @@ RUN TERMUX_REPO="https://packages-cf.termux.dev/apt/termux-main" && \
         curl -L -O "${TERMUX_REPO}/${pkg_path}"; \
     done && \
     mkdir -p /termux_32 && dpkg-deb -x *.deb /termux_32 && \
-    # Enlazar ruta estructural de termux para compatibilidad interna de librerías de 32 bits
     ln -s /termux_32/data/data/com.termux/files/usr /data/data/com.termux/files/usr32 && \
     \
-    # Limpieza total de temporales de empaquetado
     rm -rf /tmp/sysroot_64 /tmp/sysroot_32
 
 # Generación de perfiles de compilación cruzada independientes (Meson Cross Files)
@@ -89,7 +86,7 @@ cpu = 'armv7-a'
 endian = 'little'
 EOF
 
-# Script Inteligente de Entrada Dinámica
+# Script de compilación inteligente
 RUN cat << 'EOF' > /root/build.sh
 #!/bin/bash
 set -e
@@ -104,14 +101,11 @@ if [ ! -f "$CROSS_FILE" ]; then
   exit 1
 fi
 
-# Creamos dinámicamente el enlace simbólico que esperan las dependencias internas compiladas en Termux
 rm -f /data/data/com.termux/files/usr || true
 if [ "$ARCH_ENV" = "arm" ]; then
   ln -s /data/data/com.termux/files/usr32 /data/data/com.termux/files/usr
-  echo "-> Preparado entorno de enlaces simbólicos para 32 BITS (ARM)"
 else
   ln -s /data/data/com.termux/files/usr64 /data/data/com.termux/files/usr
-  echo "-> Preparado entorno de enlaces simbólicos para 64 BITS (AARCH64)"
 fi
 
 if [ ! -d "${BUILD_DIR}" ]; then
@@ -128,16 +122,11 @@ if [ ! -d "${BUILD_DIR}" ]; then
 fi
 
 ninja -C "${BUILD_DIR}" src/vulkan/wrapper/libvulkan_wrapper.so
-
 cp "${BUILD_DIR}/src/vulkan/wrapper/libvulkan_wrapper.so" "${BUILD_DIR}/libvulkan_wrapper.so.unstripped"
 
 NDK_DIR=$(find /home/builder/lib -maxdepth 2 -name "android-ndk*" 2>/dev/null | head -n 1)
 STRIP="${NDK_DIR}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip"
 $STRIP --strip-unneeded -o "${BUILD_DIR}/libvulkan_wrapper.so" "${BUILD_DIR}/libvulkan_wrapper.so.unstripped"
-
-echo "Build successful para arquitectura: $ARCH_ENV"
-echo " - ${BUILD_DIR}/libvulkan_wrapper.so"
-echo " - ${BUILD_DIR}/libvulkan_wrapper.so.unstripped"
 EOF
 RUN chmod +x /root/build.sh
 
