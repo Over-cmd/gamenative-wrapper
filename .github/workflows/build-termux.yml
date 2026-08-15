@@ -1,37 +1,124 @@
-name: Compilacion Termux Oficial 
-
+name: Compilacion Termux Oficial
 on:
 workflow_dispatch:
 push:
 branches:
 - main
 - master
-- wrapper-25 
-
+- wrapper-25
 jobs:
-build-driver:
+build:
 runs-on: ubuntu-latest
 steps:
-- name: Checkout codigo
-uses: actions/checkout@v4
-with:
-submodules: recursive
-- name: Configurar Docker Buildx
-uses: docker/setup-buildx-action@v3
-- name: Instalar herramientas y preparar permisos
+- name: Pipeline Unificado de Compilacion Multiarch Bannerlator
 run: |
-sudo apt-get update
-sudo apt-get install -y zstd python3
-chmod +x generate_configs.sh generate_dockerfile.sh run_pipeline.sh
-- name: Inyeccion Quirurgica Silicio (Modo Fluido 32/64 bits)
-run: python3 patch_mesa.py
-- name: Assemble Offline Compiler Scripts
-run: ./generate_configs.sh
-- name: Generate Local Dockerfile Blueprint
-run: ./generate_dockerfile.sh
-- name: Ejecutar Pipeline de Compilacion Multiarch Unificado
-run: ./run_pipeline.sh
-- name: Upload Final wrapper.tzst for Bannerlator
+uses_checkout() {
+git clone --depth=1 --recursive https://github.com/${{ github.repository }}.git .
+git checkout ${{ github.sha }}
+}
+uses_checkout
+sudo apt-get update && sudo apt-get install -y zstd python3
+chmod +x *.sh 2>/dev/null || true
+python3 patch_mesa.py
+./generate_configs.sh
+./generate_dockerfile.sh
+CUSTOM_TAG="gamenative-unisoc-builder:latest"
+BUILD_DIR_64="b_64"
+BUILD_DIR_32="b_32"
+export GITHUB_WORKSPACE=$(pwd)
+docker build -t "$CUSTOM_TAG" .
+docker run --rm -e ARCH=aarch64 -v "$GITHUB_WORKSPACE:/workspace" "
+𝐶𝑈𝑆𝑇𝑂𝑀𝑇𝐴𝐺
+
+"
+
+"
+BUILD_DIR_64"
+docker run --rm -e ARCH=arm -v "$GITHUB_WORKSPACE:/workspace" "
+𝐶𝑈𝑆𝑇𝑂𝑀𝑇𝐴𝐺
+
+"
+
+"
+BUILD_DIR_32"
+mkdir -p unified_out
+NDK_PATH=(docker run --rm --entrypoint /bin/bash "CUSTOM_TAG" -c 'find /home/builder/lib -maxdepth 2 -name "android-ndk*" 2>/dev/null | head -n 1')
+docker run --rm -v "$GITHUB_WORKSPACE:/workspace" --entrypoint /bin/bash "
+𝐶𝑈𝑆𝑇𝑂𝑀𝑇𝐴𝐺
+
+"
+
+−𝑐
+
+"
+{NDK_PATH}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android30-clang -shared -fPIC -O3 /root/bridge.c -o /workspace/unified_out/libvulkan_wrapper.so -ldl"
+mkdir -p pkg/usr/lib pkg/usr/share/vulkan/icd.d
+[ -f "$BUILD_DIR_64/libvulkan_wrapper.so" ] && cp "
+𝐵𝑈𝐼𝐿𝐷𝐷𝐼𝑅64
+
+/𝑙𝑖𝑏𝑣𝑢𝑙𝑘𝑎𝑛𝑤𝑟𝑎𝑝𝑝𝑒𝑟
+
+.
+
+𝑠𝑜
+
+"
+
+𝑝𝑘𝑔
+
+/𝑢𝑠𝑟
+
+/𝑙𝑖𝑏
+
+/𝑙𝑖𝑏𝑣𝑢𝑙𝑘𝑎𝑛𝑤𝑟𝑎𝑝𝑝𝑒𝑟64
+
+.
+
+𝑠𝑜
+
+|
+
+|
+
+𝑐𝑝
+
+"
+BUILD_DIR_64/src/vulkan/wrapper/libvulkan_wrapper.so" pkg/usr/lib/libvulkan_wrapper_64.so
+[ -f "$BUILD_DIR_32/libvulkan_wrapper.so" ] && cp "
+𝐵𝑈𝐼𝐿𝐷𝐷𝐼𝑅32
+
+/𝑙𝑖𝑏𝑣𝑢𝑙𝑘𝑎𝑛𝑤𝑟𝑎𝑝𝑝𝑒𝑟
+
+.
+
+𝑠𝑜
+
+"
+
+𝑝𝑘𝑔
+
+/𝑢𝑠𝑟
+
+/𝑙𝑖𝑏
+
+/𝑙𝑖𝑏𝑣𝑢𝑙𝑘𝑎𝑛𝑤𝑟𝑎𝑝𝑝𝑒𝑟32
+
+.
+
+𝑠𝑜
+
+|
+
+|
+
+𝑐𝑝
+
+"
+BUILD_DIR_32/src/vulkan/wrapper/libvulkan_wrapper.so" pkg/usr/lib/libvulkan_wrapper_32.so
+cp unified_out/libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
+echo '{"ICD":{"api_version":"1.3.289","library_path":"libvulkan_wrapper.so"},"file_format_version":"1.0.0"}' > pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
+cd pkg && tar -I 'zstd -19 -T0' -cf ../wrapper.tzst usr/ && cd ..
+- name: Publicar Artefacto Multiarch
 uses: actions/upload-artifact@v4
 with:
 name: Bannerlator-Termux-Unisoc-Wrapper
