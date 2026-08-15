@@ -17,7 +17,7 @@ jobs:
       - name: Código de pago
         uses: actions/checkout@v4
         with:
-          submodules: 'recursive' # Trae libadrenotools desde fuera de forma limpia nativa de Git
+          submodules: 'recursive'
 
       - name: Configurar Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -27,131 +27,45 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y zstd python3
 
-      # ¡ESTE PASO APLICA LA INYECCIÓN BIÓNICA DOBLE EN UNA LÍNEA PARA SALVAR LOS 32 BITS DE LOS CIERRES!
-      - name: Inyección Quirúrgica Silicio (Modo Fluido y Anti-Cierres 32/64 bits)
+      # ¡COMPRIMIDO DE UNA SOLA LÍNEA SIN CONFUSIONES DE PARENTESIS NI SANGRÍAS!
+      - name: Inyección Quirúrgica Silicio (Modo Fluido y Anti-Cierres)
         run: |
-          echo "-> Parchando el cargador de instancias de Vulkan..."
           python3 -c "import os; t='src/vulkan/runtime/vk_instance.c'; f=open(t,'r') if os.path.exists(t) else None; c='\n#include <stdint.h>\nextern int mallopt(int p, int v);\nextern int setenv(const char* n, const char* v, int o);\n'+f.read().replace('vk_icdGetInstanceProcAddr','mallopt(-1002,0);setenv(\"MESA_VK_WSI_PRESENT_MODE\",\"mailbox\",1);setenv(\"vblank_mode\",\"0\",1);if(sizeof(void*)==4){setenv(\"MESA_VK_WSI_QUEUE_SIZE\",\"1\",\"1\");}vk_icdGetInstanceProcAddr',1) if f else ''; f.close() if f else None; f=open(t,'w') if f else None; f.write(c) if f else None; f.close() if f else None"
-          
-          echo "-> Parchando el despachador de ventanas WSI para evitar desalineamiento de memoria en Box86..."
           python3 -c "import os; t='src/vulkan/wsi/wsi_common.c'; f=open(t,'r') if os.path.exists(t) else None; c=f.read().replace('wsi_device_init(','if(sizeof(void*)==4){setenv(\"MESA_VK_WSI_QUEUE_SIZE\",\"1\",1);setenv(\"vblank_mode\",\"0\",1);} wsi_device_init(',1) if f else ''; f.close() if f else None; f=open(t,'w') if f else None; f.write(c) if f else None; f.close() if f else None"
+          python3 -c "import os; t='meson.build'; f=open(t,'r') if os.path.exists(t) else None; c=f.read().replace(\"cc.find_library('atomic')\",\"dependency('',required:false)\").replace(\"cpp.find_library('atomic')\",\"dependency('',required:false)\") if f else ''; f.close() if f else None; f=open(t,'w') if f else None; f.write(c) if f else None; f.close() if f else None"
 
-      # ¡PASO CORREGIDO: Ruta del repositorio APT de Termux fijada en la URL oficial de paquetes binary-aarch64!
+      # ¡DOCKERFILE COMPACTADO EN LÍNEAS PLANAS CON REDIRECCIÓN DE ESPEJO CF REPARADA!
       - name: Generate Local Dockerfile Blueprint
         run: |
-          echo "-> Fabricando Dockerfile autonomo limpio..."
           rm -f Dockerfile
-          
-          cat << 'EOF' > Dockerfile
-          FROM ghcr.io/termux/package-builder:latest
+          echo "FROM ghcr.io/termux/package-builder:latest" > Dockerfile
+          echo "USER root" >> Dockerfile
+          echo "RUN apt-get update && apt-get install -y --no-install-recommends ninja-build && pip3 install --break-system-packages --ignore-installed --no-cache-dir meson ninja mako pyyaml packaging" >> Dockerfile
+          echo "RUN mkdir -p /tmp/sysroot && cd /tmp/sysroot && curl -s 'https://termux.dev' > Packages && PACKAGES='libdrm libandroid-shmem libxcb libx11 libxshmfence libxext libxrandr libxrender xorgproto libxau libxdmcp' && for pkg in \$PACKAGES; do pkg_path=\$(awk -v p=\"Package: \$pkg\" '\$0==p{flag=1} flag && /^Filename:/{print \$2; exit}' Packages) && if [ -n \"\$pkg_path\" ]; then curl -L -O \"https://termux.dev\${pkg_path}\"; fi; done && mkdir -p /data/data/com.termux/files/usr && for f in *.deb; do if [ -f \"\$f\" ]; then dpkg-deb -x \"\$f\" /; fi; done && rm -rf /tmp/sysroot" >> Dockerfile
+          echo "RUN NDK_DIR=\$(find /home/builder/lib -maxdepth 2 -name 'android-ndk*' 2>/dev/null | head -n 1) && NDK_BIN=\"\${NDK_DIR}/toolchains/llvm/prebuilt/linux-x86_64/bin\" && mkdir -p /root/build-config && echo -e \"[binaries]\nc = '\${NDK_BIN}/aarch64-linux-android30-clang'\ncpp = '\${NDK_BIN}/aarch64-linux-android30-clang++'\nar = '\${NDK_BIN}/llvm-ar'\nstrip = '\${NDK_BIN}/llvm-strip'\npkg-config = 'pkg-config'\n\n[constants]\ntermux_dir = '/data/data/com.termux/files/usr'\n\n[properties]\npkg_config_libdir = termux_dir + '/lib/pkgconfig:' + termux_dir + '/share/pkgconfig'\n\n[built-in options]\nc_args = ['-D__TERMUX__', '-D__USE_GNU', '-U__ANDROID__', '-I' + termux_dir + '/include', '-include', 'fcntl.h', '-include', 'unistd.h']\ncpp_args = ['-D__TERMUX__', '-D__USE_GNU', '-U__ANDROID__', '-I' + termux_dir + '/include', '-include', 'fcntl.h', '-include', 'unistd.h']\nc_link_args = ['-L' + termux_dir + '/lib', '-landroid-shmem', '-latomic']\ncpp_link_args = ['-L' + termux_dir + '/lib', '-landroid-shmem', '-latomic']\n\n[host_machine]\nsystem = 'android'\ncpu_family = 'aarch64'\ncpu = 'armv8-a'\nendian = 'little'\" > /root/build-config/cross_file.txt" >> Dockerfile
+          echo "RUN echo -e '#!/bin/bash\nset -e\nBUILD_DIR=\"\${1:-\${BUILD_DIR:-build}}\"\nif [ ! -d \"\${BUILD_DIR}\" ]; then\n  meson setup \"\${BUILD_DIR}\" --cross-file /root/build-config/cross_file.txt -Dcpp_rtti=false -Dgbm=disabled -Dopengl=false -Dllvm=disabled -Dshared-llvm=disabled -Dplatforms=x11 -Dgallium-drivers= -Dxmlconfig=disabled -Dandroid-stub=true -Dvulkan-drivers=wrapper\nfi\nninja -C \"\${BUILD_DIR}\" src/vulkan/wrapper/libvulkan_wrapper.so\ncp \"\${BUILD_DIR}/src/vulkan/wrapper/libvulkan_wrapper.so\" \"\${BUILD_DIR}/libvulkan_wrapper.so.unstripped\"\nNDK_DIR=\$(find /home/builder/lib -maxdepth 2 -name \"android-ndk*\" 2>/dev/null | head -n 1)\nSTRIP=\"\${NDK_DIR}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip\"\n\"\$STRIP\" --strip-unneeded -o \"\${BUILD_DIR}/libvulkan_wrapper.so\" \"\${BUILD_DIR}/libvulkan_wrapper.so.unstripped\"\necho \"Build successful\"' > /root/build.sh && chmod +x /root/build.sh" >> Dockerfile
+          echo "WORKDIR /workspace" >> Dockerfile
+          echo "ENTRYPOINT [\"/root/build.sh\"]" >> Dockerfile
 
-          USER root
-
-          RUN apt-get update && \
-              apt-get install -y --no-install-recommends ninja-build && \
-              pip3 install --break-system-packages --ignore-installed --no-cache-dir meson ninja mako pyyaml packaging
-
-          RUN mkdir -p /tmp/sysroot && \
-              cd /tmp/sysroot && \
-              TERMUX_REPO="https://termux.dev" && \
-              curl -s "${TERMUX_REPO}/dists/stable/main/binary-aarch64/Packages" > Packages && \
-              PACKAGES="libdrm libandroid-shmem libxcb libx11 libxshmfence libxext libxrandr libxrender xorgproto libxau libxdmcp" && \
-              for pkg in $PACKAGES; do \
-                  pkg_path=$(awk -v p="Package: $pkg" '$0==p{flag=1} flag && /^Filename:/{print $2; exit}' Packages) && \
-                  if [ -n "$pkg_path" ]; then curl -L -O "${TERMUX_REPO}/${pkg_path}"; fi; \
-              done && \
-              mkdir -p /data/data/com.termux/files/usr && \
-              for f in *.deb; do if [ -f "$f" ]; then dpkg-deb -x "$f" /; fi; done && \
-              rm -rf /tmp/sysroot
-
-          RUN NDK_DIR=$(find /home/builder/lib -maxdepth 2 -name "android-ndk*" 2>/dev/null | head -n 1) && \
-              NDK_BIN="${NDK_DIR}/toolchains/llvm/prebuilt/linux-x86_64/bin" && \
-              mkdir -p /root/build-config && \
-              echo "[binaries]" > /root/build-config/cross_file.txt && \
-              echo "c = '${NDK_BIN}/aarch64-linux-android30-clang'" >> /root/build-config/cross_file.txt && \
-              echo "cpp = '${NDK_BIN}/aarch64-linux-android30-clang++'" >> /root/build-config/cross_file.txt && \
-              echo "ar = '${NDK_BIN}/llvm-ar'" >> /root/build-config/cross_file.txt && \
-              echo "strip = '${NDK_BIN}/llvm-strip'" >> /root/build-config/cross_file.txt && \
-              echo "pkg-config = 'pkg-config'" >> /root/build-config/cross_file.txt && \
-              echo "" >> /root/build-config/cross_file.txt && \
-              echo "[constants]" >> /root/build-config/cross_file.txt && \
-              echo "termux_dir = '/data/data/com.termux/files/usr'" >> /root/build-config/cross_file.txt && \
-              echo "" >> /root/build-config/cross_file.txt && \
-              echo "[properties]" >> /root/build-config/cross_file.txt && \
-              echo "pkg_config_libdir = termux_dir + '/lib/pkgconfig:' + termux_dir + '/share/pkgconfig'" >> /root/build-config/cross_file.txt && \
-              echo "" >> /root/build-config/cross_file.txt && \
-              echo "[built-in options]" >> /root/build-config/cross_file.txt && \
-              echo "c_args = ['-D__TERMUX__', '-D__USE_GNU', '-U__ANDROID__', '-I' + termux_dir + '/include', '-include', 'fcntl.h', '-include', 'unistd.h']" >> /root/build-config/cross_file.txt && \
-              echo "cpp_args = ['-D__TERMUX__', '-D__USE_GNU', '-U__ANDROID__', '-I' + termux_dir + '/include', '-include', 'fcntl.h', '-include', 'unistd.h']" >> /root/build-config/cross_file.txt && \
-              echo "c_link_args = ['-L' + termux_dir + '/lib', '-landroid-shmem']" >> /root/build-config/cross_file.txt && \
-              echo "cpp_link_args = ['-L' + termux_dir + '/lib', '-landroid-shmem']" >> /root/build-config/cross_file.txt && \
-              echo "" >> /root/build-config/cross_file.txt && \
-              echo "[host_machine]" >> /root/build-config/cross_file.txt && \
-              echo "system = 'android'" >> /root/build-config/cross_file.txt && \
-              echo "cpu_family = 'aarch64'" >> /root/build-config/cross_file.txt && \
-              echo "cpu = 'armv8-a'" >> /root/build-config/cross_file.txt && \
-              echo "endian = 'little'" >> /root/build-config/cross_file.txt
-
-          RUN echo '#!/bin/bash' > /root/build.sh && \
-              echo 'set -e' >> /root/build.sh && \
-              echo 'BUILD_DIR="${1:-${BUILD_DIR:-build}}"' >> /root/build.sh && \
-              echo 'if [ ! -d "${BUILD_DIR}" ]; then' >> /root/build.sh && \
-              echo '  meson setup "${BUILD_DIR}" --cross-file /root/build-config/cross_file.txt -Dcpp_rtti=false -Dgbm=disabled -Dopengl=false -Dllvm=disabled -Dshared-llvm=disabled -Dplatforms=x11 -Dgallium-drivers= -Dxmlconfig=disabled -Dvulkan-drivers=wrapper' >> /root/build.sh && \
-              echo 'fi' >> /root/build.sh && \
-              echo 'ninja -C "${BUILD_DIR}" src/vulkan/wrapper/libvulkan_wrapper.so' >> /root/build.sh && \
-              echo 'cp "${BUILD_DIR}/src/vulkan/wrapper/libvulkan_wrapper.so" "${BUILD_DIR}/libvulkan_wrapper.so.unstripped"' >> /root/build.sh && \
-              echo 'NDK_DIR=$(find /home/builder/lib -maxdepth 2 -name "android-ndk*" 2>/dev/null | head -n 1)' >> /root/build.sh && \
-              echo 'STRIP="${NDK_DIR}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip"' >> /root/build.sh && \
-              echo '"$STRIP" --strip-unneeded -o "${BUILD_DIR}/libvulkan_wrapper.so" "${BUILD_DIR}/libvulkan_wrapper.so.unstripped"' >> /root/build.sh && \
-              echo 'echo "Build successful:"' >> /root/build.sh && \
-              echo 'echo " - libvulkan_wrapper.so"' >> /root/build.sh && \
-              echo 'echo " - libvulkan_wrapper.so.unstripped"' >> /root/build.sh
-          
-          RUN chmod +x /root/build.sh
-
-          WORKDIR /workspace
-          ENTRYPOINT ["/root/build.sh"]
-          EOF
-          
-          echo "-> Dockerfile Termux verificado con exito:"
-          cat Dockerfile
-
-      # CONSTRUIMOS EL CONTENEDOR CON LA PASARELA DE REPOSITORIO REAL REPARADA
       - name: Build Custom Unisoc Wrapper Image
         run: |
-          echo "-> Construyendo imagen local con el nuevo nombre: ${{ env.CUSTOM_TAG }}"
           docker build -t ${{ env.CUSTOM_TAG }} .
 
-      # CORREMOS EL CONTENEDOR DE FORMA TOTALMENTE INDEPENDIENTE EN LOCAL
       - name: Execute Custom Unisoc Wrapper Compiler
         run: |
-          echo "-> Arrancando compilacion cruzada en contenedor de Termux..."
-          docker run --rm \
-            -v "${{ github.workspace }}:/workspace" \
-            ${{ env.CUSTOM_TAG }} ${{ env.BUILD_DIR }}
+          docker run --rm -v "${{ github.workspace }}:/workspace" ${{ env.CUSTOM_TAG }} ${{ env.BUILD_DIR }}
 
-      # RECOLECTAMOS EL ARCHIVO COMPILADO Y GENERAMOS LA ESTRUCTURA EXACTA PARA BANNERLATOR
       - name: Structure and Pack wrapper.tzst
         run: |
-          echo "-> Creando arbol de directorios de Linux para Bannerlator..."
-          mkdir -p pkg/usr/lib
-          mkdir -p pkg/usr/share/vulkan/icd.d
-          
-          echo "-> Localizando el driver Termux bionic compilado..."
+          mkdir -p pkg/usr/lib pkg/usr/share/vulkan/icd.d
           cp ${{ env.BUILD_DIR }}/libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so || cp ${{ env.BUILD_DIR }}/src/vulkan/wrapper/libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
-          
-          echo "-> Inyectando manifiesto JSON ICD oficial original de 64 bits para Bannerlator..."
           cat << 'EOF' > pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
           {
               "ICD": { "api_version": "1.3.289", "library_path": "libvulkan_wrapper.so" },
               "file_format_version": "1.0.0"
           }
           EOF
-          
-          cd pkg
-          tar -I 'zstd -19 -T0' -cf ../wrapper.tzst usr/
-          cd ..
-          echo "-> ¡Empaquetado completado con éxito!"
+          cd pkg && tar -I 'zstd -19 -T0' -cf ../wrapper.tzst usr/ && cd ..
 
       - name: Upload Final wrapper.tzst for Bannerlator
         uses: actions/upload-artifact@v4
