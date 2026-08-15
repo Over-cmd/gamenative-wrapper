@@ -44,32 +44,33 @@ jobs:
                   print('-> ¡Alineación de emulación inline inyectada en Meson correctamente!')
           "
 
-      # REESCRITURA QUIRÚRGICA EN C: Interceptamos las extensiones usando Tipos Oficiales de Vulkan
+      # REESCRITURA QUIRÚRGICA EN C: Interceptamos modificando el cuerpo original para satisfacer a Clang
       - name: Surgical Silicon Modification (Anti-Overflow MALI Hybrid 32/64 Injection)
         run: |
-          echo "-> Insertando desvío de extensiones Vulkan con tipado estricto para Clang..."
+          echo "-> Insertando desvío de extensiones Vulkan compatible con -Wmissing-prototypes..."
           WRAPPER_DEVICE=$(find src/ -name "wrapper_device.c" | head -n 1)
           
           if [ -n "$WRAPPER_DEVICE" ] && [ -f "$WRAPPER_DEVICE" ]; then
             sed -i 's/\r$//' "$WRAPPER_DEVICE"
             
-            # Usamos un truco de preprocesador en la primera línea. Redirigimos la función interna original de Mesa
-            # sin alterar las declaraciones previas de las cabeceras vk_icd.h
-            sed -i '1i#define vk_icdGetInstanceProcAddr original_vk_icdGetInstanceProcAddr' "$WRAPPER_DEVICE"
+            # Buscamos la definición exacta de la función en el cuerpo del archivo y la renombramos.
+            # Esto mantiene intactas las declaraciones de los prototipos oficiales de las cabeceras superiores.
+            sed -i 's/VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL vk_icdGetInstanceProcAddr/VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL original_vk_icdGetInstanceProcAddr/g' "$WRAPPER_DEVICE"
             
-            # Agregamos al final del archivo el interceptor utilizando la firma exacta que exige vk_icd.h
+            # Agregamos al final del archivo nuestra pasarela. Clang usará el prototipo superior de vk_icd.h sin protestar.
             cat <<-'EOF' >> "$WRAPPER_DEVICE"
             
-            #undef vk_icdGetInstanceProcAddr
             #include <vulkan/vulkan.h>
             #include <vulkan/vk_icd.h>
             #include <string.h>
             
             extern int mallopt(int param, int value);
             extern int setenv(const char *name, const char *value, int overwrite);
-            extern PFN_vkVoidFunction VKAPI_CALL original_vk_icdGetInstanceProcAddr(VkInstance instance, const char* pName);
             
-            // Interceptor maestro universal con tipado oficial de Vulkan para la GPU Mali
+            // Declaramos explícitamente el prototipo de nuestra función renombrada para evitar advertencias del compilador
+            VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL original_vk_icdGetInstanceProcAddr(VkInstance instance, const char* pName);
+            
+            // Interceptor maestro universal adaptado a las restricciones de Clang NDK
             VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL vk_icdGetInstanceProcAddr(VkInstance instance, const char* pName) {
                 mallopt(-1002, 0);
                 setenv("MESA_VK_WSI_PRESENT_MODE", "mailbox", 1);
