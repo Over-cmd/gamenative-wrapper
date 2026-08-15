@@ -1,18 +1,18 @@
 name: Compilación de Termux del envoltorio Vulkan de Mesa
 
-on:
-  push:
-    branches: [ "main", "master" ]
-  pull_request:
-  workflow_dispatch:
-
-env:
-  BUILD_DIR: compilación
-  IMAGE_TAG: ghcr.io/leegao/mesa-wrapper-ci/wrapper-compiler:latest
+on: [push, pull_request]
 
 jobs:
-  build-aarch64-wrapper:
+  build-wrapper:
     runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        arch: [aarch64, armhf] # Compila de forma nativa para 64 y 32 bits
+
+    env:
+      BUILD_DIR: compilacion_${{ matrix.arch }}
+      IMAGE_TAG: ghcr.io/leegao/mesa-wrapper-ci/wrapper-compiler:latest
 
     steps:
       - name: Código de pago
@@ -21,34 +21,22 @@ jobs:
       - name: Configurar Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # Instalar python en el host para aplicar la inyeccion de silicio híbrida
-      - name: Instalar Python de soporte
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y python3
-
-      # ¡ESTE PASO INYECTA EL FILTRO HÍBRIDO EN UNA LÍNEA CORTA QUE SALVA LOS 32 BITS DE APAGONES!
-      - name: Inyección Quirúrgica Silicio (Modo Fluido y Anti-Apagones)
-        run: |
-          python3 -c "import os; t='src/vulkan/runtime/vk_instance.c'; f=open(t,'r') if os.path.exists(t) else None; c='\n#include <stdint.h>\nextern int mallopt(int p, int v);\nextern int setenv(const char* n, const char* v, int o);\n'+f.read().replace('vk_icdGetInstanceProcAddr','mallopt(-1002,0);setenv(\"MESA_VK_WSI_PRESENT_MODE\",\"mailbox\",1);setenv(\"vblank_mode\",\"0\",1);if(sizeof(void*)==4){setenv(\"MESA_VK_WSI_QUEUE_SIZE\",\"1\",1);}vk_icdGetInstanceProcAddr',1) if f else ''; f.close() if f else None; f=open(t,'w') if f else None; f.write(c) if f else None; f.close() if f else None"
-
-      # TU COMANDO DE DOCKER ORIGINAL NATIVO INTACTO SIN MODIFICACIONES DE RED
+      # Se añade la bandera correspondiente según la arquitectura en la matriz de Docker
       - name: compilador-envoltorio
         run: |
-          docker run --rm \
-            -v "${{ github.workspace }}:/workspace" \
-            ${{ env.IMAGE_TAG }} ${{ env.BUILD_DIR }}
+          mkdir -p ${{ env.BUILD_DIR }}
+          docker run --rm -v "${{ github.workspace }}:/workspace" ${{ env.IMAGE_TAG }} ${{ env.BUILD_DIR }} --arch ${{ matrix.arch }}
 
       - name: Cargar libvulkan_wrapper.so sin formato
         uses: actions/upload-artifact@v4
         with:
-          name: libvulkan_wrapper
+          name: libvulkan_wrapper-${{ matrix.arch }}
           path: ${{ env.BUILD_DIR }}/libvulkan_wrapper.so
           if-no-files-found: error
           
       - name: cargar libvulkan_wrapper.so sin eliminar
         uses: actions/upload-artifact@v4
         with:
-          name: libvulkan_wrapper-unstripped
+          name: libvulkan_wrapper-${{ matrix.arch }}-unstripped
           path: ${{ env.BUILD_DIR }}/libvulkan_wrapper.so.unstripped
           if-no-files-found: error
