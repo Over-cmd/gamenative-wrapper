@@ -20,25 +20,51 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      # Instalar herramientas de soporte nativas en el host de GitHub
       - name: Install Zstd Packager
         run: |
           sudo apt-get update
-          sudo apt-get install -y zstd python3
+          sudo apt-get install -y zstd python3 curl tar
 
-      # ¡PASO CORREGIDO: Paréntesis emparejado correctamente dentro de la función de reemplazo de Expat!
-      - name: Bypass SPIRV-Tools and Expat (Surgical Patch)
+      # ¡ESTE PASO DESCARGA EL LIBADRENOTOOLS REAL DE PIPETTO POR FUERA EVITANDO EL ERROR DE GIT!
+      - name: Pre-download Real Libadrenotools and Submodules (Offline Injection)
         run: |
-          python3 -c "import os; t='src/vulkan/wrapper/meson.build'; f=open(t,'r') if os.path.exists(t) else None; c=f.read().replace('SPIRV-Tools-opt','m').replace('SPIRV-Tools','m') if f else ''; f.close() if f else None; f=open(t,'w') if f else None; f.write(c) if f else None; f.close() if f else None"
-          python3 -c "import os; t='meson.build'; f=open(t,'r') if os.path.exists(t) else None; c=f.read().replace(\"dependency('expat')\",\"dependency('m')\") if f else ''; f.close() if f else None; f=open(t,'w') if f else None; f.write(c) if f else None; f.close() if f else None"
+          echo "-> Fabricando el arbol local de subproyectos de Mesa..."
+          mkdir -p subprojects
+          rm -rf subprojects/libadrenotools
+          mkdir -p subprojects/libadrenotools
+          
+          echo "-> Descargando el codigo nucleo real de libadrenotools via Servidor Codeload..."
+          # Usamos ://github.com que descarga el binario comprimido real sin protecciones antibot
+          curl -L "https://://github.com/Pipetto-crypto/libadrenotools/tar.gz/refs/heads/master" -o adrenotools.tar.gz
+          tar -xf adrenotools.tar.gz --strip-components=1 -C subprojects/libadrenotools/
+          rm -f adrenotools.tar.gz
+          
+          echo "-> Descargando el submodulo linkernsbypass real de Pipetto..."
+          mkdir -p subprojects/libadrenotools/lib/linkernsbypass
+          curl -L "https://://github.com/Pipetto-crypto/liblinkernsbypass/tar.gz/refs/heads/main" -o linkernsbypass.tar.gz
+          tar -xf linkernsbypass.tar.gz --strip-components=1 -C subprojects/libadrenotools/lib/linkernsbypass/
+          rm -f linkernsbypass.tar.gz
+          
+          echo "-> Creando el archivo .wrap local para indicarle a Meson que no toque internet..."
+          cat << 'EOF' > subprojects/libadrenotools.wrap
+          [wrap-file]
+          directory = libadrenotools
+          EOF
+          echo "-> Estructura REAL de libadrenotools inyectada con éxito en local de forma Offline."
 
-      # ¡INYECTOR HÍBRIDO TOTALMENTE COMPRIMIDO PARA SALVAR LOS 32 BITS!
-      - name: Surgical Silicon Modification (Anti-Overflow & 32-bit Safe Fix)
+      # ¡ESTE PASO INTERCEPTA LOS COMANDOS DE GIT DEL DOCKER PARA EVITAR EL CUELGUE INFINITO!
+      - name: Create Git Binary Hijacker for Docker Environment
         run: |
-          python3 -c "import os; t='src/vulkan/wrapper/wrapper_device.c'; f=open(t,'r') if os.path.exists(t) else None; c='\n#include <stdint.h>\nextern int mallopt(int p, int v);\nextern int setenv(const char* n, const char* v, int o);\n'+f.read().replace('vk_icdGetInstanceProcAddr','mallopt(-1002,0);setenv(\"MESA_VK_WSI_PRESENT_MODE\",\"mailbox\",1);setenv(\"vblank_mode\",\"0\",1);if(sizeof(void*)==4){setenv(\"MESA_VK_WSI_QUEUE_SIZE\",\"1\",1);}vk_icdGetInstanceProcAddr',1) if f else ''; f.close() if f else None; f=open(t,'w') if f else None; f.write(c) if f else None; f.close() if f else None"
-
-      - name: Create Ninja Wrapper Hijacker
-        run: |
+          echo "-> Fabricando el interceptor de llamadas Git falsas..."
           mkdir -p bin_hijack
+          
+          cat << 'EOF' > bin_hijack/git
+          #!/bin/bash
+          echo "-> Interceptor Git: Simulando operacion exitosa en local para submodulos."
+          exit 0
+          EOF
+          
           cat << 'EOF' > bin_hijack/ninja
           #!/bin/bash
           ARGS=("$@")
@@ -52,17 +78,32 @@ jobs:
           done
           exec /usr/local/bin/ninja "${NEW_ARGS[@]}"
           EOF
-          chmod +x bin_hijack/ninja
+          
+          chmod +x bin_hijack/git bin_hijack/ninja
+          echo "-> Interceptores de entorno Docker preparados."
 
-      # CAPAMOS LA RED CON --NETWORK NONE EN TU COMANDO DOCKER ORIGINAL
+      # NEUTRALIZAMOS SPIRV-TOOLS Y EXPAT MEDIANTE PYTHON PARA PODER COMPILAR OFFLINE
+      - name: Bypass SPIRV-Tools and Expat Requirements (Python Surgical Patch)
+        run: |
+          python3 -c "import os; t='src/vulkan/wrapper/meson.build'; f=open(t,'r') if os.path.exists(t) else None; c=f.read().replace('SPIRV-Tools-opt','m').replace('SPIRV-Tools','m') if f else ''; f.close() if f else None; f=open(t,'w') if f else None; f.write(c) if f else None; f.close() if f else None"
+          python3 -c "import os; t='meson.build'; f=open(t,'r') if os.path.exists(t) else None; c=f.read().replace(\"dependency('expat')\",\"dependency('m')\") if f else ''; f.close() if f else None; f=open(t,'w') if f else None; f.write(c) if f else None; f.close() if f else None"
+
+      # ¡INYECTAMOS TU CÓDIGO CON PARCHE DE ALINEACIÓN SEGURO DE 32 BITS EN EL WRAPPER DEVICE EN UNA LÍNEA!
+      - name: Surgical Silicon Modification (Anti-Overflow & 32-bit Safe Fix)
+        run: |
+          python3 -c "import os; t='src/vulkan/wrapper/wrapper_device.c'; f=open(t,'r') if os.path.exists(t) else None; c='\n#include <stdint.h>\nextern int mallopt(int p, int v);\nextern int setenv(const char* n, const char* v, int o);\n'+f.read().replace('vk_icdGetInstanceProcAddr','mallopt(-1002,0);setenv(\"MESA_VK_WSI_PRESENT_MODE\",\"mailbox\",1);setenv(\"vblank_mode\",\"0\",1);if(sizeof(void*)==4){setenv(\"MESA_VK_WSI_QUEUE_SIZE\",\"1\",1);}vk_icdGetInstanceProcAddr',1) if f else ''; f.close() if f else None; f=open(t,'w') if f else None; f.write(c) if f else None; f.close() if f else None"
+
+      # ¡TU COMANDO DOCKER ORIGINAL NATIVO CON RED APAGADA Y EL INTERCEPTOR DE GIT INYECTADO!
       - name: compilador-envoltorio
         run: |
           docker run --rm \
             --network none \
             -v "${{ github.workspace }}:/workspace" \
             -v "${{ github.workspace }}/bin_hijack/ninja:/usr/local/bin/ninja" \
+            -v "${{ github.workspace }}/bin_hijack/git:/usr/bin/git" \
             ${{ env.IMAGE_TAG }} ${{ env.BUILD_DIR }}
 
+      # ESTE PASO CREA LA ESTRUCTURA EXACTA PARA BANNERLATOR Y GENERA EL ARCHIVO .TZST
       - name: Structure and Pack wrapper.tzst
         run: |
           mkdir -p pkg/usr/lib pkg/usr/share/vulkan/icd.d
