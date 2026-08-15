@@ -7,12 +7,11 @@ on:
 
 env:
   BUILD_DIR: compilacion
+  IMAGE_TAG: ghcr.io/leegao/mesa-wrapper-ci/wrapper-compiler:latest
 
 jobs:
   build-aarch64-wrapper:
     runs-on: ubuntu-latest
-    env:
-      IMAGE_TAG: ghcr.io/leegao/mesa-wrapper-ci/wrapper-compiler:latest
 
     steps:
       - name: Checkout Code
@@ -27,7 +26,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y zstd
 
-      # INYECCIÓN DE CONTROL DE FLUJO HÍBRIDO EN EL CÓDIGO
+      # INYECCIÓN DE CONTROL DE FLUJO HÍBRIDO EN EL CÓDIGO (CONSERVA TU CONFIGURACIÓN ORIGINAL)
       - name: Surgical Silicon Modification (Anti-Overflow MALI Hybrid 32/64 Injection)
         run: |
           echo "-> Rastreando el corazon del Wrapper para soldar compatibilidad hibrida Vulkan..."
