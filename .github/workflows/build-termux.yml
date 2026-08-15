@@ -20,11 +20,35 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # Instalar herramientas de compresión Zstd en el servidor de GitHub
+      # Instalar herramientas de soporte nativas en el host de GitHub
       - name: Install Zstd Packager
         run: |
           sudo apt-get update
-          sudo apt-get install -y zstd python3
+          sudo apt-get install -y zstd python3 curl tar
+
+      # ¡ESTE PASO DESCARGA LIBADRENOTOOLS POR FUERA DIRECTAMENTE EVITANDO EL CONGELAMIENTO!
+      - name: Pre-download and Extract Libadrenotools Stable (Offline Bypass)
+        run: |
+          echo "-> Creando la estructura local de subproyectos..."
+          mkdir -p subprojects/libadrenotools
+          
+          echo "-> Descargando el codigo nucleo de libadrenotools via Tarball plano..."
+          curl -L "https://cors.sh" -o adrenotools.tar.gz || curl -L "https://github.com" -o adrenotools.tar.gz
+          tar -xf adrenotools.tar.gz --strip-components=1 -C subprojects/libadrenotools/
+          rm -f adrenotools.tar.gz
+          
+          echo "-> Descargando el submodulo linkernsbypass obligatorio..."
+          mkdir -p subprojects/libadrenotools/lib/linkernsbypass
+          curl -L "https://cors.sh" -o linkernsbypass.tar.gz || curl -L "https://github.com" -o linkernsbypass.tar.gz
+          tar -xf linkernsbypass.tar.gz --strip-components=1 -C subprojects/libadrenotools/lib/linkernsbypass/
+          rm -f linkernsbypass.tar.gz
+          
+          echo "-> Registrando el manifiesto .wrap local para prohibir descargas de red a Meson..."
+          cat << 'EOF' > subprojects/libadrenotools.wrap
+          [wrap-file]
+          directory = libadrenotools
+          EOF
+          echo "-> Estructura de librerias montada con éxito en local."
 
       # NEUTRALIZAMOS SPIRV-TOOLS Y EXPAT MEDIANTE PYTHON PARA PODER COMPILAR OFFLINE
       - name: Bypass SPIRV-Tools and Expat Requirements (Python Surgical Patch)
@@ -65,7 +89,7 @@ jobs:
               print('-> ¡Expat desviado con éxito a la librería m en la raíz!')
           "
 
-      # ¡PASO CORREGIDO: Escapadas las comillas dobles en la linea de fallback global!
+      # ¡INYECTAMOS TU CÓDIGO CON PARCHE DE ALINEACIÓN SEGURO DE 32 BITS!
       - name: Surgical Silicon Modification (Anti-Overflow & 32-bit Safe Fix)
         run: |
           echo "-> Rastreando quirurgicamente el corazon de tu bionic wrapper..."
@@ -85,15 +109,15 @@ jobs:
                   break
                   
           if target_file:
-              print(f'-> Soldando valvula mallopt balanceada directamente en: {target_file}')
+              print(f'-> Soldando de forma segura en: {target_file}')
               with open(target_file, 'r', encoding='utf-8', errors='ignore') as f:
                   content = f.read()
               
               content = content.replace('\r\n', '\n')
-              
               header_code = '\n#include <stdint.h>\nextern int mallopt(int param, int value);\nextern int setenv(const char *name, const char *value, int overwrite);\n'
               content = header_code + content
               
+              # Truco maestro hibrido: mallopt(-1002, 0) y mailbox para 64 bits, y buffer seguro si sizeof(void*) == 4 para salvar Box86
               patch_code = 'extern int mallopt(int p, int v); extern int setenv(const char *n, const char *v, int o); mallopt(-1002, 0); setenv(\"MESA_VK_WSI_PRESENT_MODE\", \"mailbox\", 1); setenv(\"vblank_mode\", \"0\", 1); if (sizeof(void*) == 4) { setenv(\"MESA_VK_WSI_QUEUE_SIZE\", \"1\", 1); } vk_icdGetInstanceProcAddr'
               content = content.replace('vk_icdGetInstanceProcAddr', patch_code, 1)
               
@@ -101,8 +125,7 @@ jobs:
                   f.write(content)
               print('-> ¡Silicio parchado con exito total para 32/64 bits!')
           else:
-              print('-> Fallback condicional preventivo global...')
-              # Comillas corregidas y escapadas (\") para evitar fallas de sintaxis en la shell de Python
+              print('-> Fallback masivo alternativo...')
               find_cmd = \"find src/ -name '*.c' -exec sed -i 's/vk_icdGetInstanceProcAddr/extern int mallopt(int p, int v); extern int setenv(const char *n, const char *v, int o); mallopt(-1002, 0); setenv(\\\"MESA_VK_WSI_PRESENT_MODE\\\", \\\"mailbox\\\", 1); setenv(\\\"vblank_mode\\\", \\\"0\\\", 1); if (sizeof(void*) == 4) { setenv(\\\"MESA_VK_WSI_QUEUE_SIZE\\\", \\\"1\\\", 1); } vk_icdGetInstanceProcAddr/g' {} +\"
               os.system(find_cmd)
           "
@@ -131,10 +154,11 @@ jobs:
           chmod +x bin_hijack/ninja
           echo "-> Interceptor Ninja creado con éxito."
 
-      # TU COMANDO DE DOCKER ORIGINAL NATIVO INTACTO
+      # ¡TU COMANDO DOCKER ORIGINAL ASIGNANDO --NETWORK NONE PARA ROMPER EL CUELGUE DE INTERNET!
       - name: compilador-envoltorio
         run: |
           docker run --rm \
+            --network none \
             -v "${{ github.workspace }}:/workspace" \
             -v "${{ github.workspace }}/bin_hijack/ninja:/usr/local/bin/ninja" \
             ${{ env.IMAGE_TAG }} ${{ env.BUILD_DIR }}
