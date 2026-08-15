@@ -1,11 +1,13 @@
-name: Compilacion Termux Oficial con nuestro propio Docker Wrapper Unisoc
+name: Compilacion Termux Oficial 
+
 on:
 workflow_dispatch:
 push:
 branches:
 - main
 - master
-- wrapper-25
+- wrapper-25 
+
 jobs:
 build-driver:
 runs-on: ubuntu-latest
