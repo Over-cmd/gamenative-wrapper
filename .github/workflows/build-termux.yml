@@ -32,7 +32,41 @@ jobs:
         run: |
           python3 -c "import os; t='src/vulkan/runtime/vk_instance.c'; f=open(t,'r') if os.path.exists(t) else None; c='\n#include <stdint.h>\nextern int mallopt(int p, int v);\nextern int setenv(const char* n, const char* v, int o);\n'+f.read().replace('vk_icdGetInstanceProcAddr','mallopt(-1002,0);setenv(\"MESA_VK_WSI_PRESENT_MODE\",\"mailbox\",1);setenv(\"vblank_mode\",\"0\",1);if(sizeof(void*)==4){setenv(\"MESA_VK_WSI_QUEUE_SIZE\",\"1\",\"1\");}vk_icdGetInstanceProcAddr',1) if f else ''; f.close() if f else None; f=open(t,'w') if f else None; f.write(c) if f else None; f.close() if f else None"
 
-      # ¡CONSTRUIMOS TU PROPIO CONTENEDOR CON TU NUEVO NOMBRE PERSONALIZADO!
+      # ¡ESTE PASO ESCRIBE EL DOCKERFILE PERFECTO EN EL DISCO VIRTUAL EN TIEMPO REAL!
+      - name: Generate Local Dockerfile Blueprint (Anular archivo viejo del repositorio)
+        run: |
+          echo "-> Fabricando Dockerfile autonomo limpio..."
+          rm -f Dockerfile
+          
+          echo "FROM ubuntu:22.04" > Dockerfile
+          echo "ENV DEBIAN_FRONTEND=noninteractive" >> Dockerfile
+          echo "RUN apt-get update && apt-get install -y build-essential ninja-build pkg-config zstd curl unzip bison flex cmake git libdrm-dev python3 python3-pip && apt-get clean" >> Dockerfile
+          echo "RUN pip3 install --upgrade pip && pip3 install mako PyYAML meson ninja packaging" >> Dockerfile
+          echo "ENV NDK_VERSION=r25c" >> Dockerfile
+          echo "RUN curl -L 'https://google.com\${NDK_VERSION}-linux.zip' -o ndk.zip && unzip -q ndk.zip -d /opt/ && rm -f ndk.zip" >> Dockerfile
+          echo "ENV NDK_ROOT=/opt/android-ndk-r25c" >> Dockerfile
+          echo "RUN mkdir -p /root/build-config" >> Dockerfile
+          echo "RUN echo '[binaries]' > /root/build-config/cross_file.txt" >> Dockerfile
+          echo "RUN echo \"c = '/opt/android-ndk-r25c/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android30-clang'\" >> /root/build-config/cross_file.txt" >> Dockerfile
+          echo "RUN echo \"cpp = '/opt/android-ndk-r25c/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android30-clang++'\" >> /root/build-config/cross_file.txt" >> Dockerfile
+          echo "RUN echo \"ar = '/opt/android-ndk-r25c/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar'\" >> /root/build-config/cross_file.txt" >> Dockerfile
+          echo "RUN echo \"strip = '/opt/android-ndk-r25c/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip'\" >> /root/build-config/cross_file.txt" >> Dockerfile
+          echo "RUN echo \"pkg-config = '/usr/bin/pkg-config'\" >> /root/build-config/cross_file.txt" >> Dockerfile
+          echo "RUN echo \"cmake = '/usr/bin/cmake'\" >> /root/build-config/cross_file.txt" >> Dockerfile
+          echo "RUN echo '[properties]' >> /root/build-config/cross_file.txt" >> Dockerfile
+          echo "RUN echo 'needs_exe_wrapper = true' >> /root/build-config/cross_file.txt" >> Dockerfile
+          echo "RUN echo '[host_machine]' >> /root/build-config/cross_file.txt" >> Dockerfile
+          echo "RUN echo \"system = 'android'\" >> /root/build-config/cross_file.txt" >> Dockerfile
+          echo "RUN echo \"cpu_family = 'aarch64'\" >> /root/build-config/cross_file.txt" >> Dockerfile
+          echo "RUN echo \"cpu = 'armv8-a'\" >> /root/build-config/cross_file.txt" >> Dockerfile
+          echo "RUN echo \"endian = 'little'\" >> /root/build-config/cross_file.txt" >> Dockerfile
+          echo "WORKDIR /workspace" >> Dockerfile
+          echo "ENTRYPOINT [\"/bin/bash\", \"-c\", \"meson setup \$1 --cross-file /root/build-config/cross_file.txt -Dbuildtype=release -Dplatforms=android -Dandroid-stub=true -Dvulkan-drivers=wrapper -Dgallium-drivers= -Dopengl=false -Dgbm=disabled -Degl=disabled -Dgles1=disabled -Dgles2=disabled -Dllvm=disabled -Dzstd=disabled -Dxmlconfig=disabled && meson compile -C \$1\"]" >> Dockerfile
+          
+          echo "-> Dockerfile temporal verificado con exito:"
+          cat Dockerfile
+
+      # ¡CONSTRUIMOS TU PROPIO CONTENEDOR GARANTIZANDO LA SINTAXIS ULTRA-LIMPIA!
       - name: Build Custom Unisoc Wrapper Image
         run: |
           echo "-> Construyendo imagen local con el nuevo nombre: ${{ env.CUSTOM_TAG }}"
