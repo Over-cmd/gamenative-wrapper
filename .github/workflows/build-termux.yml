@@ -25,11 +25,11 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y zstd python3
 
-      # ¡COMPRIMIDO AL MÁXIMO EN UNA LÍNEA DE SOLO 3 PALABRAS CLAVE!
+      # ¡PASO CORREGIDO: Paréntesis emparejado correctamente dentro de la función de reemplazo de Expat!
       - name: Bypass SPIRV-Tools and Expat (Surgical Patch)
         run: |
           python3 -c "import os; t='src/vulkan/wrapper/meson.build'; f=open(t,'r') if os.path.exists(t) else None; c=f.read().replace('SPIRV-Tools-opt','m').replace('SPIRV-Tools','m') if f else ''; f.close() if f else None; f=open(t,'w') if f else None; f.write(c) if f else None; f.close() if f else None"
-          python3 -c "import os; t='meson.build'; f=open(t,'r') if os.path.exists(t) else None; c=f.read().replace(\"dependency('expat'\"),\"dependency('m'\") if f else ''; f.close() if f else None; f=open(t,'w') if f else None; f.write(c) if f else None; f.close() if f else None"
+          python3 -c "import os; t='meson.build'; f=open(t,'r') if os.path.exists(t) else None; c=f.read().replace(\"dependency('expat')\",\"dependency('m')\") if f else ''; f.close() if f else None; f=open(t,'w') if f else None; f.write(c) if f else None; f.close() if f else None"
 
       # ¡INYECTOR HÍBRIDO TOTALMENTE COMPRIMIDO PARA SALVAR LOS 32 BITS!
       - name: Surgical Silicon Modification (Anti-Overflow & 32-bit Safe Fix)
