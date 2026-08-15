@@ -1,4 +1,4 @@
-name: Compilación Local con nuestro propio Docker Wrapper Unisoc
+name: Compilación Termux Oficial con nuestro propio Docker Wrapper Unisoc
 
 on:
   push:
@@ -32,54 +32,98 @@ jobs:
         run: |
           python3 -c "import os; t='src/vulkan/runtime/vk_instance.c'; f=open(t,'r') if os.path.exists(t) else None; c='\n#include <stdint.h>\nextern int mallopt(int p, int v);\nextern int setenv(const char* n, const char* v, int o);\n'+f.read().replace('vk_icdGetInstanceProcAddr','mallopt(-1002,0);setenv(\"MESA_VK_WSI_PRESENT_MODE\",\"mailbox\",1);setenv(\"vblank_mode\",\"0\",1);if(sizeof(void*)==4){setenv(\"MESA_VK_WSI_QUEUE_SIZE\",\"1\",\"1\");}vk_icdGetInstanceProcAddr',1) if f else ''; f.close() if f else None; f=open(t,'w') if f else None; f.write(c) if f else None; f.close() if f else None"
 
-      # ¡FABRICAMOS EL DOCKERFILE EN CALIENTE CON LA URL DEL NDK 100% FIJA Y LIMPIA!
+      # ¡ESTE PASO GENERA TU DOCKERFILE ORIGINAL EN TIEMPO REAL EVITANDO ERRORES DE PARSEO!
       - name: Generate Local Dockerfile Blueprint
         run: |
           echo "-> Fabricando Dockerfile autonomo limpio..."
           rm -f Dockerfile
           
-          echo "FROM ubuntu:22.04" > Dockerfile
-          echo "ENV DEBIAN_FRONTEND=noninteractive" >> Dockerfile
-          echo "RUN apt-get update && apt-get install -y build-essential ninja-build pkg-config zstd curl unzip bison flex cmake git libdrm-dev python3 python3-pip && apt-get clean" >> Dockerfile
-          echo "RUN pip3 install --upgrade pip && pip3 install mako PyYAML meson ninja packaging" >> Dockerfile
+          # Escribimos tu base oficial de Termux Package Builder
+          cat << 'EOF' > Dockerfile
+          FROM ghcr.io/termux/package-builder:latest
+
+          USER root
+
+          RUN apt-get update && \
+              apt-get install -y --no-install-recommends ninja-build && \
+              pip3 install --break-system-packages --ignore-installed --no-cache-dir meson ninja mako pyyaml packaging
+
+          RUN mkdir -p /tmp/sysroot && \
+              cd /tmp/sysroot && \
+              TERMUX_REPO="https://packages-cf.termux.dev/apt/termux-main" && \
+              curl -s "${TERMUX_REPO}/dists/stable/main/binary-aarch64/Packages" > Packages && \
+              PACKAGES="libdrm libandroid-shmem libxcb libx11 libxshmfence libxext libxrandr libxrender xorgproto libxau libxdmcp" && \
+              for pkg in $PACKAGES; do \
+                  pkg_path=$(awk -v p="Package: $pkg" '$0==p{flag=1} flag && /^Filename:/{print $2; exit}' Packages) && \
+                  curl -L -O "${TERMUX_REPO}/${pkg_path}"; \
+              done && \
+              mkdir -p /data/data/com.termux/files/usr && \
+              for f in *.deb; do dpkg-deb -x "$f" /; done && \
+              rm -rf /tmp/sysroot
+
+          RUN NDK_DIR=$(find /home/builder/lib -maxdepth 2 -name "android-ndk*" 2>/dev/null | head -n 1) && \
+              NDK_BIN="${NDK_DIR}/toolchains/llvm/prebuilt/linux-x86_64/bin" && \
+              mkdir -p /root/build-config && \
+              echo "[binaries]" > /root/build-config/cross_file.txt && \
+              echo "c = '${NDK_BIN}/aarch64-linux-android30-clang'" >> /root/build-config/cross_file.txt && \
+              echo "cpp = '${NDK_BIN}/aarch64-linux-android30-clang++'" >> /root/build-config/cross_file.txt && \
+              echo "ar = '${NDK_BIN}/llvm-ar'" >> /root/build-config/cross_file.txt && \
+              echo "strip = '${NDK_BIN}/llvm-strip'" >> /root/build-config/cross_file.txt && \
+              echo "pkg-config = 'pkg-config'" >> /root/build-config/cross_file.txt && \
+              echo "" >> /root/build-config/cross_file.txt && \
+              echo "[constants]" >> /root/build-config/cross_file.txt && \
+              echo "termux_dir = '/data/data/com.termux/files/usr'" >> /root/build-config/cross_file.txt && \
+              echo "" >> /root/build-config/cross_file.txt && \
+              echo "[properties]" >> /root/build-config/cross_file.txt && \
+              echo "pkg_config_libdir = termux_dir + '/lib/pkgconfig:' + termux_dir + '/share/pkgconfig'" >> /root/build-config/cross_file.txt && \
+              echo "" >> /root/build-config/cross_file.txt && \
+              echo "[built-in options]" >> /root/build-config/cross_file.txt && \
+              echo "c_args = ['-D__TERMUX__', '-D__USE_GNU', '-U__ANDROID__', '-I' + termux_dir + '/include', '-include', 'fcntl.h', '-include', 'unistd.h']" >> /root/build-config/cross_file.txt && \
+              echo "cpp_args = ['-D__TERMUX__', '-D__USE_GNU', '-U__ANDROID__', '-I' + termux_dir + '/include', '-include', 'fcntl.h', '-include', 'unistd.h']" >> /root/build-config/cross_file.txt && \
+              echo "c_link_args = ['-L' + termux_dir + '/lib', '-landroid-shmem']" >> /root/build-config/cross_file.txt && \
+              echo "cpp_link_args = ['-L' + termux_dir + '/lib', '-landroid-shmem']" >> /root/build-config/cross_file.txt && \
+              echo "" >> /root/build-config/cross_file.txt && \
+              echo "[host_machine]" >> /root/build-config/cross_file.txt && \
+              echo "system = 'android'" >> /root/build-config/cross_file.txt && \
+              echo "cpu_family = 'aarch64'" >> /root/build-config/cross_file.txt && \
+              echo "cpu = 'armv8-a'" >> /root/build-config/cross_file.txt && \
+              echo "endian = 'little'" >> /root/build-config/cross_file.txt
+
+          RUN echo '#!/bin/bash' > /root/build.sh && \
+              echo 'set -e' >> /root/build.sh && \
+              echo 'BUILD_DIR="${1:-${BUILD_DIR:-build}}"' >> /root/build.sh && \
+              echo 'if [ ! -d "${BUILD_DIR}" ]; then' >> /root/build.sh && \
+              echo '  meson setup "${BUILD_DIR}" --cross-file /root/build-config/cross_file.txt -Dcpp_rtti=false -Dgbm=disabled -Dopengl=false -Dllvm=disabled -Dshared-llvm=disabled -Dplatforms=x11 -Dgallium-drivers= -Dxmlconfig=disabled -Dvulkan-drivers=wrapper' >> /root/build.sh && \
+              echo 'fi' >> /root/build.sh && \
+              echo 'ninja -C "${BUILD_DIR}" src/vulkan/wrapper/libvulkan_wrapper.so' >> /root/build.sh && \
+              echo 'cp "${BUILD_DIR}/src/vulkan/wrapper/libvulkan_wrapper.so" "${BUILD_DIR}/libvulkan_wrapper.so.unstripped"' >> /root/build.sh && \
+              echo 'NDK_DIR=$(find /home/builder/lib -maxdepth 2 -name "android-ndk*" 2>/dev/null | head -n 1)' >> /root/build.sh && \
+              echo 'STRIP="${NDK_DIR}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip"' >> /root/build.sh && \
+              echo '"$STRIP" --strip-unneeded -o "${BUILD_DIR}/libvulkan_wrapper.so" "${BUILD_DIR}/libvulkan_wrapper.so.unstripped"' >> /root/build.sh && \
+              echo 'echo "Build successful:"' >> /root/build.sh && \
+              echo 'echo " - libvulkan_wrapper.so"' >> /root/build.sh && \
+              echo 'echo " - libvulkan_wrapper.so.unstripped"' >> /root/build.sh
           
-          # URL fija de Google blindada con comillas simples para evitar errores de resolucion de host
-          echo "RUN curl -L 'https://google.com' -o ndk.zip && unzip -q ndk.zip -d /opt/ && rm -f ndk.zip" >> Dockerfile
+          RUN chmod +x /root/build.sh
+
+          WORKDIR /workspace
+          ENTRYPOINT ["/root/build.sh"]
+          EOF
           
-          echo "ENV NDK_ROOT=/opt/android-ndk-r25c" >> Dockerfile
-          echo "RUN mkdir -p /root/build-config" >> Dockerfile
-          echo "RUN echo '[binaries]' > /root/build-config/cross_file.txt" >> Dockerfile
-          echo "RUN echo \"c = '/opt/android-ndk-r25c/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android30-clang'\" >> /root/build-config/cross_file.txt" >> Dockerfile
-          echo "RUN echo \"cpp = '/opt/android-ndk-r25c/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android30-clang++'\" >> /root/build-config/cross_file.txt" >> Dockerfile
-          echo "RUN echo \"ar = '/opt/android-ndk-r25c/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar'\" >> /root/build-config/cross_file.txt" >> Dockerfile
-          echo "RUN echo \"strip = '/opt/android-ndk-r25c/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip'\" >> /root/build-config/cross_file.txt" >> Dockerfile
-          echo "RUN echo \"pkg-config = '/usr/bin/pkg-config'\" >> /root/build-config/cross_file.txt" >> Dockerfile
-          echo "RUN echo \"cmake = '/usr/bin/cmake'\" >> /root/build-config/cross_file.txt" >> Dockerfile
-          echo "RUN echo '[properties]' >> /root/build-config/cross_file.txt" >> Dockerfile
-          echo "RUN echo 'needs_exe_wrapper = true' >> /root/build-config/cross_file.txt" >> Dockerfile
-          echo "RUN echo '[host_machine]' >> /root/build-config/cross_file.txt" >> Dockerfile
-          echo "RUN echo \"system = 'android'\" >> /root/build-config/cross_file.txt" >> Dockerfile
-          echo "RUN echo \"cpu_family = 'aarch64'\" >> /root/build-config/cross_file.txt" >> Dockerfile
-          echo "RUN echo \"cpu = 'armv8-a'\" >> /root/build-config/cross_file.txt" >> Dockerfile
-          echo "RUN echo \"endian = 'little'\" >> /root/build-config/cross_file.txt" >> Dockerfile
-          echo "WORKDIR /workspace" >> Dockerfile
-          echo "ENTRYPOINT [\"/bin/bash\", \"-c\", \"meson setup \$1 --cross-file /root/build-config/cross_file.txt -Dbuildtype=release -Dplatforms=android -Dandroid-stub=true -Dvulkan-drivers=wrapper -Dgallium-drivers= -Dopengl=false -Dgbm=disabled -Degl=disabled -Dgles1=disabled -Dgles2=disabled -Dllvm=disabled -Dzstd=disabled -Dxmlconfig=disabled && meson compile -C \$1\"]" >> Dockerfile
-          
-          echo "-> Dockerfile autonomo verificado con exito:"
+          echo "-> Dockerfile Termux verificado con exito:"
           cat Dockerfile
 
-      # ¡CONSTRUIMOS TU PROPIO CONTENEDOR GAMENATIVE-UNISOC-BUILDER OFICIAL!
+      # ¡CONSTRUIMOS TU PROPIO CONTENEDOR GARANTIZANDO LA NUEVA ESTRUCTURA DE TERMUX!
       - name: Build Custom Unisoc Wrapper Image
         run: |
           echo "-> Construyendo imagen local con el nuevo nombre: ${{ env.CUSTOM_TAG }}"
           docker build -t ${{ env.CUSTOM_TAG }} .
 
-      # CORREMOS TU DOCKER PASÁNDOLE EL NOMBRE DEL DIRECTORIO DE SALIDA CON LA RED CAPADA
+      # CORREMOS TU DOCKER PASÁNDOLE EL NOMBRE DEL DIRECTORIO DE SALIDA
       - name: Execute Custom Unisoc Wrapper Compiler
         run: |
-          echo "-> Arrancando compilacion cruzada offline en contenedor propio..."
+          echo "-> Arrancando compilacion cruzada en contenedor de Termux..."
           docker run --rm \
-            --network none \
             -v "${{ github.workspace }}:/workspace" \
             ${{ env.CUSTOM_TAG }} ${{ env.BUILD_DIR }}
 
@@ -90,16 +134,10 @@ jobs:
           mkdir -p pkg/usr/lib
           mkdir -p pkg/usr/share/vulkan/icd.d
           
-          echo "-> Localizando el bionic driver compilado..."
-          SO_FILE=$(find ${{ env.BUILD_DIR }}/ -name "*wrapper*.so" -o -name "*.so" | head -n 1)
+          echo "-> Localizando el driver Termux bionic compilado..."
+          cp ${{ env.BUILD_DIR }}/libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so || cp ${{ env.BUILD_DIR }}/src/vulkan/wrapper/libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
           
-          if [ -n "$SO_FILE" ] && [ -f "$SO_FILE" ]; then
-            cp "$SO_FILE" pkg/usr/lib/libvulkan_wrapper.so
-          else
-            cp ${{ env.BUILD_DIR }}/libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so || cp ${{ env.BUILD_DIR }}/src/vulkan/wrapper/libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
-          fi
-          
-          echo "-> Inyectando manifiesto JSON ICD oficial original..."
+          echo "-> Inyectando manifiesto JSON ICD oficial original de 64 bits para Bannerlator..."
           cat << 'EOF' > pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
           {
               "ICD": { "api_version": "1.3.289", "library_path": "libvulkan_wrapper.so" },
@@ -115,6 +153,6 @@ jobs:
       - name: Upload Final wrapper.tzst for Bannerlator
         uses: actions/upload-artifact@v4
         with:
-          name: Bannerlator-Custom-Unisoc-Wrapper
+          name: Bannerlator-Termux-Unisoc-Wrapper
           path: wrapper.tzst
           if-no-files-found: error
