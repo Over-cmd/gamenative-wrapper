@@ -1,12 +1,13 @@
-name: Mesa Bionic Vulkan Wrapper Mali Packager (.tzst)
+name: Compilación de Termux del envoltorio Vulkan de Mesa
 
 on:
   push:
     branches: [ "main", "master" ]
+  pull_request:
   workflow_dispatch:
 
 env:
-  BUILD_DIR: compilacion
+  BUILD_DIR: compilación
   IMAGE_TAG: ghcr.io/leegao/mesa-wrapper-ci/wrapper-compiler:latest
 
 jobs:
@@ -14,146 +15,40 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Code
+      - name: Código de pago
         uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx
+      - name: Configurar Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # Instalar herramientas de soporte nativas en el host de GitHub
-      - name: Install Zstd Packager
+      # Instalar python en el host para aplicar la inyeccion de silicio híbrida
+      - name: Instalar Python de soporte
         run: |
           sudo apt-get update
-          sudo apt-get install -y zstd python3
+          sudo apt-get install -y python3
 
-      # ¡INYECTAMOS EL CÓDIGO BIÓNICO REAL DE ADRENOTOOLS EN LOCAL SIN TOCAR INTERNET!
-      - name: Inject Real Libadrenotools Source Code (100% Offline Assembly)
+      # ¡ESTE PASO INYECTA EL FILTRO HÍBRIDO EN UNA LÍNEA CORTA QUE SALVA LOS 32 BITS DE APAGONES!
+      - name: Inyección Quirúrgica Silicio (Modo Fluido y Anti-Apagones)
         run: |
-          echo "-> Ensamblando el arbol de subproyectos de forma local..."
-          mkdir -p subprojects/libadrenotools/lib/linkernsbypass
-          
-          # 1. Escribimos la cabecera oficial bionica con las firmas de Pipetto-crypto
-          cat << 'EOF' > subprojects/libadrenotools/lib/adrenotools.h
-          #ifndef ADRENOTOOLS_H
-          #define ADRENOTOOLS_H
-          #include <stdbool.h>
-          #ifdef __cplusplus
-          extern "C" {
-          #endif
-          void* adrenotools_open_lib(const char* path);
-          void adrenotools_init_hooks(void);
-          bool adrenotools_is_gpu_supported(void);
-          #ifdef __cplusplus
-          }
-          #endif
-          #endif
-          EOF
-          
-          # 2. Escribimos el codigo C real encargado de enlazar las librerias Bionic de Android de 32 y 64 bits.
-          # Al usar dlopen nativo del sistema, garantizamos la compatibilidad total exigida por Box86 y Box64.
-          cat << 'EOF' > subprojects/libadrenotools/lib/adrenotools.c
-          #include "adrenotools.h"
-          #include <dlfcn.h>
-          #include <stddef.h>
-          
-          void* adrenotools_open_lib(const char* path) {
-              if (!path) return NULL;
-              // Forzamos la carga nativa en el namespace de Android (Esencial para 32/64 bits)
-              return dlopen(path, RTLD_NOW | RTLD_GLOBAL);
-          }
-          
-          void adrenotools_init_hooks(void) {
-              // Inicializador bionico plano para que DXVK levante la GPU Mali
-          }
-          
-          bool adrenotools_is_gpu_supported(void) {
-              return true; 
-          }
-          EOF
-          
-          # 3. Creamos el archivo de configuracion Meson estandar
-          cat << 'EOF' > subprojects/libadrenotools/meson.build
-          project('libadrenotools', 'c', version: '1.0.0')
-          adrenotools_inc = include_directories('lib')
-          adrenotools_lib = static_library('adrenotools', 'lib/adrenotools.c', include_directories: adrenotools_inc)
-          libadrenotools_dep = declare_dependency(link_with: adrenotools_lib, include_directories: adrenotools_inc)
-          meson.override_dependency('libadrenotools', libadrenotools_dep)
-          EOF
-          
-          # 4. Forzamos el archivo de mapeo .wrap local
-          cat << 'EOF' > subprojects/libadrenotools.wrap
-          [wrap-file]
-          directory = libadrenotools
-          EOF
-          echo "-> ¡Estructura bionica real ensamblada con exito en local!"
+          python3 -c "import os; t='src/vulkan/runtime/vk_instance.c'; f=open(t,'r') if os.path.exists(t) else None; c='\n#include <stdint.h>\nextern int mallopt(int p, int v);\nextern int setenv(const char* n, const char* v, int o);\n'+f.read().replace('vk_icdGetInstanceProcAddr','mallopt(-1002,0);setenv(\"MESA_VK_WSI_PRESENT_MODE\",\"mailbox\",1);setenv(\"vblank_mode\",\"0\",1);if(sizeof(void*)==4){setenv(\"MESA_VK_WSI_QUEUE_SIZE\",\"1\",1);}vk_icdGetInstanceProcAddr',1) if f else ''; f.close() if f else None; f=open(t,'w') if f else None; f.write(c) if f else None; f.close() if f else None"
 
-      # ¡ESTE PASO INTERCEPTA LOS COMANDOS DE GIT DEL DOCKER PARA EVITAR EL CUELGUE INFINITO!
-      - name: Create Git Binary Hijacker for Docker Environment
-        run: |
-          mkdir -p bin_hijack
-          cat << 'EOF' > bin_hijack/git
-          #!/bin/bash
-          echo "-> Interceptor Git: Simulando operacion exitosa en local para submodulos."
-          exit 0
-          EOF
-          
-          cat << 'EOF' > bin_hijack/ninja
-          #!/bin/bash
-          ARGS=("$@")
-          NEW_ARGS=()
-          for arg in "${ARGS[@]}"; do
-            if [ "$arg" == "src/vulkan/wrapper/libvulkan_wrapper.so" ]; then
-              NEW_ARGS+=("vulkan_wrapper")
-            else
-              NEW_ARGS+=("$arg")
-            fi
-          done
-          exec /usr/local/bin/ninja "${NEW_ARGS[@]}"
-          EOF
-          chmod +x bin_hijack/git bin_hijack/ninja
-
-      # NEUTRALIZAMOS SPIRV-TOOLS Y EXPAT MEDIANTE PYTHON PARA PODER COMPILAR OFFLINE
-      - name: Bypass SPIRV-Tools and Expat Requirements (Python Surgical Patch)
-        run: |
-          python3 -c "import os; t='src/vulkan/wrapper/meson.build'; f=open(t,'r') if os.path.exists(t) else None; c=f.read().replace('SPIRV-Tools-opt','m').replace('SPIRV-Tools','m') if f else ''; f.close() if f else None; f=open(t,'w') if f else None; f.write(c) if f else None; f.close() if f else None"
-          python3 -c "import os; t='meson.build'; f=open(t,'r') if os.path.exists(t) else None; c=f.read().replace(\"dependency('expat')\",\"dependency('m')\") if f else ''; f.close() if f else None; f=open(t,'w') if f else None; f.write(c) if f else None; f.close() if f else None"
-
-      # ¡INYECTAMOS EL CÓDIGO CON PARCHE DE ALINEACIÓN SEGURO DE 32 BITS EN EL WRAPPER DEVICE EN UNA LÍNEA!
-      - name: Surgical Silicon Modification (Anti-Overflow & 32-bit Safe Fix)
-        run: |
-          python3 -c "import os; t='src/vulkan/wrapper/wrapper_device.c'; f=open(t,'r') if os.path.exists(t) else None; c='\n#include <stdint.h>\nextern int mallopt(int p, int v);\nextern int setenv(const char* n, const char* v, int o);\n'+f.read().replace('vk_icdGetInstanceProcAddr','mallopt(-1002,0);setenv(\"MESA_VK_WSI_PRESENT_MODE\",\"mailbox\",1);setenv(\"vblank_mode\",\"0\",1);if(sizeof(void*)==4){setenv(\"MESA_VK_WSI_QUEUE_SIZE\",\"1\",1);}vk_icdGetInstanceProcAddr',1) if f else ''; f.close() if f else None; f=open(t,'w') if f else None; f.write(c) if f else None; f.close() if f else None"
-
-      # ¡TU COMANDO DOCKER ORIGINAL NATIVO CON RED APAGADA Y EL INTERCEPTOR DE GIT INYECTADO!
+      # TU COMANDO DE DOCKER ORIGINAL NATIVO INTACTO SIN MODIFICACIONES DE RED
       - name: compilador-envoltorio
         run: |
           docker run --rm \
-            --network none \
             -v "${{ github.workspace }}:/workspace" \
-            -v "${{ github.workspace }}/bin_hijack/ninja:/usr/local/bin/ninja" \
-            -v "${{ github.workspace }}/bin_hijack/git:/usr/bin/git" \
             ${{ env.IMAGE_TAG }} ${{ env.BUILD_DIR }}
 
-      # ESTE PASO CREA LA ESTRUCTURA EXACTA PARA BANNERLATOR Y GENERA EL ARCHIVO .TZST
-      - name: Structure and Pack wrapper.tzst
-        run: |
-          mkdir -p pkg/usr/lib pkg/usr/share/vulkan/icd.d
-          SO_FILE=$(find ${{ env.BUILD_DIR }}/ -name "*wrapper*.so" -o -name "*.so" | head -n 1)
-          if [ -n "$SO_FILE" ] && [ -f "$SO_FILE" ]; then
-            cp "$SO_FILE" pkg/usr/lib/libvulkan_wrapper.so
-          else
-            cp ${{ env.BUILD_DIR }}/libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so || cp ${{ env.BUILD_DIR }}/src/vulkan/wrapper/libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
-          fi
-          cat << 'EOF' > pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
-          {
-              "ICD": { "api_version": "1.3.289", "library_path": "libvulkan_wrapper.so" },
-              "file_format_version": "1.0.0"
-          }
-          EOF
-          cd pkg && tar -I 'zstd -19 -T0' -cf ../wrapper.tzst usr/ && cd ..
-
-      - name: Upload Final wrapper.tzst for Bannerlator
+      - name: Cargar libvulkan_wrapper.so sin formato
         uses: actions/upload-artifact@v4
         with:
-          name: Bannerlator-Bionic-Mali-Wrapper
-          path: wrapper.tzst
+          name: libvulkan_wrapper
+          path: ${{ env.BUILD_DIR }}/libvulkan_wrapper.so
+          if-no-files-found: error
+          
+      - name: cargar libvulkan_wrapper.so sin eliminar
+        uses: actions/upload-artifact@v4
+        with:
+          name: libvulkan_wrapper-unstripped
+          path: ${{ env.BUILD_DIR }}/libvulkan_wrapper.so.unstripped
           if-no-files-found: error
