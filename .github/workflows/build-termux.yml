@@ -2,7 +2,10 @@ name: Compilacion Termux Oficial con nuestro propio Docker Wrapper Unisoc 
 
 on:
 push:
-branches: [ "main", "master", "wrapper-25" ]
+branches:
+- main
+- master
+- wrapper-25
 workflow_dispatch: 
 
 env:
