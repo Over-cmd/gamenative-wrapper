@@ -21,27 +21,22 @@ RUN curl -L "https://google.com{NDK_VERSION}-linux.zip" -o ndk.zip && \
 
 ENV NDK_ROOT=/opt/android-ndk-${NDK_VERSION}
 
-# Generar el archivo de configuración cruzada nativo usando la sintaxis limpia multi-línea oficial de Docker
+# Generar el archivo de configuración cruzada usando comandos echo limpios en líneas individuales inofensivas
 RUN mkdir -p /root/build-config
-RUN <<EOF cat << 'INNER_EOF' > /root/build-config/cross_file.txt
-[binaries]
-c = '/opt/android-ndk-r25c/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android30-clang'
-cpp = '/opt/android-ndk-r25c/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android30-clang++'
-ar = '/opt/android-ndk-r25c/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar'
-strip = '/opt/android-ndk-r25c/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip'
-pkg-config = '/usr/bin/pkg-config'
-cmake = '/usr/bin/cmake'
-
-[properties]
-needs_exe_wrapper = true
-
-[host_machine]
-system = 'android'
-cpu_family = 'aarch64'
-cpu = 'armv8-a'
-endian = 'little'
-INNER_EOF
-EOF
+RUN echo '[binaries]' > /root/build-config/cross_file.txt
+RUN echo "c = '/opt/android-ndk-r25c/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android30-clang'" >> /root/build-config/cross_file.txt
+RUN echo "cpp = '/opt/android-ndk-r25c/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android30-clang++'" >> /root/build-config/cross_file.txt
+RUN echo "ar = '/opt/android-ndk-r25c/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar'" >> /root/build-config/cross_file.txt
+RUN echo "strip = '/opt/android-ndk-r25c/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip'" >> /root/build-config/cross_file.txt
+RUN echo "pkg-config = '/usr/bin/pkg-config'" >> /root/build-config/cross_file.txt
+RUN echo "cmake = '/usr/bin/cmake'" >> /root/build-config/cross_file.txt
+RUN echo '[properties]' >> /root/build-config/cross_file.txt
+RUN echo 'needs_exe_wrapper = true' >> /root/build-config/cross_file.txt
+RUN echo '[host_machine]' >> /root/build-config/cross_file.txt
+RUN echo "system = 'android'" >> /root/build-config/cross_file.txt
+RUN echo "cpu_family = 'aarch64'" >> /root/build-config/cross_file.txt
+RUN echo "cpu = 'armv8-a'" >> /root/build-config/cross_file.txt
+RUN echo "endian = 'little'" >> /root/build-config/cross_file.txt
 
 # Definir el directorio de trabajo del contenedor
 WORKDIR /workspace
