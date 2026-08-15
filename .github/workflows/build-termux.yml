@@ -1,55 +1,84 @@
-name: Compilación de Termux del envoltorio Vulkan de Mesa
+name: Compilación Local con nuestro propio Docker Wrapper Unisoc
 
-on: [push, pull_request]
+on:
+  push:
+    branches: [ "main", "master", "wrapper-25" ]
+  workflow_dispatch:
+
+env:
+  BUILD_DIR: compilación
+  CUSTOM_TAG: gamenative-unisoc-builder:latest
 
 jobs:
-  build-wrapper:
+  build-driver:
     runs-on: ubuntu-latest
-
-    strategy:
-      matrix:
-        arch: [aarch64, armhf]
-
-    env:
-      IMAGE_TAG: ghcr.io/leegao/mesa-wrapper-ci/wrapper-compiler:latest
 
     steps:
       - name: Código de pago
         uses: actions/checkout@v4
+        with:
+          submodules: 'recursive' # Trae libadrenotools desde fuera de forma limpia nativa de Git
 
       - name: Configurar Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # Corregimos el comando Docker pasando variables de entorno según la arquitectura
-      - name: compilador-envoltorio
+      - name: Instalar herramientas de compresión
         run: |
-          mkdir -p build_${{ matrix.arch }}
-          if [ "${{ matrix.arch }}" = "armhf" ]; then
-            # Para 32 bits, inyectamos variables de compilación cruzada comunes en contenedores de Android/Termux
-            docker run --rm \
-              -v "${{ github.workspace }}:/workspace" \
-              -e CFLAGS="-m32 -march=armv7-a" \
-              -e CXXFLAGS="-m32 -march=armv7-a" \
-              -e LDFLAGS="-m32" \
-              -e TARGET_ARCH="arm" \
-              ${{ env.IMAGE_TAG }} build_armhf
-          else
-            # Para 64 bits por defecto
-            docker run --rm \
-              -v "${{ github.workspace }}:/workspace" \
-              ${{ env.IMAGE_TAG }} build_aarch64
-          fi
+          sudo apt-get update
+          sudo apt-get install -y zstd python3
 
-      - name: Cargar libvulkan_wrapper.so sin formato
-        uses: actions/upload-artifact@v4
-        with:
-          name: libvulkan_wrapper-${{ matrix.arch }}
-          path: build_${{ matrix.arch }}/libvulkan_wrapper.so
-          if-no-files-found: error
+      # ¡INYECTOR HÍBRIDO ULTRA-COMPRIMIDO QUE EVITA LOS APAGONES Y CONGELAMIENTOS EN 32 BITS!
+      - name: Inyección Quirúrgica Silicio (Modo Fluido y Anti-Apagones)
+        run: |
+          python3 -c "import os; t='src/vulkan/runtime/vk_instance.c'; f=open(t,'r') if os.path.exists(t) else None; c='\n#include <stdint.h>\nextern int mallopt(int p, int v);\nextern int setenv(const char* n, const char* v, int o);\n'+f.read().replace('vk_icdGetInstanceProcAddr','mallopt(-1002,0);setenv(\"MESA_VK_WSI_PRESENT_MODE\",\"mailbox\",1);setenv(\"vblank_mode\",\"0\",1);if(sizeof(void*)==4){setenv(\"MESA_VK_WSI_QUEUE_SIZE\",\"1\",\"1\");}vk_icdGetInstanceProcAddr',1) if f else ''; f.close() if f else None; f=open(t,'w') if f else None; f.write(c) if f else None; f.close() if f else None"
+
+      # ¡CONSTRUIMOS TU PROPIO CONTENEDOR CON TU NUEVO NOMBRE PERSONALIZADO!
+      - name: Build Custom Unisoc Wrapper Image
+        run: |
+          echo "-> Construyendo imagen local con el nuevo nombre: ${{ env.CUSTOM_TAG }}"
+          docker build -t ${{ env.CUSTOM_TAG }} .
+
+      # CORREMOS TU DOCKER PASÁNDOLE EL NOMBRE DEL DIRECTORIO DE SALIDA CON LA RED CAPADA
+      - name: Execute Custom Unisoc Wrapper Compiler
+        run: |
+          echo "-> Arrancando compilacion cruzada offline en contenedor propio..."
+          docker run --rm \
+            --network none \
+            -v "${{ github.workspace }}:/workspace" \
+            ${{ env.CUSTOM_TAG }} ${{ env.BUILD_DIR }}
+
+      # RECOLECTAMOS EL ARCHIVO COMPILADO Y GENERAMOS LA ESTRUCTURA EXACTA PARA BANNERLATOR
+      - name: Structure and Pack wrapper.tzst
+        run: |
+          echo "-> Creando arbol de directorios de Linux para Bannerlator..."
+          mkdir -p pkg/usr/lib
+          mkdir -p pkg/usr/share/vulkan/icd.d
           
-      - name: cargar libvulkan_wrapper.so sin eliminar
+          echo "-> Localizando el bionic driver compilado..."
+          SO_FILE=$(find ${{ env.BUILD_DIR }}/ -name "*wrapper*.so" -o -name "*.so" | head -n 1)
+          
+          if [ -n "$SO_FILE" ] && [ -f "$SO_FILE" ]; then
+            cp "$SO_FILE" pkg/usr/lib/libvulkan_wrapper.so
+          else
+            cp ${{ env.BUILD_DIR }}/libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so || cp ${{ env.BUILD_DIR }}/src/vulkan/wrapper/libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
+          fi
+          
+          echo "-> Inyectando manifiesto JSON ICD oficial original..."
+          cat << 'EOF' > pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
+          {
+              "ICD": { "api_version": "1.3.289", "library_path": "libvulkan_wrapper.so" },
+              "file_format_version": "1.0.0"
+          }
+          EOF
+          
+          cd pkg
+          tar -I 'zstd -19 -T0' -cf ../wrapper.tzst usr/
+          cd ..
+          echo "-> ¡Empaquetado completado con éxito!"
+
+      - name: Upload Final wrapper.tzst for Bannerlator
         uses: actions/upload-artifact@v4
         with:
-          name: libvulkan_wrapper-${{ matrix.arch }}-unstripped
-          path: build_${{ matrix.arch }}/libvulkan_wrapper.so.unstripped
+          name: Bannerlator-Custom-Unisoc-Wrapper
+          path: wrapper.tzst
           if-no-files-found: error
