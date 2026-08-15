@@ -24,9 +24,27 @@ jobs:
       - name: Install Zstd Packager
         run: |
           sudo apt-get update
-          sudo apt-get install -y zstd
+          sudo apt-get install -y zstd python3
 
-      # INYECCIÓN DE CONTROL DE FLUJO HÍBRIDO EN EL CÓDIGO (CONSERVA TU CONFIGURACIÓN ORIGINAL)
+      # PARCHE EXTRA: Rompe la rigidez estructural de Over-cmd para salvar la carga en juegos de 32 bits
+      - name: Fix Over-cmd Meson Rigidity (Anti-Crash 32bit Load)
+        run: |
+          echo "-> Analizando scripts de construcción de Mesa para inyectar compatibilidad inline..."
+          python3 -c "
+          import os
+          target = 'src/vulkan/wrapper/meson.build'
+          if os.path.exists(target):
+              with open(target, 'r', encoding='utf-8', errors='ignore') as f:
+                  content = f.read()
+              # Modificamos los argumentos de C en el build para forzar la compatibilidad cruzada de Box86
+              if 'c_args' in content:
+                  content = content.replace(\"c_args : [\", \"c_args : ['-D__inline__=', \")
+                  with open(target, 'w', encoding='utf-8') as f:
+                      f.write(content)
+                  print('-> ¡Alineación de emulación inline inyectada en Meson correctamente!')
+          "
+
+      # TU INYECCIÓN DE CONTROL DE FLUJO HÍBRIDO NATIVA INTACTA
       - name: Surgical Silicon Modification (Anti-Overflow MALI Hybrid 32/64 Injection)
         run: |
           echo "-> Rastreando el corazon del Wrapper para soldar compatibilidad hibrida Vulkan..."
@@ -44,12 +62,11 @@ jobs:
             sed -i '/vk_icdGetInstanceProcAddr/!b;n;i\\ extern int mallopt(int p, int v);\\n extern int setenv(const char *n, const char *v, int o);\\n mallopt(-1002, 0);\\n setenv("MESA_VK_WSI_PRESENT_MODE", "mailbox", 1);\\n setenv("vblank_mode", "0", 1);\\n if (sizeof(void*) == 4) {\\n   setenv("MESA_VK_WSI_QUEUE_SIZE", "1", 1);\\n }' "$WRAPPER_DEVICE"
             echo "-> Envoltura hibrida inyectada con exito."
           else
-            echo "-> Archivo wrapper_device.c no encontrado, aplicando fallback hibrido global con seguro de 32 bits..."
-            # CORRECCIÓN CRÍTICA: Añadimos el condicional de tamaño de puntero (sizeof == 4) en el bloque global para salvar la carga de 32 bits
+            echo "-> Archivo wrapper_device.c no encontrado, aplicando fallback hibrido global..."
             find src/ -name "*.c" -exec sed -i 's/vk_icdGetInstanceProcAddr/extern int mallopt(int p, int v); extern int setenv(const char *n, const char *v, int o); mallopt(-1002, 0); setenv("MESA_VK_WSI_PRESENT_MODE", "mailbox", 1); setenv("vblank_mode", "0", 1); if (sizeof(void*) == 4) { setenv("MESA_VK_WSI_QUEUE_SIZE", "1", 1); } vk_icdGetInstanceProcAddr/g' {} + || true
           fi
 
-      # COMPILACIÓN ORIGINAL DEL DOCKER NATIVO
+      # COMPILACIÓN ORIGINAL DEL DOCKER NATIVO INTACTA
       - name: Wrapper Compiler (Atomic Processing Docker MALI)
         run: |
           docker run --rm -v "${{ github.workspace }}:/workspace" ${{ env.IMAGE_TAG }} ${{ env.BUILD_DIR }}
