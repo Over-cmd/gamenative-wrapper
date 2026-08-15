@@ -35,40 +35,44 @@ run: ./generate_configs.sh
 run: ./generate_dockerfile.sh
 * name: Build Custom Unisoc Wrapper Image
 run: |
-TAG="${{ env.CUSTOM_TAG }}"
-docker build -t "$TAG" .
+docker build -t "$CUSTOM_TAG" .
 * name: Execute Custom Unisoc Wrapper Compiler (64-bit)
 run: |
-TAG="${{ env.CUSTOM_TAG }}"
-DIR="${{ env.BUILD_DIR_64 }}"
-docker run --rm -e ARCH=aarch64 -v "${{ github.workspace }}:/workspace" "TAG" "DIR"
+docker run --rm -e ARCH=aarch64 -v "$GITHUB_WORKSPACE:/workspace" "
+
+CUSTOMTAG""cap C cap U cap S cap T cap O cap M sub cap T cap A cap G " "
+𝐶𝑈𝑆𝑇𝑂𝑀𝑇𝐴𝐺""
+BUILD_DIR_64"
 * name: Execute Custom Unisoc Wrapper Compiler (32-bit)
 run: |
-TAG="${{ env.CUSTOM_TAG }}"
-DIR="${{ env.BUILD_DIR_32 }}"
-docker run --rm -e ARCH=arm -v "${{ github.workspace }}:/workspace" "TAG" "DIR"
+docker run --rm -e ARCH=arm -v "$GITHUB_WORKSPACE:/workspace" "
+
+CUSTOMTAG""cap C cap U cap S cap T cap O cap M sub cap T cap A cap G " "
+𝐶𝑈𝑆𝑇𝑂𝑀𝑇𝐴𝐺""
+BUILD_DIR_32"
 * name: Compile and Link Unified Multiarch Bridge
 run: |
 mkdir -p unified_out
-TAG="${{ env.CUSTOM_TAG }}"
-N_PATH=(docker run --rm --entrypoint /bin/bash "TAG" -c 'find /home/builder/lib -maxdepth 2 -name "android-ndk*" 2>/dev/null | head -n 1')
-docker run --rm -v "${{ github.workspace }}:/workspace" --entrypoint /bin/bash "TAG" -c "{N_PATH}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android30-clang -shared -fPIC -O3 /root/bridge.c -o /workspace/unified_out/libvulkan_wrapper.so -ldl"
+N_PATH=(docker run --rm --entrypoint /bin/bash "CUSTOM_TAG" -c 'find /home/builder/lib -maxdepth 2 -name "android-ndk*" 2>/dev/null | head -n 1')
+docker run --rm -v "$GITHUB_WORKSPACE:/workspace" --entrypoint /bin/bash "
+
+CUSTOMTAG"−c"cap C cap U cap S cap T cap O cap M sub cap T cap A cap G " minus c "
+𝐶𝑈𝑆𝑇𝑂𝑀𝑇𝐴𝐺"−𝑐"
+{N_PATH}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android30-clang -shared -fPIC -O3 /root/bridge.c -o /workspace/unified_out/libvulkan_wrapper.so -ldl"
 * name: Structure and Pack wrapper.tzst
 run: |
 mkdir -p pkg/usr/lib pkg/usr/share/vulkan/icd.d
-B64="${{ env.BUILD_DIR_64 }}"
-B32="${{ env.BUILD_DIR_32 }}"
 
 cp "
 
-B64/libvulkanwrapper.so"pkg/usr/lib/libvulkanwrapper64.so||cp"cap B 64 / l i b v u l k a n sub w r a p p e r point s o " p k g / u s r / l i b / l i b v u l k a n sub w r a p p e r sub 6 4. s o the absolute value of  end-absolute-value  c p "
-𝐵64/𝑙𝑖𝑏𝑣𝑢𝑙𝑘𝑎𝑛𝑤𝑟𝑎𝑝𝑝𝑒𝑟.𝑠𝑜"𝑝𝑘𝑔/𝑢𝑠𝑟/𝑙𝑖𝑏/𝑙𝑖𝑏𝑣𝑢𝑙𝑘𝑎𝑛𝑤𝑟𝑎𝑝𝑝𝑒𝑟64.𝑠𝑜||𝑐𝑝"
-B64/src/vulkan/wrapper/libvulkan_wrapper.so" pkg/usr/lib/libvulkan_wrapper_64.so
+BUILDDIR64/libvulkanwrapper.so"pkg/usr/lib/libvulkanwrapper64.so||cp"cap B cap U cap I cap L cap D sub cap D cap I cap R sub 6 4 / l i b v u l k a n sub w r a p p e r point s o " p k g / u s r / l i b / l i b v u l k a n sub w r a p p e r sub 6 4. s o the absolute value of  end-absolute-value  c p "
+𝐵𝑈𝐼𝐿𝐷𝐷𝐼𝑅64/𝑙𝑖𝑏𝑣𝑢𝑙𝑘𝑎𝑛𝑤𝑟𝑎𝑝𝑝𝑒𝑟.𝑠𝑜"𝑝𝑘𝑔/𝑢𝑠𝑟/𝑙𝑖𝑏/𝑙𝑖𝑏𝑣𝑢𝑙𝑘𝑎𝑛𝑤𝑟𝑎𝑝𝑝𝑒𝑟64.𝑠𝑜||𝑐𝑝"
+BUILD_DIR_64/src/vulkan/wrapper/libvulkan_wrapper.so" pkg/usr/lib/libvulkan_wrapper_64.so
 cp "
 
-B32/libvulkanwrapper.so"pkg/usr/lib/libvulkanwrapper32.so||cp"cap B 32 / l i b v u l k a n sub w r a p p e r point s o " p k g / u s r / l i b / l i b v u l k a n sub w r a p p e r sub 3 2. s o the absolute value of  end-absolute-value  c p "
-𝐵32/𝑙𝑖𝑏𝑣𝑢𝑙𝑘𝑎𝑛𝑤𝑟𝑎𝑝𝑝𝑒𝑟.𝑠𝑜"𝑝𝑘𝑔/𝑢𝑠𝑟/𝑙𝑖𝑏/𝑙𝑖𝑏𝑣𝑢𝑙𝑘𝑎𝑛𝑤𝑟𝑎𝑝𝑝𝑒𝑟32.𝑠𝑜||𝑐𝑝"
-B32/src/vulkan/wrapper/libvulkan_wrapper.so" pkg/usr/lib/libvulkan_wrapper_32.so
+BUILDDIR32/libvulkanwrapper.so"pkg/usr/lib/libvulkanwrapper32.so||cp"cap B cap U cap I cap L cap D sub cap D cap I cap R sub 3 2 / l i b v u l k a n sub w r a p p e r point s o " p k g / u s r / l i b / l i b v u l k a n sub w r a p p e r sub 3 2. s o the absolute value of  end-absolute-value  c p "
+𝐵𝑈𝐼𝐿𝐷𝐷𝐼𝑅32/𝑙𝑖𝑏𝑣𝑢𝑙𝑘𝑎𝑛𝑤𝑟𝑎𝑝𝑝𝑒𝑟.𝑠𝑜"𝑝𝑘𝑔/𝑢𝑠𝑟/𝑙𝑖𝑏/𝑙𝑖𝑏𝑣𝑢𝑙𝑘𝑎𝑛𝑤𝑟𝑎𝑝𝑝𝑒𝑟32.𝑠𝑜||𝑐𝑝"
+BUILD_DIR_32/src/vulkan/wrapper/libvulkan_wrapper.so" pkg/usr/lib/libvulkan_wrapper_32.so
 cp unified_out/libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
 
 echo '{"ICD":{"api_version":"1.3.289","library_path":"libvulkan_wrapper.so"},"file_format_version":"1.0.0"}' > pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
