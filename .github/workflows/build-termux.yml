@@ -26,73 +26,46 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y zstd python3
 
-      # INYECCIÓN DE MANIFIESTOS VIRTUALES: Secuestramos pkg-config simulando la existencia de todo el entorno X11/System
+      # INYECCIÓN MASIVA DE MANIFIESTOS VIRTUALES: Secuestramos pkg-config para saltar TODO el árbol secundario de X11/System
       - name: Inject Virtual Graphics and System Manifests for Pkg-Config
         run: |
-          echo "-> Creando entorno virtual multilib para saltar validaciones de Meson..."
+          echo "-> Creando entorno virtual masivo para saltar todas las sub-extensiones de Meson..."
           mkdir -p bin_hijack/pkgconfig
           
-          # 1. Perfil virtual para libdrm
-          cat << 'EOF' > bin_hijack/pkgconfig/libdrm.pc
+          # Función auxiliar para generar archivos .pc idénticos de manera compacta en Bash
+          generate_pc() {
+            cat <<EOF > "bin_hijack/pkgconfig/$1.pc"
           prefix=/usr
-          libdir=${prefix}/lib
-          includedir=${prefix}/include
-          Name: libdrm
-          Description: Virtual libdrm Bypass
-          Version: 2.4.115
+          libdir=\${prefix}/lib
+          includedir=\${prefix}/include
+          Name: $1
+          Description: Virtual $1 Bypass
+          Version: 9.9.9
           Libs: -lm
-          Cflags: -I${includedir}
+          Cflags: -I\${includedir}
           EOF
+          }
           
-          # 2. Perfil virtual para xcb (Evita tu error actual)
-          cat << 'EOF' > bin_hijack/pkgconfig/xcb.pc
-          prefix=/usr
-          libdir=${prefix}/lib
-          includedir=${prefix}/include
-          Name: xcb
-          Description: Virtual xcb Bypass
-          Version: 1.15
-          Libs: -lm
-          Cflags: -I${includedir}
-          EOF
+          # Generamos los componentes base originales
+          generate_pc "libdrm"
+          generate_pc "xcb"
+          generate_pc "x11"
+          generate_pc "libelf"
+          generate_pc "libudev"
+          
+          # INYECCIÓN SECUNDARIA: Bloqueamos los errores actuales y futuros de extensiones de pantalla de X11
+          generate_pc "xcb-randr"
+          generate_pc "xcb-shm"
+          generate_pc "xcb-xfixes"
+          generate_pc "xext"
+          generate_pc "xrandr"
+          generate_pc "xrender"
+          generate_pc "xorgproto"
+          generate_pc "libunwind"
+          generate_pc "spirv-tools"
+          generate_pc "valgrind"
 
-          # 3. Perfil virtual para x11
-          cat << 'EOF' > bin_hijack/pkgconfig/x11.pc
-          prefix=/usr
-          libdir=${prefix}/lib
-          includedir=${prefix}/include
-          Name: x11
-          Description: Virtual x11 Bypass
-          Version: 1.8.4
-          Libs: -lm
-          Cflags: -I${includedir}
-          EOF
-
-          # 4. Perfil virtual para libelf
-          cat << 'EOF' > bin_hijack/pkgconfig/libelf.pc
-          prefix=/usr
-          libdir=${prefix}/lib
-          includedir=${prefix}/include
-          Name: libelf
-          Description: Virtual libelf Bypass
-          Version: 0.189
-          Libs: -lm
-          Cflags: -I${includedir}
-          EOF
-
-          # 5. Perfil virtual para libudev
-          cat << 'EOF' > bin_hijack/pkgconfig/libudev.pc
-          prefix=/usr
-          libdir=${prefix}/lib
-          includedir=${prefix}/include
-          Name: libudev
-          Description: Virtual libudev Bypass
-          Version: 253
-          Libs: -lm
-          Cflags: -I${includedir}
-          EOF
-
-          echo "-> Todos los manifiestos gráficos virtuales han sido inyectados con éxito."
+          echo "-> Todas las sub-extensiones gráficas virtuales han sido inyectadas con éxito."
 
       # PASO CLAVE PIPETTO-STYLE: Forzamos que Over-cmd exponga el símbolo de interfaz ICD que Box86 exige
       - name: Inject Khronos ICD Interface Symbol (Pipetto-crypto Mirror Trick)
