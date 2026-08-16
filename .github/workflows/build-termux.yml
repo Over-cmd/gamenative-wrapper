@@ -44,25 +44,30 @@ jobs:
                               f.write(content)
           "
 
-      # PARCHE QUIRÚRGICO ANTI-ATOMIC: Neutralizamos la búsqueda de libatomic que hace fallar a Over-cmd
+      # PARCHE QUIRÚRGICO DE ELIMINACIÓN: Borramos la comprobación de libatomic que hace fallar a Over-cmd
       - name: Bypass Meson Libatomic Requirement
         run: |
-          echo "-> Neutralizando la comprobación estricta de libatomic en meson.build..."
+          echo "-> Eliminando la comprobación estricta de libatomic en meson.build..."
           python3 -c "
           import os
           target = 'meson.build'
           if os.path.exists(target):
               with open(target, 'r', encoding='utf-8', errors='ignore') as f:
-                  content = f.read()
+                  lines = f.readlines()
               
-              # Reemplazamos la búsqueda obligatoria de 'atomic' por la librería matemática 'm' nativa
-              # Esto hace que Meson encuentre la dependencia al instante y continúe con la compilación
-              content = content.replace(\"cc.find_library('atomic'\", \"cc.find_library('m'\")
-              content = content.replace(\"compiler.find_library('atomic'\", \"compiler.find_library('m'\")
-              
+              new_lines = []
+              skip_block = False
+              for line in lines:
+                  # Detectamos el inicio de la validación conflictiva de latomic
+                  if 'compiler.find_library(\'atomic\'' in line or 'cc.find_library(\'atomic\'' in line:
+                      print('-> Parcheando y anulando línea de libatomic...')
+                      # En vez de detener el build, inyectamos un objeto de dependencia vacío simulado
+                      line = 'dep_atomic = null_dep\n'
+                  new_lines.append(line)
+                  
               with open(target, 'w', encoding='utf-8') as f:
-                  f.write(content)
-              print('-> ¡Requisito de libatomic desviado con éxito a libm!')
+                  f.writelines(new_lines)
+              print('-> ¡Bloqueo de libatomic neutralizado de raíz!')
           "
 
       # TU INYECCIÓN DE CONTROL DE FLUJO HÍBRIDO ORIGINAL (CONSERVA TU CONFIGURACIÓN DEL HUD)
