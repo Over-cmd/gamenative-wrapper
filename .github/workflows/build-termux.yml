@@ -26,6 +26,25 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y zstd python3
 
+      # INYECCIÓN DE MANIFIESTO VIRTUAL: Engañamos a pkg-config creando un perfil falso de libdrm
+      - name: Inject Virtual Libdrm Manifest for Pkg-Config
+        run: |
+          echo "-> Forzando la creación de un entorno virtual de libdrm para saltar Meson..."
+          mkdir -p bin_hijack/pkgconfig
+          cat << 'EOF' > bin_hijack/pkgconfig/libdrm.pc
+          prefix=/usr
+          exec_prefix=${prefix}
+          libdir=${exec_prefix}/lib
+          includedir=${prefix}/include
+
+          Name: libdrm
+          Description: Userspace interface to kernel DRM services (Virtual Bypass)
+          Version: 2.4.115
+          Libs: -lm
+          Cflags: -I${includedir}
+          EOF
+          echo "-> Manifiesto virtual libdrm.pc inyectado correctamente."
+
       # PASO CLAVE PIPETTO-STYLE: Forzamos que Over-cmd exponga el símbolo de interfaz ICD que Box86 exige
       - name: Inject Khronos ICD Interface Symbol (Pipetto-crypto Mirror Trick)
         run: |
@@ -44,36 +63,32 @@ jobs:
                               f.write(content)
           "
 
-      # PARCHE MAESTRO ANTI-DEPENDENCIAS: Neutralizamos libatomic, libdl, librt, libm y libdrm en meson.build
-      - name: Bypass Meson Rigid Requirements (Bypass Libdrm & Math)
+      # PARCHE QUIRÚRGICO DE ELIMINACIÓN: Borramos las comprobaciones de librerías del sistema obsoletas en Android (r27/r29)
+      - name: Bypass Meson NDK Obsolete Requirements (Libatomic, Libdl & Librt)
         run: |
-          echo "-> Forzando la neutralización de dependencias ausentes en el script de Meson..."
+          echo "-> Neutralizando las comprobaciones de librerías obsoletas en meson.build..."
           python3 -c "
           import os
           target = 'meson.build'
           if os.path.exists(target):
               with open(target, 'r', encoding='utf-8', errors='ignore') as f:
-                  content = f.read()
+                  lines = f.readlines()
               
-              # 1. Neutralizamos las búsquedas de librerías del sistema obsoletas o unificadas en Android
-              content = content.replace(\"compiler.find_library('atomic'\", \"null_dep #\")
-              content = content.replace(\"cc.find_library('atomic'\", \"null_dep #\")
-              content = content.replace(\"compiler.find_library('dl'\", \"null_dep #\")
-              content = content.replace(\"cc.find_library('dl'\", \"null_dep #\")
-              content = content.replace(\"compiler.find_library('rt'\", \"null_dep #\")
-              content = content.replace(\"cc.find_library('rt'\", \"null_dep #\")
-              
-              # 2. Neutralizamos el bloqueo de la librería matemática central 'm'
-              content = content.replace(\"compiler.find_library('m'\", \"null_dep #\")
-              content = content.replace(\"cc.find_library('m'\", \"null_dep #\")
-              
-              # 3. Forzamos de manera quirúrgica que la dependencia obligatoria de libdrm pase como opcional o simulada
-              content = content.replace(\"dependency('libdrm'\", \"null_dep #\")
-              content = content.replace(\"dependency('libdrm',\", \"null_dep #\")
-              
+              new_lines = []
+              for line in lines:
+                  if 'compiler.find_library(\'atomic\'' in line or 'cc.find_library(\'atomic\'' in line:
+                      line = 'dep_atomic = null_dep\n'
+                  if 'compiler.find_library(\'dl\'' in line or 'cc.find_library(\'dl\'' in line:
+                      line = 'dep_dl = null_dep\n'
+                  if 'compiler.find_library(\'rt\'' in line or 'cc.find_library(\'rt\'' in line:
+                      line = 'dep_rt = null_dep\n'
+                  if 'compiler.find_library(\'m\'' in line or 'cc.find_library(\'m\'' in line:
+                      line = 'dep_m = null_dep\n'
+                  new_lines.append(line)
+                  
               with open(target, 'w', encoding='utf-8') as f:
-                  f.write(content)
-              print('-> ¡Todas las barreras rígidas de dependencias externas han sido eliminadas!')
+                  f.writelines(new_lines)
+              print('-> ¡Bloqueos de librerías neutralizados con éxito de raíz!')
           "
 
       # TU INYECCIÓN DE CONTROL DE FLUJO HÍBRIDO ORIGINAL (CONSERVA TU CONFIGURACIÓN DEL HUD)
@@ -98,16 +113,20 @@ jobs:
             find src/ -name "*.c" -exec sed -i 's/vk_icdGetInstanceProcAddr/extern int mallopt(int p, int v); extern int setenv(const char *n, const char *v, int o); mallopt(-1002, 0); setenv("MESA_VK_WSI_PRESENT_MODE", "mailbox", 1); setenv("vblank_mode", "0", 1); if (sizeof(void*) == 4) { setenv("MESA_VK_WSI_QUEUE_SIZE", "1", 1); } vk_icdGetInstanceProcAddr/g' {} + || true
           fi
 
-      # CONSTRUCCIÓN EN VIVO DEL DOCKERFILE UNIVERSAL CORREGIDO ANTERIOR
+      # CONSTRUCCIÓN EN VIVO DE TU DOCKERFILE UNIVERSAL ANTERIOR
       - name: Build Local Corrected Docker Image
         run: |
           echo "-> Creando imagen de compilación a partir de tu archivo de printf..."
           docker build -t ${{ env.IMAGE_TAG }}:latest .
 
-      # COMPILACIÓN DEL DOCKER NATIVO CON PARCHE INTEGRADO
+      # COMPILACIÓN DEL DOCKER NATIVO PASANDO LAS RUTAS DE HIJACK DE PKGCONFIG
       - name: Wrapper Compiler (Atomic Processing Docker MALI)
         run: |
-          docker run --rm -v "${{ github.workspace }}:/workspace" ${{ env.IMAGE_TAG }} :latest ${{ env.BUILD_DIR }}
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -v "${{ github.workspace }}/bin_hijack/pkgconfig:/data/data/com.termux/files/usr/lib/pkgconfig" \
+            -e PKG_CONFIG_PATH="/data/data/com.termux/files/usr/lib/pkgconfig" \
+            ${{ env.IMAGE_TAG }}:latest ${{ env.BUILD_DIR }}
 
       # MANIFIESTOS DUALES IDENTICOS A PIPETTO PARA ENGAÑAR A BOX86
       - name: Structure and Pack wrapper.tzst
