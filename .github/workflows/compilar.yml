@@ -25,7 +25,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y zstd python3
 
-      # INYECCIÓN MASIVA BLINDADA POR OCTAL: Eliminamos los símbolos $, { y } para que GitHub no intente parsearlos
+      # INYECCIÓN MASIVA BLINDADA POR OCTAL: Eliminamos los símbolos $, { y } para que GitHub no intente parsearlas
       - name: Inject Virtual Graphics and System Manifests for Pkg-Config
         run: |
           echo "-> Creando entorno virtual masivo de pkg-config..."
@@ -61,49 +61,49 @@ jobs:
                               f.write(content)
           "
 
-      # REESCRITURA QUIRÚRGICA EN C: Interceptamos las extensiones estrictas que causan el crash en la carga de 32 bits
+      # REESCRITURA QUIRÚRGICA EN C REPARADA: Cambiamos nombres por Python e inyectamos por Heredoc para evitar errores de sintaxis
       - name: Inject Anti-Crash Hook into Wrapper Instance
         run: |
-          echo "-> Inyectando pasarela de compatibilidad en el código fuente de Mesa..."
+          echo "-> Renombrando funciones de instancia de Mesa..."
           python3 -c "
           import os
           target = 'src/vulkan/wrapper/wrapper_instance.c'
           if os.path.exists(target):
               with open(target, 'r', encoding='utf-8', errors='ignore') as f:
                   content = f.read()
-              
               content = content.replace('vk_icdGetInstanceProcAddr(VkInstance', 'original_vk_icdGetInstanceProcAddr(VkInstance')
               content = content.replace('vk_icdGetInstanceProcAddr(void*', 'original_vk_icdGetInstanceProcAddr(void*')
-              
-              bridge_code = '''
-  #include <string.h>
-  extern int mallopt(int param, int value);
-  extern int setenv(const char *name, const char *value, int overwrite);
-  VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL original_vk_icdGetInstanceProcAddr(VkInstance instance, const char *pName);
-
-  VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL vk_icdGetInstanceProcAddr(VkInstance instance, const char *pName) {
-      mallopt(-1002, 0);
-      setenv(\"MESA_VK_WSI_PRESENT_MODE\", \"mailbox\", 1);
-      setenv(\"vblank_mode\", \"0\", 1);
-      
-      if (sizeof(void*) == 4) {
-          setenv(\"MESA_VK_WSI_QUEUE_SIZE\", \"1\", 1);
-          setenv(\"BOX86_EMULATED_LIBS\", \"libvulkan_wrapper.so\", 1);
-          setenv(\"BOX86_MMAP32\", \"1\", 1);
-          
-          if (pName && (strcmp(pName, \"vkGetPhysicalDeviceProperties2KHR\") == 0 || 
-                        strcmp(pName, \"vkGetPhysicalDeviceFeatures2KHR\") == 0 ||
-                        strcmp(pName, \"vkRegisterDeviceCustomCallbacksEXT\") == 0)) {
-              return (PFN_vkVoidFunction)NULL;
-          }
-      }
-      return original_vk_icdGetInstanceProcAddr(instance, pName);
-  }
-  '''
               with open(target, 'w', encoding='utf-8') as f:
-                  f.write(content + '\n' + bridge_code)
-              print('-> ¡Bypass dinámico soldado con éxito en wrapper_instance.c!')
+                  f.write(content)
           "
+          
+          echo "-> Soldando pasarela puente en wrapper_instance.c..."
+          cat << 'EOF' >> src/vulkan/wrapper/wrapper_instance.c
+
+          #include <string.h>
+          extern int mallopt(int param, int value);
+          extern int setenv(const char *name, const char *value, int overwrite);
+          VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL original_vk_icdGetInstanceProcAddr(VkInstance instance, const char *pName);
+
+          VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL vk_icdGetInstanceProcAddr(VkInstance instance, const char *pName) {
+              mallopt(-1002, 0);
+              setenv("MESA_VK_WSI_PRESENT_MODE", "mailbox", 1);
+              setenv("vblank_mode", "0", 1);
+              
+              if (sizeof(void*) == 4) {
+                  setenv("MESA_VK_WSI_QUEUE_SIZE", "1", 1);
+                  setenv("BOX86_EMULATED_LIBS", "libvulkan_wrapper.so", 1);
+                  setenv("BOX86_MMAP32", "1", 1);
+                  
+                  if (pName && (strcmp(pName, "vkGetPhysicalDeviceProperties2KHR") == 0 || 
+                                strcmp(pName, "vkGetPhysicalDeviceFeatures2KHR") == 0 ||
+                                strcmp(pName, "vkRegisterDeviceCustomCallbacksEXT") == 0)) {
+                      return (PFN_vkVoidFunction)NULL;
+                  }
+              }
+              return original_vk_icdGetInstanceProcAddr(instance, pName);
+          }
+          EOF
 
       # PARCHE QUIRÚRGICO DE ELIMINACIÓN: Borramos las comprobaciones de librerías obsoletas en Android (r27/r29) y sanamos variables de tiempo
       - name: Bypass Meson NDK Obsolete Requirements (Libatomic, Libdl & Librt/Clock FIX)
