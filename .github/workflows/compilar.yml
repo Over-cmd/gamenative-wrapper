@@ -23,7 +23,7 @@ jobs:
       - name: Install Zstd Packager
         run: sudo apt-get update && sudo apt-get install -y zstd python3
 
-      # INYECCIÓN MASIVA COMPACTA BLINDADA (Escapes octales para evitar conflictos con el parser de GitHub)
+      # INYECCIÓN MASIVA COMPACTA BLINDADA (Bypass de pkg-config para entorno virtual de X11)
       - name: Inject Virtual Graphics and System Manifests for Pkg-Config
         run: |
           mkdir -p bin_hijack/pkgconfig
@@ -35,28 +35,39 @@ jobs:
           EOF
           python3 gen_pc.py && rm gen_pc.py
 
-      # PARCHE MAESTRO INTEGRADO REPARADO (Soporta comillas dobles y simples para libadrenotools)
+      # PARCHE MAESTRO INTEGRADO (Bypass quirúrgico e inyección anti-crash)
       - name: Inject Anti-Crash Hook and Bypass Meson Requirements
         run: |
           python3 -c "
           import os
-          # 1. Parche Pipetto e Interceptor de 32 bits en wrapper_instance.c
+          # 1. Parche e Interceptor de 32 bits en wrapper_instance.c
           p = 'src/vulkan/wrapper/wrapper_instance.c'
           if os.path.exists(p):
               c = open(p,'r',errors='ignore').read().replace('vk_icdGetInstanceProcAddr(VkInstance','original_vk_icdGetInstanceProcAddr(VkInstance').replace('vk_icdGetInstanceProcAddr(void*','original_vk_icdGetInstanceProcAddr(void*')
               open(p,'w').write(c + '\n#include <string.h>\nextern int mallopt(int p, int v); extern int setenv(const char *n, const char *v, int o);\nVKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL original_vk_icdGetInstanceProcAddr(VkInstance i, const char *n);\nVKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL vk_icdGetInstanceProcAddr(VkInstance i, const char *n) {\n mallopt(-1002, 0); setenv(\"MESA_VK_WSI_PRESENT_MODE\", \"mailbox\", 1); setenv(\"vblank_mode\", \"0\", 1);\n if (sizeof(void*) == 4) {\n setenv(\"MESA_VK_WSI_QUEUE_SIZE\", \"1\", 1); setenv(\"BOX86_EMULATED_LIBS\", \"libvulkan_wrapper.so\", 1); setenv(\"BOX86_MMAP32\", \"1\", 1);\n if (n && (strcmp(n, \"vkGetPhysicalDeviceProperties2KHR\") == 0 || strcmp(n, \"vkGetPhysicalDeviceFeatures2KHR\") == 0 || strcmp(n, \"vkRegisterDeviceCustomCallbacksEXT\") == 0)) return (PFN_vkVoidFunction)NULL;\n }\n return original_vk_icdGetInstanceProcAddr(i, n);\n}\n')
-          # 2. Exponer símbolo ICD en el mapa de exportación
+          # 2. Exponer símbolo ICD exigido por Box86
           for r, d, files in os.walk('src/vulkan/wrapper'):
               for file in files:
                   if file.endswith(('.def', '.map')) or file == 'meson.build':
                       tp = os.path.join(r, file); content = open(tp,'r',errors='ignore').read()
                       if 'vk_icdGetInstanceProcAddr' in content: open(tp,'w').write(content.replace('vk_icdGetInstanceProcAddr', 'vk_icdGetInstanceProcAddr\n    vk_icdNegotiateLoaderICDInterfaceVersion'))
-          # 3. Eliminar comprobación estricta de libatomic, libdl, librt, libm, libelf y landroid en bloque (con soporte de comillas dobles)
-          for f in ['meson.build', 'subprojects/libadrenotools/meson.build']:
-              if os.path.exists(f):
-                  txt = open(f,'r',errors='ignore').read().replace(\"compiler.find_library('atomic'\", \"null_dep #\").replace(\"cc.find_library('atomic'\", \"null_dep #\").replace(\"compiler.find_library('dl'\", \"null_dep #\").replace(\"cc.find_library('dl'\", \"null_dep #\").replace(\"compiler.find_library('rt'\", \"null_dep #\").replace(\"cc.find_library('rt'\", \"null_dep #\").replace(\"compiler.find_library('m'\", \"null_dep #\").replace(\"cc.find_library('m'\", \"null_dep #\").replace(\"compiler.find_library('elf'\", \"null_dep #\").replace(\"cc.find_library('elf'\", \"null_dep #\").replace(\"cxx.find_library('android')\", \"null_dep\").replace(\"compiler.find_library('android')\", \"null_dep\").replace('cxx.find_library(\"android\")', 'null_dep').replace('compiler.find_library(\"android\")', 'null_dep')
-                  if 'dep_rt' in txt: txt = txt.replace('dep_rt = null_dep', 'dep_rt = null_dep\ndep_clock = null_dep')
-                  open(f,'w').write(txt)
+          # 3. Forzar bypass de dependencias obsoletas en el meson.build raíz
+          m_root = 'meson.build'
+          if os.path.exists(m_root):
+              txt = open(m_root,'r',errors='ignore').read().replace(\"compiler.find_library('atomic'\", \"null_dep #\").replace(\"cc.find_library('atomic'\", \"null_dep #\").replace(\"compiler.find_library('dl'\", \"null_dep #\").replace(\"cc.find_library('dl'\", \"null_dep #\").replace(\"compiler.find_library('rt'\", \"null_dep #\").replace(\"cc.find_library('rt'\", \"null_dep #\").replace(\"compiler.find_library('m'\", \"null_dep #\").replace(\"cc.find_library('m'\", \"null_dep #\").replace(\"compiler.find_library('elf'\", \"null_dep #\").replace(\"cc.find_library('elf'\", \"null_dep #\")
+              if 'dep_rt' in txt: txt = txt.replace('dep_rt = null_dep', 'dep_rt = null_dep\ndep_clock = null_dep')
+              open(m_root,'w').write(txt)
+          # 4. TRUCO DE ANULACIÓN RADICAL PARA LIBADRENOTOOLS (Bypass total al error 'android')
+          m_adr = 'subprojects/libadrenotools/meson.build'
+          if os.path.exists(m_adr):
+              lines = open(m_adr,'r',errors='ignore').readlines()
+              out = []
+              for l in lines:
+                  if 'find_library' in l and 'android' in l:
+                      l = 'libandroid = null_dep\ndep_android = null_dep\n'
+                  out.append(l)
+              open(m_adr,'w').write(''.join(out))
+              print('-> ¡Bloqueo de landroid en libadrenotools pulverizado!')
           "
 
       - name: Build Local Corrected Docker Image
