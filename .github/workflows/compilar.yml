@@ -31,7 +31,6 @@ jobs:
       # INYECCIÓN MASIVA COMPACTA: Generamos los perfiles de pkg-config simulados para romper el bloqueo de X11/XCB
       - name: Inject Virtual Graphics and System Manifests for Pkg-Config
         run: |
-          echo "-> Creando entorno virtual masivo de dependencias..."
           mkdir -p bin_hijack/pkgconfig
           cat << 'EOF' > gen_pc.py
           pkgs = ['libdrm','xcb','x11','libelf','libudev','xcb-randr','xcb-shm','xext','xrandr','xrender','xorgproto','libunwind','spirv-tools','valgrind','x11-xcb','xcb-keysyms','xcb-dri3','xcb-present','xcb-shm','xcb-sync','xcb-xfixes','xdmcp','xau','xshmfence','xcb-dri2']
