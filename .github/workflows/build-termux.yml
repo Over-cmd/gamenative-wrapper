@@ -25,18 +25,23 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y zstd python3
 
-      # INYECCIÓN MASIVA COMPACTA: Un bucle en Python genera TODOS los archivos .pc virtuales al vuelo
+      # INYECCIÓN MASIVA COMPACTA BLINDADA: Evitamos el parseador de GitHub rompiendo las llaves de la macro prefix
       - name: Inject Virtual Graphics and System Manifests for Pkg-Config
         run: |
           echo "-> Creando entorno virtual masivo de pkg-config..."
           mkdir -p bin_hijack/pkgconfig
-          python3 -c "
+          
+          cat << 'EOF' > generate_pc.py
           import os
           pkgs = ['libdrm','xcb','x11','libelf','libudev','xcb-randr','xcb-shm','xext','xrandr','xrender','xorgproto','libunwind','spirv-tools','valgrind','x11-xcb','xcb-keysyms','xcb-dri3','xcb-present','xcb-sync','xcb-xfixes','xdmcp','xau','xshmfence','xcb-dri2']
           for p in pkgs:
               with open(f'bin_hijack/pkgconfig/{p}.pc', 'w') as f:
-                  f.write(f'prefix=/usr\nlibdir=${{prefix}}/lib\nincludedir=${{prefix}}/include\nName: {p}\nDescription: Virtual Bypass\nVersion: 9.9.9\nLibs: -lm\nCflags: -I${{includedir}}\n')
-          "
+                  # Rompemos la sintaxis ${{ }} en trozos de texto para engañar al validador de GitHub Actions
+                  f.write("prefix=/usr\nlibdir=$" + "{" + "prefix}/lib\nincludedir=$" + "{" + "prefix}/include\nName: " + p + "\nDescription: Virtual Bypass\nVersion: 9.9.9\nLibs: -lm\nCflags: -I$" + "{" + "includedir}\n")
+          EOF
+          
+          python3 generate_pc.py
+          rm generate_pc.py
 
       # PASO CLAVE PIPETTO-STYLE: Forzamos que Over-cmd exponga el símbolo de interfaz ICD que Box86 exige
       - name: Inject Khronos ICD Interface Symbol (Pipetto-crypto Mirror Trick)
@@ -103,6 +108,18 @@ jobs:
           echo "-> Creando imagen de compilación a partir de tu archivo de printf..."
           docker build -t ${{ env.IMAGE_TAG }}:latest .
 
+      # PRE-CONFIGURACIÓN DE MESON: Mapeamos los ajustes simulados de pkg-config externos
+      - name: Pre-configure Meson Blueprint Folder
+        run: |
+          echo "-> Levantando el entorno de pre-ajustes externos de Meson..."
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -v "${{ github.workspace }}/bin_hijack/pkgconfig:/data/data/com.termux/files/usr/lib/pkgconfig" \
+            -e PKG_CONFIG_PATH="/data/data/com.termux/files/usr/lib/pkgconfig" \
+            --entrypoint /bin/bash \
+            ${{ env.IMAGE_TAG }}:latest -c "meson setup ${{ env.BUILD_DIR }} --cross-file /root/build-config/cross_file.txt -Dcpp_rtti=false -Dgbm=disabled -Dopengl=false -Dllvm=disabled -Dshared-llvm=disabled -Dplatforms=x11 -Dgallium-drivers= -Dxmlconfig=disabled -Dvulkan-drivers=wrapper"
+
+      # COMPILACIÓN DEL ENTORNO NATIVO
       - name: Wrapper Compiler (Atomic Processing Docker MALI)
         run: |
           docker run --rm \
