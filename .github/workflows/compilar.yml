@@ -22,57 +22,28 @@ jobs:
           echo "-> Descargando submódulos del repositorio de forma recursiva..."
           git submodule update --init --recursive --force
 
-      # DESCARGAS NATIVAS CORREGIDAS: Inyectamos el GITHUB_TOKEN y corregimos fetch-depth para dar permisos a la API
-      - name: Checkout Real libdrm Mirror
-        uses: actions/checkout@v4
-        with:
-          repository: freedesktop/libdrm
-          token: ${{ secrets.GITHUB_TOKEN }}
-          path: tmp_drm
-          fetch-depth: 1
-
-      - name: Checkout Real Mesa Mirror
-        uses: actions/checkout@v4
-        with:
-          repository: mirror/mesa
-          token: ${{ secrets.GITHUB_TOKEN }}
-          path: tmp_mesa_mirror
-          fetch-depth: 1
-
-      - name: Checkout Real xorgproto Mirror
-        uses: actions/checkout@v4
-        with:
-          repository: freedesktop/xorg-xorgproto
-          token: ${{ secrets.GITHUB_TOKEN }}
-          path: tmp_proto
-          fetch-depth: 1
-
-      - name: Checkout Real libxcb Mirror
-        uses: actions/checkout@v4
-        with:
-          repository: freedesktop/xorg-libxcb
-          token: ${{ secrets.GITHUB_TOKEN }}
-          path: tmp_xcb
-          fetch-depth: 1
-
-      # ACOPLAMIENTO DE CABECERAS: Estructuramos el árbol real que libadrenotools y Mesa exigen para compilar
-      - name: Structure Real Linux Dev Environment
+      # CLONACIÓN QUIRÚRGICA BLINDADA: Forzamos la descarga por Git sin consultar las APIs restrictivas de GitHub
+      - name: Download Real Linux DRM and X11 Headers 
         run: |
-          echo "-> Organizando paths gráficos del Sysroot..."
+          echo "-> Estructurando entorno de desarrollo real de Linux..."
           mkdir -p host_sysroot/libdrm host_sysroot/xcb host_sysroot/X11 host_sysroot/X11/extensions
           
-          # 1. Copiar cabeceras reales de libdrm
+          # 1. Clonar cabeceras de libdrm reales sin llamadas de API
+          git clone --depth 1 https://github.com tmp_drm
           cp -r tmp_drm/include/drm/* host_sysroot/ 2>/dev/null || true
           cp -r tmp_drm/include/drm/* host_sysroot/libdrm/ 2>/dev/null || true
           cp tmp_drm/*.h host_sysroot/libdrm/ 2>/dev/null || true
           
-          # 2. Copiar cabeceras reales del espejo de Mesa
+          # 2. Clonar estructuras de Mesa reales requeridas para el cross-build
+          git clone --depth 1 https://github.com tmp_mesa_mirror
           cp -r tmp_mesa_mirror/include/* host_sysroot/ 2>/dev/null || true
           
-          # 3. Copiar estructuras reales de X11
+          # 3. Clonar protocolos reales de X11 requeridos por libadrenotools
+          git clone --depth 1 https://github.com tmp_proto
           cp -r tmp_proto/include/X11/* host_sysroot/X11/
           
-          # 4. Copiar llamadas reales de libxcb
+          # 4. Clonar libxcb de produccion
+          git clone --depth 1 https://github.com tmp_xcb
           cp tmp_xcb/src/*.h host_sysroot/xcb/ 2>/dev/null || true
           
           # 5. Forzar la persistencia del archivo descriptor unificado xcb.h para las tablas de despacho
@@ -86,7 +57,6 @@ jobs:
           #endif
           EOF
           
-          # Limpiamos las carpetas temporales de descarga
           rm -rf tmp_drm tmp_mesa_mirror tmp_proto tmp_xcb
 
       - name: Set up Docker Buildx
@@ -129,7 +99,7 @@ jobs:
         run: docker build -t ${{ env.IMAGE_TAG }}:latest .
 
       # COMPILACIÓN DEL ENTORNO NATIVO: Sincronizamos las carpetas reales de host_graphics como variables globales de inclusión
-      - name: Wrapper Compiler (Atomic Processing Docker MALI)
+      - name: Wrapper Compiler (Atomic Processing Docker MALI HIBRIDO)
         run: |
           docker run --rm \
             -v "${{ github.workspace }}:/workspace" \
@@ -142,7 +112,7 @@ jobs:
             -e CPLUS_INCLUDE_PATH="/home/builder/lib/android-ndk-r29/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/host_graphics" \
             ${{ env.IMAGE_TAG }}:latest ${{ env.BUILD_DIR }}
 
-      # EMPAQUETADO ÚNICO EXIGIDO POR BANNERLATOR
+      # EMPAQUETADO FINAL ÚNICO EXIGIDO POR BANNERLATOR (.tzst)
       - name: Structure and Pack wrapper.tzst
         run: |
           mkdir -p pkg/usr/lib pkg/usr/share/vulkan/icd.d
