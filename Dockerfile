@@ -19,14 +19,15 @@ RUN NDK_DIR=$(find /home/builder/lib -maxdepth 2 -name "android-ndk*" 2>/dev/nul
     # PERFIL: 32 Bits (ARMv7) - Inyección de tolerancia Narrowing y macros nativas
     printf "[binaries]\nc = '%s/clang'\ncpp = '%s/clang++'\nar = '%s/llvm-ar'\nstrip = '%s/llvm-strip'\npkg-config = 'pkg-config'\n[constants]\nsys_dir = '%s'\n[properties]\npkg_config_libdir = sys_dir + '/usr/lib/arm-linux-androideabi/pkgconfig'\n[built-in options]\nc_args = ['-target', 'armv7a-linux-android30', '-D__TERMUX__', '-D__USE_GNU', '-D__ANDROID__=1', '-D__arm__=1', '-D__NR_memfd_create=356', '-I' + sys_dir + '/usr/include', '-march=armv7-a', '-mfpu=neon']\ncpp_args = ['-target', 'armv7a-linux-android30', '-D__TERMUX__', '-D__USE_GNU', '-D__ANDROID__=1', '-D__arm__=1', '-D__NR_memfd_create=356', '-Wno-error=c++11-narrowing', '-I' + sys_dir + '/usr/include', '-march=armv7-a', '-mfpu=neon']\nc_link_args = ['-target', 'armv7a-linux-android30', '-L' + sys_dir + '/usr/lib/arm-linux-androideabi/30', '-landroid']\ncpp_link_args = ['-target', 'armv7a-linux-android30', '-L' + sys_dir + '/usr/lib/arm-linux-androideabi/30', '-landroid']\n[host_machine]\nsystem = 'android'\ncpu_family = 'arm'\ncpu = 'armv7-a'\nendian = 'little'\n" "$NDK_BIN" "$NDK_BIN" "$NDK_BIN" "$NDK_BIN" "$SYS_DIR" > /root/build-config/cross_arm.txt
 
-# 3. Script de orquestación híbrido unificado (Corrección directa para forzar memfd_create nativo en anon_file.c)
+# 3. Script de orquestación híbrido unificado (Corrección matemática estricta para forzar memfd_create con MFD_ALLOW_SEALING válido)
 RUN printf '#!/bin/bash\nset -e\nBUILD_DIR="${1:-compilacion}"\nNDK_DIR=$(find /home/builder/lib -maxdepth 2 -name "android-ndk*" 2>/dev/null | head -n 1)\nSTRIP="${NDK_DIR}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip"\n\
 ANON_FILE=$(find src/ -name "anon_file.c" | head -n 1)\n\
 if [ -n "$ANON_FILE" ] && [ -f "$ANON_FILE" ]; then\n\
-  echo "-> Parcheando anon_file.c para forzar funcion memfd_create nativa de Android...";\n\
+  echo "-> Parcheando anon_file.c para habilitar memfd_create nativo con proteccion de sellado...";\n\
   sed -i "s/\\r$//" "$ANON_FILE";\n\
+  # Reemplazo seguro: Convertimos cualquier syscall en una llamada directa a memfd_create manteniendo MFD_ALLOW_SEALING limpio\n\
   sed -i "s/syscall(SYS_memfd_create, debug_name, MFD_CLOEXEC);/memfd_create(debug_name, MFD_CLOEXEC | MFD_ALLOW_SEALING);/g" "$ANON_FILE";\n\
-  sed -i "s/syscall(SYS_memfd_create, debug_name, MFD_CLOEXEC | MFD_ALLOW_SEALING);/memfd_create(debug_name, MFD_CLOEXEC | MESA_MFD_ALLOW_SEALING);/g" "$ANON_FILE";\n\
+  sed -i "s/syscall(SYS_memfd_create, debug_name, MFD_CLOEXEC | MFD_ALLOW_SEALING);/memfd_create(debug_name, MFD_CLOEXEC | MFD_ALLOW_SEALING);/g" "$ANON_FILE";\n\
   sed -i "s/fd = syscall(SYS_memfd_create, debug_name, flags);/fd = memfd_create(debug_name, flags);/g" "$ANON_FILE";\n\
   sed -i "s/fd = syscall(SYS_memfd_create, debug_name, MFD_CLOEXEC | MFD_ALLOW_SEALING);/fd = memfd_create(debug_name, MFD_CLOEXEC | MFD_ALLOW_SEALING);/g" "$ANON_FILE";\n\
 fi\n\
