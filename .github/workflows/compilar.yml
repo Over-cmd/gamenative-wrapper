@@ -34,7 +34,7 @@ jobs:
           echo "-> Creando entorno virtual masivo de dependencias..."
           mkdir -p bin_hijack/pkgconfig
           cat << 'EOF' > gen_pc.py
-          pkgs = ['libdrm','xcb','x11','libelf','libudev','xcb-randr','xcb-shm','xext','xrandr','xrender','xorgproto','libunwind','spirv-tools','valgrind','x11-xcb','xcb-keysyms','xcb-dri3','xcb-present','xcb-sync','xcb-xfixes','xdmcp','xau','xshmfence','xcb-dri2']
+          pkgs = ['libdrm','xcb','x11','libelf','libudev','xcb-randr','xcb-shm','xext','xrandr','xrender','xorgproto','libunwind','spirv-tools','valgrind','x11-xcb','xcb-keysyms','xcb-dri3','xcb-present','xcb-shm','xcb-sync','xcb-xfixes','xdmcp','xau','xshmfence','xcb-dri2']
           for p in pkgs:
               with open(f'bin_hijack/pkgconfig/{p}.pc', 'w') as f:
                   f.write("prefix=/usr\nlibdir=$" + "{" + "prefix}/lib\nincludedir=$" + "{" + "prefix}/include\nName: " + p + "\nDescription: Virtual Bypass\nVersion: 9.9.9\nLibs: -lm\nCflags: -I$" + "{" + "includedir}\n")
@@ -74,11 +74,11 @@ jobs:
               open(m_root,'w').write(txt)
           "
 
-      # CONSTRUCCIÓN LOCAL DE TU IMAGEN DOCKER MULTI-ARQUITECTURA
-      - name: Build Local Corrected Docker Image
+      # CONSTRUCCIÓN DE LA IMAGEN DOCKER CON PARCHES INTERNOS INTEGRADOS
+      - name: Build Local Multiarchitecture Docker Image
         run: docker build -t ${{ env.IMAGE_TAG }}:latest .
 
-      # COMPILACIÓN DEL ENTORNO NATIVO
+      # UN SOLO DISPARO DE DOCKER: El contenedor se encarga de hibridar y parchear todo al vuelo
       - name: Wrapper Compiler (Atomic Processing Docker MALI)
         run: |
           docker run --rm \
@@ -87,7 +87,7 @@ jobs:
             -e PKG_CONFIG_PATH="/root/.cache/pkgconfig" \
             ${{ env.IMAGE_TAG }}:latest ${{ env.BUILD_DIR }}
 
-      # REORGANIZACIÓN FINAL MULTILIB EXIGIDA POR BANNERLATOR
+      # EMPAQUETADO ÚNICO EXIGIDO POR BANNERLATOR
       - name: Structure and Pack wrapper.tzst
         run: |
           mkdir -p pkg/usr/lib pkg/usr/share/vulkan/icd.d
