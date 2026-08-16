@@ -1,0 +1,20 @@
+[constants]
+ndk_path = '/opt/android-ndk'
+toolchain = ndk_path + '/toolchains/llvm/prebuilt/linux-x86_64/bin'
+api = '24'
+
+[binaries]
+c       = toolchain + '/armv7a-linux-androideabi' + api + '-clang'
+cpp     = toolchain + '/armv7a-linux-androideabi' + api + '-clang++'
+ar      = toolchain + '/llvm-ar'
+strip   = toolchain + '/llvm-strip'
+pkgconfig = 'false'
+
+[properties]
+needs_exe_wrapper = true
+
+[host_machine]
+system = 'android'
+cpu_family = 'arm'
+cpu = 'armv7a'
+endian = 'little'
