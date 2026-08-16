@@ -1,136 +1,36 @@
-name: Mesa Vulkan Wrapper Mali Packager (.tzst)
+name: Build GameNative Wrapper Multi-Arch
 
 on:
   push:
-    branches: [ "main", "master" ]
-  workflow_dispatch:
-
-env:
-  BUILD_DIR: compilacion
-  IMAGE_TAG: wrapper-compiler
+    branches: [ main, wrapper-25 ]
+  pull_request:
+    branches: [ main ]
 
 jobs:
-  build-aarch64-wrapper:
+  build-and-export:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
+    - name: Checkout Repository
+      uses: actions/checkout@v4
 
-      - name: Checkout Submodules Manually
-        run: |
-          echo "-> Descargando submódulos del repositorio de forma recursiva..."
-          git submodule update --init --recursive --force
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
 
-      # CLONACIÓN QUIRÚRGICA BLINDADA: Forzamos la descarga por Git sin consultar las APIs restrictivas de GitHub
-      - name: Download Real Linux DRM and X11 Headers 
-        run: |
-          echo "-> Estructurando entorno de desarrollo real de Linux..."
-          mkdir -p host_sysroot/libdrm host_sysroot/xcb host_sysroot/X11 host_sysroot/X11/extensions
-          
-          # 1. Clonar cabeceras de libdrm reales sin llamadas de API
-          git clone --depth 1 https://github.com tmp_drm
-          cp -r tmp_drm/include/drm/* host_sysroot/ 2>/dev/null || true
-          cp -r tmp_drm/include/drm/* host_sysroot/libdrm/ 2>/dev/null || true
-          cp tmp_drm/*.h host_sysroot/libdrm/ 2>/dev/null || true
-          
-          # 2. Clonar estructuras de Mesa reales requeridas para el cross-build
-          git clone --depth 1 https://github.com tmp_mesa_mirror
-          cp -r tmp_mesa_mirror/include/* host_sysroot/ 2>/dev/null || true
-          
-          # 3. Clonar protocolos reales de X11 requeridos por libadrenotools
-          git clone --depth 1 https://github.com tmp_proto
-          cp -r tmp_proto/include/X11/* host_sysroot/X11/
-          
-          # 4. Clonar libxcb de produccion
-          git clone --depth 1 https://github.com tmp_xcb
-          cp tmp_xcb/src/*.h host_sysroot/xcb/ 2>/dev/null || true
-          
-          # 5. Forzar la persistencia del archivo descriptor unificado xcb.h para las tablas de despacho
-          cat << 'EOF' > host_sysroot/xcb/xcb.h
-          #ifndef XCB_H
-          #define XCB_H
-          #include <stdint.h>
-          typedef struct xcb_connection_t xcb_connection_t;
-          typedef uint32_t xcb_window_t;
-          typedef uint32_t xcb_visualid_t;
-          #endif
-          EOF
-          
-          rm -rf tmp_drm tmp_mesa_mirror tmp_proto tmp_xcb
+    - name: Build Arm32 and Arm64 via Docker
+      run: |
+        docker build --target final -t gamenative-compiled .
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+    - name: Extract Compiled Libraries
+      run: |
+        docker create --name container-extract gamenative-compiled
+        docker cp container-extract:/dist/lib ./lib
+        docker rm container-extract
 
-      - name: Install Zstd Packager
-        run: sudo apt-get update && sudo apt-get install -y zstd python3
-
-      # INYECCIÓN MASIVA COMPACTA: Generamos los perfiles de pkg-config simulados para romper el bloqueo de dependencias externas
-      - name: Inject Virtual Graphics and System Manifests for Pkg-Config
-        run: |
-          mkdir -p bin_hijack/pkgconfig
-          cat << 'EOF' > gen_pc.py
-          pkgs = ['libdrm','xcb','x11','libelf','libudev','xcb-randr','xcb-shm','xext','xrandr','xrender','xorgproto','libunwind','spirv-tools','valgrind','x11-xcb','xcb-keysyms','xcb-dri3','xcb-present','xcb-shm','xcb-sync','xcb-xfixes','xdmcp','xau','xshmfence','xcb-dri2']
-          for p in pkgs:
-              with open(f'bin_hijack/pkgconfig/{p}.pc', 'w') as f:
-                  f.write("prefix=/usr\nlibdir=$" + "{" + "prefix}/lib\nincludedir=$" + "{" + "prefix}/include\nName: " + p + "\nDescription: Virtual Bypass\nVersion: 9.9.9\nLibs: -lm\nCflags: -I$" + "{" + "includedir}\n")
-          EOF
-          python3 gen_pc.py && rm gen_pc.py
-
-      # PARCHE MAESTRO INTEGRADO (Mantiene tu HUD intacto y repara la compatibilidad de variables de tiempo/bloqueos)
-      - name: Inject Anti-Crash Hook and Bypass Meson Requirements
-        run: |
-          python3 -c "
-          import os
-          # 1. Parche e Interceptor de 32 bits en wrapper_instance.c
-          p = 'src/vulkan/wrapper/wrapper_instance.c'
-          if os.path.exists(p):
-              c = open(p,'r',errors='ignore').read().replace('vk_icdGetInstanceProcAddr(VkInstance','original_vk_icdGetInstanceProcAddr(VkInstance').replace('vk_icdGetInstanceProcAddr(void*','original_vk_icdGetInstanceProcAddr(void*')
-              open(p,'w').write(c + '\n#include <string.h>\nextern int mallopt(int p, int v); extern int setenv(const char *n, const char *v, int o);\nVKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL original_vk_icdGetInstanceProcAddr(VkInstance i, const char *n);\nVKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL vk_icdGetInstanceProcAddr(VkInstance i, const char *n) {\n mallopt(-1002, 0); setenv(\"MESA_VK_WSI_PRESENT_MODE\", \"mailbox\", 1); setenv(\"vblank_mode\", \"0\", 1);\n if (sizeof(void*) == 4) {\n setenv(\"MESA_VK_WSI_QUEUE_SIZE\", \"1\", 1); setenv(\"BOX86_EMULATED_LIBS\", \"libvulkan_wrapper.so\", 1); setenv(\"BOX86_MMAP32\", \"1\", 1);\n if (n && (strcmp(n, \"vkGetPhysicalDeviceProperties2KHR\") == 0 || strcmp(n, \"vkGetPhysicalDeviceFeatures2KHR\") == 0 || strcmp(n, \"vkRegisterDeviceCustomCallbacksEXT\") == 0)) return (PFN_vkVoidFunction)NULL;\n }\n return original_vk_icdGetInstanceProcAddr(i, n);\n}\n')
-          # 2. Eliminar comprobación estricta de dependencias obsoletas en el meson.build raíz
-          m_root = 'meson.build'
-          if os.path.exists(m_root):
-              txt = open(m_root,'r',errors='ignore').read().replace(\"compiler.find_library('atomic'\", \"null_dep #\").replace(\"cc.find_library('atomic'\", \"null_dep #\").replace(\"compiler.find_library('dl'\", \"null_dep #\").replace(\"cc.find_library('dl'\", \"null_dep #\").replace(\"compiler.find_library('rt'\", \"null_dep #\").replace(\"cc.find_library('rt'\", \"null_dep #\").replace(\"compiler.find_library('m'\", \"null_dep #\").replace(\"cc.find_library('m'\", \"null_dep #\").replace(\"compiler.find_library('elf'\", \"null_dep #\").replace(\"cc.find_library('elf'\", \"null_dep #\")
-              if 'dep_rt' in txt: txt = txt.replace('dep_rt = null_dep', 'dep_rt = null_dep\ndep_clock = null_dep')
-              open(m_root,'w').write(txt)
-          "
-
-      - name: Build Local Corrected Docker Image
-        run: docker build -t ${{ env.IMAGE_TAG }}:latest .
-
-      # COMPILACIÓN DEL ENTORNO NATIVO: Sincronizamos las carpetas reales de host_graphics como variables globales de inclusión
-      - name: Wrapper Compiler (Atomic Processing Docker MALI HIBRIDO)
-        run: |
-          docker run --rm \
-            -v "${{ github.workspace }}:/workspace" \
-            -v "${{ github.workspace }}/bin_hijack/pkgconfig:/termux_64/data/data/com.termux/files/usr/lib/pkgconfig" \
-            -v "${{ github.workspace }}/bin_hijack/pkgconfig:/termux_32/data/data/com.termux/files/usr/lib/pkgconfig" \
-            -v "${{ github.workspace }}/bin_hijack/pkgconfig:/data/data/com.termux/files/usr/lib/pkgconfig" \
-            -v "${{ github.workspace }}/host_sysroot:/home/builder/lib/android-ndk-r29/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/host_graphics" \
-            -v "${{ github.workspace }}/host_sysroot:/usr/include/host_graphics" \
-            -e C_INCLUDE_PATH="/home/builder/lib/android-ndk-r29/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/host_graphics" \
-            -e CPLUS_INCLUDE_PATH="/home/builder/lib/android-ndk-r29/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/host_graphics" \
-            ${{ env.IMAGE_TAG }}:latest ${{ env.BUILD_DIR }}
-
-      # EMPAQUETADO FINAL ÚNICO EXIGIDO POR BANNERLATOR (.tzst)
-      - name: Structure and Pack wrapper.tzst
-        run: |
-          mkdir -p pkg/usr/lib pkg/usr/share/vulkan/icd.d
-          cp ${{ env.BUILD_DIR }}/libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
-          
-          cat << 'EOF' > pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
-          { "ICD": { "api_version": "1.3.289", "library_path": "libvulkan_wrapper.so" }, "file_format_version": "1.0.0" }
-          EOF
-          
-          cat << 'EOF' > pkg/usr/share/vulkan/icd.d/wrapper_icd.arm.json
-          { "ICD": { "api_version": "1.3.289", "library_path": "libvulkan_wrapper.so" }, "file_format_version": "1.0.0" }
-          EOF
-          
-          cd pkg && tar -I 'zstd -19 -T0' -cf ../wrapper.tzst usr/ && cd ..
-
-      - name: Upload Final wrapper.tzst for Bannerlator
-        uses: actions/upload-artifact@v4
-        with:
-          name: Bannerlator-Mali-Wrapper-Universal-FatBinary
-          path: wrapper.tzst
-          if-no-files-found: error
+    - name: Upload Build Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: gamenative-wrapper-binaries
+        path: |
+          lib/armeabi-v7a/libvulkan_wrapper.so
+          lib/arm64-v8a/libvulkan_wrapper.so
