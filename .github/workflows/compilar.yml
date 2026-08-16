@@ -73,7 +73,7 @@ jobs:
       - name: Build Local Corrected Docker Image
         run: docker build -t ${{ env.IMAGE_TAG }}:latest .
 
-      # PRE-CONFIGURACIÓN DE MESON: Montamos nuestra librería 'android' virtual en las carpetas de búsqueda del NDK cruzado
+      # PRE-CONFIGURACIÓN DE MESON: Forzamos el mapeo en el sysroot real del compilador del NDK mediante volúmenes múltiples
       - name: Pre-configure Meson Blueprint Folder
         run: |
           echo "-> Levantando el entorno de pre-ajustes externos de Meson..."
@@ -81,19 +81,21 @@ jobs:
             -v "${{ github.workspace }}:/workspace" \
             -v "${{ github.workspace }}/bin_hijack/pkgconfig:/data/data/com.termux/files/usr/lib/pkgconfig" \
             -v "${{ github.workspace }}/bin_hijack/libs/libandroid.a:/usr/lib/aarch64-linux-android/libandroid.a" \
-            -v "${{ github.workspace }}/bin_hijack/libs/libandroid.a:/home/builder/lib/libandroid.a" \
+            -v "${{ github.workspace }}/bin_hijack/libs/libandroid.a:/home/builder/lib/android-ndk-r29/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/30/libandroid.a" \
+            -v "${{ github.workspace }}/bin_hijack/libs/libandroid.a:/home/builder/lib/android-ndk-r29/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/libandroid.a" \
             -e PKG_CONFIG_PATH="/data/data/com.termux/files/usr/lib/pkgconfig" \
             --entrypoint /bin/bash \
             ${{ env.IMAGE_TAG }}:latest -c "meson setup ${{ env.BUILD_DIR }} --cross-file /root/build-config/cross_file.txt -Dcpp_rtti=false -Dgbm=disabled -Dopengl=false -Dllvm=disabled -Dshared-llvm=disabled -Dplatforms=x11 -Dgallium-drivers= -Dxmlconfig=disabled -Dvulkan-drivers=wrapper"
 
-      # COMPILACIÓN DEL ENTORNO NATIVO CON BYPASS FÍSICO DE LIBRERÍA
+      # COMPILACIÓN DEL ENTORNO NATIVO CON BYPASS FÍSICO DE LIBRERÍA EN EL SYSROOT DEL COMPILADOR
       - name: Wrapper Compiler (Atomic Processing Docker MALI)
         run: |
           docker run --rm \
             -v "${{ github.workspace }}:/workspace" \
             -v "${{ github.workspace }}/bin_hijack/pkgconfig:/data/data/com.termux/files/usr/lib/pkgconfig" \
             -v "${{ github.workspace }}/bin_hijack/libs/libandroid.a:/usr/lib/aarch64-linux-android/libandroid.a" \
-            -v "${{ github.workspace }}/bin_hijack/libs/libandroid.a:/home/builder/lib/libandroid.a" \
+            -v "${{ github.workspace }}/bin_hijack/libs/libandroid.a:/home/builder/lib/android-ndk-r29/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/30/libandroid.a" \
+            -v "${{ github.workspace }}/bin_hijack/libs/libandroid.a:/home/builder/lib/android-ndk-r29/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/libandroid.a" \
             -e PKG_CONFIG_PATH="/data/data/com.termux/files/usr/lib/pkgconfig" \
             ${{ env.IMAGE_TAG }}:latest ${{ env.BUILD_DIR }}
 
