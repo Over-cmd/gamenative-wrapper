@@ -17,9 +17,9 @@ jobs:
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
 
-    - name: Build Arm32 and Arm64 via Docker
+    - name: Build Arm32 and Arm64 via Fresh Dockerfile
       run: |
-        docker build --target final -t gamenative-compiled .
+        docker build --no-cache -f Dockerfile.build --target final -t gamenative-compiled .
 
     - name: Extract Compiled Libraries
       run: |
