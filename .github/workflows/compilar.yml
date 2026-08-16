@@ -25,7 +25,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y zstd python3
 
-      # INYECCIÓN MASIVA COMPACTA REPARADA: Blindamos el script con un Heredoc 'EOF' para evitar el fallo 'bad substitution'
+      # INYECCIÓN MASIVA BLINDADA POR OCTAL: Eliminamos los símbolos $, { y } para que GitHub no intente parsearlos
       - name: Inject Virtual Graphics and System Manifests for Pkg-Config
         run: |
           echo "-> Creando entorno virtual masivo de pkg-config..."
@@ -36,7 +36,8 @@ jobs:
           pkgs = ['libdrm','xcb','x11','libelf','libudev','xcb-randr','xcb-shm','xext','xrandr','xrender','xorgproto','libunwind','spirv-tools','valgrind','x11-xcb','xcb-keysyms','xcb-dri3','xcb-present','xcb-sync','xcb-xfixes','xdmcp','xau','xshmfence','xcb-dri2']
           for p in pkgs:
               with open(f'bin_hijack/pkgconfig/{p}.pc', 'w') as f:
-                  f.write(f"prefix=/usr\nlibdir=${{prefix}}/lib\nincludedir=${{prefix}}/include\nName: {p}\nDescription: Virtual Bypass\nVersion: 9.9.9\nLibs: -lm\nCflags: -I${{includedir}}\n")
+                  # Usamos escapes octales (\x24 = $, \x7b = {, \x7d = }) para engañar por completo al validador de GitHub
+                  f.write(f"prefix=/usr\nlibdir=\x24\x7bprefix\x7d/lib\nincludedir=\x24\x7bprefix\x7d/include\nName: {p}\nDescription: Virtual Bypass\nVersion: 9.9.9\nLibs: -lm\nCflags: -I\x24\x7bincludedir\x7d\n")
           EOF
           
           python3 generate_pc.py
@@ -58,6 +59,50 @@ jobs:
                           content = content.replace('vk_icdGetInstanceProcAddr', 'vk_icdGetInstanceProcAddr\n    vk_icdNegotiateLoaderICDInterfaceVersion')
                           with open(target, 'w', encoding='utf-8') as f:
                               f.write(content)
+          "
+
+      # REESCRITURA QUIRÚRGICA EN C: Interceptamos las extensiones estrictas que causan el crash en la carga de 32 bits
+      - name: Inject Anti-Crash Hook into Wrapper Instance
+        run: |
+          echo "-> Inyectando pasarela de compatibilidad en el código fuente de Mesa..."
+          python3 -c "
+          import os
+          target = 'src/vulkan/wrapper/wrapper_instance.c'
+          if os.path.exists(target):
+              with open(target, 'r', encoding='utf-8', errors='ignore') as f:
+                  content = f.read()
+              
+              content = content.replace('vk_icdGetInstanceProcAddr(VkInstance', 'original_vk_icdGetInstanceProcAddr(VkInstance')
+              content = content.replace('vk_icdGetInstanceProcAddr(void*', 'original_vk_icdGetInstanceProcAddr(void*')
+              
+              bridge_code = '''
+  #include <string.h>
+  extern int mallopt(int param, int value);
+  extern int setenv(const char *name, const char *value, int overwrite);
+  VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL original_vk_icdGetInstanceProcAddr(VkInstance instance, const char *pName);
+
+  VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL vk_icdGetInstanceProcAddr(VkInstance instance, const char *pName) {
+      mallopt(-1002, 0);
+      setenv(\"MESA_VK_WSI_PRESENT_MODE\", \"mailbox\", 1);
+      setenv(\"vblank_mode\", \"0\", 1);
+      
+      if (sizeof(void*) == 4) {
+          setenv(\"MESA_VK_WSI_QUEUE_SIZE\", \"1\", 1);
+          setenv(\"BOX86_EMULATED_LIBS\", \"libvulkan_wrapper.so\", 1);
+          setenv(\"BOX86_MMAP32\", \"1\", 1);
+          
+          if (pName && (strcmp(pName, \"vkGetPhysicalDeviceProperties2KHR\") == 0 || 
+                        strcmp(pName, \"vkGetPhysicalDeviceFeatures2KHR\") == 0 ||
+                        strcmp(pName, \"vkRegisterDeviceCustomCallbacksEXT\") == 0)) {
+              return (PFN_vkVoidFunction)NULL;
+          }
+      }
+      return original_vk_icdGetInstanceProcAddr(instance, pName);
+  }
+  '''
+              with open(target, 'w', encoding='utf-8') as f:
+                  f.write(content + '\n' + bridge_code)
+              print('-> ¡Bypass dinámico soldado con éxito en wrapper_instance.c!')
           "
 
       # PARCHE QUIRÚRGICO DE ELIMINACIÓN: Borramos las comprobaciones de librerías obsoletas en Android (r27/r29) y sanamos variables de tiempo
@@ -87,27 +132,12 @@ jobs:
                   f.writelines(new_lines)
           "
 
-      # TU INYECCIÓN DE CONTROL DE FLUJO HÍBRIDO ORIGINAL (CONSERVA TU CONFIGURACIÓN DEL HUD)
-      - name: Surgical Silicon Modification (Anti-Overflow MALI Hybrid 32/64 Injection)
-        run: |
-          echo "-> Rastreando el corazon del Wrapper para soldar compatibilidad hibrida Vulkan..."
-          WRAPPER_DEVICE=$(find src/ -name "wrapper_device.c" | head -n 1)
-          if [ -n "$WRAPPER_DEVICE" ] && [ -f "$WRAPPER_DEVICE" ]; then
-            sed -i 's/\r$//' "$WRAPPER_DEVICE"
-            sed -i '1i#include <stdint.h>' "$WRAPPER_DEVICE"
-            sed -i '1iextern int mallopt(int param, int value);' "$WRAPPER_DEVICE"
-            sed -i '1iextern int setenv(const char *name, const char *value, int overwrite);' "$WRAPPER_DEVICE"
-            sed -i '/vk_icdGetInstanceProcAddr/!b;n;i\\ extern int mallopt(int p, int v);\\n extern int setenv(const char *n, const char *v, int o);\\n mallopt(-1002, 0);\\n setenv("MESA_VK_WSI_PRESENT_MODE", "mailbox", 1);\\n setenv("vblank_mode", "0", 1);\\n if (sizeof(void*) == 4) {\\n   setenv("MESA_VK_WSI_QUEUE_SIZE", "1", 1);\\n }' "$WRAPPER_DEVICE"
-          else
-            find src/ -name "*.c" -exec sed -i 's/vk_icdGetInstanceProcAddr/extern int mallopt(int p, int v); extern int setenv(const char *n, const char *v, int o); mallopt(-1002, 0); setenv("MESA_VK_WSI_PRESENT_MODE", "mailbox", 1); setenv("vblank_mode", "0", 1); if (sizeof(void*) == 4) { setenv("MESA_VK_WSI_QUEUE_SIZE", "1", 1); } vk_icdGetInstanceProcAddr/g' {} + || true
-          fi
-
       - name: Build Local Corrected Docker Image
         run: |
           echo "-> Creando imagen de compilación a partir de tu archivo de printf..."
           docker build -t ${{ env.IMAGE_TAG }}:latest .
 
-      # CORRECCIÓN EN EL PROPIO FLUJO YAML: Pre-configuramos Meson de manera externa para generar el build.ninja que espera el contenedor
+      # PRE-CONFIGURACIÓN DE MESON: Mapeamos los ajustes simulados de pkg-config externos
       - name: Pre-configure Meson Blueprint Folder
         run: |
           echo "-> Levantando el entorno de pre-ajustes externos de Meson..."
@@ -118,7 +148,7 @@ jobs:
             --entrypoint /bin/bash \
             ${{ env.IMAGE_TAG }}:latest -c "meson setup ${{ env.BUILD_DIR }} --cross-file /root/build-config/cross_file.txt -Dcpp_rtti=false -Dgbm=disabled -Dopengl=false -Dllvm=disabled -Dshared-llvm=disabled -Dplatforms=x11 -Dgallium-drivers= -Dxmlconfig=disabled -Dvulkan-drivers=wrapper"
 
-      # COMPILACIÓN DEL DOCKER NATIVO (Ahora sí encontrará el build.ninja dentro de la carpeta compilacion)
+      # COMPILACIÓN DEL ENTORNO NATIVO
       - name: Wrapper Compiler (Atomic Processing Docker MALI)
         run: |
           docker run --rm \
