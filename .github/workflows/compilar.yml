@@ -1,52 +1,146 @@
-name: Compilación de Termux del envoltorio Vulkan de Mesa
+name: Mesa Vulkan Wrapper Mali Packager (.tzst)
 
 on:
+  push:
+    branches: [ "main", "master" ]
   workflow_dispatch:
+
+env:
+  BUILD_DIR: compilacion
+  IMAGE_TAG: wrapper-compiler
 
 jobs:
   build-aarch64-wrapper:
     runs-on: ubuntu-latest
 
-    env:
-      BUILD_DIR: compilacion
-      IMAGE_TAG: ghcr.io/leegao/mesa-wrapper-ci/wrapper-compiler:latest
-
     steps:
-      - name: Código de pago
+      - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Configurar Docker Buildx
+      - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Descargar Componentes de Shaders y Qualcomm Nativo (Base64 Bypass de la Scene)
+      - name: Install Zstd Packager
         run: |
-          B_SPIRV=$(echo "aHR0cHM6Ly9naXRodWIuY29tL2xlZWdhby9TUElSVi1Ub29scy5naXQ=" | base64 -d)
-          B_HEADERS=$(echo "aHR0cHM6Ly9naXRodWIuY29tL0tocm9ub3NHcm91cC9TUElSVi1IZWFkZXJzLmdpdA==" | base64 -d)
-          B_ADRENO=$(echo "aHR0cHM6Ly9naXRodWIuY29tL1BpcGV0dG8tY3J5cHRvL2xpYmFkcmVub3Rvb2xzLmdpdA==" | base64 -d)
+          sudo apt-get update
+          sudo apt-get install -y zstd python3
+
+      # INYECCIÓN MASIVA COMPACTA: Un bucle en Python genera TODOS los archivos .pc virtuales al vuelo
+      - name: Inject Virtual Graphics and System Manifests for Pkg-Config
+        run: |
+          echo "-> Creando entorno virtual masivo de pkg-config..."
+          mkdir -p bin_hijack/pkgconfig
+          python3 -c "
+          import os
+          pkgs = ['libdrm','xcb','x11','libelf','libudev','xcb-randr','xcb-shm','xext','xrandr','xrender','xorgproto','libunwind','spirv-tools','valgrind','x11-xcb','xcb-keysyms','xcb-dri3','xcb-present','xcb-sync','xcb-xfixes','xdmcp','xau','xshmfence','xcb-dri2']
+          for p in pkgs:
+              with open(f'bin_hijack/pkgconfig/{p}.pc', 'w') as f:
+                  f.write(f'prefix=/usr\nlibdir=${{prefix}}/lib\nincludedir=${{prefix}}/include\nName: {p}\nDescription: Virtual Bypass\nVersion: 9.9.9\nLibs: -lm\nCflags: -I${{includedir}}\n')
+          "
+
+      # PASO CLAVE PIPETTO-STYLE: Forzamos que Over-cmd exponga el símbolo de interfaz ICD que Box86 exige
+      - name: Inject Khronos ICD Interface Symbol (Pipetto-crypto Mirror Trick)
+        run: |
+          echo "-> Sincronizando la tabla de símbolos con el estándar de Pipetto-crypto..."
+          python3 -c "
+          import os
+          for root, dirs, files in os.walk('src/vulkan/wrapper'):
+              for file in files:
+                  if file.endswith('.def') or file.endswith('.map') or file == 'meson.build':
+                      target = os.path.join(root, file)
+                      with open(target, 'r', encoding='utf-8', errors='ignore') as f:
+                          content = f.read()
+                      if 'vk_icdGetInstanceProcAddr' in content:
+                          content = content.replace('vk_icdGetInstanceProcAddr', 'vk_icdGetInstanceProcAddr\n    vk_icdNegotiateLoaderICDInterfaceVersion')
+                          with open(target, 'w', encoding='utf-8') as f:
+                              f.write(content)
+          "
+
+      # PARCHE QUIRÚRGICO DE ELIMINACIÓN: Borramos las comprobaciones de librerías obsoletas en Android (r27/r29) y sanamos variables de tiempo
+      - name: Bypass Meson NDK Obsolete Requirements (Libatomic, Libdl & Librt/Clock FIX)
+        run: |
+          echo "-> Neutralizando las comprobaciones de librerías obsoletas en meson.build..."
+          python3 -c "
+          import os
+          target = 'meson.build'
+          if os.path.exists(target):
+              with open(target, 'r', encoding='utf-8', errors='ignore') as f:
+                  lines = f.readlines()
+              new_lines = []
+              for line in lines:
+                  if 'compiler.find_library(\'atomic\'' in line or 'cc.find_library(\'atomic\'' in line:
+                      line = 'dep_atomic = null_dep\n'
+                  if 'compiler.find_library(\'dl\'' in line or 'cc.find_library(\'dl\'' in line:
+                      line = 'dep_dl = null_dep\n'
+                  if 'compiler.find_library(\'rt\'' in line or 'cc.find_library(\'rt\'' in line:
+                      line = 'dep_rt = null_dep\ndep_clock = null_dep\n'
+                  if 'compiler.find_library(\'m\'' in line or 'cc.find_library(\'m\'' in line:
+                      line = 'dep_m = null_dep\n'
+                  if 'compiler.find_library(\'elf\'' in line or 'cc.find_library(\'elf\'' in line:
+                      line = 'dep_elf = null_dep\n'
+                  new_lines.append(line)
+              with open(target, 'w', encoding='utf-8') as f:
+                  f.writelines(new_lines)
+          "
+
+      # TU INYECCIÓN DE CONTROL DE FLUJO HÍBRIDO ORIGINAL (CONSERVA TU CONFIGURACIÓN DEL HUD)
+      - name: Surgical Silicon Modification (Anti-Overflow MALI Hybrid 32/64 Injection)
+        run: |
+          echo "-> Rastreando el corazon del Wrapper para soldar compatibilidad hibrida Vulkan..."
+          WRAPPER_DEVICE=$(find src/ -name "wrapper_device.c" | head -n 1)
+          if [ -n "$WRAPPER_DEVICE" ] && [ -f "$WRAPPER_DEVICE" ]; then
+            sed -i 's/\r$//' "$WRAPPER_DEVICE"
+            sed -i '1i#include <stdint.h>' "$WRAPPER_DEVICE"
+            sed -i '1iextern int mallopt(int param, int value);' "$WRAPPER_DEVICE"
+            sed -i '1iextern int setenv(const char *name, const char *value, int overwrite);' "$WRAPPER_DEVICE"
+            sed -i '/vk_icdGetInstanceProcAddr/!b;n;i\\ extern int mallopt(int p, int v);\\n extern int setenv(const char *n, const char *v, int o);\\n mallopt(-1002, 0);\\n setenv("MESA_VK_WSI_PRESENT_MODE", "mailbox", 1);\\n setenv("vblank_mode", "0", 1);\\n if (sizeof(void*) == 4) {\\n   setenv("MESA_VK_WSI_QUEUE_SIZE", "1", 1);\\n }' "$WRAPPER_DEVICE"
+          else
+            find src/ -name "*.c" -exec sed -i 's/vk_icdGetInstanceProcAddr/extern int mallopt(int p, int v); extern int setenv(const char *n, const char *v, int o); mallopt(-1002, 0); setenv("MESA_VK_WSI_PRESENT_MODE", "mailbox", 1); setenv("vblank_mode", "0", 1); if (sizeof(void*) == 4) { setenv("MESA_VK_WSI_QUEUE_SIZE", "1", 1); } vk_icdGetInstanceProcAddr/g' {} + || true
+          fi
+
+      - name: Build Local Corrected Docker Image
+        run: |
+          echo "-> Creando imagen de compilación a partir de tu archivo de printf..."
+          docker build -t ${{ env.IMAGE_TAG }}:latest .
+
+      # CORRECCIÓN EN EL PROPIO FLUJO YAML: Pre-configuramos Meson de manera externa para generar el build.ninja que espera el contenedor
+      - name: Pre-configure Meson Blueprint Folder
+        run: |
+          echo "-> Levantando el entorno de pre-ajustes externos de Meson..."
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -v "${{ github.workspace }}/bin_hijack/pkgconfig:/data/data/com.termux/files/usr/lib/pkgconfig" \
+            -e PKG_CONFIG_PATH="/data/data/com.termux/files/usr/lib/pkgconfig" \
+            --entrypoint /bin/bash \
+            ${{ env.IMAGE_TAG }}:latest -c "meson setup ${{ env.BUILD_DIR }} --cross-file /root/build-config/cross_file.txt -Dcpp_rtti=false -Dgbm=disabled -Dopengl=false -Dllvm=disabled -Dshared-llvm=disabled -Dplatforms=x11 -Dgallium-drivers= -Dxmlconfig=disabled -Dvulkan-drivers=wrapper"
+
+      # COMPILACIÓN DEL DOCKER NATIVO (Ahora sí encontrará el build.ninja dentro de la carpeta compilacion)
+      - name: Wrapper Compiler (Atomic Processing Docker MALI)
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -v "${{ github.workspace }}/bin_hijack/pkgconfig:/data/data/com.termux/files/usr/lib/pkgconfig" \
+            -e PKG_CONFIG_PATH="/data/data/com.termux/files/usr/lib/pkgconfig" \
+            ${{ env.IMAGE_TAG }}:latest ${{ env.BUILD_DIR }}
+
+      - name: Structure and Pack wrapper.tzst
+        run: |
+          mkdir -p pkg/usr/lib pkg/usr/share/vulkan/icd.d
+          cp ${{ env.BUILD_DIR }}/libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
           
-          git clone --depth 1 "$B_SPIRV" spirv_source
-          git clone --depth 1 "$B_HEADERS" spirv_source/external/spirv-headers
-          git clone --depth 1 --recursive "$B_ADRENO" adrenotools_source
+          cat << 'EOF' > pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
+          { "ICD": { "api_version": "1.3.289", "library_path": "libvulkan_wrapper.so" }, "file_format_version": "1.0.0" }
+          EOF
+          
+          cat << 'EOF' > pkg/usr/share/vulkan/icd.d/wrapper_icd.arm.json
+          { "ICD": { "api_version": "1.3.289", "library_path": "libvulkan_wrapper.so" }, "file_format_version": "1.0.0" }
+          EOF
+          
+          cd pkg && tar -I 'zstd -19 -T0' -cf ../wrapper.tzst usr/ && cd ..
 
-      - name: compilador-envoltorio (Procesamiento Atómico en Docker MALI)
-        run: |
-          # Creamos el directorio local de salida para evitar vacíos de mapeo
-          mkdir -p ${{ env.BUILD_DIR }}
-          # El contenedor de leegao toma el mando y forja el Fat Binary simétrico real
-          docker run --rm -v "${{ github.workspace }}:/workspace" ${{ env.IMAGE_TAG }} ${{ env.BUILD_DIR }}
-
-      - name: Cargar libvulkan_wrapper.so sin formato
+      - name: Upload Final wrapper.tzst for Bannerlator
         uses: actions/upload-artifact@v4
         with:
-          name: libvulkan_wrapper
-          path: |
-            ${{ env.BUILD_DIR }}/libvulkan_wrapper.so
-          if-no-files-found: error
-          
-      - name: cargar libvulkan_wrapper.so sin eliminar
-        uses: actions/upload-artifact@v4
-        with:
-          name: libvulkan_wrapper-unstripped
-          path: |
-            ${{ env.BUILD_DIR }}/libvulkan_wrapper.so.unstripped
+          name: Bannerlator-Mali-Wrapper-Universal
+          path: wrapper.tzst
           if-no-files-found: error
