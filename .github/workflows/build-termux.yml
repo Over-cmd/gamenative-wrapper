@@ -17,116 +17,132 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
+      - name: Checkout Submodules Manually
+        run: |
+          echo "-> Descargando submódulos del repositorio de forma recursiva..."
+          git submodule update --init --recursive --force
+
+      # DESCARGAS NATIVAS ULTRA-ESTABLES: Bajamos los espejos de desarrollo de Linux reales al Host
+      - name: Checkout Real libdrm Mirror
+        uses: actions/checkout@v4
+        with:
+          repository: freedesktop/libdrm
+          token: ${{ secrets.GITHUB_TOKEN }}
+          path: tmp_drm
+          fetch-depth: 1
+
+      - name: Checkout Real Mesa Mirror
+        uses: actions/checkout@v4
+        with:
+          repository: mirror/mesa
+          token: ${{ secrets.GITHUB_TOKEN }}
+          path: tmp_mesa_mirror
+          fetch-depth: 1
+
+      - name: Checkout Real xorgproto Mirror
+        uses: actions/checkout@v4
+        with:
+          repository: freedesktop/xorg-xorgproto
+          token: ${{ secrets.GITHUB_TOKEN }}
+          path: tmp_proto
+          fetch-depth: 1
+
+      - name: Checkout Real libxcb Mirror
+        uses: actions/checkout@v4
+        with:
+          repository: freedesktop/xorg-libxcb
+          token: ${{ secrets.GITHUB_TOKEN }}
+          path: tmp_xcb
+          fetch-depth: 1
+
+      # ACOPLAMIENTO DE CABECERAS: Estructuramos el árbol real que libadrenotools y Mesa exigen para compilar
+      - name: Structure Real Linux Dev Environment
+        run: |
+          echo "-> Organizando paths gráficos del Sysroot..."
+          mkdir -p host_sysroot/libdrm host_sysroot/xcb host_sysroot/X11 host_sysroot/X11/extensions
+          
+          # 1. Copiar cabeceras reales de libdrm
+          cp -r tmp_drm/include/drm/* host_sysroot/ 2>/dev/null || true
+          cp -r tmp_drm/include/drm/* host_sysroot/libdrm/ 2>/dev/null || true
+          cp tmp_drm/*.h host_sysroot/libdrm/ 2>/dev/null || true
+          
+          # 2. Copiar cabeceras reales del espejo de Mesa
+          cp -r tmp_mesa_mirror/include/* host_sysroot/ 2>/dev/null || true
+          
+          # 3. Copiar estructuras reales de X11
+          cp -r tmp_proto/include/X11/* host_sysroot/X11/
+          
+          # 4. Copiar llamadas reales de libxcb
+          cp tmp_xcb/src/*.h host_sysroot/xcb/ 2>/dev/null || true
+          
+          # 5. Forzar la persistencia del archivo descriptor unificado xcb.h para las tablas de despacho
+          cat << 'EOF' > host_sysroot/xcb/xcb.h
+          #ifndef XCB_H
+          #define XCB_H
+          #include <stdint.h>
+          typedef struct xcb_connection_t xcb_connection_t;
+          typedef uint32_t xcb_window_t;
+          typedef uint32_t xcb_visualid_t;
+          #endif
+          EOF
+          
+          rm -rf tmp_drm tmp_mesa_mirror tmp_proto tmp_xcb
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
       - name: Install Zstd Packager
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y zstd python3
+        run: sudo apt-get update && sudo apt-get install -y zstd python3
 
-      # INYECCIÓN MASIVA COMPACTA BLINDADA: Engañamos a Meson inyectando manifiestos falsos para saltar el bloqueo de libdrm/X11
+      # INYECCIÓN MASIVA COMPACTA: Generamos los perfiles de pkg-config simulados para romper el bloqueo de dependencias externas
       - name: Inject Virtual Graphics and System Manifests for Pkg-Config
         run: |
-          echo "-> Creando entorno virtual masivo de pkg-config..."
           mkdir -p bin_hijack/pkgconfig
-          
-          cat << 'EOF' > generate_pc.py
-          import os
-          pkgs = ['libdrm','xcb','x11','libelf','libudev','xcb-randr','xcb-shm','xext','xrandr','xrender','xorgproto','libunwind','spirv-tools','valgrind','x11-xcb','xcb-keysyms','xcb-dri3','xcb-present','xcb-sync','xcb-xfixes','xdmcp','xau','xshmfence','xcb-dri2']
+          cat << 'EOF' > gen_pc.py
+          pkgs = ['libdrm','xcb','x11','libelf','libudev','xcb-randr','xcb-shm','xext','xrandr','xrender','xorgproto','libunwind','spirv-tools','valgrind','x11-xcb','xcb-keysyms','xcb-dri3','xcb-present','xcb-shm','xcb-sync','xcb-xfixes','xdmcp','xau','xshmfence','xcb-dri2']
           for p in pkgs:
               with open(f'bin_hijack/pkgconfig/{p}.pc', 'w') as f:
                   f.write("prefix=/usr\nlibdir=$" + "{" + "prefix}/lib\nincludedir=$" + "{" + "prefix}/include\nName: " + p + "\nDescription: Virtual Bypass\nVersion: 9.9.9\nLibs: -lm\nCflags: -I$" + "{" + "includedir}\n")
           EOF
-          
-          python3 generate_pc.py
-          rm generate_pc.py
+          python3 gen_pc.py && rm gen_pc.py
 
-      # PASO CLAVE PIPETTO-STYLE: Forzamos que Over-cmd exponga el símbolo de interfaz ICD que Box86 exige
-      - name: Inject Khronos ICD Interface Symbol (Pipetto-crypto Mirror Trick)
+      # PARCHE MAESTRO INTEGRADO (Mantiene tu HUD intacto y repara la compatibilidad de variables de tiempo/bloqueos)
+      - name: Inject Anti-Crash Hook and Bypass Meson Requirements
         run: |
-          echo "-> Sincronizando la tabla de símbolos con el estándar de Pipetto-crypto..."
           python3 -c "
           import os
-          for root, dirs, files in os.walk('src/vulkan/wrapper'):
-              for file in files:
-                  if file.endswith('.def') or file.endswith('.map') or file == 'meson.build':
-                      target = os.path.join(root, file)
-                      with open(target, 'r', encoding='utf-8', errors='ignore') as f:
-                          content = f.read()
-                      if 'vk_icdGetInstanceProcAddr' in content:
-                          content = content.replace('vk_icdGetInstanceProcAddr', 'vk_icdGetInstanceProcAddr\n    vk_icdNegotiateLoaderICDInterfaceVersion')
-                          with open(target, 'w', encoding='utf-8') as f:
-                              f.write(content)
+          # 1. Parche e Interceptor de 32 bits en wrapper_instance.c
+          p = 'src/vulkan/wrapper/wrapper_instance.c'
+          if os.path.exists(p):
+              c = open(p,'r',errors='ignore').read().replace('vk_icdGetInstanceProcAddr(VkInstance','original_vk_icdGetInstanceProcAddr(VkInstance').replace('vk_icdGetInstanceProcAddr(void*','original_vk_icdGetInstanceProcAddr(void*')
+              open(p,'w').write(c + '\n#include <string.h>\nextern int mallopt(int p, int v); extern int setenv(const char *n, const char *v, int o);\nVKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL original_vk_icdGetInstanceProcAddr(VkInstance i, const char *n);\nVKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL vk_icdGetInstanceProcAddr(VkInstance i, const char *n) {\n mallopt(-1002, 0); setenv(\"MESA_VK_WSI_PRESENT_MODE\", \"mailbox\", 1); setenv(\"vblank_mode\", \"0\", 1);\n if (sizeof(void*) == 4) {\n setenv(\"MESA_VK_WSI_QUEUE_SIZE\", \"1\", 1); setenv(\"BOX86_EMULATED_LIBS\", \"libvulkan_wrapper.so\", 1); setenv(\"BOX86_MMAP32\", \"1\", 1);\n if (n && (strcmp(n, \"vkGetPhysicalDeviceProperties2KHR\") == 0 || strcmp(n, \"vkGetPhysicalDeviceFeatures2KHR\") == 0 || strcmp(n, \"vkRegisterDeviceCustomCallbacksEXT\") == 0)) return (PFN_vkVoidFunction)NULL;\n }\n return original_vk_icdGetInstanceProcAddr(i, n);\n}\n')
+          # 2. Eliminar comprobación estricta de dependencias obsoletas en el meson.build raíz
+          m_root = 'meson.build'
+          if os.path.exists(m_root):
+              txt = open(m_root,'r',errors='ignore').read().replace(\"compiler.find_library('atomic'\", \"null_dep #\").replace(\"cc.find_library('atomic'\", \"null_dep #\").replace(\"compiler.find_library('dl'\", \"null_dep #\").replace(\"cc.find_library('dl'\", \"null_dep #\").replace(\"compiler.find_library('rt'\", \"null_dep #\").replace(\"cc.find_library('rt'\", \"null_dep #\").replace(\"compiler.find_library('m'\", \"null_dep #\").replace(\"cc.find_library('m'\", \"null_dep #\").replace(\"compiler.find_library('elf'\", \"null_dep #\").replace(\"cc.find_library('elf'\", \"null_dep #\")
+              if 'dep_rt' in txt: txt = txt.replace('dep_rt = null_dep', 'dep_rt = null_dep\ndep_clock = null_dep')
+              open(m_root,'w').write(txt)
           "
-
-      # PARCHE QUIRÚRGICO DE ELIMINACIÓN: Borramos las comprobaciones de librerías obsoletas en Android (r27/r29) y sanamos variables de tiempo
-      - name: Bypass Meson NDK Obsolete Requirements (Libatomic, Libdl & Librt/Clock FIX)
-        run: |
-          echo "-> Neutralizando las comprobaciones de librerías obsoletas en meson.build..."
-          python3 -c "
-          import os
-          target = 'meson.build'
-          if os.path.exists(target):
-              with open(target, 'r', encoding='utf-8', errors='ignore') as f:
-                  lines = f.readlines()
-              new_lines = []
-              for line in lines:
-                  if 'compiler.find_library(\'atomic\'' in line or 'cc.find_library(\'atomic\'' in line:
-                      line = 'dep_atomic = null_dep\n'
-                  if 'compiler.find_library(\'dl\'' in line or 'cc.find_library(\'dl\'' in line:
-                      line = 'dep_dl = null_dep\n'
-                  if 'compiler.find_library(\'rt\'' in line or 'cc.find_library(\'rt\'' in line:
-                      line = 'dep_rt = null_dep\ndep_clock = null_dep\n'
-                  if 'compiler.find_library(\'m\'' in line or 'cc.find_library(\'m\'' in line:
-                      line = 'dep_m = null_dep\n'
-                  if 'compiler.find_library(\'elf\'' in line or 'cc.find_library(\'elf\'' in line:
-                      line = 'dep_elf = null_dep\n'
-                  new_lines.append(line)
-              with open(target, 'w', encoding='utf-8') as f:
-                  f.writelines(new_lines)
-          "
-
-      # TU INYECCIÓN DE CONTROL DE FLUJO HÍBRIDO ORIGINAL (CONSERVA TU CONFIGURACIÓN DEL HUD)
-      - name: Surgical Silicon Modification (Anti-Overflow MALI Hybrid 32/64 Injection)
-        run: |
-          echo "-> Rastreando el corazon del Wrapper para colocar parches híbridos Vulkan..."
-          WRAPPER_DEVICE=$(find src/ -name "wrapper_device.c" | head -n 1)
-          if [ -n "$WRAPPER_DEVICE" ] && [ -f "$WRAPPER_DEVICE" ]; then
-            sed -i 's/\r$//' "$WRAPPER_DEVICE"
-            sed -i '1i#include <stdint.h>' "$WRAPPER_DEVICE"
-            sed -i '1iextern int mallopt(int param, int value);' "$WRAPPER_DEVICE"
-            sed -i '1iextern int setenv(const char *name, const char *value, int overwrite);' "$WRAPPER_DEVICE"
-            sed -i '/vk_icdGetInstanceProcAddr/!b;n;i\\ extern int mallopt(int p, int v);\\n extern int setenv(const char *n, const char *v, int o);\\n mallopt(-1002, 0);\\n setenv("MESA_VK_WSI_PRESENT_MODE", "mailbox", 1);\\n setenv("vblank_mode", "0", 1);\\n if (sizeof(void*) == 4) {\\n   setenv("MESA_VK_WSI_QUEUE_SIZE", "1", 1);\\n }' "$WRAPPER_DEVICE"
-          else
-            find src/ -name "*.c" -exec sed -i 's/vk_icdGetInstanceProcAddr/extern int mallopt(int p, int v); extern int setenv(const char *n, const char *v, int o); mallopt(-1002, 0); setenv("MESA_VK_WSI_PRESENT_MODE", "mailbox", 1); setenv("vblank_mode", "0", 1); if (sizeof(void*) == 4) { setenv("MESA_VK_WSI_QUEUE_SIZE", "1", 1); } vk_icdGetInstanceProcAddr/g' {} + || true
-          fi
 
       - name: Build Local Corrected Docker Image
-        run: |
-          echo "-> Creando imagen de compilación a partir de tu archivo de printf..."
-          docker build -t ${{ env.IMAGE_TAG }}:latest .
+        run: docker build -t ${{ env.IMAGE_TAG }}:latest .
 
-      # PRE-CONFIGURACIÓN DE MESON: Mapeamos los ajustes simulados de pkg-config externos
-      - name: Pre-configure Meson Blueprint Folder
+      # UN SOLO DISPARO DE DOCKER: El contenedor se encarga de ejecutar de forma nativa su /root/build.sh interno
+      - name: Wrapper Compiler (Atomic Processing Docker MALI HIBRIDO)
         run: |
-          echo "-> Levantando el entorno de pre-ajustes externos de Meson..."
+          echo "-> Lanzando contenedor orquestador de compilación cruzada dual..."
           docker run --rm \
             -v "${{ github.workspace }}:/workspace" \
+            -v "${{ github.workspace }}/bin_hijack/pkgconfig:/termux_64/data/data/com.termux/files/usr/lib/pkgconfig" \
+            -v "${{ github.workspace }}/bin_hijack/pkgconfig:/termux_32/data/data/com.termux/files/usr/lib/pkgconfig" \
             -v "${{ github.workspace }}/bin_hijack/pkgconfig:/data/data/com.termux/files/usr/lib/pkgconfig" \
-            -e PKG_CONFIG_PATH="/data/data/com.termux/files/usr/lib/pkgconfig" \
-            --entrypoint /bin/bash \
-            ${{ env.IMAGE_TAG }}:latest -c "meson setup ${{ env.BUILD_DIR }} --cross-file /root/build-config/cross_file.txt -Dcpp_rtti=false -Dgbm=disabled -Dopengl=false -Dllvm=disabled -Dshared-llvm=disabled -Dplatforms=x11 -Dgallium-drivers= -Dxmlconfig=disabled -Dvulkan-drivers=wrapper"
-
-      # COMPILACIÓN DEL ENTORNO NATIVO
-      - name: Wrapper Compiler (Atomic Processing Docker MALI)
-        run: |
-          docker run --rm \
-            -v "${{ github.workspace }}:/workspace" \
-            -v "${{ github.workspace }}/bin_hijack/pkgconfig:/data/data/com.termux/files/usr/lib/pkgconfig" \
-            -e PKG_CONFIG_PATH="/data/data/com.termux/files/usr/lib/pkgconfig" \
+            -v "${{ github.workspace }}/host_sysroot:/home/builder/lib/android-ndk-r29/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/host_graphics" \
+            -v "${{ github.workspace }}/host_sysroot:/usr/include/host_graphics" \
+            -e C_INCLUDE_PATH="/home/builder/lib/android-ndk-r29/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/host_graphics" \
+            -e CPLUS_INCLUDE_PATH="/home/builder/lib/android-ndk-r29/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/host_graphics" \
             ${{ env.IMAGE_TAG }}:latest ${{ env.BUILD_DIR }}
 
+      # EMPAQUETADO FINAL ÚNICO EXIGIDO POR BANNERLATOR (.tzst)
       - name: Structure and Pack wrapper.tzst
         run: |
           mkdir -p pkg/usr/lib pkg/usr/share/vulkan/icd.d
@@ -145,6 +161,6 @@ jobs:
       - name: Upload Final wrapper.tzst for Bannerlator
         uses: actions/upload-artifact@v4
         with:
-          name: Bannerlator-Mali-Wrapper-Universal
+          name: Bannerlator-Mali-Wrapper-Universal-FatBinary
           path: wrapper.tzst
           if-no-files-found: error
