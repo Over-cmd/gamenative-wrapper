@@ -25,26 +25,39 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Install Zstd Packager
-        run: sudo apt-get update && sudo apt-get install -y zstd python3
-
-      # INYECCIÓN MASIVA COMPACTA: Generamos los perfiles de pkg-config y creamos una librería 'libandroid' virtual física
-      - name: Inject Virtual Graphics and System Manifests for Pkg-Config
+      # PARCHE QUIRÚRGICO AL DOCKERFILE DE AYER: Añadimos soporte directo de landroid en el cross-file
+      - name: Patch Yesterday Dockerfile Cross-Config
         run: |
-          echo "-> Creando entorno virtual masivo de dependencias..."
-          mkdir -p bin_hijack/pkgconfig
-          mkdir -p bin_hijack/libs
-          
-          # Creamos un archivo de librería estática vacío. Esto engañará a cxx.find_library('android')
-          ar rcs bin_hijack/libs/libandroid.a
-          
-          cat << 'EOF' > gen_pc.py
-          pkgs = ['libdrm','xcb','x11','libelf','libudev','xcb-randr','xcb-shm','xext','xrandr','xrender','xorgproto','libunwind','spirv-tools','valgrind','x11-xcb','xcb-keysyms','xcb-dri3','xcb-present','xcb-sync','xcb-xfixes','xdmcp','xau','xshmfence','xcb-dri2','android']
-          for p in pkgs:
-              with open(f'bin_hijack/pkgconfig/{p}.pc', 'w') as f:
-                  f.write("prefix=/usr\nlibdir=$" + "{" + "prefix}/lib\nincludedir=$" + "{" + "prefix}/include\nName: " + p + "\nDescription: Virtual Bypass\nVersion: 9.9.9\nLibs: -lm\nCflags: -I$" + "{" + "includedir}\n")
-          EOF
-          python3 gen_pc.py && rm gen_pc.py
+          echo "-> Inyectando compatibilidad -landroid en tu Dockerfile de ayer..."
+          python3 -c "
+          import os
+          target = 'Dockerfile'
+          if os.path.exists(target):
+              content = open(target, 'r', errors='ignore').read()
+              # Modificamos los argumentos de enlace para que Clang siempre encuentre la librería android nativa
+              content = content.replace(\"c_link_args = ['-L' + termux_dir + '/lib', '-landroid-shmem']\", \"c_link_args = ['-L' + termux_dir + '/lib', '-landroid-shmem', '-landroid']\")
+              content = content.replace(\"cpp_link_args = ['-L' + termux_dir + '/lib', '-landroid-shmem']\", \"cpp_link_args = ['-L' + termux_dir + '/lib', '-landroid-shmem', '-landroid']\")
+              open(target, 'w').write(content)
+              print('-> ¡Dockerfile de ayer blindado con éxito!')
+          "
+
+      # PASO CLAVE PIPETTO-STYLE: Forzamos que Over-cmd exponga el símbolo de interfaz ICD que Box86 exige
+      - name: Inject Khronos ICD Interface Symbol (Pipetto-crypto Mirror Trick)
+        run: |
+          echo "-> Sincronizando la tabla de símbolos con el estándar de Pipetto-crypto..."
+          python3 -c "
+          import os
+          for root, dirs, files in os.walk('src/vulkan/wrapper'):
+              for file in files:
+                  if file.endswith('.def') or file.endswith('.map') or file == 'meson.build':
+                      target = os.path.join(root, file)
+                      with open(target, 'r', encoding='utf-8', errors='ignore') as f:
+                          content = f.read()
+                      if 'vk_icdGetInstanceProcAddr' in content:
+                          content = content.replace('vk_icdGetInstanceProcAddr', 'vk_icdGetInstanceProcAddr\n    vk_icdNegotiateLoaderICDInterfaceVersion')
+                          with open(target, 'w', encoding='utf-8') as f:
+                              f.write(content)
+          "
 
       # PARCHE MAESTRO INTEGRADO (Mantiene tu HUD intacto y repara la compatibilidad de variables)
       - name: Inject Anti-Crash Hook and Bypass Meson Requirements
@@ -56,13 +69,7 @@ jobs:
           if os.path.exists(p):
               c = open(p,'r',errors='ignore').read().replace('vk_icdGetInstanceProcAddr(VkInstance','original_vk_icdGetInstanceProcAddr(VkInstance').replace('vk_icdGetInstanceProcAddr(void*','original_vk_icdGetInstanceProcAddr(void*')
               open(p,'w').write(c + '\n#include <string.h>\nextern int mallopt(int p, int v); extern int setenv(const char *n, const char *v, int o);\nVKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL original_vk_icdGetInstanceProcAddr(VkInstance i, const char *n);\nVKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL vk_icdGetInstanceProcAddr(VkInstance i, const char *n) {\n mallopt(-1002, 0); setenv(\"MESA_VK_WSI_PRESENT_MODE\", \"mailbox\", 1); setenv(\"vblank_mode\", \"0\", 1);\n if (sizeof(void*) == 4) {\n setenv(\"MESA_VK_WSI_QUEUE_SIZE\", \"1\", 1); setenv(\"BOX86_EMULATED_LIBS\", \"libvulkan_wrapper.so\", 1); setenv(\"BOX86_MMAP32\", \"1\", 1);\n if (n && (strcmp(n, \"vkGetPhysicalDeviceProperties2KHR\") == 0 || strcmp(n, \"vkGetPhysicalDeviceFeatures2KHR\") == 0 || strcmp(n, \"vkRegisterDeviceCustomCallbacksEXT\") == 0)) return (PFN_vkVoidFunction)NULL;\n }\n return original_vk_icdGetInstanceProcAddr(i, n);\n}\n')
-          # 2. Exponer símbolo ICD exigido por Box86
-          for r, d, files in os.walk('src/vulkan/wrapper'):
-              for file in files:
-                  if file.endswith(('.def', '.map')) or file == 'meson.build':
-                      tp = os.path.join(r, file); content = open(tp,'r',errors='ignore').read()
-                      if 'vk_icdGetInstanceProcAddr' in content: open(tp,'w').write(content.replace('vk_icdGetInstanceProcAddr', 'vk_icdGetInstanceProcAddr\n    vk_icdNegotiateLoaderICDInterfaceVersion'))
-          # 3. Eliminar comprobación estricta de dependencias en el meson.build raíz
+          # 2. Eliminar comprobación estricta de dependencias obsoletas de Linux de escritorio en el meson.build raíz
           m_root = 'meson.build'
           if os.path.exists(m_root):
               txt = open(m_root,'r',errors='ignore').read().replace(\"compiler.find_library('atomic'\", \"null_dep #\").replace(\"cc.find_library('atomic'\", \"null_dep #\").replace(\"compiler.find_library('dl'\", \"null_dep #\").replace(\"cc.find_library('dl'\", \"null_dep #\").replace(\"compiler.find_library('rt'\", \"null_dep #\").replace(\"cc.find_library('rt'\", \"null_dep #\").replace(\"compiler.find_library('m'\", \"null_dep #\").replace(\"cc.find_library('m'\", \"null_dep #\").replace(\"compiler.find_library('elf'\", \"null_dep #\").replace(\"cc.find_library('elf'\", \"null_dep #\")
@@ -70,45 +77,31 @@ jobs:
               open(m_root,'w').write(txt)
           "
 
+      # CONSTRUCCIÓN LOCAL DE TU DOCKERFILE DE AYER PARCHEADO AL VUELO
       - name: Build Local Corrected Docker Image
         run: docker build -t ${{ env.IMAGE_TAG }}:latest .
 
-      # PRE-CONFIGURACIÓN DE MESON: Forzamos el mapeo en el sysroot real del compilador del NDK mediante volúmenes múltiples
-      - name: Pre-configure Meson Blueprint Folder
-        run: |
-          echo "-> Levantando el entorno de pre-ajustes externos de Meson..."
-          docker run --rm \
-            -v "${{ github.workspace }}:/workspace" \
-            -v "${{ github.workspace }}/bin_hijack/pkgconfig:/data/data/com.termux/files/usr/lib/pkgconfig" \
-            -v "${{ github.workspace }}/bin_hijack/libs/libandroid.a:/usr/lib/aarch64-linux-android/libandroid.a" \
-            -v "${{ github.workspace }}/bin_hijack/libs/libandroid.a:/home/builder/lib/android-ndk-r29/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/30/libandroid.a" \
-            -v "${{ github.workspace }}/bin_hijack/libs/libandroid.a:/home/builder/lib/android-ndk-r29/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/libandroid.a" \
-            -e PKG_CONFIG_PATH="/data/data/com.termux/files/usr/lib/pkgconfig" \
-            --entrypoint /bin/bash \
-            ${{ env.IMAGE_TAG }}:latest -c "meson setup ${{ env.BUILD_DIR }} --cross-file /root/build-config/cross_file.txt -Dcpp_rtti=false -Dgbm=disabled -Dopengl=false -Dllvm=disabled -Dshared-llvm=disabled -Dplatforms=x11 -Dgallium-drivers= -Dxmlconfig=disabled -Dvulkan-drivers=wrapper"
-
-      # COMPILACIÓN DEL ENTORNO NATIVO CON BYPASS FÍSICO DE LIBRERÍA EN EL SYSROOT DEL COMPILADOR
+      # COMPILACIÓN DEL ENTORNO NATIVO USANDO TU FLUJO ATÓMICO ORIGINAL DE AYER
       - name: Wrapper Compiler (Atomic Processing Docker MALI)
         run: |
           docker run --rm \
             -v "${{ github.workspace }}:/workspace" \
-            -v "${{ github.workspace }}/bin_hijack/pkgconfig:/data/data/com.termux/files/usr/lib/pkgconfig" \
-            -v "${{ github.workspace }}/bin_hijack/libs/libandroid.a:/usr/lib/aarch64-linux-android/libandroid.a" \
-            -v "${{ github.workspace }}/bin_hijack/libs/libandroid.a:/home/builder/lib/android-ndk-r29/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/30/libandroid.a" \
-            -v "${{ github.workspace }}/bin_hijack/libs/libandroid.a:/home/builder/lib/android-ndk-r29/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/libandroid.a" \
-            -e PKG_CONFIG_PATH="/data/data/com.termux/files/usr/lib/pkgconfig" \
             ${{ env.IMAGE_TAG }}:latest ${{ env.BUILD_DIR }}
 
+      # ESTRUCTURACIÓN Y CONSTRUCCIÓN DEL PAQUETE FINAL UNIFICADO PARA BANNERLATOR
       - name: Structure and Pack wrapper.tzst
         run: |
           mkdir -p pkg/usr/lib pkg/usr/share/vulkan/icd.d
           cp ${{ env.BUILD_DIR }}/libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
+          
           cat << 'EOF' > pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
           { "ICD": { "api_version": "1.3.289", "library_path": "libvulkan_wrapper.so" }, "file_format_version": "1.0.0" }
           EOF
+          
           cat << 'EOF' > pkg/usr/share/vulkan/icd.d/wrapper_icd.arm.json
           { "ICD": { "api_version": "1.3.289", "library_path": "libvulkan_wrapper.so" }, "file_format_version": "1.0.0" }
           EOF
+          
           cd pkg && tar -I 'zstd -19 -T0' -cf ../wrapper.tzst usr/ && cd ..
 
       - name: Upload Final wrapper.tzst for Bannerlator
