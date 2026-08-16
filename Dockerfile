@@ -1,50 +1,110 @@
-FROM ghcr.io/termux/package-builder:latest
+name: Mesa Vulkan Wrapper Mali Packager (.tzst)
 
-USER root
+on:
+  push:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
 
-# 1. Instalar herramientas base y dependencias de Python
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends ninja-build xxd && \
-    pip3 install --break-system-packages --ignore-installed --no-cache-dir meson ninja mako pyyaml packaging
+env:
+  BUILD_DIR: compilacion
+  IMAGE_TAG: wrapper-compiler
 
-# 2. Configurar perfiles cruzados independientes apuntando al Sysroot y a las librerías del NDK de Google
-RUN NDK_DIR=$(find /home/builder/lib -maxdepth 2 -name "android-ndk*" 2>/dev/null | head -n 1) && \
-    NDK_BIN="${NDK_DIR}/toolchains/llvm/prebuilt/linux-x86_64/bin" && \
-    SYS_DIR="${NDK_DIR}/toolchains/llvm/prebuilt/linux-x86_64/sysroot" && \
-    mkdir -p /root/build-config && \
-    \
-    # PERFIL: 64 Bits (AArch64) - Inyección estricta del path de libandroid.so del NDK
-    printf "[binaries]\nc = '%s/clang'\ncpp = '%s/clang++'\nar = '%s/llvm-ar'\nstrip = '%s/llvm-strip'\npkg-config = 'pkg-config'\n[constants]\nsys_dir = '%s'\n[properties]\npkg_config_libdir = sys_dir + '/usr/lib/aarch64-linux-android/pkgconfig'\n[built-in options]\nc_args = ['-target', 'aarch64-linux-android30', '-D__TERMUX__', '-D__USE_GNU', '-U__ANDROID__', '-I' + sys_dir + '/usr/include']\ncpp_args = ['-target', 'aarch64-linux-android30', '-D__TERMUX__', '-D__USE_GNU', '-U__ANDROID__', '-I' + sys_dir + '/usr/include']\nc_link_args = ['-target', 'aarch64-linux-android30', '-L' + sys_dir + '/usr/lib/aarch64-linux-android/30', '-landroid']\ncpp_link_args = ['-target', 'aarch64-linux-android30', '-L' + sys_dir + '/usr/lib/aarch64-linux-android/30', '-landroid']\n[host_machine]\nsystem = 'android'\ncpu_family = 'aarch64'\ncpu = 'armv8-a'\nendian = 'little'\n" "$NDK_BIN" "$NDK_BIN" "$NDK_BIN" "$NDK_BIN" "$SYS_DIR" > /root/build-config/cross_aarch64.txt && \
-    \
-    # PERFIL: 32 Bits (ARMv7) - Inyección de parámetros de control para Clang
-    printf "[binaries]\nc = '%s/clang'\ncpp = '%s/clang++'\nar = '%s/llvm-ar'\nstrip = '%s/llvm-strip'\npkg-config = 'pkg-config'\n[constants]\nsys_dir = '%s'\n[properties]\npkg_config_libdir = sys_dir + '/usr/lib/arm-linux-androideabi/pkgconfig'\n[built-in options]\nc_args = ['-target', 'armv7a-linux-android30', '-D__TERMUX__', '-D__USE_GNU', '-U__ANDROID__', '-I' + sys_dir + '/usr/include', '-march=armv7-a', '-mfpu=neon']\ncpp_args = ['-target', 'armv7a-linux-android30', '-D__TERMUX__', '-D__USE_GNU', '-U__ANDROID__', '-I' + sys_dir + '/usr/include', '-march=armv7-a', '-mfpu=neon']\nc_link_args = ['-target', 'armv7a-linux-android30', '-L' + sys_dir + '/usr/lib/arm-linux-androideabi/30', '-landroid']\ncpp_link_args = ['-target', 'armv7a-linux-android30', '-L' + sys_dir + '/usr/lib/arm-linux-androideabi/30', '-landroid']\n[host_machine]\nsystem = 'android'\ncpu_family = 'arm'\ncpu = 'armv7-a'\nendian = 'little'\n" "$NDK_BIN" "$NDK_BIN" "$NDK_BIN" "$NDK_BIN" "$SYS_DIR" > /root/build-config/cross_arm.txt
+jobs:
+  build-aarch64-wrapper:
+    runs-on: ubuntu-latest
 
-# 3. Script de orquestación híbrido unificado (Soldadura de macros de arquitectura para libadrenotools de 32 bits)
-RUN printf '#!/bin/bash\nset -e\nBUILD_DIR="${1:-compilacion}"\nNDK_DIR=$(find /home/builder/lib -maxdepth 2 -name "android-ndk*" 2>/dev/null | head -n 1)\nSTRIP="${NDK_DIR}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip"\n\
-ANON_FILE=$(find src/ -name "anon_file.c" | head -n 1)\n\
-if [ -n "$ANON_FILE" ]; then sed -i "s/memfd_create(debug_name, MFD_CLOEXEC);/memfd_create(debug_name, MFD_CLOEXEC | MFD_ALLOW_SEALING);/g" "$ANON_FILE"; fi\n\
-ADRENO_LINKER=$(find subprojects/ -name "android_linker_ns.cpp" | head -n 1)\n\
-if [ -n "$ADRENO_LINKER" ] && [ -f "$ADRENO_LINKER" ]; then\n\
-  echo "-> Soldando macros de arquitectura y llamadas del kernel en libadrenotools..."\n\
-  sed -i "s/\\r$//" "$ADRENO_LINKER"\n\
-  sed -i "1i#ifndef __arm__\\n#define __arm__ 1\\n#endif" "$ADRENO_LINKER"\n\
-  sed -i "1i#ifndef __ANDROID__\\n#define __ANDROID__ 1\\n#endif" "$ADRENO_LINKER"\n\
-  sed -i "1i#ifndef __NR_memfd_create\\n#define __NR_memfd_create 356\\n#endif" "$ADRENO_LINKER"\n\
-fi\n\
-rm -rf build_32 || true\n\
-meson setup build_32 --cross-file /root/build-config/cross_arm.txt -Dcpp_rtti=false -Dgbm=disabled -Dopengl=false -Dllvm=disabled -Dshared-llvm=disabled -Dplatforms=x11 -Dgallium-drivers= -Dxmlconfig=disabled -Dvulkan-drivers=wrapper\n\
-meson compile -C build_32\n\
-$STRIP --strip-unneeded build_32/src/vulkan/wrapper/libvulkan_wrapper.so -o build_32/libvulkan_wrapper32.so\n\
-xxd -i build_32/libvulkan_wrapper32.so > src/vulkan/wrapper/vulkan_wrapper32_payload.h\n\
-WRAPPER_LOG=$(find src/ -name "wrapper_log.c" | head -n 1)\n\
-sed -i "s/\\r$//" "$WRAPPER_LOG"\n\
-sed -i "/__vulkan_universal_blob_bridge__/,\$d" "$WRAPPER_LOG" || true\n\
-printf "\\n/* __vulkan_universal_blob_bridge__ */\\n#include \\"vulkan_wrapper32_payload.h\\"\\n#include <sys/mman.h>\\n#include <unistd.h>\\n#include <fcntl.h>\\n#include <dlfcn.h>\\n#include <stdio.h>\\nextern int mallopt(int p, int v);\\nextern int setenv(const char *n, const char *v, int o);\\n__attribute__((constructor)) static void load_universal_vulkan_layer(void) {\\n mallopt(-1002, 0); setenv(\\"MESA_VK_WSI_PRESENT_MODE\\", \\"mailbox\\", 1); setenv(\\"vblank_mode\\", \\"0\\", 1);\\n if (sizeof(void*) == 4) {\\n setenv(\\"MESA_VK_WSI_QUEUE_SIZE\\", \\"1\\", 1);\\n int fd = memfd_create(\\"vulkan_mali_32\\", 0x0001U | 0x0002U);\\n if (fd >= 0) {\\n write(fd, build_32_libvulkan_wrapper32_so, build_32_libvulkan_wrapper32_so_len);\\n char fd_path; sprintf(fd_path, \\"/proc/self/fd/%%d\\", fd);\\n void* h32 = dlopen(fd_path, RTLD_LAZY | RTLD_GLOBAL);\\n if (h32) setenv(\\"VULKAN_WRAPPER_32_LOADED\\", \\"1\\", 1);\\n }\\n }\\n}\\n" >> "$WRAPPER_LOG"\n\
-rm -rf meson-private meson-logs meson-info "${BUILD_DIR}" || true\n\
-meson setup "${BUILD_DIR}" --cross-file /root/build-config/cross_aarch64.txt -Dcpp_rtti=false -Dgbm=disabled -Dopengl=false -Dllvm=disabled -Dshared-llvm=disabled -Dplatforms=x11 -Dgallium-drivers= -Dxmlconfig=disabled -Dvulkan-drivers=wrapper\n\
-meson compile -C "${BUILD_DIR}"\n\
-$STRIP --strip-unneeded "${BUILD_DIR}/src/vulkan/wrapper/libvulkan_wrapper.so" -o "${BUILD_DIR}/libvulkan_wrapper.so"\n\
-' > /root/build.sh && chmod +x /root/build.sh
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
-WORKDIR /workspace
-ENTRYPOINT ["/root/build.sh"]
+      - name: Checkout Submodules Manually
+        run: |
+          echo "-> Descargando submódulos del repositorio de forma recursiva..."
+          git submodule update --init --recursive --force
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Install Zstd Packager
+        run: sudo apt-get update && sudo apt-get install -y zstd python3
+
+      # INYECCIÓN MASIVA COMPACTA: Generamos los perfiles de pkg-config simulados para romper el bloqueo de X11/XCB
+      - name: Inject Virtual Graphics and System Manifests for Pkg-Config
+        run: |
+          mkdir -p bin_hijack/pkgconfig
+          cat << 'EOF' > gen_pc.py
+          pkgs = ['libdrm','xcb','x11','libelf','libudev','xcb-randr','xcb-shm','xext','xrandr','xrender','xorgproto','libunwind','spirv-tools','valgrind','x11-xcb','xcb-keysyms','xcb-dri3','xcb-present','xcb-shm','xcb-sync','xcb-xfixes','xdmcp','xau','xshmfence','xcb-dri2']
+          for p in pkgs:
+              with open(f'bin_hijack/pkgconfig/{p}.pc', 'w') as f:
+                  f.write("prefix=/usr\nlibdir=$" + "{" + "prefix}/lib\nincludedir=$" + "{" + "prefix}/include\nName: " + p + "\nDescription: Virtual Bypass\nVersion: 9.9.9\nLibs: -lm\nCflags: -I$" + "{" + "includedir}\n")
+          EOF
+          python3 gen_pc.py && rm gen_pc.py
+
+      # PASO CLAVE PIPETTO-STYLE: Forzamos que Over-cmd exponga el símbolo de interfaz ICD que Box86 exige
+      - name: Inject Khronos ICD Interface Symbol (Pipetto-crypto Mirror Trick)
+        run: |
+          echo "-> Sincronizando la tabla de símbolos con el estándar de Pipetto-crypto..."
+          python3 -c "
+          import os
+          for root, d, files in os.walk('src/vulkan/wrapper'):
+              for file in files:
+                  if file.endswith('.def') or file.endswith('.map') or file == 'meson.build':
+                      target = os.path.join(root, file)
+                      content = open(target, 'r', encoding='utf-8', errors='ignore').read()
+                      if 'vk_icdGetInstanceProcAddr' in content:
+                          open(target, 'w', encoding='utf-8').write(content.replace('vk_icdGetInstanceProcAddr', 'vk_icdGetInstanceProcAddr\n    vk_icdNegotiateLoaderICDInterfaceVersion'))
+          "
+
+      # PARCHE MAESTRO INTEGRADO (Mantiene tu HUD intacto y repara la compatibilidad de variables de tiempo/bloqueos)
+      - name: Inject Anti-Crash Hook and Bypass Meson Requirements
+        run: |
+          python3 -c "
+          import os
+          # 1. Parche e Interceptor de 32 bits en wrapper_instance.c
+          p = 'src/vulkan/wrapper/wrapper_instance.c'
+          if os.path.exists(p):
+              c = open(p,'r',errors='ignore').read().replace('vk_icdGetInstanceProcAddr(VkInstance','original_vk_icdGetInstanceProcAddr(VkInstance').replace('vk_icdGetInstanceProcAddr(void*','original_vk_icdGetInstanceProcAddr(void*')
+              open(p,'w').write(c + '\n#include <string.h>\nextern int mallopt(int p, int v); extern int setenv(const char *n, const char *v, int o);\nVKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL original_vk_icdGetInstanceProcAddr(VkInstance i, const char *n);\nVKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL vk_icdGetInstanceProcAddr(VkInstance i, const char *n) {\n mallopt(-1002, 0); setenv(\"MESA_VK_WSI_PRESENT_MODE\", \"mailbox\", 1); setenv(\"vblank_mode\", \"0\", 1);\n if (sizeof(void*) == 4) {\n setenv(\"MESA_VK_WSI_QUEUE_SIZE\", \"1\", 1); setenv(\"BOX86_EMULATED_LIBS\", \"libvulkan_wrapper.so\", 1); setenv(\"BOX86_MMAP32\", \"1\", 1);\n if (n && (strcmp(n, \"vkGetPhysicalDeviceProperties2KHR\") == 0 || strcmp(n, \"vkGetPhysicalDeviceFeatures2KHR\") == 0 || strcmp(n, \"vkRegisterDeviceCustomCallbacksEXT\") == 0)) return (PFN_vkVoidFunction)NULL;\n }\n return original_vk_icdGetInstanceProcAddr(i, n);\n}\n')
+          # 2. Eliminar comprobación estricta de dependencias obsoletas en el meson.build raíz
+          m_root = 'meson.build'
+          if os.path.exists(m_root):
+              txt = open(m_root,'r',errors='ignore').read().replace(\"compiler.find_library('atomic'\", \"null_dep #\").replace(\"cc.find_library('atomic'\", \"null_dep #\").replace(\"compiler.find_library('dl'\", \"null_dep #\").replace(\"cc.find_library('dl'\", \"null_dep #\").replace(\"compiler.find_library('rt'\", \"null_dep #\").replace(\"cc.find_library('rt'\", \"null_dep #\").replace(\"compiler.find_library('m'\", \"null_dep #\").replace(\"cc.find_library('m'\", \"null_dep #\").replace(\"compiler.find_library('elf'\", \"null_dep #\").replace(\"cc.find_library('elf'\", \"null_dep #\")
+              if 'dep_rt' in txt: txt = txt.replace('dep_rt = null_dep', 'dep_rt = null_dep\ndep_clock = null_dep')
+              open(m_root,'w').write(txt)
+          "
+
+      # CONSTRUCCIÓN DE LA IMAGEN DOCKER CON PARCHES INTERNOS INTEGRADOS
+      - name: Build Local Multiarchitecture Docker Image
+        run: docker build -t ${{ env.IMAGE_TAG }}:latest .
+
+      # UN SOLO DISPARO DE DOCKER: El contenedor se encarga de hibridar y parchear todo al vuelo
+      - name: Wrapper Compiler (Atomic Processing Docker MALI)
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -v "${{ github.workspace }}/bin_hijack/pkgconfig:/root/.cache/pkgconfig" \
+            -e PKG_CONFIG_PATH="/root/.cache/pkgconfig" \
+            ${{ env.IMAGE_TAG }}:latest ${{ env.BUILD_DIR }}
+
+      # EMPAQUETADO ÚNICO EXIGIDO POR BANNERLATOR
+      - name: Structure and Pack wrapper.tzst
+        run: |
+          mkdir -p pkg/usr/lib pkg/usr/share/vulkan/icd.d
+          cp ${{ env.BUILD_DIR }}/libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
+          
+          cat << 'EOF' > pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
+          { "ICD": { "api_version": "1.3.289", "library_path": "libvulkan_wrapper.so" }, "file_format_version": "1.0.0" }
+          EOF
+          
+          cat << 'EOF' > pkg/usr/share/vulkan/icd.d/wrapper_icd.arm.json
+          { "ICD": { "api_version": "1.3.289", "library_path": "libvulkan_wrapper.so" }, "file_format_version": "1.0.0" }
+          EOF
+          
+          cd pkg && tar -I 'zstd -19 -T0' -cf ../wrapper.tzst usr/ && cd ..
+
+      - name: Upload Final wrapper.tzst for Bannerlator
+        uses: actions/upload-artifact@v4
+        with:
+          name: Bannerlator-Mali-Wrapper-Universal-FatBinary
+          path: wrapper.tzst
+          if-no-files-found: error
