@@ -22,39 +22,58 @@ jobs:
           echo "-> Descargando submódulos del repositorio de forma recursiva..."
           git submodule update --init --recursive --force
 
+      # CLONACIÓN REAL: Descargamos todas las cabeceras de desarrollo de Linux legítimas directamente de los servidores core
+      - name: Download Real Linux DRM and X11 Headers 
+        run: |
+          echo "-> Estructurando entorno de desarrollo real de Linux..."
+          mkdir -p host_sysroot/libdrm host_sysroot/xcb host_sysroot/X11 host_sysroot/X11/extensions
+          
+          # 1. Clonar cabeceras de libdrm
+          git clone --depth 1 https://freedesktop.org tmp_drm
+          cp drm/include/drm/*.h host_sysroot/ 2>/dev/null || cp tmp_drm/include/drm/*.h host_sysroot/
+          cp drm/include/drm/*.h host_sysroot/libdrm/ 2>/dev/null || cp tmp_drm/include/drm/*.h host_sysroot/libdrm/
+          cp drm/*.h host_sysroot/libdrm/ 2>/dev/null || cp tmp_drm/*.h host_sysroot/libdrm/
+          
+          # 2. Clonar xorgproto (Estructuras de X11)
+          git clone --depth 1 https://freedesktop.org tmp_proto
+          cp -r tmp_proto/include/X11/* host_sysroot/X11/
+          
+          # 3. Clonar Vulkan Headers oficiales de Khronos
+          git clone --depth 1 https://github.com tmp_vk
+          cp -r tmp_vk/include/vulkan host_sysroot/
+          
+          # 4. Clonar libxcb real
+          git clone --depth 1 https://freedesktop.org tmp_xcb
+          cp tmp_xcb/src/*.h host_sysroot/xcb/
+          
+          # 5. Generar archivo base mapeado xcb.h para las tablas de despacho
+          cat << 'EOF' > host_sysroot/xcb/xcb.h
+          #ifndef XCB_H
+          #define XCB_H
+          #include <stdint.h>
+          typedef struct xcb_connection_t xcb_connection_t;
+          typedef uint32_t xcb_window_t;
+          typedef uint32_t xcb_visualid_t;
+          #endif
+          EOF
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
       - name: Install Zstd Packager
         run: sudo apt-get update && sudo apt-get install -y zstd python3
 
-      # INYECCIÓN MASIVA COMPACTA: Generamos los perfiles de pkg-config simulados para romper el bloqueo de X11/XCB
+      # INYECCIÓN MASIVA COMPACTA: Generamos los perfiles de pkg-config simulados para romper el bloqueo de dependencias externas
       - name: Inject Virtual Graphics and System Manifests for Pkg-Config
         run: |
-          echo "-> Creando entorno virtual masivo de dependencias..."
           mkdir -p bin_hijack/pkgconfig
           cat << 'EOF' > gen_pc.py
-          pkgs = ['libdrm','xcb','x11','libelf','libudev','xcb-randr','xcb-shm','xext','xrandr','xrender','xorgproto','libunwind','spirv-tools','valgrind','x11-xcb','xcb-keysyms','xcb-dri3','xcb-present','xcb-shm','xcb-sync','xcb-xfixes','xdmcp','xau','xshmfence','xcb-dri2','android']
+          pkgs = ['libdrm','xcb','x11','libelf','libudev','xcb-randr','xcb-shm','xext','xrandr','xrender','xorgproto','libunwind','spirv-tools','valgrind','x11-xcb','xcb-keysyms','xcb-dri3','xcb-present','xcb-shm','xcb-sync','xcb-xfixes','xdmcp','xau','xshmfence','xcb-dri2']
           for p in pkgs:
               with open(f'bin_hijack/pkgconfig/{p}.pc', 'w') as f:
                   f.write("prefix=/usr\nlibdir=$" + "{" + "prefix}/lib\nincludedir=$" + "{" + "prefix}/include\nName: " + p + "\nDescription: Virtual Bypass\nVersion: 9.9.9\nLibs: -lm\nCflags: -I$" + "{" + "includedir}\n")
           EOF
           python3 gen_pc.py && rm gen_pc.py
-
-      # PASO CLAVE PIPETTO-STYLE: Forzamos que Over-cmd exponga el símbolo de interfaz ICD que Box86 exige
-      - name: Inject Khronos ICD Interface Symbol (Pipetto-crypto Mirror Trick)
-        run: |
-          echo "-> Sincronizando la tabla de símbolos con el estándar de Pipetto-crypto..."
-          python3 -c "
-          import os
-          for root, d, files in os.walk('src/vulkan/wrapper'):
-              for file in files:
-                  if file.endswith('.def') or file.endswith('.map') or file == 'meson.build':
-                      target = os.path.join(root, file)
-                      content = open(target, 'r', encoding='utf-8', errors='ignore').read()
-                      if 'vk_icdGetInstanceProcAddr' in content:
-                          open(target, 'w', encoding='utf-8').write(content.replace('vk_icdGetInstanceProcAddr', 'vk_icdGetInstanceProcAddr\n    vk_icdNegotiateLoaderICDInterfaceVersion'))
-          "
 
       # PARCHE MAESTRO INTEGRADO (Mantiene tu HUD intacto y repara la compatibilidad de variables de tiempo/bloqueos)
       - name: Inject Anti-Crash Hook and Bypass Meson Requirements
@@ -74,11 +93,10 @@ jobs:
               open(m_root,'w').write(txt)
           "
 
-      # CONSTRUCCIÓN DE LA IMAGEN DOCKER MULTI-ARQUITECTURA
-      - name: Build Local Multiarchitecture Docker Image
+      - name: Build Local Corrected Docker Image
         run: docker build -t ${{ env.IMAGE_TAG }}:latest .
 
-      # COMPILACIÓN DEL ENTORNO NATIVO CON REDIRECCIÓN DE VOLÚMENES TRIPLE PARA EL CROSS-BUILD DE AMBAS EXTENSIONES
+      # COMPILACIÓN DEL ENTORNO NATIVO: Mapeamos los repositorios reales directamente dentro del Sysroot del compilador Clang del contenedor
       - name: Wrapper Compiler (Atomic Processing Docker MALI)
         run: |
           docker run --rm \
@@ -86,8 +104,10 @@ jobs:
             -v "${{ github.workspace }}/bin_hijack/pkgconfig:/termux_64/data/data/com.termux/files/usr/lib/pkgconfig" \
             -v "${{ github.workspace }}/bin_hijack/pkgconfig:/termux_32/data/data/com.termux/files/usr/lib/pkgconfig" \
             -v "${{ github.workspace }}/bin_hijack/pkgconfig:/data/data/com.termux/files/usr/lib/pkgconfig" \
-            -v "${{ github.workspace }}/bin_hijack/pkgconfig:/usr/lib/pkgconfig" \
-            -e PKG_CONFIG_PATH="/data/data/com.termux/files/usr/lib/pkgconfig" \
+            -v "${{ github.workspace }}/host_sysroot:/home/builder/lib/android-ndk-r29/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/host_graphics" \
+            -v "${{ github.workspace }}/host_sysroot:/usr/include/host_graphics" \
+            -e C_INCLUDE_PATH="/home/builder/lib/android-ndk-r29/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/host_graphics" \
+            -e CPLUS_INCLUDE_PATH="/home/builder/lib/android-ndk-r29/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/host_graphics" \
             ${{ env.IMAGE_TAG }}:latest ${{ env.BUILD_DIR }}
 
       # EMPAQUETADO ÚNICO EXIGIDO POR BANNERLATOR
