@@ -26,24 +26,73 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y zstd python3
 
-      # INYECCIÓN DE MANIFIESTO VIRTUAL: Engañamos a pkg-config creando un perfil falso de libdrm
-      - name: Inject Virtual Libdrm Manifest for Pkg-Config
+      # INYECCIÓN DE MANIFIESTOS VIRTUALES: Secuestramos pkg-config simulando la existencia de todo el entorno X11/System
+      - name: Inject Virtual Graphics and System Manifests for Pkg-Config
         run: |
-          echo "-> Forzando la creación de un entorno virtual de libdrm para saltar Meson..."
+          echo "-> Creando entorno virtual multilib para saltar validaciones de Meson..."
           mkdir -p bin_hijack/pkgconfig
+          
+          # 1. Perfil virtual para libdrm
           cat << 'EOF' > bin_hijack/pkgconfig/libdrm.pc
           prefix=/usr
-          exec_prefix=${prefix}
-          libdir=${exec_prefix}/lib
+          libdir=${prefix}/lib
           includedir=${prefix}/include
-
           Name: libdrm
-          Description: Userspace interface to kernel DRM services (Virtual Bypass)
+          Description: Virtual libdrm Bypass
           Version: 2.4.115
           Libs: -lm
           Cflags: -I${includedir}
           EOF
-          echo "-> Manifiesto virtual libdrm.pc inyectado correctamente."
+          
+          # 2. Perfil virtual para xcb (Evita tu error actual)
+          cat << 'EOF' > bin_hijack/pkgconfig/xcb.pc
+          prefix=/usr
+          libdir=${prefix}/lib
+          includedir=${prefix}/include
+          Name: xcb
+          Description: Virtual xcb Bypass
+          Version: 1.15
+          Libs: -lm
+          Cflags: -I${includedir}
+          EOF
+
+          # 3. Perfil virtual para x11
+          cat << 'EOF' > bin_hijack/pkgconfig/x11.pc
+          prefix=/usr
+          libdir=${prefix}/lib
+          includedir=${prefix}/include
+          Name: x11
+          Description: Virtual x11 Bypass
+          Version: 1.8.4
+          Libs: -lm
+          Cflags: -I${includedir}
+          EOF
+
+          # 4. Perfil virtual para libelf
+          cat << 'EOF' > bin_hijack/pkgconfig/libelf.pc
+          prefix=/usr
+          libdir=${prefix}/lib
+          includedir=${prefix}/include
+          Name: libelf
+          Description: Virtual libelf Bypass
+          Version: 0.189
+          Libs: -lm
+          Cflags: -I${includedir}
+          EOF
+
+          # 5. Perfil virtual para libudev
+          cat << 'EOF' > bin_hijack/pkgconfig/libudev.pc
+          prefix=/usr
+          libdir=${prefix}/lib
+          includedir=${prefix}/include
+          Name: libudev
+          Description: Virtual libudev Bypass
+          Version: 253
+          Libs: -lm
+          Cflags: -I${includedir}
+          EOF
+
+          echo "-> Todos los manifiestos gráficos virtuales han sido inyectados con éxito."
 
       # PASO CLAVE PIPETTO-STYLE: Forzamos que Over-cmd exponga el símbolo de interfaz ICD que Box86 exige
       - name: Inject Khronos ICD Interface Symbol (Pipetto-crypto Mirror Trick)
@@ -63,7 +112,7 @@ jobs:
                               f.write(content)
           "
 
-      # PARCHE QUIRÚRGICO DE ELIMINACIÓN: Borramos las comprobaciones de librerías del sistema obsoletas en Android (r27/r29)
+      # PARCHE QUIRÚRGICO DE ELIMINACIÓN: Borramos las comprobaciones de librerías obsoletas en Android (r27/r29)
       - name: Bypass Meson NDK Obsolete Requirements (Libatomic, Libdl & Librt)
         run: |
           echo "-> Neutralizando las comprobaciones de librerías obsoletas en meson.build..."
@@ -84,6 +133,8 @@ jobs:
                       line = 'dep_rt = null_dep\n'
                   if 'compiler.find_library(\'m\'' in line or 'cc.find_library(\'m\'' in line:
                       line = 'dep_m = null_dep\n'
+                  if 'compiler.find_library(\'elf\'' in line or 'cc.find_library(\'elf\'' in line:
+                      line = 'dep_elf = null_dep\n'
                   new_lines.append(line)
                   
               with open(target, 'w', encoding='utf-8') as f:
