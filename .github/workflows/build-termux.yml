@@ -44,10 +44,10 @@ jobs:
                               f.write(content)
           "
 
-      # PARCHE QUIRÚRGICO DE ELIMINACIÓN: Borramos las comprobaciones estrictas de librerías del sistema inexistentes en NDK r29
-      - name: Bypass Meson NDK Obsolete Requirements (Libatomic & Libdl)
+      # PARCHE QUIRÚRGICO DE ELIMINACIÓN: Borramos las comprobaciones estrictas de librerías del sistema inexistentes en Android (r27/r29)
+      - name: Bypass Meson NDK Obsolete Requirements (Libatomic, Libdl & Librt)
         run: |
-          echo "-> Neutralizando la comprobación estricta de libatomic y libdl en meson.build..."
+          echo "-> Neutralizando las comprobaciones estrictas de librerías obsoletas en meson.build..."
           python3 -c "
           import os
           target = 'meson.build'
@@ -61,16 +61,20 @@ jobs:
                   if 'compiler.find_library(\'atomic\'' in line or 'cc.find_library(\'atomic\'' in line:
                       line = 'dep_atomic = null_dep\n'
                   
-                  # 2. Neutralizar búsqueda de libdl (ya integrada en libc de Android NDK r27/r29)
+                  # 2. Neutralizar búsqueda de libdl (integrada en libc de Android)
                   if 'compiler.find_library(\'dl\'' in line or 'cc.find_library(\'dl\'' in line:
-                      print('-> Parcheando y anulando línea de libdl obligatorio...')
                       line = 'dep_dl = null_dep\n'
+                  
+                  # 3. Neutralizar búsqueda de librt (tiempo real, integrada en libc de Android)
+                  if 'compiler.find_library(\'rt\'' in line or 'cc.find_library(\'rt\'' in line:
+                      print('-> Parcheando y anulando línea de librt obligatorio...')
+                      line = 'dep_rt = null_dep\n'
                       
                   new_lines.append(line)
                   
               with open(target, 'w', encoding='utf-8') as f:
                   f.writelines(new_lines)
-              print('-> ¡Bloqueos de libatomic y libdl neutralizados con éxito de raíz!')
+              print('-> ¡Bloqueos de libatomic, libdl y librt neutralizados con éxito de raíz!')
           "
 
       # TU INYECCIÓN DE CONTROL DE FLUJO HÍBRIDO ORIGINAL (CONSERVA TU CONFIGURACIÓN DEL HUD)
