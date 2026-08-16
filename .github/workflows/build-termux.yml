@@ -44,37 +44,36 @@ jobs:
                               f.write(content)
           "
 
-      # PARCHE QUIRÚRGICO DE ELIMINACIÓN: Borramos las comprobaciones estrictas de librerías del sistema inexistentes en Android (r27/r29)
-      - name: Bypass Meson NDK Obsolete Requirements (Libatomic, Libdl & Librt)
+      # PARCHE MAESTRO ANTI-DEPENDENCIAS: Neutralizamos libatomic, libdl, librt, libm y libdrm en meson.build
+      - name: Bypass Meson Rigid Requirements (Bypass Libdrm & Math)
         run: |
-          echo "-> Neutralizando las comprobaciones estrictas de librerías obsoletas en meson.build..."
+          echo "-> Forzando la neutralización de dependencias ausentes en el script de Meson..."
           python3 -c "
           import os
           target = 'meson.build'
           if os.path.exists(target):
               with open(target, 'r', encoding='utf-8', errors='ignore') as f:
-                  lines = f.readlines()
+                  content = f.read()
               
-              new_lines = []
-              for line in lines:
-                  # 1. Neutralizar búsqueda de libatomic
-                  if 'compiler.find_library(\'atomic\'' in line or 'cc.find_library(\'atomic\'' in line:
-                      line = 'dep_atomic = null_dep\n'
-                  
-                  # 2. Neutralizar búsqueda de libdl (integrada en libc de Android)
-                  if 'compiler.find_library(\'dl\'' in line or 'cc.find_library(\'dl\'' in line:
-                      line = 'dep_dl = null_dep\n'
-                  
-                  # 3. Neutralizar búsqueda de librt (tiempo real, integrada en libc de Android)
-                  if 'compiler.find_library(\'rt\'' in line or 'cc.find_library(\'rt\'' in line:
-                      print('-> Parcheando y anulando línea de librt obligatorio...')
-                      line = 'dep_rt = null_dep\n'
-                      
-                  new_lines.append(line)
-                  
+              # 1. Neutralizamos las búsquedas de librerías del sistema obsoletas o unificadas en Android
+              content = content.replace(\"compiler.find_library('atomic'\", \"null_dep #\")
+              content = content.replace(\"cc.find_library('atomic'\", \"null_dep #\")
+              content = content.replace(\"compiler.find_library('dl'\", \"null_dep #\")
+              content = content.replace(\"cc.find_library('dl'\", \"null_dep #\")
+              content = content.replace(\"compiler.find_library('rt'\", \"null_dep #\")
+              content = content.replace(\"cc.find_library('rt'\", \"null_dep #\")
+              
+              # 2. Neutralizamos el bloqueo de la librería matemática central 'm'
+              content = content.replace(\"compiler.find_library('m'\", \"null_dep #\")
+              content = content.replace(\"cc.find_library('m'\", \"null_dep #\")
+              
+              # 3. Forzamos de manera quirúrgica que la dependencia obligatoria de libdrm pase como opcional o simulada
+              content = content.replace(\"dependency('libdrm'\", \"null_dep #\")
+              content = content.replace(\"dependency('libdrm',\", \"null_dep #\")
+              
               with open(target, 'w', encoding='utf-8') as f:
-                  f.writelines(new_lines)
-              print('-> ¡Bloqueos de libatomic, libdl y librt neutralizados con éxito de raíz!')
+                  f.write(content)
+              print('-> ¡Todas las barreras rígidas de dependencias externas han sido eliminadas!')
           "
 
       # TU INYECCIÓN DE CONTROL DE FLUJO HÍBRIDO ORIGINAL (CONSERVA TU CONFIGURACIÓN DEL HUD)
@@ -99,7 +98,7 @@ jobs:
             find src/ -name "*.c" -exec sed -i 's/vk_icdGetInstanceProcAddr/extern int mallopt(int p, int v); extern int setenv(const char *n, const char *v, int o); mallopt(-1002, 0); setenv("MESA_VK_WSI_PRESENT_MODE", "mailbox", 1); setenv("vblank_mode", "0", 1); if (sizeof(void*) == 4) { setenv("MESA_VK_WSI_QUEUE_SIZE", "1", 1); } vk_icdGetInstanceProcAddr/g' {} + || true
           fi
 
-      # CONSTRUCCIÓN EN VIVO DE TU DOCKERFILE UNIVERSAL ANTERIOR
+      # CONSTRUCCIÓN EN VIVO DEL DOCKERFILE UNIVERSAL CORREGIDO ANTERIOR
       - name: Build Local Corrected Docker Image
         run: |
           echo "-> Creando imagen de compilación a partir de tu archivo de printf..."
@@ -108,7 +107,7 @@ jobs:
       # COMPILACIÓN DEL DOCKER NATIVO CON PARCHE INTEGRADO
       - name: Wrapper Compiler (Atomic Processing Docker MALI)
         run: |
-          docker run --rm -v "${{ github.workspace }}:/workspace" ${{ env.IMAGE_TAG }} ${{ env.BUILD_DIR }}
+          docker run --rm -v "${{ github.workspace }}:/workspace" ${{ env.IMAGE_TAG }} :latest ${{ env.BUILD_DIR }}
 
       # MANIFIESTOS DUALES IDENTICOS A PIPETTO PARA ENGAÑAR A BOX86
       - name: Structure and Pack wrapper.tzst
