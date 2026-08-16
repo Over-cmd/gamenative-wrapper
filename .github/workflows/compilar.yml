@@ -17,7 +17,6 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      # PASO INTEGRADO IMPRESCINDIBLE: Forzamos la clonación de libadrenotools ANTES de aplicar los parches de Python
       - name: Checkout Submodules Manually
         run: |
           echo "-> Descargando submódulos del repositorio de forma recursiva..."
@@ -41,11 +40,14 @@ jobs:
           EOF
           python3 gen_pc.py && rm gen_pc.py
 
-      # PARCHE MAESTRO INTEGRADO (Ahora sí encontrará libadrenotools porque ya fue clonado arriba)
+      # PARCHE MAESTRO INTEGRADO REPARADO (Fuerza permisos de escritura y reescribe libadrenotools)
       - name: Inject Anti-Crash Hook and Bypass Meson Requirements
         run: |
+          # Otorgamos permisos totales de lectura y escritura a los submódulos clonados para evitar bloqueos
+          chmod -R 777 subprojects/ || true
+          
           python3 -c "
-          import os
+          import os, re
           # 1. Parche e Interceptor de 32 bits en wrapper_instance.c
           p = 'src/vulkan/wrapper/wrapper_instance.c'
           if os.path.exists(p):
@@ -63,17 +65,16 @@ jobs:
               txt = open(m_root,'r',errors='ignore').read().replace(\"compiler.find_library('atomic'\", \"null_dep #\").replace(\"cc.find_library('atomic'\", \"null_dep #\").replace(\"compiler.find_library('dl'\", \"null_dep #\").replace(\"cc.find_library('dl'\", \"null_dep #\").replace(\"compiler.find_library('rt'\", \"null_dep #\").replace(\"cc.find_library('rt'\", \"null_dep #\").replace(\"compiler.find_library('m'\", \"null_dep #\").replace(\"cc.find_library('m'\", \"null_dep #\").replace(\"compiler.find_library('elf'\", \"null_dep #\").replace(\"cc.find_library('elf'\", \"null_dep #\")
               if 'dep_rt' in txt: txt = txt.replace('dep_rt = null_dep', 'dep_rt = null_dep\ndep_clock = null_dep')
               open(m_root,'w').write(txt)
-          # 4. TRUCO DE ANULACIÓN RADICAL PARA LIBADRENOTOOLS (Bypass total al error 'android')
+          # 4. ANULACIÓN ULTRA-AGRESIVA PARA LIBADRENOTOOLS (Uso de expresiones regulares para borrar la línea de 'android')
           m_adr = 'subprojects/libadrenotools/meson.build'
           if os.path.exists(m_adr):
-              lines = open(m_adr,'r',errors='ignore').readlines()
-              out = []
-              for l in lines:
-                  if 'find_library' in l and 'android' in l:
-                      l = 'libandroid = null_dep\ndep_android = null_dep\n'
-                  out.append(l)
-              open(m_adr,'w').write(''.join(out))
-              print('-> ¡Bloqueos de landroid en libadrenotools destruidos con éxito!')
+              txt = open(m_adr,'r',errors='ignore').read()
+              # Reemplazamos cualquier variante de find_library que contenga 'android' (con cualquier comilla o espacios)
+              txt = re.sub(r'cc\s*\.\s*find_library\s*\(\s*[\'|\"]android[\'|\"]\s*\)', 'null_dep', txt)
+              txt = re.sub(r'cxx\s*\.\s*find_library\s*\(\s*[\'|\"]android[\'|\"]\s*\)', 'null_dep', txt)
+              txt = re.sub(r'compiler\s*\.\s*find_library\s*\(\s*[\'|\"]android[\'|\"]\s*\)', 'null_dep', txt)
+              open(m_adr,'w').write(txt)
+              print('-> ¡Bloqueo de landroid en libadrenotools destruido de manera agresiva!')
           "
 
       - name: Build Local Corrected Docker Image
