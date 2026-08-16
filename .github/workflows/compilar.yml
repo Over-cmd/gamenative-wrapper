@@ -17,6 +17,12 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
+      # PASO INTEGRADO IMPRESCINDIBLE: Forzamos la clonación de libadrenotools ANTES de aplicar los parches de Python
+      - name: Checkout Submodules Manually
+        run: |
+          echo "-> Descargando submódulos del repositorio de forma recursiva..."
+          git submodule update --init --recursive --force
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -35,7 +41,7 @@ jobs:
           EOF
           python3 gen_pc.py && rm gen_pc.py
 
-      # PARCHE MAESTRO INTEGRADO (Bypass quirúrgico e inyección anti-crash)
+      # PARCHE MAESTRO INTEGRADO (Ahora sí encontrará libadrenotools porque ya fue clonado arriba)
       - name: Inject Anti-Crash Hook and Bypass Meson Requirements
         run: |
           python3 -c "
@@ -51,7 +57,7 @@ jobs:
                   if file.endswith(('.def', '.map')) or file == 'meson.build':
                       tp = os.path.join(r, file); content = open(tp,'r',errors='ignore').read()
                       if 'vk_icdGetInstanceProcAddr' in content: open(tp,'w').write(content.replace('vk_icdGetInstanceProcAddr', 'vk_icdGetInstanceProcAddr\n    vk_icdNegotiateLoaderICDInterfaceVersion'))
-          # 3. Forzar bypass de dependencias obsoletas en el meson.build raíz
+          # 3. Eliminar comprobación estricta de dependencias en el meson.build raíz
           m_root = 'meson.build'
           if os.path.exists(m_root):
               txt = open(m_root,'r',errors='ignore').read().replace(\"compiler.find_library('atomic'\", \"null_dep #\").replace(\"cc.find_library('atomic'\", \"null_dep #\").replace(\"compiler.find_library('dl'\", \"null_dep #\").replace(\"cc.find_library('dl'\", \"null_dep #\").replace(\"compiler.find_library('rt'\", \"null_dep #\").replace(\"cc.find_library('rt'\", \"null_dep #\").replace(\"compiler.find_library('m'\", \"null_dep #\").replace(\"cc.find_library('m'\", \"null_dep #\").replace(\"compiler.find_library('elf'\", \"null_dep #\").replace(\"cc.find_library('elf'\", \"null_dep #\")
@@ -67,7 +73,7 @@ jobs:
                       l = 'libandroid = null_dep\ndep_android = null_dep\n'
                   out.append(l)
               open(m_adr,'w').write(''.join(out))
-              print('-> ¡Bloqueo de landroid en libadrenotools pulverizado!')
+              print('-> ¡Bloqueos de landroid en libadrenotools destruidos con éxito!')
           "
 
       - name: Build Local Corrected Docker Image
