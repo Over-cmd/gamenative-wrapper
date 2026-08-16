@@ -35,7 +35,7 @@ jobs:
           EOF
           python3 gen_pc.py && rm gen_pc.py
 
-      # PARCHE MAESTRO INTEGRADO (Python modifica en bloque todas las dependencias de Mesa y Libadrenotools de golpe)
+      # PARCHE MAESTRO INTEGRADO REPARADO (Soporta comillas dobles y simples para libadrenotools)
       - name: Inject Anti-Crash Hook and Bypass Meson Requirements
         run: |
           python3 -c "
@@ -51,11 +51,10 @@ jobs:
                   if file.endswith(('.def', '.map')) or file == 'meson.build':
                       tp = os.path.join(r, file); content = open(tp,'r',errors='ignore').read()
                       if 'vk_icdGetInstanceProcAddr' in content: open(tp,'w').write(content.replace('vk_icdGetInstanceProcAddr', 'vk_icdGetInstanceProcAddr\n    vk_icdNegotiateLoaderICDInterfaceVersion'))
-          # 3. Eliminar comprobación estricta de libatomic, libdl, librt, libm, libelf y landroid en bloque
+          # 3. Eliminar comprobación estricta de libatomic, libdl, librt, libm, libelf y landroid en bloque (con soporte de comillas dobles)
           for f in ['meson.build', 'subprojects/libadrenotools/meson.build']:
               if os.path.exists(f):
-                  txt = open(f,'r',errors='ignore').read().replace(\"compiler.find_library('atomic'\", \"null_dep #\").replace(\"cc.find_library('atomic'\", \"null_dep #\").replace(\"compiler.find_library('dl'\", \"null_dep #\").replace(\"cc.find_library('dl'\", \"null_dep #\").replace(\"compiler.find_library('rt'\", \"null_dep #\").replace(\"cc.find_library('rt'\", \"null_dep #\").replace(\"compiler.find_library('m'\", \"null_dep #\").replace(\"cc.find_library('m'\", \"null_dep #\").replace(\"compiler.find_library('elf'\", \"null_dep #\").replace(\"cc.find_library('elf'\", \"null_dep #\").replace(\"cxx.find_library('android')\", \"null_dep\").replace(\"compiler.find_library('android')\", \"null_dep\")
-                  # Corrección de variable temporal del reloj de C11
+                  txt = open(f,'r',errors='ignore').read().replace(\"compiler.find_library('atomic'\", \"null_dep #\").replace(\"cc.find_library('atomic'\", \"null_dep #\").replace(\"compiler.find_library('dl'\", \"null_dep #\").replace(\"cc.find_library('dl'\", \"null_dep #\").replace(\"compiler.find_library('rt'\", \"null_dep #\").replace(\"cc.find_library('rt'\", \"null_dep #\").replace(\"compiler.find_library('m'\", \"null_dep #\").replace(\"cc.find_library('m'\", \"null_dep #\").replace(\"compiler.find_library('elf'\", \"null_dep #\").replace(\"cc.find_library('elf'\", \"null_dep #\").replace(\"cxx.find_library('android')\", \"null_dep\").replace(\"compiler.find_library('android')\", \"null_dep\").replace('cxx.find_library(\"android\")', 'null_dep').replace('compiler.find_library(\"android\")', 'null_dep')
                   if 'dep_rt' in txt: txt = txt.replace('dep_rt = null_dep', 'dep_rt = null_dep\ndep_clock = null_dep')
                   open(f,'w').write(txt)
           "
