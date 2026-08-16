@@ -2,9 +2,9 @@ FROM ghcr.io/termux/package-builder:latest
 
 USER root
 
-# 1. Instalar herramientas base y dependencias de Python
+# 1. Instalar herramientas base, compilador nativo (REPARACIÓN CLAVE) y dependencias de Python
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends ninja-build xxd git pkg-config && \
+    apt-get install -y --no-install-recommends ninja-build xxd git pkg-config build-essential && \
     pip3 install --break-system-packages --ignore-installed --no-cache-dir meson ninja mako pyyaml packaging
 
 # 2. Configurar perfiles cruzados independientes para Meson (64 y 32 bits) con mapeo en el Sysroot nativo del NDK
