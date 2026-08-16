@@ -4,7 +4,6 @@
 FROM ubuntu:22.04 AS builder
 
 ENV DEBIAN_FRONTEND=noninteractive
-ENV ANDROID_NDK_VERSION=r26b
 ENV ANDROID_NDK_HOME=/opt/android-ndk
 
 # Instalar dependencias esenciales de compilación para Mesa
@@ -27,11 +26,11 @@ RUN apt-get update && apt-get install -y \
 # Instalar Meson actualizado vía pip
 RUN pip3 install meson
 
-# Descargar e instalar Android NDK usando la URL oficial corregida
-RUN wget -q https://google.com{ANDROID_NDK_VERSION}-linux.zip -O /tmp/ndk.zip \
+# Descarga directa de la URL oficial del NDK r26b sin usar variables de entorno en el wget
+RUN wget -q https://google.com -O /tmp/ndk.zip \
     && mkdir -p /opt \
     && unzip -q /tmp/ndk.zip -d /opt \
-    && mv /opt/android-ndk-${ANDROID_NDK_VERSION} ${ANDROID_NDK_HOME} \
+    && mv /opt/android-ndk-r26b ${ANDROID_NDK_HOME} \
     && rm /tmp/ndk.zip
 
 WORKDIR /workspace
