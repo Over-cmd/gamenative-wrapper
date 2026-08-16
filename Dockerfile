@@ -7,42 +7,40 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends ninja-build && \
     pip3 install --break-system-packages --ignore-installed --no-cache-dir meson ninja mako pyyaml packaging
 
-# 2. Enlazar las librerías preinstaladas locales de Termux al entorno de compilación
+# 2. Enlazar estructuralmente el Sysroot preinstalado local de Termux para que coincida con las rutas de Mesa
 RUN mkdir -p /data/data/com.termux/files && \
-    (ln -s /home/builder/.termux-build/_cache/14-aarch64/bootstrap/data/data/com.termux/files/usr /data/data/com.termux/files/usr || \
-     ln -s /home/builder/lib /data/data/com.termux/files/usr) || true
+    rm -rf /data/data/com.termux/files/usr || true && \
+    ln -s /home/builder/.termux-build/_cache/14-aarch64/bootstrap/data/data/com.termux/files/usr /data/data/com.termux/files/usr
 
-# 3. Crear el directorio de configuración de manera aislada
-RUN mkdir -p /root/build-config
-
-# 4. Generar el archivo de configuración de Meson usando printf (Inmune a errores de Heredoc)
-RUN printf "[binaries]\n\
-c = 'NDK_BIN_PLACEHOLDER/aarch64-linux-android30-clang'\n\
-cpp = 'NDK_BIN_PLACEHOLDER/aarch64-linux-android30-clang++'\n\
-ar = 'NDK_BIN_PLACEHOLDER/llvm-ar'\n\
-strip = 'NDK_BIN_PLACEHOLDER/llvm-strip'\n\
+# 3. Generar el archivo de configuración cruzada de Meson mapeando el NDK y las librerías locales de Termux
+RUN NDK_DIR=$(find /home/builder/lib -maxdepth 2 -name "android-ndk*" 2>/dev/null | head -n 1) && \
+    NDK_BIN="${NDK_DIR}/toolchains/llvm/prebuilt/linux-x86_64/bin" && \
+    SYS_DIR="${NDK_DIR}/toolchains/llvm/prebuilt/linux-x86_64/sysroot" && \
+    mkdir -p /root/build-config && \
+    \
+    printf "[binaries]\n\
+c = '%s/aarch64-linux-android30-clang'\n\
+cpp = '%s/aarch64-linux-android30-clang++'\n\
+ar = '%s/llvm-ar'\n\
+strip = '%s/llvm-strip'\n\
 pkg-config = 'pkg-config'\n\n\
 [constants]\n\
-termux_dir = '/data/data/com.termux/files/usr'\n\n\
+termux_dir = '/data/data/com.termux/files/usr'\n\
+sys_dir = '%s'\n\n\
 [properties]\n\
 pkg_config_libdir = termux_dir + '/lib/pkgconfig:' + termux_dir + '/share/pkgconfig'\n\n\
 [built-in options]\n\
-c_args = ['-D__TERMUX__', '-D__USE_GNU', '-U__ANDROID__', '-I' + termux_dir + '/include', '-include', 'fcntl.h', '-include', 'unistd.h']\n\
-cpp_args = ['-D__TERMUX__', '-D__USE_GNU', '-U__ANDROID__', '-I' + termux_dir + '/include', '-include', 'fcntl.h', '-include', 'unistd.h']\n\
-c_link_args = ['-L' + termux_dir + '/lib', '-landroid-shmem']\n\
-cpp_link_args = ['-L' + termux_dir + '/lib', '-landroid-shmem']\n\n\
+c_args = ['-D__TERMUX__', '-D__USE_GNU', '-U__ANDROID__', '-I' + termux_dir + '/include', '-I' + sys_dir + '/usr/include', '-include', 'fcntl.h', '-include', 'unistd.h']\n\
+cpp_args = ['-D__TERMUX__', '-D__USE_GNU', '-U__ANDROID__', '-I' + termux_dir + '/include', '-I' + sys_dir + '/usr/include', '-include', 'fcntl.h', '-include', 'unistd.h']\n\
+c_link_args = ['-L' + termux_dir + '/lib', '-L' + sys_dir + '/usr/lib/aarch64-linux-android/30', '-landroid-shmem']\n\
+cpp_link_args = ['-L' + termux_dir + '/lib', '-L' + sys_dir + '/usr/lib/aarch64-linux-android/30', '-landroid-shmem']\n\n\
 [host_machine]\n\
 system = 'android'\n\
 cpu_family = 'aarch64'\n\
 cpu = 'armv8-a'\n\
-endian = 'little'\n" > /root/build-config/cross_file.txt
+endian = 'little'\n" "$NDK_BIN" "$NDK_BIN" "$NDK_BIN" "$NDK_BIN" "$SYS_DIR" > /root/build-config/cross_file.txt
 
-# 5. Reemplazar el marcador dinámico con la ruta real del NDK del contenedor
-RUN NDK_DIR=$(find /home/builder/lib -maxdepth 2 -name "android-ndk*" 2>/dev/null | head -n 1) && \
-    NDK_BIN="${NDK_DIR}/toolchains/llvm/prebuilt/linux-x86_64/bin" && \
-    sed -i "s|NDK_BIN_PLACEHOLDER|${NDK_BIN}|g" /root/build-config/cross_file.txt
-
-# 6. Generar el script de compilación usando printf en lugar de bloques EOF
+# 4. Generar el script de compilación inyectando el parche de silicio para anon_file.c
 RUN printf '#!/bin/bash\n\
 set -e\n\
 BUILD_DIR="${1:-build}"\n\
@@ -72,7 +70,7 @@ echo "Build successful:"\n\
 echo " - libvulkan_wrapper.so"\n\
 echo " - libvulkan_wrapper.so.unstripped"\n' > /root/build.sh
 
-# 7. Otorgar permisos de ejecución finales
+# 5. Otorgar permisos de ejecución finales
 RUN chmod +x /root/build.sh
 
 WORKDIR /workspace
