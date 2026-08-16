@@ -31,9 +31,10 @@ jobs:
       # INYECCIÓN MASIVA COMPACTA: Generamos los perfiles de pkg-config simulados para romper el bloqueo de X11/XCB
       - name: Inject Virtual Graphics and System Manifests for Pkg-Config
         run: |
+          echo "-> Creando entorno virtual masivo de dependencias..."
           mkdir -p bin_hijack/pkgconfig
           cat << 'EOF' > gen_pc.py
-          pkgs = ['libdrm','xcb','x11','libelf','libudev','xcb-randr','xcb-shm','xext','xrandr','xrender','xorgproto','libunwind','spirv-tools','valgrind','x11-xcb','xcb-keysyms','xcb-dri3','xcb-present','xcb-shm','xcb-sync','xcb-xfixes','xdmcp','xau','xshmfence','xcb-dri2']
+          pkgs = ['libdrm','xcb','x11','libelf','libudev','xcb-randr','xcb-shm','xext','xrandr','xrender','xorgproto','libunwind','spirv-tools','valgrind','x11-xcb','xcb-keysyms','xcb-dri3','xcb-present','xcb-shm','xcb-sync','xcb-xfixes','xdmcp','xau','xshmfence','xcb-dri2','android']
           for p in pkgs:
               with open(f'bin_hijack/pkgconfig/{p}.pc', 'w') as f:
                   f.write("prefix=/usr\nlibdir=$" + "{" + "prefix}/lib\nincludedir=$" + "{" + "prefix}/include\nName: " + p + "\nDescription: Virtual Bypass\nVersion: 9.9.9\nLibs: -lm\nCflags: -I$" + "{" + "includedir}\n")
@@ -73,16 +74,19 @@ jobs:
               open(m_root,'w').write(txt)
           "
 
-      # CONSTRUCCIÓN DE LA IMAGEN DOCKER CON PARCHES INTERNOS INTEGRADOS
+      # CONSTRUCCIÓN DE LA IMAGEN DOCKER MULTI-ARQUITECTURA
       - name: Build Local Multiarchitecture Docker Image
         run: docker build -t ${{ env.IMAGE_TAG }}:latest .
 
-      # UN SOLO DISPARO DE DOCKER: El contenedor se encarga de hibridar y parchear todo al vuelo
+      # COMPILACIÓN DEL ENTORNO NATIVO CON REDIRECCIÓN DE VOLÚMENES TRIPLE PARA EL CROSS-BUILD DE AMBAS EXTENSIONES
       - name: Wrapper Compiler (Atomic Processing Docker MALI)
         run: |
           docker run --rm \
             -v "${{ github.workspace }}:/workspace" \
-            -v "${{ github.workspace }}/bin_hijack/pkgconfig:/root/.cache/pkgconfig" \
+            -v "${{ github.workspace }}/bin_hijack/pkgconfig:/termux_64/data/data/com.termux/files/usr/lib/pkgconfig" \
+            -v "${{ github.workspace }}/bin_hijack/pkgconfig:/termux_32/data/data/com.termux/files/usr/lib/pkgconfig" \
+            -v "${{ github.workspace }}/bin_hijack/pkgconfig:/data/data/com.termux/files/usr/lib/pkgconfig" \
+            -v "${{ github.workspace }}/bin_hijack/pkgconfig:/usr/lib/pkgconfig" \
             -e PKG_CONFIG_PATH="/data/data/com.termux/files/usr/lib/pkgconfig" \
             ${{ env.IMAGE_TAG }}:latest ${{ env.BUILD_DIR }}
 
