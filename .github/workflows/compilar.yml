@@ -25,18 +25,22 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y zstd python3
 
-      # INYECCIÓN MASIVA COMPACTA CORREGIDA: Escapamos las llaves para que GitHub Actions no intente parsearlas
+      # INYECCIÓN MASIVA COMPACTA REPARADA: Blindamos el script con un Heredoc 'EOF' para evitar el fallo 'bad substitution'
       - name: Inject Virtual Graphics and System Manifests for Pkg-Config
         run: |
           echo "-> Creando entorno virtual masivo de pkg-config..."
           mkdir -p bin_hijack/pkgconfig
-          python3 -c "
+          
+          cat << 'EOF' > generate_pc.py
           import os
           pkgs = ['libdrm','xcb','x11','libelf','libudev','xcb-randr','xcb-shm','xext','xrandr','xrender','xorgproto','libunwind','spirv-tools','valgrind','x11-xcb','xcb-keysyms','xcb-dri3','xcb-present','xcb-sync','xcb-xfixes','xdmcp','xau','xshmfence','xcb-dri2']
           for p in pkgs:
               with open(f'bin_hijack/pkgconfig/{p}.pc', 'w') as f:
-                  f.write('prefix=/usr\nlibdir=' + '${' + 'prefix}/lib\nincludedir=' + '${' + 'prefix}/include\nName: ' + p + '\Description: Virtual Bypass\nVersion: 9.9.9\nLibs: -lm\nCflags: -I' + '${' + 'includedir}\n')
-          "
+                  f.write(f"prefix=/usr\nlibdir=${{prefix}}/lib\nincludedir=${{prefix}}/include\nName: {p}\nDescription: Virtual Bypass\nVersion: 9.9.9\nLibs: -lm\nCflags: -I${{includedir}}\n")
+          EOF
+          
+          python3 generate_pc.py
+          rm generate_pc.py
 
       # PASO CLAVE PIPETTO-STYLE: Forzamos que Over-cmd exponga el símbolo de interfaz ICD que Box86 exige
       - name: Inject Khronos ICD Interface Symbol (Pipetto-crypto Mirror Trick)
