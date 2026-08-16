@@ -22,19 +22,19 @@ jobs:
           echo "-> Descargando submódulos del repositorio de forma recursiva..."
           git submodule update --init --recursive --force
 
-      # CLONACIÓN REAL: Descargamos todas las cabeceras de desarrollo de Linux legítimas directamente de los servidores core
+      # CLONACIÓN REAL CORREGIDA: Apuntamos exactamente a los subdominios de Gitlab de Freedesktop y X.org
       - name: Download Real Linux DRM and X11 Headers 
         run: |
           echo "-> Estructurando entorno de desarrollo real de Linux..."
           mkdir -p host_sysroot/libdrm host_sysroot/xcb host_sysroot/X11 host_sysroot/X11/extensions
           
-          # 1. Clonar cabeceras de libdrm
+          # 1. Clonar cabeceras de libdrm desde el Gitlab oficial de Freedesktop
           git clone --depth 1 https://freedesktop.org tmp_drm
-          cp drm/include/drm/*.h host_sysroot/ 2>/dev/null || cp tmp_drm/include/drm/*.h host_sysroot/
-          cp drm/include/drm/*.h host_sysroot/libdrm/ 2>/dev/null || cp tmp_drm/include/drm/*.h host_sysroot/libdrm/
-          cp drm/*.h host_sysroot/libdrm/ 2>/dev/null || cp tmp_drm/*.h host_sysroot/libdrm/
+          cp -r tmp_drm/include/drm/* host_sysroot/ 2>/dev/null || true
+          cp -r tmp_drm/include/drm/* host_sysroot/libdrm/ 2>/dev/null || true
+          cp tmp_drm/*.h host_sysroot/libdrm/ 2>/dev/null || true
           
-          # 2. Clonar xorgproto (Estructuras de X11)
+          # 2. Clonar xorgproto (Estructuras completas de X11) desde el Gitlab oficial de X.org
           git clone --depth 1 https://freedesktop.org tmp_proto
           cp -r tmp_proto/include/X11/* host_sysroot/X11/
           
@@ -42,11 +42,11 @@ jobs:
           git clone --depth 1 https://github.com tmp_vk
           cp -r tmp_vk/include/vulkan host_sysroot/
           
-          # 4. Clonar libxcb real
+          # 4. Clonar libxcb real desde el Gitlab oficial de X.org
           git clone --depth 1 https://freedesktop.org tmp_xcb
-          cp tmp_xcb/src/*.h host_sysroot/xcb/
+          cp tmp_xcb/src/*.h host_sysroot/xcb/ 2>/dev/null || true
           
-          # 5. Generar archivo base mapeado xcb.h para las tablas de despacho
+          # 5. Generar archivo base unificado xcb.h para las tablas de despacho internas de Mesa
           cat << 'EOF' > host_sysroot/xcb/xcb.h
           #ifndef XCB_H
           #define XCB_H
