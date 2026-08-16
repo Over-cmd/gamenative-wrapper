@@ -83,7 +83,7 @@ jobs:
           docker run --rm \
             -v "${{ github.workspace }}:/workspace" \
             -v "${{ github.workspace }}/bin_hijack/pkgconfig:/root/.cache/pkgconfig" \
-            -e PKG_CONFIG_PATH="/root/.cache/pkgconfig" \
+            -e PKG_CONFIG_PATH="/data/data/com.termux/files/usr/lib/pkgconfig" \
             ${{ env.IMAGE_TAG }}:latest ${{ env.BUILD_DIR }}
 
       # EMPAQUETADO ÚNICO EXIGIDO POR BANNERLATOR
