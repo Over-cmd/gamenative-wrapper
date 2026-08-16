@@ -1,0 +1,20 @@
+[constants]
+ndk_path = '/opt/android-ndk'
+toolchain = ndk_path + '/toolchains/llvm/prebuilt/linux-x86_64/bin'
+api = '24'
+
+[binaries]
+c       = toolchain + '/aarch64-linux-android' + api + '-clang'
+cpp     = toolchain + '/aarch64-linux-android' + api + '-clang++'
+ar      = toolchain + '/llvm-ar'
+strip   = toolchain + '/llvm-strip'
+pkgconfig = 'false'
+
+[properties]
+needs_exe_wrapper = true
+
+[host_machine]
+system = 'android'
+cpu_family = 'aarch64'
+cpu = 'arm64'
+endian = 'little'
