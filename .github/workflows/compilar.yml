@@ -22,31 +22,31 @@ jobs:
           echo "-> Descargando submódulos del repositorio de forma recursiva..."
           git submodule update --init --recursive --force
 
-      # CLONACIÓN REAL CORREGIDA: Apuntamos exactamente a los subdominios de Gitlab de Freedesktop y X.org
+      # CLONACIÓN ULTRA-ESTABLE: Usamos espejos puros dentro de GitHub para no depender de servidores externos
       - name: Download Real Linux DRM and X11 Headers 
         run: |
-          echo "-> Estructurando entorno de desarrollo real de Linux..."
+          echo "-> Estructurando entorno de desarrollo real de Linux mediante espejos de GitHub..."
           mkdir -p host_sysroot/libdrm host_sysroot/xcb host_sysroot/X11 host_sysroot/X11/extensions
           
-          # 1. Clonar cabeceras de libdrm desde el Gitlab oficial de Freedesktop
-          git clone --depth 1 https://freedesktop.org tmp_drm
+          # 1. Clonar cabeceras de libdrm desde el espejo oficial de freedesktop en GitHub
+          git clone --depth 1 https://github.com tmp_drm
           cp -r tmp_drm/include/drm/* host_sysroot/ 2>/dev/null || true
           cp -r tmp_drm/include/drm/* host_sysroot/libdrm/ 2>/dev/null || true
           cp tmp_drm/*.h host_sysroot/libdrm/ 2>/dev/null || true
           
-          # 2. Clonar xorgproto (Estructuras completas de X11) desde el Gitlab oficial de X.org
-          git clone --depth 1 https://freedesktop.org tmp_proto
+          # 2. Usar el espejo de Mesa que encontraste para extraer las cabeceras de Khronos y dependencias gráficas completas
+          git clone --depth 1 https://github.com tmp_mesa_mirror
+          cp -r tmp_mesa_mirror/include/* host_sysroot/ 2>/dev/null || true
+          
+          # 3. Clonar xorgproto (Estructuras de X11 completas requeridas por libadrenotools)
+          git clone --depth 1 https://github.com tmp_proto
           cp -r tmp_proto/include/X11/* host_sysroot/X11/
           
-          # 3. Clonar Vulkan Headers oficiales de Khronos
-          git clone --depth 1 https://github.com tmp_vk
-          cp -r tmp_vk/include/vulkan host_sysroot/
-          
-          # 4. Clonar libxcb real desde el Gitlab oficial de X.org
-          git clone --depth 1 https://freedesktop.org tmp_xcb
+          # 4. Clonar libxcb real desde el espejo oficial en GitHub
+          git clone --depth 1 https://github.com tmp_xcb
           cp tmp_xcb/src/*.h host_sysroot/xcb/ 2>/dev/null || true
           
-          # 5. Generar archivo base unificado xcb.h para las tablas de despacho internas de Mesa
+          # 5. Forzar la persistencia del archivo descriptor unificado xcb.h para las tablas de despacho
           cat << 'EOF' > host_sysroot/xcb/xcb.h
           #ifndef XCB_H
           #define XCB_H
@@ -68,7 +68,7 @@ jobs:
         run: |
           mkdir -p bin_hijack/pkgconfig
           cat << 'EOF' > gen_pc.py
-          pkgs = ['libdrm','xcb','x11','libelf','libudev','xcb-randr','xcb-shm','xext','xrandr','xrender','xorgproto','libunwind','spirv-tools','valgrind','x11-xcb','xcb-keysyms','xcb-dri3','xcb-present','xcb-shm','xcb-sync','xcb-xfixes','xdmcp','xau','xshmfence','xcb-dri2']
+          pkgs = ['libdrm','xcb','x11','libelf','libudev','xcb-randr','xcb-shm','xext','xrandr','xrender','xorgproto','libunwind','spirv-tools','valgrind','x11-xcb','xcb-keysyms','xcb-dri3','xcb-present','xcb-sync','xcb-xfixes','xdmcp','xau','xshmfence','xcb-dri2']
           for p in pkgs:
               with open(f'bin_hijack/pkgconfig/{p}.pc', 'w') as f:
                   f.write("prefix=/usr\nlibdir=$" + "{" + "prefix}/lib\nincludedir=$" + "{" + "prefix}/include\nName: " + p + "\nDescription: Virtual Bypass\nVersion: 9.9.9\nLibs: -lm\nCflags: -I$" + "{" + "includedir}\n")
@@ -96,7 +96,7 @@ jobs:
       - name: Build Local Corrected Docker Image
         run: docker build -t ${{ env.IMAGE_TAG }}:latest .
 
-      # COMPILACIÓN DEL ENTORNO NATIVO: Mapeamos los repositorios reales directamente dentro del Sysroot del compilador Clang del contenedor
+      # COMPILACIÓN DEL ENTORNO NATIVO: Mapeamos el Sysroot real descargado directamente de los espejos de GitHub
       - name: Wrapper Compiler (Atomic Processing Docker MALI)
         run: |
           docker run --rm \
