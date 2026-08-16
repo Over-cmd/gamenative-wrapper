@@ -26,7 +26,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y zstd python3
 
-      # INYECCIÓN MASIVA DE MANIFIESTOS VIRTUALES: Secuestramos pkg-config para saltar TODO el árbol secundario de X11/System
+      # INYECCIÓN MASIVA DE MANIFIESTOS VIRTUALES: Secuestramos pkg-config para saltar absolutamente todo X11/XCB
       - name: Inject Virtual Graphics and System Manifests for Pkg-Config
         run: |
           echo "-> Creando entorno virtual masivo para saltar todas las sub-extensiones de Meson..."
@@ -46,17 +46,16 @@ jobs:
           EOF
           }
           
-          # Generamos los componentes base originales
+          # Componentes base originales
           generate_pc "libdrm"
           generate_pc "xcb"
           generate_pc "x11"
           generate_pc "libelf"
           generate_pc "libudev"
           
-          # INYECCIÓN SECUNDARIA: Bloqueamos los errores actuales y futuros de extensiones de pantalla de X11
+          # Extensiones de pantalla e hilos primarios de X11
           generate_pc "xcb-randr"
           generate_pc "xcb-shm"
-          generate_pc "xcb-xfixes"
           generate_pc "xext"
           generate_pc "xrandr"
           generate_pc "xrender"
@@ -64,8 +63,18 @@ jobs:
           generate_pc "libunwind"
           generate_pc "spirv-tools"
           generate_pc "valgrind"
+          
+          # CORRECCIÓN AQUÍ: Inyectamos los componentes híbridos finales que detienen el build actual
+          generate_pc "x11-xcb"
+          generate_pc "xcb-keysyms"
+          generate_pc "xcb-dri3"
+          generate_pc "xcb-present"
+          generate_pc "xcb-sync"
+          generate_pc "xcb-xfixes"
+          generate_pc "xdmcp"
+          generate_pc "xau"
 
-          echo "-> Todas las sub-extensiones gráficas virtuales han sido inyectadas con éxito."
+          echo "-> Todas las extensiones y pasarelas de la API de ventanas han sido inyectadas."
 
       # PASO CLAVE PIPETTO-STYLE: Forzamos que Over-cmd exponga el símbolo de interfaz ICD que Box86 exige
       - name: Inject Khronos ICD Interface Symbol (Pipetto-crypto Mirror Trick)
