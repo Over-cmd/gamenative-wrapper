@@ -17,6 +17,7 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
+      # Descargamos los submódulos de manera recursiva antes de aplicar los parches estructurales
       - name: Checkout Submodules Manually
         run: |
           echo "-> Descargando submódulos del repositorio de forma recursiva..."
@@ -41,24 +42,12 @@ jobs:
           EOF
           python3 gen_pc.py && rm gen_pc.py
 
-      # PASO CLAVE PIPETTO-STYLE: Forzamos que Over-cmd exponga el símbolo de interfaz ICD que Box86 exige
-      - name: Inject Khronos ICD Interface Symbol (Pipetto-crypto Mirror Trick)
-        run: |
-          echo "-> Sincronizando la tabla de símbolos con el estándar de Pipetto-crypto..."
-          python3 -c "
-          import os
-          for root, d, files in os.walk('src/vulkan/wrapper'):
-              for file in files:
-                  if file.endswith('.def') or file.endswith('.map') or file == 'meson.build':
-                      target = os.path.join(root, file)
-                      content = open(target, 'r', encoding='utf-8', errors='ignore').read()
-                      if 'vk_icdGetInstanceProcAddr' in content:
-                          open(target, 'w', encoding='utf-8').write(content.replace('vk_icdGetInstanceProcAddr', 'vk_icdGetInstanceProcAddr\n    vk_icdNegotiateLoaderICDInterfaceVersion'))
-          "
-
-      # PARCHE MAESTRO INTEGRADO (Mantiene tu HUD intacto y repara la compatibilidad de variables de tiempo/bloqueos)
+      # PARCHE MAESTRO INTEGRADO (Mantiene tu HUD intacto, remueve libatomic, libdl, librt y pulveriza el bloqueo de libadrenotools)
       - name: Inject Anti-Crash Hook and Bypass Meson Requirements
         run: |
+          # Forzamos permisos de escritura globales en la carpeta de submódulos de Git para evitar bloqueos de Ubuntu
+          chmod -R 777 subprojects/ || true
+          
           python3 -c "
           import os
           # 1. Parche e Interceptor de 32 bits en wrapper_instance.c
@@ -66,19 +55,30 @@ jobs:
           if os.path.exists(p):
               c = open(p,'r',errors='ignore').read().replace('vk_icdGetInstanceProcAddr(VkInstance','original_vk_icdGetInstanceProcAddr(VkInstance').replace('vk_icdGetInstanceProcAddr(void*','original_vk_icdGetInstanceProcAddr(void*')
               open(p,'w').write(c + '\n#include <string.h>\nextern int mallopt(int p, int v); extern int setenv(const char *n, const char *v, int o);\nVKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL original_vk_icdGetInstanceProcAddr(VkInstance i, const char *n);\nVKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL vk_icdGetInstanceProcAddr(VkInstance i, const char *n) {\n mallopt(-1002, 0); setenv(\"MESA_VK_WSI_PRESENT_MODE\", \"mailbox\", 1); setenv(\"vblank_mode\", \"0\", 1);\n if (sizeof(void*) == 4) {\n setenv(\"MESA_VK_WSI_QUEUE_SIZE\", \"1\", 1); setenv(\"BOX86_EMULATED_LIBS\", \"libvulkan_wrapper.so\", 1); setenv(\"BOX86_MMAP32\", \"1\", 1);\n if (n && (strcmp(n, \"vkGetPhysicalDeviceProperties2KHR\") == 0 || strcmp(n, \"vkGetPhysicalDeviceFeatures2KHR\") == 0 || strcmp(n, \"vkRegisterDeviceCustomCallbacksEXT\") == 0)) return (PFN_vkVoidFunction)NULL;\n }\n return original_vk_icdGetInstanceProcAddr(i, n);\n}\n')
-          # 2. Eliminar comprobación estricta de dependencias obsoletas en el meson.build raíz
-          m_root = 'meson.build'
-          if os.path.exists(m_root):
-              txt = open(m_root,'r',errors='ignore').read().replace(\"compiler.find_library('atomic'\", \"null_dep #\").replace(\"cc.find_library('atomic'\", \"null_dep #\").replace(\"compiler.find_library('dl'\", \"null_dep #\").replace(\"cc.find_library('dl'\", \"null_dep #\").replace(\"compiler.find_library('rt'\", \"null_dep #\").replace(\"cc.find_library('rt'\", \"null_dep #\").replace(\"compiler.find_library('m'\", \"null_dep #\").replace(\"cc.find_library('m'\", \"null_dep #\").replace(\"compiler.find_library('elf'\", \"null_dep #\").replace(\"cc.find_library('elf'\", \"null_dep #\")
-              if 'dep_rt' in txt: txt = txt.replace('dep_rt = null_dep', 'dep_rt = null_dep\ndep_clock = null_dep')
-              open(m_root,'w').write(txt)
+          # 2. Exponer símbolo ICD en el mapa de exportación exigido por Box86
+          for r, d, files in os.walk('src/vulkan/wrapper'):
+              for file in files:
+                  if file.endswith('.def') or file.endswith('.map') or file == 'meson.build':
+                      target = os.path.join(r, file)
+                      content = open(target, 'r', encoding='utf-8', errors='ignore').read()
+                      if 'vk_icdGetInstanceProcAddr' in content:
+                          open(target, 'w', encoding='utf-8').write(content.replace('vk_icdGetInstanceProcAddr', 'vk_icdGetInstanceProcAddr\n    vk_icdNegotiateLoaderICDInterfaceVersion'))
+          # 3. Eliminar comprobaciones estrictas de dependencias obsoletas en el meson.build raíz y subproyectos
+          for f in ['meson.build', 'subprojects/libadrenotools/meson.build']:
+              if os.path.exists(f):
+                  txt = open(f,'r',errors='ignore').read().replace(\"compiler.find_library('atomic'\", \"null_dep #\").replace(\"cc.find_library('atomic'\", \"null_dep #\").replace(\"compiler.find_library('dl'\", \"null_dep #\").replace(\"cc.find_library('dl'\", \"null_dep #\").replace(\"compiler.find_library('rt'\", \"null_dep #\").replace(\"cc.find_library('rt'\", \"null_dep #\").replace(\"compiler.find_library('m'\", \"null_dep #\").replace(\"cc.find_library('m'\", \"null_dep #\").replace(\"compiler.find_library('elf'\", \"null_dep #\").replace(\"cc.find_library('elf'\", \"null_dep #\")
+                  # Reemplazo total con soporte para comillas simples y dobles para neutralizar la librería 'android'
+                  txt = txt.replace(\"cxx.find_library('android')\", \"null_dep\").replace(\"compiler.find_library('android')\", \"null_dep\").replace('cxx.find_library(\"android\")', 'null_dep').replace('compiler.find_library(\"android\")', 'null_dep')
+                  if 'dep_rt' in txt: txt = txt.replace('dep_rt = null_dep', 'dep_rt = null_dep\ndep_clock = null_dep')
+                  open(f,'w').write(txt)
+          print('-> ¡Bypass completo de dependencias de Mesa y libadrenotools finalizado!')
           "
 
       # CONSTRUCCIÓN LOCAL DE TU IMAGEN DOCKER MULTI-ARQUITECTURA ESTILO PIPETTO
       - name: Build Local Corrected Docker Image
         run: docker build -t ${{ env.IMAGE_TAG }}:latest .
 
-      # COMPILACIÓN DEL ENTORNO NATIVO CON ENLACES DE VOLUMEN DUALES PARA AMBAS ARQUITECTURAS (32 y 64 bits)
+      # COMPILACIÓN DEL ENTORNO NATIVO CON ENLACES DE VOLUMEN DUALES PARA AMBAS ARQUITECTURAS
       - name: Wrapper Compiler (Atomic Processing Docker MALI)
         run: |
           docker run --rm \
