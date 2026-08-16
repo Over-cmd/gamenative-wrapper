@@ -25,24 +25,6 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y zstd python3
 
-      # INYECCIÓN MASIVA COMPACTA BLINDADA: Evitamos el parseador de GitHub rompiendo las llaves de la macro prefix
-      - name: Inject Virtual Graphics and System Manifests for Pkg-Config
-        run: |
-          echo "-> Creando entorno virtual masivo de pkg-config..."
-          mkdir -p bin_hijack/pkgconfig
-          
-          cat << 'EOF' > generate_pc.py
-          import os
-          pkgs = ['libdrm','xcb','x11','libelf','libudev','xcb-randr','xcb-shm','xext','xrandr','xrender','xorgproto','libunwind','spirv-tools','valgrind','x11-xcb','xcb-keysyms','xcb-dri3','xcb-present','xcb-sync','xcb-xfixes','xdmcp','xau','xshmfence','xcb-dri2']
-          for p in pkgs:
-              with open(f'bin_hijack/pkgconfig/{p}.pc', 'w') as f:
-                  # Rompemos la sintaxis ${{ }} en trozos de texto para engañar al validador de GitHub Actions
-                  f.write("prefix=/usr\nlibdir=$" + "{" + "prefix}/lib\nincludedir=$" + "{" + "prefix}/include\nName: " + p + "\nDescription: Virtual Bypass\nVersion: 9.9.9\nLibs: -lm\nCflags: -I$" + "{" + "includedir}\n")
-          EOF
-          
-          python3 generate_pc.py
-          rm generate_pc.py
-
       # PASO CLAVE PIPETTO-STYLE: Forzamos que Over-cmd exponga el símbolo de interfaz ICD que Box86 exige
       - name: Inject Khronos ICD Interface Symbol (Pipetto-crypto Mirror Trick)
         run: |
@@ -91,7 +73,7 @@ jobs:
       # TU INYECCIÓN DE CONTROL DE FLUJO HÍBRIDO ORIGINAL (CONSERVA TU CONFIGURACIÓN DEL HUD)
       - name: Surgical Silicon Modification (Anti-Overflow MALI Hybrid 32/64 Injection)
         run: |
-          echo "-> Rastreando el corazon del Wrapper para soldar compatibilidad hibrida Vulkan..."
+          echo "-> Rastreando el corazon del Wrapper para colocar parches híbridos Vulkan..."
           WRAPPER_DEVICE=$(find src/ -name "wrapper_device.c" | head -n 1)
           if [ -n "$WRAPPER_DEVICE" ] && [ -f "$WRAPPER_DEVICE" ]; then
             sed -i 's/\r$//' "$WRAPPER_DEVICE"
@@ -105,32 +87,24 @@ jobs:
 
       - name: Build Local Corrected Docker Image
         run: |
-          echo "-> Creando imagen de compilación a partir de tu archivo de printf..."
+          echo "-> Creando imagen de compilación a partir de tu Dockerfile avanzado con libdrm nativo..."
           docker build -t ${{ env.IMAGE_TAG }}:latest .
 
-      # PRE-CONFIGURACIÓN DE MESON: Mapeamos los ajustes simulados de pkg-config externos
-      - name: Pre-configure Meson Blueprint Folder
-        run: |
-          echo "-> Levantando el entorno de pre-ajustes externos de Meson..."
-          docker run --rm \
-            -v "${{ github.workspace }}:/workspace" \
-            -v "${{ github.workspace }}/bin_hijack/pkgconfig:/data/data/com.termux/files/usr/lib/pkgconfig" \
-            -e PKG_CONFIG_PATH="/data/data/com.termux/files/usr/lib/pkgconfig" \
-            --entrypoint /bin/bash \
-            ${{ env.IMAGE_TAG }}:latest -c "meson setup ${{ env.BUILD_DIR }} --cross-file /root/build-config/cross_file.txt -Dcpp_rtti=false -Dgbm=disabled -Dopengl=false -Dllvm=disabled -Dshared-llvm=disabled -Dplatforms=x11 -Dgallium-drivers= -Dxmlconfig=disabled -Dvulkan-drivers=wrapper"
-
-      # COMPILACIÓN DEL ENTORNO NATIVO
+      # EJECUCIÓN DIRECTA DE LA COMPILACIÓN HÍBRIDA (Orquestado por /root/build.sh dentro del contenedor)
       - name: Wrapper Compiler (Atomic Processing Docker MALI)
         run: |
+          echo "-> Arrancando compilador cruzado e inyección binaria 32/64 bits..."
           docker run --rm \
             -v "${{ github.workspace }}:/workspace" \
-            -v "${{ github.workspace }}/bin_hijack/pkgconfig:/data/data/com.termux/files/usr/lib/pkgconfig" \
-            -e PKG_CONFIG_PATH="/data/data/com.termux/files/usr/lib/pkgconfig" \
             ${{ env.IMAGE_TAG }}:latest ${{ env.BUILD_DIR }}
 
+      # EMPAQUETADO COMPACTO EN ZSTD PARA TERMUX (.TZST)
       - name: Structure and Pack wrapper.tzst
         run: |
+          echo "-> Generando estructura de directorios y cargadores JSON de la capa ICD..."
           mkdir -p pkg/usr/lib pkg/usr/share/vulkan/icd.d
+          
+          # Se copia tanto el wrapper de 64 bits como el payload resultante de 32 bits si fuera necesario
           cp ${{ env.BUILD_DIR }}/libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
           
           cat << 'EOF' > pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
@@ -143,9 +117,10 @@ jobs:
           
           cd pkg && tar -I 'zstd -19 -T0' -cf ../wrapper.tzst usr/ && cd ..
 
+      # CARGA DEL ARTEFACTO FINAL DE SALIDA
       - name: Upload Final wrapper.tzst for Bannerlator
         uses: actions/upload-artifact@v4
         with:
-          name: Bannerlator-Mali-Wrapper-Universal
+          name: Mesa-Vulkan-Wrapper-Mali
           path: wrapper.tzst
           if-no-files-found: error
