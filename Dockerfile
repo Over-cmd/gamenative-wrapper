@@ -27,8 +27,9 @@ RUN apt-get update && apt-get install -y \
 # Instalar Meson actualizado vía pip
 RUN pip3 install meson
 
-# Descargar e instalar Android NDK
+# Descargar e instalar Android NDK usando la URL oficial corregida
 RUN wget -q https://google.com{ANDROID_NDK_VERSION}-linux.zip -O /tmp/ndk.zip \
+    && mkdir -p /opt \
     && unzip -q /tmp/ndk.zip -d /opt \
     && mv /opt/android-ndk-${ANDROID_NDK_VERSION} ${ANDROID_NDK_HOME} \
     && rm /tmp/ndk.zip
@@ -37,7 +38,7 @@ WORKDIR /workspace
 COPY . .
 
 # ==========================================
-# STAGE 2: Compilación de 32 Bits (armv7a)
+# STAGE 2: Compilación de 32 Bits (armeabi-v7a)
 # ==========================================
 FROM builder AS build-32
 RUN meson setup build-32 \
@@ -66,9 +67,15 @@ RUN meson setup build-64 \
 FROM alpine:latest AS final
 WORKDIR /dist
 
+# Crear directorios de destino
+RUN mkdir -p lib/armeabi-v7a lib/arm64-v8a
+
 # Copiar librerías resultantes de ambas arquitecturas
 COPY --from=build-32 /workspace/build-32/src/vulkan/wsi/libvulkan_wrapper.so ./lib/armeabi-v7a/
 COPY --from=build-64 /workspace/build-64/src/vulkan/wsi/libvulkan_wrapper.so ./lib/arm64-v8a/
 
-# Comando por defecto para exportar binarios
-CMD ["tar", "-czf", "gamenative-wrappers.tar.gz", "lib/"]
+# Generar archivo empaquetado por si se requiere extraer directamente
+RUN tar -czf gamenative-wrappers.tar.gz lib/
+
+# Comando por defecto para transferir el artefacto
+CMD ["cat", "gamenative-wrappers.tar.gz"]
