@@ -23,9 +23,9 @@ jobs:
 
     - name: Extract Compiled Libraries
       run: |
-        docker run --name container-extract gamenative-compiled
-        docker cp container-extract:/dist/gamenative-wrappers.tar.gz ./gamenative-wrappers.tar.gz
-        tar -xzvf gamenative-wrappers.tar.gz
+        docker create --name container-extract gamenative-compiled
+        docker cp container-extract:/dist/lib ./lib
+        docker rm container-extract
 
     - name: Upload Build Artifacts
       uses: actions/upload-artifact@v4
