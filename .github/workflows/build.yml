@@ -60,38 +60,47 @@ jobs:
         run: |
           docker run --rm -v "${{ github.workspace }}:/workspace" ${{ env.IMAGE_TAG }} ${{ env.BUILD_DIR }}
 
-      # REESTRUCTURACIÓN DE CONTENEDOR EN FORMATO COMPATIBLE CON BANNERLATOR (.TZST EN RAÍZ)
-      - name: Structure and Pack panvk-mali-bannerlator.tzst
+      # REESTRUCTURACIÓN DE CONTENEDOR EN FORMATO COMPATIBLE CON BANNERLATOR (USR/LIB/.TZST)
+      - name: Structure and Pack wrapper.tzst
         run: |
-          echo "-> Creando arbol de directorios nativo de Bannerlator..."
-          mkdir -p pkg/lib
+          echo "-> Creando arbol de directorios de Linux para Bannerlator..."
+          mkdir -p pkg/usr/lib
+          mkdir -p pkg/usr/share/vulkan/icd.d
           
-          echo "-> Moviendo el binario unificado libvulkan_wrapper.so a la carpeta lib..."
-          cp ${{ env.BUILD_DIR }}/libvulkan_wrapper.so pkg/lib/libvulkan_wrapper.so
+          echo "-> Moviendo el driver compilado a usr/lib..."
+          cp ${{ env.BUILD_DIR }}/libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
           
-          echo "-> Inyectando el manifiesto wrappers.json obligatorio para Unisoc Tiger T618..."
-          cat << 'EOF' > pkg/wrappers.json
-          [{
-            "id": "panvk-unisoc-t618-hybrid",
-            "name": "Unisoc T618 Mali-G52 PanVK Hybrid",
-            "description": "Driver Vulkan PanVK unificado híbrido (32/64 bits) optimizado con control de flujo quirúrgico para procesadores Unisoc Tiger T618 y GPUs ARM Mali-G52 MP2.",
-            "author": "funnymdzz / Over-cmd",
-            "version": "25.0.0-t618-hybrid",
-            "gpuTargets": ["mali"],
-            "features": ["panvk_android", "vulkan_1_1"],
-            "type": "icd_wrapper"
-          }]
+          echo "-> Inyectando manifiesto JSON ICD oficial de 64 bits (AArch64)..."
+          cat << 'EOF' > pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
+          {
+              "ICD": {
+                  "api_version": "1.3.289",
+                  "library_path": "libvulkan_wrapper.so"
+              },
+              "file_format_version": "1.0.0"
+          }
           EOF
           
-          echo "-> Comprimiendo la estructura nativa en formato estándar de Bannerlator .tzst..."
+          echo "-> Inyectando manifiesto JSON ICD oficial de 32 bits (ARM) para salvar Box86..."
+          cat << 'EOF' > pkg/usr/share/vulkan/icd.d/wrapper_icd.arm.json
+          {
+              "ICD": {
+                  "api_version": "1.3.289",
+                  "library_path": "libvulkan_wrapper.so"
+              },
+              "file_format_version": "1.0.0"
+          }
+          EOF
+          
+          echo "-> Comprimiendo la estructura dual en formato wrapper.tzst..."
           cd pkg
-          tar -I 'zstd -19 -T0' -cf ../panvk-mali-bannerlator.tzst lib/ wrappers.json
+          tar -I 'zstd -19 -T0' -cf ../wrapper.tzst usr/
           cd ..
-          echo "-> ¡Empaquetado definitivo en .tzst completado con éxito!"
+          echo "-> ¡Empaquetado completado con éxito en usr/lib/!"
 
-      - name: Upload Final panvk-mali-bannerlator.tzst for Bannerlator
+      - name: Upload Final wrapper.tzst for Bannerlator
         uses: actions/upload-artifact@v4
         with:
           name: Bannerlator-Mali-T618-Wrapper-Fat-Zstd
-          path: panvk-mali-bannerlator.tzst
+          path: wrapper.tzst
           if-no-files-found: error
