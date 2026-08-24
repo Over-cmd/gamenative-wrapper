@@ -1,34 +1,39 @@
-name: Build GameNative Wrapper Multi-Arch 
+name: Build GameNative Wrapper Multi-Arch
 
 on:
-push:
-branches: [ main, wrapper-25 ]
-pull_request:
-branches: [ main ] 
+  push:
+    branches:
+      - main
+      - wrapper-25
+  pull_request:
+    branches:
+      - main
 
 jobs:
-build-and-export:
-runs-on: ubuntu-latest 
+  build-and-export:
+    runs-on: ubuntu-latest
 
-steps:
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
 
-* name: Checkout Repository
-uses: actions/checkout@v4
-* name: Set up Docker Buildx
-uses: docker/setup-buildx-action@v3
-* name: Build Arm32 and Arm64 via Docker
-uses: docker/build-push-action@v5
-with:
-context: .
-file: ./Dockerfile.build
-target: final
-tags: gamenative-compiled:latest
-outputs: type=local,dest=./output
-* name: Upload Build Artifacts
-uses: actions/upload-artifact@v4
-with:
-name: gamenative-wrapper-binaries
-path: |
-./output/panvk-mali-bannerlator.tar.xz
-./output/panvk-package/lib/armeabi-v7a/libvulkan_wrapper.so
-./output/panvk-package/lib/arm64-v8a/libvulkan_wrapper.so
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Build Arm32 and Arm64 via Docker
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./Dockerfile.build
+        target: final
+        tags: gamenative-compiled:latest
+        outputs: type=local,dest=./output
+
+    - name: Upload Build Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: gamenative-wrapper-binaries
+        path: |
+          ./output/panvk-mali-bannerlator.tar.xz
+          ./output/panvk-package/lib/armeabi-v7a/libvulkan_wrapper.so
+          ./output/panvk-package/lib/arm64-v8a/libvulkan_wrapper.so
