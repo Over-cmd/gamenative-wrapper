@@ -27,36 +27,39 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      # Instalar herramientas de compresión Zstd en el servidor de GitHub
       - name: Install Zstd Packager
         run: |
           sudo apt-get update
           sudo apt-get install -y zstd
 
-      # INYECCIÓN DE CONTROL DE FLUJO HÍBRIDO OPTIMIZADO (Anti-Congelamiento Unisoc T618)
+      # INYECCIÓN DE CONTROL DE FLUJO HÍBRIDO EQUILIBRADO (Anti-Stutter Carga Unisoc T618)
       - name: Surgical Silicon Modification (Anti-Overflow MALI Hybrid 32/64 Injection)
         run: |
           echo "-> Rastreando el corazon del Wrapper para soldar compatibilidad hibrida Vulkan..."
           WRAPPER_DEVICE=$(find src/ -name "wrapper_device.c" | head -n 1)
           
           if [ -n "$WRAPPER_DEVICE" ] && [ -f "$WRAPPER_DEVICE" ]; then
-            echo "-> Aplicando parches de alineacion de memoria y sincronizacion en: $WRAPPER_DEVICE"
+            echo "-> Aplicando parches de sincronizacion FIFO / Fallback de Carga en: $WRAPPER_DEVICE"
             sed -i 's/\r$//' "$WRAPPER_DEVICE"
             
             sed -i '1i#include <stdint.h>' "$WRAPPER_DEVICE"
             sed -i '1iextern int mallopt(int param, int value);' "$WRAPPER_DEVICE"
             sed -i '1iextern int setenv(const char *name, const char *value, int overwrite);' "$WRAPPER_DEVICE"
             
-            sed -i '/vk_icdGetInstanceProcAddr/!b;n;i\\ extern int mallopt(int p, int v);\\n extern int setenv(const char *n, const char *v, int o);\\n mallopt(-1002, 0);\\n setenv("MESA_VK_WSI_PRESENT_MODE", "immediate", 1);\\n setenv("vblank_mode", "0", 1);\\n if (sizeof(void*) == 4) {\\n   setenv("MESA_VK_WSI_QUEUE_SIZE", "2", 1);\\n }' "$WRAPPER_DEVICE"
-            echo "-> Envoltura hibrida optimizada inyectada con exito."
+            sed -i '/vk_icdGetInstanceProcAddr/!b;n;i\\ extern int mallopt(int p, int v);\\n extern int setenv(const char *n, const char *v, int o);\\n mallopt(-1002, 0);\\n setenv("MESA_VK_WSI_PRESENT_MODE", "fifo", 1);\\n setenv("vblank_mode", "0", 1);\\n setenv("MESA_VK_WSI_QUEUE_SIZE", "3", 1);' "$WRAPPER_DEVICE"
+            echo "-> Envoltura hibrida ultra-estable inyectada."
           else
-            echo "-> Archivo wrapper_device.c no encontrado, aplicando fallback optimizado global..."
-            find src/ -name "*.c" -exec sed -i 's/vk_icdGetInstanceProcAddr/extern int mallopt(int p, int v); extern int setenv(const char *n, const char *v, int o); mallopt(-1002, 0); setenv("MESA_VK_WSI_PRESENT_MODE", "immediate", 1); setenv("vblank_mode", "0", 1); if (sizeof(void*) == 4) { setenv("MESA_VK_WSI_QUEUE_SIZE", "2", 1); } vk_icdGetInstanceProcAddr/g' {} + || true
+            echo "-> Archivo wrapper_device.c no encontrado, aplicando fallback global..."
+            find src/ -name "*.c" -exec sed -i 's/vk_icdGetInstanceProcAddr/extern int mallopt(int p, int v); extern int setenv(const char *n, const char *v, int o); mallopt(-1002, 0); setenv("MESA_VK_WSI_PRESENT_MODE", "fifo", 1); setenv("vblank_mode", "0", 1); setenv("MESA_VK_WSI_QUEUE_SIZE", "3", 1); vk_icdGetInstanceProcAddr/g' {} + || true
           fi
 
+      # COMPILACIÓN ORIGINAL DEL DOCKER NATIVO (Imagen precompilada)
       - name: Wrapper Compiler (Atomic Processing Docker MALI)
         run: |
           docker run --rm -v "${{ github.workspace }}:/workspace" ${{ env.IMAGE_TAG }} ${{ env.BUILD_DIR }}
 
+      # REESTRUCTURACIÓN DE CONTENEDOR EN FORMATO COMPATIBLE CON BANNERLATOR (USR/LIB/.TZST)
       - name: Structure and Pack wrapper.tzst
         run: |
           echo "-> Creando arbol de directorios de Linux para Bannerlator..."
