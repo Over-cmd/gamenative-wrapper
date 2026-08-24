@@ -6,7 +6,7 @@ FROM --platform=linux/amd64 ubuntu:22.04 AS builder
 ENV DEBIAN_FRONTEND=noninteractive
 ENV ANDROID_NDK_HOME=/opt/android-ndk
 
-# Instalar dependencias esenciales de compilación para Mesa 3D
+# Instalar dependencias esenciales de compilación para Mesa 3D y descargas seguras
 RUN apt-get update && apt-get install -y \
     build-essential \
     python3 \
@@ -19,16 +19,16 @@ RUN apt-get update && apt-get install -y \
     pkg-config \
     unzip \
     git \
+    curl \
     glslang-tools \
     && rm -rf /var/lib/apt/lists/*
 
 # Instalar Meson actualizado vía pip
 RUN pip3 install meson
 
-# Descarga y extracción nativa controlada por Docker del NDK r26b
-ADD https://google.com /tmp/ndk.zip
-
+# Descarga robusta usando curl con reintentos para evitar archivos ZIP corruptos
 RUN mkdir -p /opt \
+    && curl -L --retry 5 --retry-delay 2 https://google.com -o /tmp/ndk.zip \
     && unzip -q /tmp/ndk.zip -d /opt \
     && mv /opt/android-ndk-r26b ${ANDROID_NDK_HOME} \
     && rm /tmp/ndk.zip
@@ -78,13 +78,13 @@ RUN mkdir -p panvk-package/lib/armeabi-v7a \
 COPY --from=build-32 /workspace/build-32/src/panfrost/vulkan/libvulkan_panfrost.so ./panvk-package/lib/armeabi-v7a/libvulkan_wrapper.so
 COPY --from=build-64 /workspace/build-64/src/panfrost/vulkan/libvulkan_panfrost.so ./panvk-package/lib/arm64-v8a/libvulkan_wrapper.so
 
-# Escribir el manifiesto wrappers.json específico para PanVK sin Kernel Module
+# Escribir el manifiesto wrappers.json optimizado para Unisoc T618 (Mali-G52 MP2)
 RUN echo '[{\
-  "id": "panvk-funnymdzz-custom",\
-  "name": "Mali PanVK (No Kernel Mod)",\
-  "description": "Driver Vulkan PanVK personalizado por funnymdzz para GPUs ARM Mali, modificado para ejecutarse directamente sin módulos de kernel externos panfrost/panthor.",\
+  "id": "panvk-t618-mali-g52",\
+  "name": "Unisoc T618 Mali-G52 PanVK",\
+  "description": "Driver Vulkan PanVK personalizado optimizado para procesadores Unisoc Tiger T618 y GPUs ARM Mali-G52 MP2 bajo el entorno Bannerlator.",\
   "author": "funnymdzz / Over-cmd",\
-  "version": "25.0.0-custom",\
+  "version": "25.0.0-t618",\
   "gpuTargets": ["mali"],\
   "features": ["panvk_android", "vulkan_1_1"],\
   "type": "icd_wrapper"\
