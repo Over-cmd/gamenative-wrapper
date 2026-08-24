@@ -1,12 +1,12 @@
 # ==========================================
-# STAGE 1: Entorno de compilación base con NDK
+# STAGE 1: Entorno de compilación base con NDK Real
 # ==========================================
 FROM --platform=linux/amd64 ubuntu:22.04 AS builder
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV ANDROID_NDK_HOME=/opt/android-ndk
 
-# Instalar dependencias esenciales de compilación para Mesa 3D y descargas seguras
+# Instalar dependencias esenciales de compilación para Mesa 3D
 RUN apt-get update && apt-get install -y \
     build-essential \
     python3 \
@@ -26,7 +26,7 @@ RUN apt-get update && apt-get install -y \
 # Instalar Meson actualizado vía pip
 RUN pip3 install meson
 
-# Descarga robusta usando curl con reintentos para evitar archivos ZIP corruptos
+# Descarga robusta del NDK r26b para Linux AMD64 de Google
 RUN mkdir -p /opt \
     && curl -L --retry 5 --retry-delay 2 https://google.com -o /tmp/ndk.zip \
     && unzip -q /tmp/ndk.zip -d /opt \
@@ -37,11 +37,11 @@ RUN mkdir -p /opt \
 WORKDIR /workspace
 RUN git clone --depth 1 https://github.com .
 
-# Copiar tus archivos de configuración cruzada locales (android-32.toml y android-64.toml)
+# Copiar tus archivos de configuración cruzada locales
 COPY android-32.toml android-64.toml ./
 
 # ==========================================
-# STAGE 2: Compilación de 32 Bits (armeabi-v7a)
+# STAGE 2: Compilación de 32 Bits (Mali-G52 MP2)
 # ==========================================
 FROM builder AS build-32
 RUN meson setup build-32 \
@@ -53,7 +53,7 @@ RUN meson setup build-32 \
     && ninja -C build-32/
 
 # ==========================================
-# STAGE 3: Compilación de 64 Bits (arm64-v8a)
+# STAGE 3: Compilación de 64 Bits (Mali-G52 MP2)
 # ==========================================
 FROM builder AS build-64
 RUN meson setup build-64 \
@@ -65,33 +65,62 @@ RUN meson setup build-64 \
     && ninja -C build-64/
 
 # ==========================================
-# STAGE 4: Empaquetado final para Bannerlator
+# STAGE 4: Empaquetado Monolítico con Enrutador Dinámico
 # ==========================================
-FROM alpine:latest AS final
+FROM builder AS final
 WORKDIR /dist
 
-# Crear la jerarquía exacta que lee el Wrapper Version Manager de Bannerlator
-RUN mkdir -p panvk-package/lib/armeabi-v7a \
-    && mkdir -p panvk-package/lib/arm64-v8a
+# Crear estructura plana de salida para Bannerlator
+RUN mkdir -p panvk-package/lib
 
-# Copiar las librerías binarias nativas de PanVK generadas por la compilación de Mesa
-COPY --from=build-32 /workspace/build-32/src/panfrost/vulkan/libvulkan_panfrost.so ./panvk-package/lib/armeabi-v7a/libvulkan_wrapper.so
-COPY --from=build-64 /workspace/build-64/src/panfrost/vulkan/libvulkan_panfrost.so ./panvk-package/lib/arm64-v8a/libvulkan_wrapper.so
+# 1. Copiar los binarios reales renombrados para evitar colisiones
+COPY --from=build-32 /workspace/build-32/src/panfrost/vulkan/libvulkan_panfrost.so ./panvk-package/lib/libvulkan_panfrost_32.so
+COPY --from=build-64 /workspace/build-64/src/panfrost/vulkan/libvulkan_panfrost.so ./panvk-package/lib/libvulkan_panfrost_64.so
 
-# Escribir el manifiesto wrappers.json optimizado para Unisoc T618 (Mali-G52 MP2)
+# 2. Generar el código del enrutador dinámico (wrapper puente) que lee el entorno en runtime
+RUN echo '#define _GNU_SOURCE\n\
+#include <stdio.h>\n\
+#include <dlfcn.h>\n\
+#include <vulkan/vulkan.h>\n\
+\n\
+static void* handle = NULL;\n\
+\n\
+__attribute__((constructor)) void init_wrapper() {\n\
+    // Detectar si el proceso actual es de 32 o 64 bits para cargar el driver correcto\n\
+    if (sizeof(void*) == 8) {\n\
+        handle = dlopen("/usr/lib/libvulkan_panfrost_64.so", RTLD_NOW | RTLD_GLOBAL);\n\
+        if (!handle) handle = dlopen("./libvulkan_panfrost_64.so", RTLD_NOW | RTLD_GLOBAL);\n\
+    } else {\n\
+        handle = dlopen("/usr/lib/libvulkan_panfrost_32.so", RTLD_NOW | RTLD_GLOBAL);\n\
+        if (!handle) handle = dlopen("./libvulkan_panfrost_32.so", RTLD_NOW | RTLD_GLOBAL);\n\
+    }\n\
+}\n\
+\n\
+// Interceptor universal de entrada ICD de Vulkan que redirige las llamadas de la App hacia Mesa\n\
+PFN_vkVoidFunction vk_icdGetInstanceProcAddr(VkInstance instance, const char* pName) {\n\
+    if (!handle) return NULL;\n\
+    typedef PFN_vkVoidFunction (*PFN_icdGet)(VkInstance, const char*);\n\
+    PFN_icdGet real_icd = (PFN_icdGet)dlsym(handle, "vk_icdGetInstanceProcAddr");\n\
+    return real_icd ? real_icd(instance, pName) : NULL;\n\
+}' > wrapper.c
+
+# 3. Compilar el enrutador puente como el archivo "libvulkan_wrapper.so" plano de 64 bits solicitado
+RUN gcc -shared -fPIC -o ./panvk-package/lib/libvulkan_wrapper.so wrapper.c -ldl -I/workspace/include
+
+# Escribir el manifiesto wrappers.json específico para Unisoc Tiger T618
 RUN echo '[{\
-  "id": "panvk-t618-mali-g52",\
-  "name": "Unisoc T618 Mali-G52 PanVK",\
-  "description": "Driver Vulkan PanVK personalizado optimizado para procesadores Unisoc Tiger T618 y GPUs ARM Mali-G52 MP2 bajo el entorno Bannerlator.",\
+  "id": "panvk-unisoc-t618-fat",\
+  "name": "Unisoc T618 Mali-G52 PanVK Bridge",\
+  "description": "Driver Vulkan PanVK monolítico unificado de 32/64 bits para Unisoc Tiger T618. Gestiona la carga dinámica mediante un enrutador inteligente.",\
   "author": "funnymdzz / Over-cmd",\
-  "version": "25.0.0-t618",\
+  "version": "25.0.0-t618-bridge",\
   "gpuTargets": ["mali"],\
   "features": ["panvk_android", "vulkan_1_1"],\
   "type": "icd_wrapper"\
 }]' > ./panvk-package/wrappers.json
 
-# Comprimir la carpeta en el formato nativo estándar tar.xz que lee Bannerlator
+# Comprimir la carpeta en el formato .tar.xz plano que lee Bannerlator
 RUN cd panvk-package && tar -cJf ../panvk-mali-bannerlator.tar.xz lib/ wrappers.json
 
-# Mantenemos una copia estructurada accesible para la exportación directa de Buildx
+# Exponer el árbol para la exportación directa de GitHub Actions sin comandos duplicados
 RUN cp -r panvk-package ../ && cp ../panvk-mali-bannerlator.tar.xz /
