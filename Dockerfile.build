@@ -32,8 +32,6 @@ RUN pip3 install meson 
 
 ### Descarga y extracción nativa controlada por Docker del NDK r26b
 
-### NOTA: Reemplaza la URL de abajo por el enlace directo al zip del NDK de Android oficial si es necesario
-
 ADD https://dl.google.com/android/repository/android-ndk-r26b-linux.zip /tmp/ndk.zip 
 
 RUN mkdir -p /opt 
