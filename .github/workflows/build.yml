@@ -1,3 +1,37 @@
+name: Mesa Vulkan Wrapper Mali Packager (.tzst)
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - wrapper-25
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  BUILD_DIR: compilacion
+
+jobs:
+  build-aarch64-wrapper:
+    runs-on: ubuntu-latest
+    env:
+      IMAGE_TAG: ghcr.io/leegao/mesa-wrapper-ci/wrapper-compiler:latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Install Zstd Packager
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y zstd
+
       # INYECCIÓN DE CONTROL DE FLUJO HÍBRIDO OPTIMIZADO (Anti-Congelamiento Unisoc T618)
       - name: Surgical Silicon Modification (Anti-Overflow MALI Hybrid 32/64 Injection)
         run: |
@@ -12,12 +46,57 @@
             sed -i '1iextern int mallopt(int param, int value);' "$WRAPPER_DEVICE"
             sed -i '1iextern int setenv(const char *name, const char *value, int overwrite);' "$WRAPPER_DEVICE"
             
-            # CAMBIOS CLAVE PARA REPARAR CAÍDAS A 0%:
-            # 1. Cambiamos "mailbox" por "immediate" para liberar los frames de la GPU inmediatamente.
-            # 2. Subimos MESA_VK_WSI_QUEUE_SIZE a "2" o "3" para evitar que el renderizador se quede sin buffer en 32 bits.
             sed -i '/vk_icdGetInstanceProcAddr/!b;n;i\\ extern int mallopt(int p, int v);\\n extern int setenv(const char *n, const char *v, int o);\\n mallopt(-1002, 0);\\n setenv("MESA_VK_WSI_PRESENT_MODE", "immediate", 1);\\n setenv("vblank_mode", "0", 1);\\n if (sizeof(void*) == 4) {\\n   setenv("MESA_VK_WSI_QUEUE_SIZE", "2", 1);\\n }' "$WRAPPER_DEVICE"
             echo "-> Envoltura hibrida optimizada inyectada con exito."
           else
             echo "-> Archivo wrapper_device.c no encontrado, aplicando fallback optimizado global..."
             find src/ -name "*.c" -exec sed -i 's/vk_icdGetInstanceProcAddr/extern int mallopt(int p, int v); extern int setenv(const char *n, const char *v, int o); mallopt(-1002, 0); setenv("MESA_VK_WSI_PRESENT_MODE", "immediate", 1); setenv("vblank_mode", "0", 1); if (sizeof(void*) == 4) { setenv("MESA_VK_WSI_QUEUE_SIZE", "2", 1); } vk_icdGetInstanceProcAddr/g' {} + || true
           fi
+
+      - name: Wrapper Compiler (Atomic Processing Docker MALI)
+        run: |
+          docker run --rm -v "${{ github.workspace }}:/workspace" ${{ env.IMAGE_TAG }} ${{ env.BUILD_DIR }}
+
+      - name: Structure and Pack wrapper.tzst
+        run: |
+          echo "-> Creando arbol de directorios de Linux para Bannerlator..."
+          mkdir -p pkg/usr/lib
+          mkdir -p pkg/usr/share/vulkan/icd.d
+          
+          echo "-> Moviendo el driver compilado a usr/lib..."
+          cp ${{ env.BUILD_DIR }}/libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
+          
+          echo "-> Inyectando manifiesto JSON ICD oficial de 64 bits (AArch64)..."
+          cat << 'EOF' > pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
+          {
+              "ICD": {
+                  "api_version": "1.3.289",
+                  "library_path": "libvulkan_wrapper.so"
+              },
+              "file_format_version": "1.0.0"
+          }
+          EOF
+          
+          echo "-> Inyectando manifiesto JSON ICD oficial de 32 bits (ARM) para salvar Box86..."
+          cat << 'EOF' > pkg/usr/share/vulkan/icd.d/wrapper_icd.arm.json
+          {
+              "ICD": {
+                  "api_version": "1.3.289",
+                  "library_path": "libvulkan_wrapper.so"
+              },
+              "file_format_version": "1.0.0"
+          }
+          EOF
+          
+          echo "-> Comprimiendo la estructura dual en formato wrapper.tzst..."
+          cd pkg
+          tar -I 'zstd -19 -T0' -cf ../wrapper.tzst usr/
+          cd ..
+          echo "-> ¡Empaquetado completado con éxito!"
+
+      - name: Upload Final wrapper.tzst for Bannerlator
+        uses: actions/upload-artifact@v4
+        with:
+          name: Bannerlator-Mali-T618-Wrapper-Fat-Zstd
+          path: wrapper.tzst
+          if-no-files-found: error
