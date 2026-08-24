@@ -33,25 +33,25 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y zstd
 
-      # INYECCIÓN DE CONTROL DE FLUJO HÍBRIDO EQUILIBRADO (Anti-Stutter Carga Unisoc T618)
+      # INYECCIÓN ULTRA REPARADORA DE COLAS (Fijación 0-7 FPS Activision - Unisoc T618)
       - name: Surgical Silicon Modification (Anti-Overflow MALI Hybrid 32/64 Injection)
         run: |
           echo "-> Rastreando el corazon del Wrapper para soldar compatibilidad hibrida Vulkan..."
           WRAPPER_DEVICE=$(find src/ -name "wrapper_device.c" | head -n 1)
           
           if [ -n "$WRAPPER_DEVICE" ] && [ -f "$WRAPPER_DEVICE" ]; then
-            echo "-> Aplicando parches de sincronizacion FIFO / Fallback de Carga en: $WRAPPER_DEVICE"
+            echo "-> Rompiendo el cuello de botella de la CPU e inyectando multihilo en: $WRAPPER_DEVICE"
             sed -i 's/\r$//' "$WRAPPER_DEVICE"
             
             sed -i '1i#include <stdint.h>' "$WRAPPER_DEVICE"
             sed -i '1iextern int mallopt(int param, int value);' "$WRAPPER_DEVICE"
             sed -i '1iextern int setenv(const char *name, const char *value, int overwrite);' "$WRAPPER_DEVICE"
             
-            sed -i '/vk_icdGetInstanceProcAddr/!b;n;i\\ extern int mallopt(int p, int v);\\n extern int setenv(const char *n, const char *v, int o);\\n mallopt(-1002, 0);\\n setenv("MESA_VK_WSI_PRESENT_MODE", "fifo", 1);\\n setenv("vblank_mode", "0", 1);\\n setenv("MESA_VK_WSI_QUEUE_SIZE", "3", 1);' "$WRAPPER_DEVICE"
-            echo "-> Envoltura hibrida ultra-estable inyectada."
+            sed -i '/vk_icdGetInstanceProcAddr/!b;n;i\\ extern int mallopt(int p, int v);\\n extern int setenv(const char *n, const char *v, int o);\\n mallopt(-1002, 0);\\n setenv("MESA_VK_WSI_PRESENT_MODE", "mailbox", 1);\\n setenv("vblank_mode", "0", 1);\\n setenv("mesa_glthread", "true", 1);\\n setenv("VK_MULTITHREAD", "1", 1);\\n setenv("MESA_VK_WSI_QUEUE_SIZE", "2", 1);' "$WRAPPER_DEVICE"
+            echo "-> Envoltura hibrida optimizada inyectada con exito."
           else
-            echo "-> Archivo wrapper_device.c no encontrado, aplicando fallback global..."
-            find src/ -name "*.c" -exec sed -i 's/vk_icdGetInstanceProcAddr/extern int mallopt(int p, int v); extern int setenv(const char *n, const char *v, int o); mallopt(-1002, 0); setenv("MESA_VK_WSI_PRESENT_MODE", "fifo", 1); setenv("vblank_mode", "0", 1); setenv("MESA_VK_WSI_QUEUE_SIZE", "3", 1); vk_icdGetInstanceProcAddr/g' {} + || true
+            echo "-> Archivo wrapper_device.c no encontrado, aplicando fallback optimizado multihilo..."
+            find src/ -name "*.c" -exec sed -i 's/vk_icdGetInstanceProcAddr/extern int mallopt(int p, int v); extern int setenv(const char *n, const char *v, int o); mallopt(-1002, 0); setenv("MESA_VK_WSI_PRESENT_MODE", "mailbox", 1); setenv("vblank_mode", "0", 1); setenv("mesa_glthread", "true", 1); setenv("VK_MULTITHREAD", "1", 1); setenv("MESA_VK_WSI_QUEUE_SIZE", "2", 1); vk_icdGetInstanceProcAddr/g' {} + || true
           fi
 
       # COMPILACIÓN ORIGINAL DEL DOCKER NATIVO (Imagen precompilada)
