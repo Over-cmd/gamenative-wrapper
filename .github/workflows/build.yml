@@ -1,39 +1,97 @@
-name: Build GameNative Wrapper Multi-Arch
+# ==========================================
+# STAGE 1: Entorno de compilación base con NDK
+# ==========================================
+FROM --platform=linux/amd64 ubuntu:22.04 AS builder
 
-on:
-  push:
-    branches:
-      - main
-      - wrapper-25
-  pull_request:
-    branches:
-      - main
+ENV DEBIAN_FRONTEND=noninteractive
+ENV ANDROID_NDK_HOME=/opt/android-ndk
 
-jobs:
-  build-and-export:
-    runs-on: ubuntu-latest
+# Instalar dependencias esenciales de compilación para Mesa 3D
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    python3 \
+    python3-pip \
+    python3-setuptools \
+    ninja-build \
+    bison \
+    flex \
+    m4 \
+    pkg-config \
+    unzip \
+    git \
+    glslang-tools \
+    && rm -rf /var/lib/apt/lists/*
 
-    steps:
-    - name: Checkout Repository
-      uses: actions/checkout@v4
+# Instalar Meson actualizado vía pip
+RUN pip3 install meson
 
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
+# Descarga y extracción nativa controlada por Docker del NDK r26b
+ADD https://google.com /tmp/ndk.zip
 
-    - name: Build Arm32 and Arm64 via Docker
-      uses: docker/build-push-action@v5
-      with:
-        context: .
-        file: ./Dockerfile.build
-        target: final
-        tags: gamenative-compiled:latest
-        outputs: type=local,dest=./output
+RUN mkdir -p /opt \
+    && unzip -q /tmp/ndk.zip -d /opt \
+    && mv /opt/android-ndk-r26b ${ANDROID_NDK_HOME} \
+    && rm /tmp/ndk.zip
 
-    - name: Upload Build Artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: gamenative-wrapper-binaries
-        path: |
-          ./output/panvk-mali-bannerlator.tar.xz
-          ./output/panvk-package/lib/armeabi-v7a/libvulkan_wrapper.so
-          ./output/panvk-package/lib/arm64-v8a/libvulkan_wrapper.so
+# Cambiar al directorio de trabajo y clonar el Mesa personalizado
+WORKDIR /workspace
+RUN git clone --depth 1 https://github.com .
+
+# Copiar tus archivos de configuración cruzada locales (android-32.toml y android-64.toml)
+COPY android-32.toml android-64.toml ./
+
+# ==========================================
+# STAGE 2: Compilación de 32 Bits (armeabi-v7a)
+# ==========================================
+FROM builder AS build-32
+RUN meson setup build-32 \
+    --cross-file android-32.toml \
+    --buildtype=release \
+    -Dplatforms=android \
+    -Dgallium-drivers=zink,swrast \
+    -Dvulkan-drivers=panfrost \
+    && ninja -C build-32/
+
+# ==========================================
+# STAGE 3: Compilación de 64 Bits (arm64-v8a)
+# ==========================================
+FROM builder AS build-64
+RUN meson setup build-64 \
+    --cross-file android-64.toml \
+    --buildtype=release \
+    -Dplatforms=android \
+    -Dgallium-drivers=zink,swrast \
+    -Dvulkan-drivers=panfrost \
+    && ninja -C build-64/
+
+# ==========================================
+# STAGE 4: Empaquetado final para Bannerlator
+# ==========================================
+FROM alpine:latest AS final
+WORKDIR /dist
+
+# Crear la jerarquía exacta que lee el Wrapper Version Manager de Bannerlator
+RUN mkdir -p panvk-package/lib/armeabi-v7a \
+    && mkdir -p panvk-package/lib/arm64-v8a
+
+# Copiar las librerías binarias nativas de PanVK generadas por la compilación de Mesa
+COPY --from=build-32 /workspace/build-32/src/panfrost/vulkan/libvulkan_panfrost.so ./panvk-package/lib/armeabi-v7a/libvulkan_wrapper.so
+COPY --from=build-64 /workspace/build-64/src/panfrost/vulkan/libvulkan_panfrost.so ./panvk-package/lib/arm64-v8a/libvulkan_wrapper.so
+
+# Escribir el manifiesto wrappers.json específico para PanVK sin Kernel Module
+RUN echo '[{\
+  "id": "panvk-funnymdzz-custom",\
+  "name": "Mali PanVK (No Kernel Mod)",\
+  "description": "Driver Vulkan PanVK personalizado por funnymdzz para GPUs ARM Mali, modificado para ejecutarse directamente sin módulos de kernel externos panfrost/panthor.",\
+  "author": "funnymdzz / Over-cmd",\
+  "version": "25.0.0-custom",\
+  "gpuTargets": ["mali"],\
+  "features": ["panvk_android", "vulkan_1_1"],\
+  "type": "icd_wrapper"\
+}]' > ./panvk-package/wrappers.json
+
+# Comprimir la carpeta en el formato nativo estándar tar.xz que lee Bannerlator
+RUN cd panvk-package && tar -cJf ../panvk-mali-bannerlator.tar.xz lib/ wrappers.json
+
+# Mantenemos una copia estructurada accesible para la exportación directa de Buildx
+RUN cp -r panvk-package ../ && cp ../panvk-mali-bannerlator.tar.xz /
