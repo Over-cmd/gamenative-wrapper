@@ -1,40 +1,97 @@
-name: Build GameNative Wrapper Multi-Arch
+name: Mesa Vulkan Wrapper Mali Packager (.tzst)
 
 on:
   push:
     branches:
       - main
+      - master
       - wrapper-25
   pull_request:
     branches:
       - main
+  workflow_dispatch:
+
+env:
+  BUILD_DIR: compilacion
 
 jobs:
-  build-and-export:
+  build-aarch64-wrapper:
     runs-on: ubuntu-latest
+    env:
+      IMAGE_TAG: ghcr.io/leegao/mesa-wrapper-ci/wrapper-compiler:latest
 
     steps:
-    - name: Checkout Repository
-      uses: actions/checkout@v4
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-    - name: Build Arm32 and Arm64 via Docker
-      uses: docker/build-push-action@v5
-      with:
-        context: .
-        file: ./Dockerfile.build
-        target: final
-        tags: gamenative-compiled:latest
-        outputs: type=local,dest=./output
+      # Instalar herramientas de compresión Zstd en el servidor de GitHub
+      - name: Install Zstd Packager
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y zstd
 
-    - name: Upload Build Artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: gamenative-wrapper-binaries
-        path: |
-          ./output/panvk-mali-bannerlator.tar.xz
-          ./output/panvk-package/lib/libvulkan_wrapper.so
-          ./output/panvk-package/lib/libvulkan_panfrost_32.so
-          ./output/panvk-package/lib/libvulkan_panfrost_64.so
+      # INYECCIÓN DE CONTROL DE FLUJO HÍBRIDO EN EL CÓDIGO (Optimizado para Unisoc T618)
+      - name: Surgical Silicon Modification (Anti-Overflow MALI Hybrid 32/64 Injection)
+        run: |
+          echo "-> Rastreando el corazon del Wrapper para soldar compatibilidad hibrida Vulkan..."
+          WRAPPER_DEVICE=$(find src/ -name "wrapper_device.c" | head -n 1)
+          
+          if [ -n "$WRAPPER_DEVICE" ] && [ -f "$WRAPPER_DEVICE" ]; then
+            echo "-> Aplicando parches de alineacion de memoria de 32 bits en: $WRAPPER_DEVICE"
+            sed -i 's/\r$//' "$WRAPPER_DEVICE"
+            
+            sed -i '1i#include <stdint.h>' "$WRAPPER_DEVICE"
+            sed -i '1iextern int mallopt(int param, int value);' "$WRAPPER_DEVICE"
+            sed -i '1iextern int setenv(const char *name, const char *value, int overwrite);' "$WRAPPER_DEVICE"
+            
+            # Inyectamos mallopt(-1002, 0), mailbox y forzamos estabilidad de buffer en procesos de 32 bits
+            sed -i '/vk_icdGetInstanceProcAddr/!b;n;i\\ extern int mallopt(int p, int v);\\n extern int setenv(const char *n, const char *v, int o);\\n mallopt(-1002, 0);\\n setenv("MESA_VK_WSI_PRESENT_MODE", "mailbox", 1);\\n setenv("vblank_mode", "0", 1);\\n if (sizeof(void*) == 4) {\\n   setenv("MESA_VK_WSI_QUEUE_SIZE", "1", 1);\\n }' "$WRAPPER_DEVICE"
+            echo "-> Envoltura hibrida inyectada con exito."
+          else
+            echo "-> Archivo wrapper_device.c no encontrado, aplicando fallback hibrido global..."
+            find src/ -name "*.c" -exec sed -i 's/vk_icdGetInstanceProcAddr/extern int mallopt(int p, int v); extern int setenv(const char *n, const char *v, int o); mallopt(-1002, 0); setenv("MESA_VK_WSI_PRESENT_MODE", "mailbox", 1); setenv("vblank_mode", "0", 1); if (sizeof(void*) == 4) { setenv("MESA_VK_WSI_QUEUE_SIZE", "1", 1); } vk_icdGetInstanceProcAddr/g' {} + || true
+          fi
+
+      # COMPILACIÓN ORIGINAL DEL DOCKER NATIVO (Imagen precompilada)
+      - name: Wrapper Compiler (Atomic Processing Docker MALI)
+        run: |
+          docker run --rm -v "${{ github.workspace }}:/workspace" ${{ env.IMAGE_TAG }} ${{ env.BUILD_DIR }}
+
+      # REESTRUCTURACIÓN DE CONTENEDOR EN FORMATO COMPATIBLE CON BANNERLATOR (.TZST EN RAÍZ)
+      - name: Structure and Pack panvk-mali-bannerlator.tzst
+        run: |
+          echo "-> Creando arbol de directorios nativo de Bannerlator..."
+          mkdir -p pkg/lib
+          
+          echo "-> Moviendo el binario unificado libvulkan_wrapper.so a la carpeta lib..."
+          cp ${{ env.BUILD_DIR }}/libvulkan_wrapper.so pkg/lib/libvulkan_wrapper.so
+          
+          echo "-> Inyectando el manifiesto wrappers.json obligatorio para Unisoc Tiger T618..."
+          cat << 'EOF' > pkg/wrappers.json
+          [{
+            "id": "panvk-unisoc-t618-hybrid",
+            "name": "Unisoc T618 Mali-G52 PanVK Hybrid",
+            "description": "Driver Vulkan PanVK unificado híbrido (32/64 bits) optimizado con control de flujo quirúrgico para procesadores Unisoc Tiger T618 y GPUs ARM Mali-G52 MP2.",
+            "author": "funnymdzz / Over-cmd",
+            "version": "25.0.0-t618-hybrid",
+            "gpuTargets": ["mali"],
+            "features": ["panvk_android", "vulkan_1_1"],
+            "type": "icd_wrapper"
+          }]
+          EOF
+          
+          echo "-> Comprimiendo la estructura nativa en formato estándar de Bannerlator .tzst..."
+          cd pkg
+          tar -I 'zstd -19 -T0' -cf ../panvk-mali-bannerlator.tzst lib/ wrappers.json
+          cd ..
+          echo "-> ¡Empaquetado definitivo en .tzst completado con éxito!"
+
+      - name: Upload Final panvk-mali-bannerlator.tzst for Bannerlator
+        uses: actions/upload-artifact@v4
+        with:
+          name: Bannerlator-Mali-T618-Wrapper-Fat-Zstd
+          path: panvk-mali-bannerlator.tzst
+          if-no-files-found: error
