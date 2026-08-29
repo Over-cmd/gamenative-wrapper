@@ -39,31 +39,17 @@ jobs:
           python -m pip install --upgrade pip
           pip install mako PyYAML 'meson>=1.4.0' ninja packaging
 
-      # 🟢 EXTRAEDOR INTELIGENTE: Descomprime y unifica la ubicación de los archivos .pc
+      # 🟢 EXTRAEDOR SINCRO: Extrae y alinea la carpeta shims real de Termux/X11 de tu repositorio
       - name: Unzip Local Android Environment Shims
         run: |
           echo "-> Descomprimiendo shims.zip en el area de trabajo..."
           if [ -f "shims.zip" ]; then
-            unzip -o shims.zip -d ./extract_temp
-            
-            echo "-> Buscando el manifiesto cutils.pc en los archivos extraídos..."
-            REAL_PC_DIR=$(find ./extract_temp -name "cutils.pc" -exec dirname {} \; | head -n 1)
-            
-            if [ -n "$REAL_PC_DIR" ]; then
-              echo "-> ¡Archivos de configuración localizados en: $REAL_PC_DIR!"
-              mkdir -p "$GITHUB_WORKSPACE/shims"
-              # Movemos todo el contenido plano directamente a nuestra carpeta unificada
-              cp -rf "$REAL_PC_DIR"/* "$GITHUB_WORKSPACE/shims/"
-              echo "-> Pool de dependencias reestructurado con éxito."
-            else
-              echo "🚨 ERROR CRÍTICO: No se encontró cutils.pc dentro de shims.zip"
-              echo "=== Contenido del zip extraído ==="
-              find ./extract_temp -maxdepth 3
-              exit 1
-            fi
-            
-            echo "=== Estructura unificada final de $GITHUB_WORKSPACE/shims ==="
-            ls -la "$GITHUB_WORKSPACE/shims" || true
+            unzip -o shims.zip -d ./
+            mkdir -p "$GITHUB_WORKSPACE/shims_target"
+            # Copiamos el pool plano extraído a la ruta limpia absoluta
+            cp -rf ./shims/* "$GITHUB_WORKSPACE/shims_target/"
+            echo "=== Estructura verificada de los archivos .pc de X11 ==="
+            ls -la "$GITHUB_WORKSPACE/shims_target"
           else
             echo "🚨 ERROR: Falta shims.zip en la raiz de tu repositorio!" && exit 1
           fi
@@ -85,14 +71,15 @@ jobs:
           echo "-> NDK Real Detectado y validado en: $TRUE_NDK"
           echo "REAL_NDK_HOME=$TRUE_NDK" >> $GITHUB_ENV
 
+      # 🟢 CONFIGURACIÓN ADAPTADA A X11/TERMUX: Quitamos las plataformas móviles nativas para evitar el bloqueo de cutils
       - name: Configure GameNative Cross-Compilation (Meson)
         run: |
           export ANDROID_NDK_HOME="${{ env.REAL_NDK_HOME }}"
           export MESON_WORKING_DIR="$GITHUB_WORKSPACE"
           
-          # Forzamos las variables ambientales en caliente apuntando al directorio plano unificado
-          export PKG_CONFIG_PATH="$GITHUB_WORKSPACE/shims"
-          export PKG_CONFIG_LIBDIR="$GITHUB_WORKSPACE/shims"
+          # Forzamos las variables ambientales apuntando al pool real de X11 de tu .zip
+          export PKG_CONFIG_PATH="$GITHUB_WORKSPACE/shims_target"
+          export PKG_CONFIG_LIBDIR="$GITHUB_WORKSPACE/shims_target"
           export PKG_CONFIG_SYSROOT_DIR=""
           
           echo "-> Traduciendo variables de entorno en android-64.toml..."
@@ -102,26 +89,29 @@ jobs:
             envsubst < android.toml > android-cross-compiled.txt
           fi
           
-          echo "-> Inicializando Setup de Meson..."
+          echo "-> Inicializando Setup de Meson optimizado para el pool X11..."
           meson setup build --reconfigure \
             --cross-file android-cross-compiled.txt \
             -Dbuildtype=${{ matrix.build-type }} \
-            -Dplatforms=android \
-            -Dvulkan-drivers=[] \
-            -Dgallium-drivers=[] \
-            -Dllvm=disabled \
+            -Dplatforms= \
+            -Dglx=disabled \
             -Dgbm=disabled \
             -Degl=disabled \
-            -Dglx=disabled \
             -Dopengl=false \
             -Dgles1=disabled \
-            -Dgles2=disabled
-            
+            -Dgles2=disabled \
+            -Dllvm=disabled \
+            -Dvalgrind=disabled \
+            -Dzstd=disabled \
+            -Dvulkan-drivers=[] \
+            -Dgallium-drivers=[]
+
       - name: Compile GameNative Engine
         run: |
           echo "-> Compilando el binario puro del wrapper hacia ARM64..."
           meson compile -C build
 
+      # 🟢 EMPAQUETADO HÍBRIDO ADAPTADO: Estructura exacta para el cargador de Bannerlator
       - name: Structure and Pack wrapper.tzst for Bannerlator
         run: |
           echo "-> Creando arbol de carpetas estricto para el emulador..."
@@ -140,9 +130,9 @@ jobs:
             echo "🚨 ERROR CRITICO: El compilador no genero ningun archivo de libreria .so" && exit 1
           fi
 
-          echo "-> Arrastrando tus librerias de panfrost extras extraidas de shims..."
-          if [ -d "$GITHUB_WORKSPACE/shims" ]; then
-            find "$GITHUB_WORKSPACE/shims/" -maxdepth 1 -type f -name "*.so*" -exec cp -v {} pkg/usr/lib/ \;
+          echo "-> Arrastrando tus librerias extras reales del zip al paquete final..."
+          if [ -d "$GITHUB_WORKSPACE/shims_target" ]; then
+            find "$GITHUB_WORKSPACE/shims_target/" -maxdepth 1 -type f -name "*.so*" -exec cp -v {} pkg/usr/lib/ \;
             for lib in pkg/usr/lib/*.so*; do
               patchelf --set-soname $(basename "$lib") "$lib" 2>/dev/null || true
               strip --strip-unneeded "$lib" 2>/dev/null || true
@@ -172,6 +162,7 @@ jobs:
           }
           EOF
 
+          # Ajustes ambientales obligatorios para inyectar la aceleracion forzada en tu Unisoc Tiger T618 (Mali-G52)
           echo '{"env":{"PAN_I_WANT_A_BROKEN_VULKAN_DRIVER":"1","MESA_VK_IGNORE_CONFORMANCE_WARNING":"1","PANVK_DEBUG":"sync","MESA_VK_FORCE_BLIT":"1","MESA_LOADER_DRIVER_OVERRIDE":"panfrost","GALLIUM_DRIVER":"panfrost"}}' > pkg/usr/share/vulkan/settings.d/wrapper_settings.json
 
           echo "msf:315508" > pkg/usr/version.txt
