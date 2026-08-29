@@ -39,20 +39,17 @@ jobs:
           python -m pip install --upgrade pip
           pip install mako PyYAML 'meson>=1.4.0' ninja packaging
 
-      # 🟢 PASO COMPLEMENTARIO OBLIGATORIO: Descomprime los Shims nativos de Android que exige el repositorio
       - name: Unzip Local Android Environment Shims
         run: |
-          echo "-> Buscando el paquete shims.zip en la raiz del repositorio..."
+          echo "-> Descomprimiendo shims.zip en el area de trabajo..."
           if [ -f "shims.zip" ]; then
             unzip -o shims.zip -d ./
-            echo "-> Shims de Android desplegados con éxito."
-            ls -d shims/ 2>/dev/null || echo "ADVERTENCIA: La carpeta descomprimida no se llama shims"
+            echo "-> Verificando contenido de la carpeta extraida:"
+            ls -la shims/ || true
           else
-            echo "ADVERTENCIA: No se encontro shims.zip. Creando carpeta de emergencia..."
-            mkdir -p shims
+            echo "🚨 ERROR: Falta shims.zip en la raiz de tu repositorio!" && exit 1
           fi
 
-      # 🟢 PASO INTEGRAL DETECTOR: Localiza la ruta real del Sdk de Google en los servidores
       - name: Auto-Detect True Android NDK Path
         id: ndk-detector
         run: |
@@ -70,24 +67,21 @@ jobs:
           echo "-> NDK Real Detectado y validado en: $TRUE_NDK"
           echo "REAL_NDK_HOME=$TRUE_NDK" >> $GITHUB_ENV
 
-      # 🟢 CONFIGURACIÓN MAESTRA DE GAMENATIVE: Mapea las variables directo sobre android-64.toml
       - name: Configure GameNative Cross-Compilation (Meson)
         env:
-          PKG_CONFIG_LIBDIR: ${{ github.workspace }}/shims
+          PKG_CONFIG_LIBDIR: /home/runner/work/gamenative-wrapper/gamenative-wrapper/shims
         run: |
           export ANDROID_NDK_HOME="${{ env.REAL_NDK_HOME }}"
           export MESON_WORKING_DIR="$GITHUB_WORKSPACE"
           
-          echo "-> Inyectando variables en el archivo cruzado de 64 bits original..."
+          echo "-> Traduciendo variables de entorno en android-64.toml..."
           if [ -f "android-64.toml" ]; then
             envsubst < android-64.toml > android-cross-compiled.txt
-          elif [ -f "android.toml" ]; then
-            envsubst < android.toml > android-cross-compiled.txt
           else
-            echo "ERROR: ¡No se encontró ningún archivo .toml de configuración cruzada!" && exit 1
+            envsubst < android.toml > android-cross-compiled.txt
           fi
           
-          echo "-> Inicializando el Setup de Meson para GameNative Wrapper..."
+          echo "-> Inicializando Setup de Meson..."
           meson setup build --reconfigure \
             --cross-file android-cross-compiled.txt \
             -Dbuildtype=${{ matrix.build-type }} \
@@ -107,7 +101,6 @@ jobs:
           echo "-> Compilando el binario puro del wrapper hacia ARM64..."
           meson compile -C build
 
-      # 🟢 EMPAQUETADO HÍBRIDO DEFINITIVO: Fusiona el nuevo Vulkan compilado + tus librerías estables de Panfrost
       - name: Structure and Pack wrapper.tzst for Bannerlator
         run: |
           echo "-> Creando arbol de carpetas estricto para el emulador..."
@@ -121,13 +114,12 @@ jobs:
             echo "-> Binario localizado en: $TARGET_SO. Copiando como libvulkan_wrapper.so..."
             cp -v "$TARGET_SO" pkg/usr/lib/libvulkan_wrapper.so
             patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
-            llvm-strip --strip-unneeded pkg/usr/lib/libvulkan_wrapper.so 2>/dev/null || strip --strip-unneeded pkg/usr/lib/libvulkan_wrapper.so
+            strip --strip-unneeded pkg/usr/lib/libvulkan_wrapper.so
           else
             echo "🚨 ERROR CRITICO: El compilador no genero ningun archivo de libreria .so" && exit 1
           fi
 
-          echo "-> 🚀 ARRASTRANDO TUS LIBRERÍAS DE PANFROST DEL REPOSITORIO HACEDOR..."
-          # Si tienes librerías de Panfrost guardadas en tu carpeta shims/ del repositorio, las metemos al mismo empaque
+          echo "-> Arrastrando tus librerias de panfrost extras extraidas de shims..."
           if [ -d "shims" ]; then
             find shims/ -maxdepth 1 -type f -name "*.so*" -exec cp -v {} pkg/usr/lib/ \;
             for lib in pkg/usr/lib/*.so*; do
@@ -159,7 +151,6 @@ jobs:
           }
           EOF
 
-          # Inyectamos los flags ambientales de aceleración forzada para exprimir tu Unisoc T618 (Mali-G52)
           echo '{"env":{"PAN_I_WANT_A_BROKEN_VULKAN_DRIVER":"1","MESA_VK_IGNORE_CONFORMANCE_WARNING":"1","PANVK_DEBUG":"sync","MESA_VK_FORCE_BLIT":"1","MESA_LOADER_DRIVER_OVERRIDE":"panfrost","GALLIUM_DRIVER":"panfrost"}}' > pkg/usr/share/vulkan/settings.d/wrapper_settings.json
 
           echo "msf:315508" > pkg/usr/version.txt
