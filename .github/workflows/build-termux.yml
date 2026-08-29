@@ -83,7 +83,6 @@ jobs:
           echo "-> NDK Real Detectado y validado en: $TRUE_NDK"
           echo "REAL_NDK_HOME=$TRUE_NDK" >> $GITHUB_ENV
 
-      # 🟢 CORRECCIÓN CENTRAL: Removida la bandera no válida -Ddraw-with-llvm=false
       - name: Configure GameNative Cross-Compilation (Meson)
         run: |
           export ANDROID_NDK_HOME="${{ env.REAL_NDK_HOME }}"
@@ -140,31 +139,36 @@ jobs:
             echo "-> Copiando y renombrando a libvulkan_wrapper.so..."
             cp -v "$TARGET_SO" pkg/usr/lib/libvulkan_wrapper.so
             patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
-            
             llvm-strip --strip-unneeded pkg/usr/lib/libvulkan_wrapper.so
           else
             echo "🚨 ERROR CRITICO SEVERO: El compilador terminó pero no se encontró la librería .so esperada."
             exit 1
           fi
 
-          echo "-> Arrastrando tus librerias de panfrost extras extraidas de shims..."
+          echo "-> 🚀 ARRASTRANDO EXCLUSIVAMENTE LIBRERÍAS GRÁFICAS (EVITANDO CONFLICTOS DE ENTORNO)..."
           if [ -d "$GITHUB_WORKSPACE/shims_target" ]; then
-            find "$GITHUB_WORKSPACE/shims_target/" -maxdepth 1 -type f -name "*.so*" -exec cp -v {} pkg/usr/lib/ \;
+            find "$GITHUB_WORKSPACE/shims_target/" -maxdepth 1 -type f -name "*.so*" \
+              -not -name "*libzstd*" \
+              -not -name "*librt*" \
+              -not -name "*libc.*" \
+              -not -name "*libm.*" \
+              -exec cp -v {} pkg/usr/lib/ \;
+              
             for lib in pkg/usr/lib/*.so*; do
               patchelf --set-soname $(basename "$lib") "$lib" 2>/dev/null || true
               llvm-strip --strip-unneeded "$lib" 2>/dev/null || true
             done
           fi
 
-          echo "-> Creando manifiestos ICD JSON oficiales..."
+          # 🟢 CORRECCIÓN CENTRAL: Manifiestos ICD con formato estricto 1.0.0 sin 'library_arch'
+          echo "-> Creando manifiestos ICD JSON oficiales con formato compatible 1.0.0..."
           cat << 'EOF' > pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
           {
               "ICD": {
                   "api_version": "1.4.352",
-                  "library_arch": "64",
                   "library_path": "libvulkan_wrapper.so"
               },
-              "file_format_version": "1.0.1"
+              "file_format_version": "1.0.0"
           }
           EOF
 
@@ -172,10 +176,9 @@ jobs:
           {
               "ICD": {
                   "api_version": "1.4.352",
-                  "library_arch": "32",
                   "library_path": "libvulkan_wrapper.so"
               },
-              "file_format_version": "1.0.1"
+              "file_format_version": "1.0.0"
           }
           EOF
 
@@ -190,7 +193,7 @@ jobs:
           chmod 644 pkg/usr/share/vulkan/settings.d/*.json 
           chmod 644 pkg/version.txt
 
-          echo "=== Arbol de Estructura Final del TZST ==="
+          echo "=== Arbol de Estructura Purificada Final ==="
           ls -R pkg
           echo "=========================================="
           
