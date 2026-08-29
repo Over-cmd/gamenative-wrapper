@@ -13,6 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
+        # Estructura desglosada reglamentaria para evitar errores de secuencia en GitHub
         build-type:
           - release
 
@@ -70,7 +71,7 @@ jobs:
           echo "-> NDK Real Detectado y validado en: $TRUE_NDK"
           echo "REAL_NDK_HOME=$TRUE_NDK" >> $GITHUB_ENV
 
-      # 🟢 CONFIGURACIÓN ESTRICTA: Fijamos el driver exacto como wrapper y apagamos LLVM para evitar conflictos
+      # FASE DE CONFIGURACIÓN DE TU WRAPPER: Añadido el candado de seguridad para apagar Lavapipe
       - name: Configure GameNative Cross-Compilation (Meson)
         run: |
           export ANDROID_NDK_HOME="${{ env.REAL_NDK_HOME }}"
@@ -99,6 +100,7 @@ jobs:
             -Dgles1=disabled \
             -Dgles2=disabled \
             -Dllvm=disabled \
+            -Ddraw-with-llvm=false \
             -Dvalgrind=disabled \
             -Dzstd=disabled \
             -Dvulkan-drivers=wrapper \
@@ -169,6 +171,7 @@ jobs:
 
           echo '{"env":{"PAN_I_WANT_A_BROKEN_VULKAN_DRIVER":"1","MESA_VK_IGNORE_CONFORMANCE_WARNING":"1","PANVK_DEBUG":"sync","MESA_VK_FORCE_BLIT":"1","MESA_LOADER_DRIVER_OVERRIDE":"panfrost","GALLIUM_DRIVER":"panfrost"}}' > pkg/usr/share/vulkan/settings.d/wrapper_settings.json
 
+          # Corrección de la ubicación del validador de versión
           echo "msf:315508" > pkg/version.txt
           
           echo "-> Ajustando permisos y empaquetando..."
