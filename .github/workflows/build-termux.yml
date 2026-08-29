@@ -83,6 +83,7 @@ jobs:
           echo "-> NDK Real Detectado y validado en: $TRUE_NDK"
           echo "REAL_NDK_HOME=$TRUE_NDK" >> $GITHUB_ENV
 
+      # 🟢 CORRECCIÓN CENTRAL: Removida la bandera no válida -Ddraw-with-llvm=false
       - name: Configure GameNative Cross-Compilation (Meson)
         run: |
           export ANDROID_NDK_HOME="${{ env.REAL_NDK_HOME }}"
@@ -111,7 +112,6 @@ jobs:
             -Dgles1=disabled \
             -Dgles2=disabled \
             -Dllvm=disabled \
-            -Ddraw-with-llvm=false \
             -Dvalgrind=disabled \
             -Dzstd=disabled \
             -Dvulkan-drivers=wrapper \
@@ -141,7 +141,6 @@ jobs:
             cp -v "$TARGET_SO" pkg/usr/lib/libvulkan_wrapper.so
             patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
             
-            # 🟢 CORRECCIÓN CENTRAL: Usamos llvm-strip nativo de LLVM para limpiar el binario ARM64
             llvm-strip --strip-unneeded pkg/usr/lib/libvulkan_wrapper.so
           else
             echo "🚨 ERROR CRITICO SEVERO: El compilador terminó pero no se encontró la librería .so esperada."
@@ -153,7 +152,6 @@ jobs:
             find "$GITHUB_WORKSPACE/shims_target/" -maxdepth 1 -type f -name "*.so*" -exec cp -v {} pkg/usr/lib/ \;
             for lib in pkg/usr/lib/*.so*; do
               patchelf --set-soname $(basename "$lib") "$lib" 2>/dev/null || true
-              # 🟢 Se usa llvm-strip también para tus shims extras
               llvm-strip --strip-unneeded "$lib" 2>/dev/null || true
             done
           fi
