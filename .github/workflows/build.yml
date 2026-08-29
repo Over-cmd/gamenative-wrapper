@@ -13,7 +13,8 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        build-type: [release]
+        build-type:
+          - release
 
     steps:
       - name: Checkout Repository Source
@@ -69,7 +70,7 @@ jobs:
           echo "-> NDK Real Detectado y validado en: $TRUE_NDK"
           echo "REAL_NDK_HOME=$TRUE_NDK" >> $GITHUB_ENV
 
-      # 🟢 CONFIGURACIÓN ESTRICTA DE VULKAN WRAPPER: Forzamos la compilación del subsistema swrast (Lavapipe)
+      # 🟢 CONFIGURACIÓN ESTRICTA: Fijamos el driver exacto como wrapper y apagamos LLVM para evitar conflictos
       - name: Configure GameNative Cross-Compilation (Meson)
         run: |
           export ANDROID_NDK_HOME="${{ env.REAL_NDK_HOME }}"
@@ -86,7 +87,7 @@ jobs:
             envsubst < android.toml > android-cross-compiled.txt
           fi
           
-          echo "-> Inicializando Setup de Meson para Vulkan Wrapper..."
+          echo "-> Inicializando Setup de Meson con -Dvulkan-drivers=wrapper..."
           meson setup build --reconfigure \
             --cross-file android-cross-compiled.txt \
             -Dbuildtype=${{ matrix.build-type }} \
@@ -100,7 +101,7 @@ jobs:
             -Dllvm=disabled \
             -Dvalgrind=disabled \
             -Dzstd=disabled \
-            -Dvulkan-drivers=swrast \
+            -Dvulkan-drivers=wrapper \
             -Dgallium-drivers=[]
 
       - name: Compile GameNative Engine
@@ -108,20 +109,17 @@ jobs:
           echo "-> Ejecutando compilación cruzada hacia ARM64 a través de Ninja..."
           meson compile -C build
 
-      # 🟢 EMPAQUETADO QUIRÚRGICO DE VULKAN WRAPPER: Captura el binario real, inyecta tus shims de Panfrost y sella version.txt
       - name: Structure and Pack wrapper.tzst for Bannerlator
         run: |
           echo "-> Creando arbol de carpetas estricto para el emulador..."
           rm -rf pkg
           mkdir -p pkg/usr/lib pkg/usr/share/vulkan/icd.d pkg/usr/share/vulkan/settings.d
           
-          echo "-> Buscando el binario real de Vulkan generado por el compilador..."
-          # Buscamos de forma prioritaria la librería libvulkan_lvp.so o libvulkan.so que genera el módulo swrast
-          TARGET_SO=$(find build/src/ -not -path "build/subprojects/*" -type f -name "*.so" | grep -E "libvulkan" | head -n 1)
+          echo "-> Buscando el binario real del wrapper generado por el compilador..."
+          TARGET_SO=$(find build/ -not -path "build/subprojects/*" -not -path "build/meson-private/*" -type f -name "*.so" | grep -E "libvulkan|wrapper|gamenative" | head -n 1)
           
-          # Fallback si hereda otra nomenclatura de objeto compartido fuera de subproyectos
           if [ -z "$TARGET_SO" ] || [ ! -f "$TARGET_SO" ]; then
-            TARGET_SO=$(find build/ -not -path "build/subprojects/*" -not -path "build/meson-private/*" -type f -name "*.so" | head -n 1)
+            TARGET_SO=$(find build/src/ -not -path "build/subprojects/*" -type f -name "*.so" | head -n 1)
           fi
           
           if [ -n "$TARGET_SO" ] && [ -f "$TARGET_SO" ]; then
@@ -131,7 +129,7 @@ jobs:
             patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
             strip --strip-unneeded pkg/usr/lib/libvulkan_wrapper.so
           else
-            echo "🚨 ERROR CRITICO SEVERO: Ninja completó el build pero no dejó ninguna librería gráfica .so válida."
+            echo "🚨 ERROR CRITICO SEVERO: El compilador terminó pero no se encontró la librería .so esperada."
             echo "=== Árbol de archivos resultantes para inspección ==="
             find build/ -type f
             exit 1
@@ -169,10 +167,8 @@ jobs:
           }
           EOF
 
-          # Inyección ambiental forzada para arrancar la aceleración nativa en tu Unisoc Tiger T618 (Mali-G52)
           echo '{"env":{"PAN_I_WANT_A_BROKEN_VULKAN_DRIVER":"1","MESA_VK_IGNORE_CONFORMANCE_WARNING":"1","PANVK_DEBUG":"sync","MESA_VK_FORCE_BLIT":"1","MESA_LOADER_DRIVER_OVERRIDE":"panfrost","GALLIUM_DRIVER":"panfrost"}}' > pkg/usr/share/vulkan/settings.d/wrapper_settings.json
 
-          # Escribimos el validador en la raíz limpia exacta de la estructura pkg
           echo "msf:315508" > pkg/version.txt
           
           echo "-> Ajustando permisos y empaquetando..."
