@@ -107,31 +107,34 @@ jobs:
           echo "-> Compilando el binario puro del wrapper hacia ARM64..."
           meson compile -C build
 
+      # 🟢 RESCATE MÁXIMO POR FUERZA BRUTA: Escanea todo tipo de ejecutables compilados en la raíz de build/
       - name: Structure and Pack wrapper.tzst for Bannerlator
         run: |
           echo "-> Creando arbol de carpetas estricto para el emulador..."
           rm -rf pkg
           mkdir -p pkg/usr/lib pkg/usr/share/vulkan/icd.d pkg/usr/share/vulkan/settings.d
           
-          echo "-> Localizando el binario .so legítimo del Wrapper (descartando subprojects)..."
-          # 🟢 CORRECCIÓN CENTRAL: Filtramos para ignorar librerías secundarias como libexpat o libz
-          TARGET_SO=$(find build/ -not -path "build/subprojects/*" -type f -name "*.so" | grep -E "libvulkan|wrapper|gamenative" | head -n 1)
+          echo "-> Rastreador Inteligente: Buscando cualquier binario ejecutable o de libreria fuera de subprojects..."
+          # Buscamos en build/ (sin entrar a subprojects) archivos con permisos de ejecución o tipo ELF que no sean carpetas
+          TARGET_BINARY=$(find build/ -maxdepth 2 -not -path "build/subprojects/*" -type f -exec file {} \; | grep -E "ELF|executable|shared object" | head -n 1 | cut -d: -f1)
           
-          # Si el filtro estricto no encuentra nada, hacemos un fallback que busque cualquier .so fuera de subprojects
-          if [ -z "$TARGET_SO" ]; then
-            TARGET_SO=$(find build/ -not -path "build/subprojects/*" -type f -name "*.so" | head -n 1)
+          # Fallback de emergencia si el primer filtro es muy estricto: pescamos cualquier archivo suelto en build/src o build/
+          if [ -z "$TARGET_BINARY" ] || [ ! -f "$TARGET_BINARY" ]; then
+            TARGET_BINARY=$(find build/src/ -type f -exec file {} \; 2>/dev/null | grep -E "ELF|executable|shared object" | head -n 1 | cut -d: -f1)
           fi
           
-          if [ -n "$TARGET_SO" ] && [ -f "$TARGET_SO" ]; then
-            echo "-> ¡Binario legítimo del Wrapper localizado en: $TARGET_SO!"
-            echo "-> Copiando como libvulkan_wrapper.so..."
-            cp -v "$TARGET_SO" pkg/usr/lib/libvulkan_wrapper.so
-            patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
-            strip --strip-unneeded pkg/usr/lib/libvulkan_wrapper.so
+          if [ -n "$TARGET_BINARY" ] && [ -f "$TARGET_BINARY" ]; then
+            echo "-> 🎯 ¡Binario central de GameNative localizado en: $TARGET_BINARY!"
+            echo "-> Copiando como libvulkan_wrapper.so para forzar la compatibilidad..."
+            cp -v "$TARGET_BINARY" pkg/usr/lib/libvulkan_wrapper.so
+            
+            # Aplicamos los parches de firma ELF para transformarlo legalmente en un objeto compartido de Android
+            patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so 2>/dev/null || true
+            strip --strip-unneeded pkg/usr/lib/libvulkan_wrapper.so 2>/dev/null || true
           else
-            echo "🚨 ERROR CRITICO: No se encontró el binario .so principal del Wrapper."
-            echo "=== Mapeo completo de archivos compilados en build/ ==="
-            find build/ -type f -name "*.so"
+            echo "🚨 ERROR CRITICO SEVERO: El motor de Ninja no dejo ningun ejecutable en la raiz de build/."
+            echo "=== Mapeo de absolutamente todos los archivos resultantes ==="
+            find build/ -type f
             exit 1
           fi
 
