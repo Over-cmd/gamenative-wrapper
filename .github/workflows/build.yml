@@ -83,7 +83,6 @@ jobs:
           echo "-> NDK Real Detectado y validado en: $TRUE_NDK"
           echo "REAL_NDK_HOME=$TRUE_NDK" >> $GITHUB_ENV
 
-      # 🟢 CORRECCIÓN CENTRAL: Removida completamente la bandera -Ddraw-with-llvm de la linea de comandos
       - name: Configure GameNative Cross-Compilation (Meson)
         run: |
           export ANDROID_NDK_HOME="${{ env.REAL_NDK_HOME }}"
@@ -122,6 +121,7 @@ jobs:
           echo "-> Ejecutando compilación cruzada hacia ARM64 a través de Ninja..."
           meson compile -C build
 
+      # 🟢 EMPAQUETADO ULTRA-LIMPIO: Única y estrictamente libvulkan_wrapper.so en usr/lib
       - name: Structure and Pack wrapper.tzst for Bannerlator
         run: |
           echo "-> Creando arbol de carpetas estricto para el emulador..."
@@ -146,22 +146,8 @@ jobs:
             exit 1
           fi
 
-          echo "-> 🚀 ARRASTRANDO EXCLUSIVAMENTE LIBRERÍAS GRÁFICAS (EVITANDO CONFLICTOS DE ENTORNO)..."
-          if [ -d "$GITHUB_WORKSPACE/shims_target" ]; then
-            find "$GITHUB_WORKSPACE/shims_target/" -maxdepth 1 -type f -name "*.so*" \
-              -not -name "*libzstd*" \
-              -not -name "*librt*" \
-              -not -name "*libc.*" \
-              -not -name "*libm.*" \
-              -exec cp -v {} pkg/usr/lib/ \;
-              
-            for lib in pkg/usr/lib/*.so*; do
-              patchelf --set-soname $(basename "$lib") "$lib" 2>/dev/null || true
-              llvm-strip --strip-unneeded "$lib" 2>/dev/null || true
-            done
-          fi
+          # 🔴 ELIMINADA LA INYECCIÓN DE LOS 13 ARCHIVOS EXTRAS PARA EVITAR CONFLICTOS
 
-          # Manifiestos ICD oficiales con tu corrección estricta format 1.0.0
           echo "-> Creando manifiestos ICD JSON oficiales con formato compatible 1.0.0..."
           cat << 'EOF' > pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
           {
