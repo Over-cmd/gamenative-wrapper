@@ -67,12 +67,16 @@ jobs:
           echo "-> NDK Real Detectado y validado en: $TRUE_NDK"
           echo "REAL_NDK_HOME=$TRUE_NDK" >> $GITHUB_ENV
 
+      # 🟢 PASO MAESTRO: Forzamos el PKG_CONFIG_PATH global del Shell apuntando a tus shims locales descompresas
       - name: Configure GameNative Cross-Compilation (Meson)
-        env:
-          PKG_CONFIG_LIBDIR: /home/runner/work/gamenative-wrapper/gamenative-wrapper/shims
         run: |
           export ANDROID_NDK_HOME="${{ env.REAL_NDK_HOME }}"
           export MESON_WORKING_DIR="$GITHUB_WORKSPACE"
+          
+          # 1. Forzamos de forma estricta las variables ambientales del buscador
+          export PKG_CONFIG_PATH="$GITHUB_WORKSPACE/shims:$PKG_CONFIG_PATH"
+          export PKG_CONFIG_LIBDIR="$GITHUB_WORKSPACE/shims"
+          export PKG_CONFIG_SYSROOT_DIR=""
           
           echo "-> Traduciendo variables de entorno en android-64.toml..."
           if [ -f "android-64.toml" ]; then
@@ -81,7 +85,7 @@ jobs:
             envsubst < android.toml > android-cross-compiled.txt
           fi
           
-          echo "-> Inicializando Setup de Meson..."
+          echo "-> Inicializando Setup de Meson con inyeccion de shims forzada..."
           meson setup build --reconfigure \
             --cross-file android-cross-compiled.txt \
             -Dbuildtype=${{ matrix.build-type }} \
@@ -95,7 +99,7 @@ jobs:
             -Dopengl=false \
             -Dgles1=disabled \
             -Dgles2=disabled
-
+            
       - name: Compile GameNative Engine
         run: |
           echo "-> Compilando el binario puro del wrapper hacia ARM64..."
