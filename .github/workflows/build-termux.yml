@@ -20,13 +20,11 @@ jobs:
       - name: Checkout Repository Source
         uses: actions/checkout@v4
 
-      # 🟢 PARCHEO QUIRÚRGICO DE API 30: Forzamos el uso de la función nativa memfd_create en lugar del syscall roto
       - name: Patch anon_file.c for memfd_create
         run: |
           echo "-> Aplicando parches de compatibilidad de API 30 en anon_file.c..."
           TARGET_FILE="src/util/anon_file.c"
           if [ -f "$TARGET_FILE" ]; then
-            # Reemplazamos la llamada syscall por la funcion directa nativa de Android 11+
             sed -i 's/fd = syscall(SYS_memfd_create, debug_name, MFD_CLOEXEC | MFD_ALLOW_SEALING);/fd = memfd_create(debug_name, MFD_CLOEXEC | MFD_ALLOW_SEALING);/g' "$TARGET_FILE"
             echo "-> Parche aplicado con exito en $TARGET_FILE."
           else
@@ -49,7 +47,9 @@ jobs:
             pkg-config \
             gettext \
             patchelf \
-            unzip
+            unzip \
+            llvm \
+            clang
           python -m pip install --upgrade pip
           pip install mako PyYAML 'meson>=1.4.0' ninja packaging
 
@@ -111,6 +111,7 @@ jobs:
             -Dgles1=disabled \
             -Dgles2=disabled \
             -Dllvm=disabled \
+            -Ddraw-with-llvm=false \
             -Dvalgrind=disabled \
             -Dzstd=disabled \
             -Dvulkan-drivers=wrapper \
@@ -139,11 +140,11 @@ jobs:
             echo "-> Copiando y renombrando a libvulkan_wrapper.so..."
             cp -v "$TARGET_SO" pkg/usr/lib/libvulkan_wrapper.so
             patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
-            strip --strip-unneeded pkg/usr/lib/libvulkan_wrapper.so
+            
+            # 🟢 CORRECCIÓN CENTRAL: Usamos llvm-strip nativo de LLVM para limpiar el binario ARM64
+            llvm-strip --strip-unneeded pkg/usr/lib/libvulkan_wrapper.so
           else
             echo "🚨 ERROR CRITICO SEVERO: El compilador terminó pero no se encontró la librería .so esperada."
-            echo "=== Árbol de archivos resultantes para inspection ==="
-            find build/ -type f
             exit 1
           fi
 
@@ -152,7 +153,8 @@ jobs:
             find "$GITHUB_WORKSPACE/shims_target/" -maxdepth 1 -type f -name "*.so*" -exec cp -v {} pkg/usr/lib/ \;
             for lib in pkg/usr/lib/*.so*; do
               patchelf --set-soname $(basename "$lib") "$lib" 2>/dev/null || true
-              strip --strip-unneeded "$lib" 2>/dev/null || true
+              # 🟢 Se usa llvm-strip también para tus shims extras
+              llvm-strip --strip-unneeded "$lib" 2>/dev/null || true
             done
           fi
 
