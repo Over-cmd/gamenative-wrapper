@@ -116,10 +116,10 @@ jobs:
             -Dvulkan-drivers=wrapper \
             -Dgallium-drivers=[]
 
-      - name: Compile GameNative Engine
+      # COMPILACIÓN ORIGINAL DEL DOCKER NATIVO (Imagen precompilada)
+      - name: wrapper-compiler
         run: |
-          echo "-> Ejecutando compilación cruzada hacia ARM64 a través de Ninja..."
-          meson compile -C build
+          docker run --rm -v "${{ github.workspace }}:/workspace" ${{ env.IMAGE_TAG }} ${{ env.BUILD_DIR }}
 
       # 🟢 EMPAQUETADO ULTRA-LIMPIO: Única y estrictamente libvulkan_wrapper.so en usr/lib
       - name: Structure and Pack wrapper.tzst for Bannerlator
