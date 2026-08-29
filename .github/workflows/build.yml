@@ -13,13 +13,23 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        # Estructura desglosada reglamentaria para evitar errores de secuencia en GitHub
         build-type:
           - release
 
     steps:
       - name: Checkout Repository Source
         uses: actions/checkout@v4
+
+      - name: Patch anon_file.c for memfd_create
+        run: |
+          echo "-> Aplicando parches de compatibilidad de API 30 en anon_file.c..."
+          TARGET_FILE="src/util/anon_file.c"
+          if [ -f "$TARGET_FILE" ]; then
+            sed -i 's/fd = syscall(SYS_memfd_create, debug_name, MFD_CLOEXEC | MFD_ALLOW_SEALING);/fd = memfd_create(debug_name, MFD_CLOEXEC | MFD_ALLOW_SEALING);/g' "$TARGET_FILE"
+            echo "-> Parche aplicado con exito en $TARGET_FILE."
+          else
+            echo "ADVERTENCIA: No se encontro src/util/anon_file.c"
+          fi
 
       - name: Set up Python Environment
         uses: actions/setup-python@v5
@@ -37,7 +47,9 @@ jobs:
             pkg-config \
             gettext \
             patchelf \
-            unzip
+            unzip \
+            llvm \
+            clang
           python -m pip install --upgrade pip
           pip install mako PyYAML 'meson>=1.4.0' ninja packaging
 
@@ -71,7 +83,7 @@ jobs:
           echo "-> NDK Real Detectado y validado en: $TRUE_NDK"
           echo "REAL_NDK_HOME=$TRUE_NDK" >> $GITHUB_ENV
 
-      # FASE DE CONFIGURACIÓN DE TU WRAPPER: Añadido el candado de seguridad para apagar Lavapipe
+      # 🟢 CORRECCIÓN CENTRAL: Removida completamente la bandera -Ddraw-with-llvm de la linea de comandos
       - name: Configure GameNative Cross-Compilation (Meson)
         run: |
           export ANDROID_NDK_HOME="${{ env.REAL_NDK_HOME }}"
@@ -100,7 +112,6 @@ jobs:
             -Dgles1=disabled \
             -Dgles2=disabled \
             -Dllvm=disabled \
-            -Ddraw-with-llvm=false \
             -Dvalgrind=disabled \
             -Dzstd=disabled \
             -Dvulkan-drivers=wrapper \
@@ -129,32 +140,36 @@ jobs:
             echo "-> Copiando y renombrando a libvulkan_wrapper.so..."
             cp -v "$TARGET_SO" pkg/usr/lib/libvulkan_wrapper.so
             patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
-            strip --strip-unneeded pkg/usr/lib/libvulkan_wrapper.so
+            llvm-strip --strip-unneeded pkg/usr/lib/libvulkan_wrapper.so
           else
             echo "🚨 ERROR CRITICO SEVERO: El compilador terminó pero no se encontró la librería .so esperada."
-            echo "=== Árbol de archivos resultantes para inspección ==="
-            find build/ -type f
             exit 1
           fi
 
-          echo "-> Arrastrando tus librerias de panfrost extras extraidas de shims..."
+          echo "-> 🚀 ARRASTRANDO EXCLUSIVAMENTE LIBRERÍAS GRÁFICAS (EVITANDO CONFLICTOS DE ENTORNO)..."
           if [ -d "$GITHUB_WORKSPACE/shims_target" ]; then
-            find "$GITHUB_WORKSPACE/shims_target/" -maxdepth 1 -type f -name "*.so*" -exec cp -v {} pkg/usr/lib/ \;
+            find "$GITHUB_WORKSPACE/shims_target/" -maxdepth 1 -type f -name "*.so*" \
+              -not -name "*libzstd*" \
+              -not -name "*librt*" \
+              -not -name "*libc.*" \
+              -not -name "*libm.*" \
+              -exec cp -v {} pkg/usr/lib/ \;
+              
             for lib in pkg/usr/lib/*.so*; do
               patchelf --set-soname $(basename "$lib") "$lib" 2>/dev/null || true
-              strip --strip-unneeded "$lib" 2>/dev/null || true
+              llvm-strip --strip-unneeded "$lib" 2>/dev/null || true
             done
           fi
 
-          echo "-> Creando manifiestos ICD JSON oficiales..."
+          # Manifiestos ICD oficiales con tu corrección estricta format 1.0.0
+          echo "-> Creando manifiestos ICD JSON oficiales con formato compatible 1.0.0..."
           cat << 'EOF' > pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
           {
               "ICD": {
                   "api_version": "1.4.352",
-                  "library_arch": "64",
                   "library_path": "libvulkan_wrapper.so"
               },
-              "file_format_version": "1.0.1"
+              "file_format_version": "1.0.0"
           }
           EOF
 
@@ -162,16 +177,14 @@ jobs:
           {
               "ICD": {
                   "api_version": "1.4.352",
-                  "library_arch": "32",
                   "library_path": "libvulkan_wrapper.so"
               },
-              "file_format_version": "1.0.1"
+              "file_format_version": "1.0.0"
           }
           EOF
 
           echo '{"env":{"PAN_I_WANT_A_BROKEN_VULKAN_DRIVER":"1","MESA_VK_IGNORE_CONFORMANCE_WARNING":"1","PANVK_DEBUG":"sync","MESA_VK_FORCE_BLIT":"1","MESA_LOADER_DRIVER_OVERRIDE":"panfrost","GALLIUM_DRIVER":"panfrost"}}' > pkg/usr/share/vulkan/settings.d/wrapper_settings.json
 
-          # Corrección de la ubicación del validador de versión
           echo "msf:315508" > pkg/version.txt
           
           echo "-> Ajustando permisos y empaquetando..."
@@ -181,7 +194,7 @@ jobs:
           chmod 644 pkg/usr/share/vulkan/settings.d/*.json 
           chmod 644 pkg/version.txt
 
-          echo "=== Arbol de Estructura Final del TZST ==="
+          echo "=== Arbol de Estructura Purificada Final ==="
           ls -R pkg
           echo "=========================================="
           
