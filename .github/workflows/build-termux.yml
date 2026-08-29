@@ -20,7 +20,6 @@ jobs:
       - name: Checkout Repository Source
         uses: actions/checkout@v4
 
-      # 🟢 BLOQUE DE PARCHEO MAESTRO EN CALIENTE PARA MALI-G52 (UNISOC T618)
       - name: Inject Hardware Patches for Mali-G52 (Bifrost v3)
         run: |
           echo "-> Aplicando parches de compatibilidad de API 30 en anon_file.c..."
@@ -30,12 +29,10 @@ jobs:
           fi
 
           echo "-> HACK 1: Forzando bypass de arquitectura Bifrost v3 en el validador de Mesa..."
-          # Forzamos a que acepte el conteo de nucleos y las IDs de hardware de la Mali-G52 sin colapsar
           find . -name "pan_device.c" -exec sed -i 's/pan_query_core_count(&dev->kmod.dev->props, &dev->core_id_range);/dev->core_id_range = pan_query_core_count(\&dev->kmod.dev->props);/g' {} + 2>/dev/null || true
           find . -name "pan_device.c" -exec sed -i 's/\\&/\&/g' {} + 2>/dev/null || true
           
           echo "-> HACK 2: Inyectando bypass de conformidad para hardware experimental (Mali-G52 MP2)..."
-          # Forzamos un retorno 'true' en el codigo en los chequeos rigidos de extensiones de la GPU
           find src/panfrost/vulkan/ -name "*.c" -exec sed -i 's/if (!dev->kmod.props.bifrost_v3)/if (false)/g' {} + 2>/dev/null || true
           find src/panfrost/vulkan/ -name "*.c" -exec sed -i 's/if (dev->kmod.props.bifrost_version < 3)/if (false)/g' {} + 2>/dev/null || true
           
@@ -132,6 +129,7 @@ jobs:
           echo "-> Ejecutando compilación cruzada hacia ARM64 a través de Ninja..."
           meson compile -C build
 
+      # 🟢 PASO MAESTRO DE PIPETOCRYPTO: Estructuramos el contenedor con los enlaces de inyección ambiental obligatorios
       - name: Structure and Pack wrapper.tzst for Bannerlator
         run: |
           echo "-> Creando arbol de carpetas estricto para el emulador..."
@@ -177,7 +175,8 @@ jobs:
           }
           EOF
 
-          echo '{"env":{"PAN_I_WANT_A_BROKEN_VULKAN_DRIVER":"1","MESA_VK_IGNORE_CONFORMANCE_WARNING":"1","PANVK_DEBUG":"sync","MESA_VK_FORCE_BLIT":"1","MESA_LOADER_DRIVER_OVERRIDE":"panfrost","GALLIUM_DRIVER":"panfrost"}}' > pkg/usr/share/vulkan/settings.d/wrapper_settings.json
+          # 🟢 EL SECRETO DE PIPETO: Inyección total de variables de entorno para que el cargador amarre tu Mali-G52
+          echo '{"env":{"PAN_I_WANT_A_BROKEN_VULKAN_DRIVER":"1","MESA_VK_IGNORE_CONFORMANCE_WARNING":"1","PANVK_DEBUG":"sync","MESA_VK_FORCE_BLIT":"1","MESA_LOADER_DRIVER_OVERRIDE":"panfrost","GALLIUM_DRIVER":"panfrost","ZINK_DEBUG":"vulkan","MESA_VK_WSI_PRESENT_MODE":"mailbox","vblank_mode":"0"}}' > pkg/usr/share/vulkan/settings.d/wrapper_settings.json
 
           echo "msf:315508" > pkg/version.txt
           
