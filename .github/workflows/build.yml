@@ -39,13 +39,31 @@ jobs:
           python -m pip install --upgrade pip
           pip install mako PyYAML 'meson>=1.4.0' ninja packaging
 
+      # 🟢 EXTRAEDOR INTELIGENTE: Descomprime y unifica la ubicación de los archivos .pc
       - name: Unzip Local Android Environment Shims
         run: |
           echo "-> Descomprimiendo shims.zip en el area de trabajo..."
           if [ -f "shims.zip" ]; then
-            unzip -o shims.zip -d ./
-            echo "-> Verificando contenido de la carpeta extraida:"
-            ls -la shims/ || true
+            unzip -o shims.zip -d ./extract_temp
+            
+            echo "-> Buscando el manifiesto cutils.pc en los archivos extraídos..."
+            REAL_PC_DIR=$(find ./extract_temp -name "cutils.pc" -exec dirname {} \; | head -n 1)
+            
+            if [ -n "$REAL_PC_DIR" ]; then
+              echo "-> ¡Archivos de configuración localizados en: $REAL_PC_DIR!"
+              mkdir -p "$GITHUB_WORKSPACE/shims"
+              # Movemos todo el contenido plano directamente a nuestra carpeta unificada
+              cp -rf "$REAL_PC_DIR"/* "$GITHUB_WORKSPACE/shims/"
+              echo "-> Pool de dependencias reestructurado con éxito."
+            else
+              echo "🚨 ERROR CRÍTICO: No se encontró cutils.pc dentro de shims.zip"
+              echo "=== Contenido del zip extraído ==="
+              find ./extract_temp -maxdepth 3
+              exit 1
+            fi
+            
+            echo "=== Estructura unificada final de $GITHUB_WORKSPACE/shims ==="
+            ls -la "$GITHUB_WORKSPACE/shims" || true
           else
             echo "🚨 ERROR: Falta shims.zip en la raiz de tu repositorio!" && exit 1
           fi
@@ -72,9 +90,10 @@ jobs:
           export ANDROID_NDK_HOME="${{ env.REAL_NDK_HOME }}"
           export MESON_WORKING_DIR="$GITHUB_WORKSPACE"
           
-          # Forzamos las variables ambientales en caliente por si acaso
+          # Forzamos las variables ambientales en caliente apuntando al directorio plano unificado
           export PKG_CONFIG_PATH="$GITHUB_WORKSPACE/shims"
           export PKG_CONFIG_LIBDIR="$GITHUB_WORKSPACE/shims"
+          export PKG_CONFIG_SYSROOT_DIR=""
           
           echo "-> Traduciendo variables de entorno en android-64.toml..."
           if [ -f "android-64.toml" ]; then
@@ -122,8 +141,8 @@ jobs:
           fi
 
           echo "-> Arrastrando tus librerias de panfrost extras extraidas de shims..."
-          if [ -d "shims" ]; then
-            find shims/ -maxdepth 1 -type f -name "*.so*" -exec cp -v {} pkg/usr/lib/ \;
+          if [ -d "$GITHUB_WORKSPACE/shims" ]; then
+            find "$GITHUB_WORKSPACE/shims/" -maxdepth 1 -type f -name "*.so*" -exec cp -v {} pkg/usr/lib/ \;
             for lib in pkg/usr/lib/*.so*; do
               patchelf --set-soname $(basename "$lib") "$lib" 2>/dev/null || true
               strip --strip-unneeded "$lib" 2>/dev/null || true
