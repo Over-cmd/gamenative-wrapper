@@ -25,23 +25,24 @@ endian = 'little'
 [properties]
 sys_root = ndk_sysroot
 needs_exe_wrapper = true
-# 🟢 RUTA ABSOLUTA FIJA: Resuelve el error de "cutils not found" de forma definitiva
+# 🟢 INYECCIÓN ABSOLUTA INDESTRUCTIBLE: Obliga a Meson a indexar tus archivos .pc de Android
+pkg_config_path = '/home/runner/work/gamenative-wrapper/gamenative-wrapper/shims'
 pkg_config_libdir = '/home/runner/work/gamenative-wrapper/gamenative-wrapper/shims'
 
 [built-in options]
 c_args = ['--sysroot=' + ndk_sysroot, '-fno-emulated-tls',
-        '-I' + '/home/runner/work/gamenative-wrapper/gamenative-wrapper/shims/include', '-isystem' + ndk_sysroot / 'usr/include',
+        '-I/home/runner/work/gamenative-wrapper/gamenative-wrapper/shims/include', '-isystem' + ndk_sysroot / 'usr/include',
         '-DHAVE_STRUCT_TIMESPEC', '-DHAVE_DLFCN_H', '-UHAVE_SECURE_GETENV', '-UHAVE_QSORT_S',
         '-include', 'fcntl.h', '-include', 'time.h', '-Wl,-llog', '-Wl,-lsync', '-fvisibility=default']
 cpp_args = ['--sysroot=' + ndk_sysroot,
-            '-fno-emulated-tls', '-I' + '/home/runner/work/gamenative-wrapper/gamenative-wrapper/shims/include',
+            '-fno-emulated-tls', '-I/home/runner/work/gamenative-wrapper/gamenative-wrapper/shims/include',
             '-isystem' + ndk_sysroot / 'usr/include',
             '-DHAVE_STRUCT_TIMESPEC', '-DHAVE_DLFCN_H', '-UHAVE_SECURE_GETENV', '-UHAVE_QSORT_S',
             '-include', 'fcntl.h', '-include', 'time.h', '-include', 'dlfcn.h', '-Wl,-llog', '-Wl,-lsync', '-fvisibility=default',
             '-D_LIBCPP_ABI_NAMESPACE=__1']
 c_link_args = ['--sysroot=' + ndk_sysroot, '-Wl,--allow-shlib-undefined',
-                '-L' + '/home/runner/work/gamenative-wrapper/gamenative-wrapper/shims',
+                '-L/home/runner/work/gamenative-wrapper/gamenative-wrapper/shims',
                 '-llog', '-lsync']
 cpp_link_args = ['--sysroot=' + ndk_sysroot, '-Wl,--allow-shlib-undefined',
-                '-L' + '/home/runner/work/gamenative-wrapper/gamenative-wrapper/shims',
+                '-L/home/runner/work/gamenative-wrapper/gamenative-wrapper/shims',
                 '-llog', '-lsync']
