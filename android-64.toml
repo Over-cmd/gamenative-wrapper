@@ -1,20 +1,46 @@
 [constants]
-ndk_path = '/opt/android-ndk'
-toolchain = ndk_path + '/toolchains/llvm/prebuilt/linux-x86_64/bin'
-api = '24'
+ndk_home = '${ANDROID_NDK_HOME}'
+working_dir = '${MESON_WORKING_DIR}'
+ndk_bin = ndk_home / 'toolchains/llvm/prebuilt/linux-x86_64/bin'
+ndk_sysroot = ndk_home / 'toolchains/llvm/prebuilt/linux-x86_64/sysroot'
 
 [binaries]
-c       = toolchain + '/aarch64-linux-android' + api + '-clang'
-cpp     = toolchain + '/aarch64-linux-android' + api + '-clang++'
-ar      = toolchain + '/llvm-ar'
-strip   = toolchain + '/llvm-strip'
-pkgconfig = 'false'
-
-[properties]
-needs_exe_wrapper = true
+c = [ndk_bin / 'clang', '-target', 'aarch64-linux-android30', '-D__TERMUX__']
+cpp = [ndk_bin / 'clang++',
+        '-target', 'aarch64-linux-android30',
+        '-fno-exceptions',
+        '--start-no-unused-arguments',
+        '--end-no-unused-arguments',
+        '-D__TERMUX__']
+ar = ndk_bin / 'llvm-ar'
+strip = ndk_bin / 'llvm-strip'
+pkg-config = '/usr/bin/pkg-config'
 
 [host_machine]
 system = 'android'
 cpu_family = 'aarch64'
-cpu = 'arm64'
+cpu = 'aarch64'
 endian = 'little'
+
+[properties]
+sys_root = ndk_sysroot
+needs_exe_wrapper = true
+pkg_config_libdir = working_dir / 'shims'
+
+[built-in options]
+c_args = ['--sysroot=' + ndk_sysroot, '-fno-emulated-tls',
+        '-I' + working_dir / 'shims/include', '-isystem' + ndk_sysroot / 'usr/include',
+        '-DHAVE_STRUCT_TIMESPEC', '-DHAVE_DLFCN_H', '-UHAVE_SECURE_GETENV', '-UHAVE_QSORT_S',
+        '-include', 'fcntl.h', '-include', 'time.h', '-Wl,-llog', '-Wl,-lsync', '-fvisibility=default']
+cpp_args = ['--sysroot=' + ndk_sysroot,
+            '-fno-emulated-tls', '-I' + working_dir / 'shims/include',
+            '-isystem' + ndk_sysroot / 'usr/include',
+            '-DHAVE_STRUCT_TIMESPEC', '-DHAVE_DLFCN_H', '-UHAVE_SECURE_GETENV', '-UHAVE_QSORT_S',
+            '-include', 'fcntl.h', '-include', 'time.h', '-include', 'dlfcn.h', '-Wl,-llog', '-Wl,-lsync', '-fvisibility=default',
+            '-D_LIBCPP_ABI_NAMESPACE=__1']
+c_link_args = ['--sysroot=' + ndk_sysroot, '-Wl,--allow-shlib-undefined',
+                '-L' + working_dir / 'shims',
+                '-llog', '-lsync']
+cpp_link_args = ['--sysroot=' + ndk_sysroot, '-Wl,--allow-shlib-undefined',
+                '-L' + working_dir / 'shims',
+                '-llog', '-lsync']
