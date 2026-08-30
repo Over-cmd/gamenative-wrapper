@@ -50,7 +50,7 @@ jobs:
           done
           echo "REAL_NDK_HOME=$TRUE_NDK" >> $GITHUB_ENV
 
-      # 🟢 TRUCO DE FUERZA: Forzamos la descarga del Tarball puro de libdrm evitando que Git intente clonar subdominios rotos
+      # 🟢 CORRECCIÓN CENTRAL: Sincronizado el source_hash exacto exigido por el servidor
       - name: Create libdrm Tarball Wrap File
         run: |
           mkdir -p subprojects
@@ -59,7 +59,7 @@ jobs:
           directory = libdrm-2.4.120
           source_url = https://freedesktop.org
           source_filename = libdrm-2.4.120.tar.xz
-          source_hash = 3055ab947545b6dbf06886e11de455648834f8263158f382a93c72179979310d
+          source_hash = 5d5fc3bc011f2f6eeeff6e8da22e14fff781303b435956094c8057b7d6d2e7b8
           EOF
 
       - name: Configure Mesa 25 Cross-Compilation (Meson)
