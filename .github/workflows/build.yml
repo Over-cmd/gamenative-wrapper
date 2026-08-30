@@ -7,8 +7,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: 'recursive' # Forzamos la descarga nativa de submódulos locales si existen
 
       - name: Inject Hardware Patches for Mali-G52
         run: |
@@ -21,7 +19,7 @@ jobs:
 
       - name: Install Base Build Tools
         run: |
-          sudo apt-get update && sudo apt-get install -y build-essential libelf-dev bison flex pkg-config gettext patchelf unzip llvm clang
+          sudo apt-get update && sudo apt-get install -y build-essential libelf-dev bison flex pkg-config gettext patchelf unzip llvm clang curl wget
           python -m pip install --upgrade pip && pip install mako PyYAML 'meson>=1.4.0' ninja packaging
 
       - name: Unzip Local Android Shims
@@ -33,20 +31,19 @@ jobs:
             if [ -d "$path/toolchains/llvm/prebuilt/linux-x86_64/bin" ]; then echo "REAL_NDK_HOME=$path" >> $GITHUB_ENV; break; fi
           done
 
-      # 🟢 PASO MAESTRO SECO: Clonado interno directo y limpio sin usar comandos curl truncables
-      - name: Force Clone Internal Dependencies Native
+      - name: Inject Physical Offline Dependencies (libdrm & adrenotools)
         run: |
-          git config --global --remove-section url.https://github.com 2>/dev/null || true
-          rm -rf subprojects/libdrm subprojects/libadrenotools 2>/dev/null || true
-          mkdir -p subprojects
+          git config --global --remove-section url.https://github.com/ 2>/dev/null || true
+          mkdir -p subprojects/libdrm subprojects/libadrenotools
           
-          git clone --depth=1 https://github.comwaydroid/android_external_libdrm.git subprojects/libdrm
-          git clone --depth=1 https://github.comPipetto-crypto/libadrenotools.git subprojects/libadrenotools
+          # Inyección forzada en bruto sin comandos Git ni Tarballs corruptos en caché
+          curl -fSL "https://github.com" | tar -xzf - -C subprojects/libdrm --strip-components=1
+          curl -fSL "https://github.com" | tar -xzf - -C subprojects/libadrenotools --strip-components=1
           
+          # Destruimos la comprobación de la libandroid de Pipetto-Crypto (Evita el bloqueo de la línea 12)
           sed -i "s/cc.find_library/dependency('', required: false) #/g" subprojects/libadrenotools/meson.build 2>/dev/null || true
-          rm -f subprojects/*.wrap *.wrap 2>/dev/null || true
+          rm -rf subprojects/*.wrap *.wrap 2>/dev/null || true
 
-       Eagle setup build
       - name: Configure GameNative Cross-Compilation (Meson)
         run: |
           export ANDROID_NDK_HOME="${{ env.REAL_NDK_HOME }}"
@@ -59,6 +56,8 @@ jobs:
           sed -i "s|pkg_config_libdir = .*|pkg_config_libdir = '$PKG_CONFIG_PATH'|g" cross.txt
           sed -i "s|pkg_config_path = .*|pkg_config_path = '$PKG_CONFIG_PATH'|g" cross.txt
           sed -i "s|libdrm_path = .*|libdrm_path = '$GITHUB_WORKSPACE/subprojects/libdrm'|g" cross.txt
+          
+          # Amarrado de linkers forzados en el Sysroot real del NDK para resolver símbolos como sync_wait
           sed -i "s|c_link_args = \[|c_link_args = ['-landroid', '-lsync', '-lhardware', '-L${{ env.REAL_NDK_HOME }}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/30', '-L$PKG_CONFIG_PATH', |g" cross.txt
           sed -i "s|cpp_link_args = \[|cpp_link_args = ['-landroid', '-lsync', '-lhardware', '-L${{ env.REAL_NDK_HOME }}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/30', '-L$PKG_CONFIG_PATH', |g" cross.txt
           
@@ -67,11 +66,13 @@ jobs:
       - name: Compile GameNative Engine
         run: meson compile -C build
 
+      # Empaquetado oficial limpio con el formato ICD 1.0.0
       - name: Structure and Pack wrapper.tzst for Bannerlator
         run: |
           rm -rf pkg && mkdir -p pkg/usr/lib pkg/usr/share/vulkan/icd.d pkg/usr/share/vulkan/settings.d
           cp -v build/src/vulkan/wrapper/libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so 2>/dev/null || true
           cp -v build/src/panfrost/vulkan/libvulkan_panfrost.so pkg/usr/lib/libvulkan_panfrost.so 2>/dev/null || true
+          
           patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so 2>/dev/null || true
           llvm-strip --strip-unneeded pkg/usr/lib/*.so 2>/dev/null || true
           
