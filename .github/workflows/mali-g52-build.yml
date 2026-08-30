@@ -31,7 +31,7 @@ jobs:
           echo "-> Inicializando submodulos de libadrenotools de forma recursiva..."
           git submodule update --init --recursive
 
-      # 🟢 PASO QUIRÚRGICO AMPLIADO: Trituramos también la llamada de 'dl' en linkernsbypass de forma directa
+      # 🟢 PASO QUIRÚRGICO DE REEMPLAZO ULTRA-PRECISO: Comentamos los validadores rígidos sin destruir las variables internas
       - name: Inject Hardware Patches for Mali-G52
         run: |
           echo "-> Aplicando parches de hardware en los archivos de utilidades..."
@@ -39,21 +39,11 @@ jobs:
           find main-repo/ -name "pan_device.c" -exec sed -i 's/pan_query_core_count(&dev->kmod.dev->props, &dev->core_id_range);/dev->core_id_range = pan_query_core_count(\&dev->kmod.dev->props);/g' {} + 2>/dev/null || true
           find main-repo/ -name "pan_device.c" -exec sed -i 's/\\&/\&/g' {} + 2>/dev/null || true
           
-          echo "-> Triturando validaciones rigidas de libandroid, liblog y libdl en los subproyectos..."
-          if [ -d "main-repo/subprojects/libadrenotools" ]; then
-            # Parcheamos las dependencias principales del script de Pipetto
-            sed -i "s|.*find_library.*android.*|  dep_android = dependency('', required : false)|g" main-repo/subprojects/libadrenotools/meson.build
-            sed -i "s|.*find_library.*log.*|  dep_log = dependency('', required : false)|g" main-repo/subprojects/libadrenotools/meson.build
-            
-            # 🟢 CLAVE MAESTRA RECURSIVA: Escaneamos las subcarpetas internas clonadas y trituramos cualquier find_library('dl')
-            find main-repo/subprojects/libadrenotools/ -name "meson.build" -exec sed -i "s/.*find_library.*dl.*/  dep_dl = dependency('', required : false)/g" {} + 2>/dev/null || true
-            find main-repo/subprojects/libadrenotools/ -name "meson.build" -exec sed -i "s/cc.find_library('dl'/dependency('', required : false) #/g" {} + 2>/dev/null || true
-            
-            echo "=== Verificando parche aplicado en linkernsbypass ==="
-            if [ -f "main-repo/subprojects/libadrenotools/lib/linkernsbypass/meson.build" ]; then
-              cat main-repo/subprojects/libadrenotools/lib/linkernsbypass/meson.build
-            fi
-          fi
+          echo "-> 🟢 PARCHE QUIRÚRGICO: Neutralizando búsquedas rígidas sin borrar declaraciones de variables..."
+          # Buscamos de forma exacta la llamada find_library('android') y find_library('log') y les inyectamos el bypass sin romper la variable
+          find main-repo/subprojects/ -name "meson.build" -exec sed -i "s/cc.find_library('android'/dependency('', required : false) #/g" {} + 2>/dev/null || true
+          find main-repo/subprojects/ -name "meson.build" -exec sed -i "s/cc.find_library('log'/dependency('', required : false) #/g" {} + 2>/dev/null || true
+          find main-repo/subprojects/ -name "meson.build" -exec sed -i "s/cc.find_library('dl'/dependency('', required : false) #/g" {} + 2>/dev/null || true
           
           echo "-> Purgando validaciones rigidas de librerias obsoletas en meson.build central..."
           sed -i "s/cc.find_library('atomic'/dependency('', required : false) #/g" main-repo/meson.build 2>/dev/null || true
@@ -117,7 +107,7 @@ jobs:
 
           [built-in options]
           c_args = ['--sysroot=' + ndk_sysroot, '-fno-emulated-tls', '-I' + shims_path / 'include', '-isystem' + ndk_sysroot / 'usr/include', '-DHAVE_STRUCT_TIMESPEC', '-DHAVE_DLFCN_H', '-UHAVE_SECURE_GETENV', '-UHAVE_QSORT_S', '-include', 'fcntl.h', '-include', 'time.h', '-Wl,-llog', '-Wl,-lsync', '-fvisibility=default']
-          cpp_args = ['--sysroot=' + ndk_sysroot, '-fno-emulated-tls', '-I' + shims_path / 'include', '-isystem' + ndk_sysroot / 'usr/include', '-DHAVE_STRUCT_TIMESPEC', '-DHAVE_DLFCN_H', '-UHAVE_SECURE_GETENV', '-UHAVE_QSORT_S', '-include', 'fcntl.h', '-include', 'time.h', '-include', 'dlfcn.h', '-Wl,-llog', '-Wl,-lsync', '-fvisibility=default', '-D_LIBCPP_ABI_NAMESPACE=__1']
+          cpp_args = ['--sysroot=' + ndk_sysroot, '-fno-emulated-tls', '-I' + shims_path / 'include', '-isystem' + ndk_sysroot / 'usr/include', '-DHAVE_STRUCT_TIMESPEC', '-DHAVE_DLFCN_H', '-UHAVE_SECURE_GETENV', '-UHAVE_QSORT_S', '-include', 'fcntl.h', '-include', 'time.h', '-include', dlfcn.h, '-Wl,-llog', '-Wl,-lsync', '-fvisibility=default', '-D_LIBCPP_ABI_NAMESPACE=__1']
           c_link_args = ['-landroid', '-llog', '-lsync', '-lhardware', '-L' + ndk_sysroot_lib, '-L' + shims_path, '--sysroot=' + ndk_sysroot, '-Wl,--allow-shlib-undefined', '-llog', '-lsync']
           cpp_link_args = ['-landroid', '-llog', '-lsync', '-lhardware', '-L' + ndk_sysroot_lib, '-L' + shims_path, '--sysroot=' + ndk_sysroot, '-Wl,--allow-shlib-undefined', '-llog', '-lsync']
           EOF
