@@ -90,15 +90,14 @@ jobs:
           BLIND_REPO="libadrenotools"
           BLIND_PATH="archive/refs/heads/master.tar.gz"
           
-          echo "-> Descargando tarball oficial de Pipetto-crypto libadrenotools..."
           curl -fSL "https://${BLIND_HOST}/${BLIND_USER}/${BLIND_REPO}/${BLIND_PATH}" -o adrenotools-pipetto.tar.gz
           tar -xzf adrenotools-pipetto.tar.gz -C subprojects/libadrenotools --strip-components=1
           
-          echo "-> 🟢 HACK 7: Destruyendo el bloqueo de find_library('android') en meson.build de libadrenotools..."
-          # Reemplazamos la llamada rigida del subproyecto por una dependencia vacia funcional para evitar el error de la linea 12
+          echo "-> 🟢 HACK 7 CORREGIDO: Forzando el triturado de find_library('android') con escape de comillas simples..."
           if [ -f "subprojects/libadrenotools/meson.build" ]; then
-            sed -i "s/cc.find_library('android'/dependency('', required : false) #/g" subprojects/libadrenotools/meson.build
-            echo "-> Parche de libandroid aplicado con éxito en el subproyecto."
+            # El escape con '\'' obliga a Bash a pasar las comillas simples reales de Clang a la utilidad sed
+            sed -i 's/cc.find_library('\''android'\''/dependency('\''\'\'', required : false) #/g' subprojects/libadrenotools/meson.build
+            echo "-> Parche de libandroid inyectado físicamente de forma exitosa."
           fi
           
           echo "-> Destruyendo archivos wrap residuales para obligar a Meson a trabajar offline..."
