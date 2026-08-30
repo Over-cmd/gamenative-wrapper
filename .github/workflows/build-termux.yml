@@ -50,23 +50,23 @@ jobs:
           done
           echo "REAL_NDK_HOME=$TRUE_NDK" >> $GITHUB_ENV
 
-      # 🟢 SOLUCIÓN SUPREMA DE DESCONEXIÓN: Descarga y extrae el tarball de Waydroid sin usar comandos git corruptos
-      - name: Inject Physical libdrm Source via Tarball
+      # 🟢 EXTRAEDOR UNZIP SINCRO: Extrae el paquete zip real entregado por la API de GitHub
+      - name: Inject Physical libdrm Source via Zip Extract
         run: |
           mkdir -p subprojects
-          echo "-> Descargando tarball oficial de Waydroid libdrm desde la API de infraestructura..."
-          curl -fSL "https://github.com" -o waydroid-libdrm.tar.gz
+          echo "-> Descargando el archivo fuente real de Waydroid libdrm..."
+          curl -fSL "https://github.com" -o waydroid-libdrm.zip
           
-          echo "-> Extrayendo estructura local en subproyectos..."
-          tar -xzf waydroid-libdrm.tar.gz -C subprojects/
+          echo "-> Descomprimiendo el paquete en la carpeta local de subproyectos..."
+          unzip -q waydroid-libdrm.zip -d subprojects/
           
-          # La API de GitHub extrae con un prefijo variable (ej: waydroid-android_external_libdrm-abc123)
-          # Buscamos esa carpeta suelta y la renombramos estrictamente a 'libdrm'
+          # La API de GitHub extrae con un nombre de directorio aleatorio largo (ej: waydroid-android_external_libdrm-4a5b6c)
+          # Buscamos esa carpeta en subprojects/ y la renombramos estrictamente a 'libdrm'
           EXTRACTED_DIR=$(find subprojects/ -maxdepth 1 -type d -name "*waydroid*" | head -n 1)
           mv "$EXTRACTED_DIR" subprojects/libdrm
-          echo "-> Codigo de libdrm inyectado fisicamente en subprojects/libdrm"
+          echo "-> ¡Codigo fuente de libdrm inyectado físicamente de forma local en subprojects/libdrm!"
           
-          echo "-> Destruyendo archivos wrap para eludir cualquier ping fantasma..."
+          echo "-> Eliminando archivos wrap residuales para obligar a Meson a trabajar 100% offline..."
           rm -rf subprojects/*.wrap 2>/dev/null || true
           rm -rf *.wrap 2>/dev/null || true
 
