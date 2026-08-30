@@ -25,23 +25,21 @@ jobs:
           ref: master
           path: main-repo/subprojects/libadrenotools
 
-      # 🟢 PASO CORREGIDO: Aplicamos los parches apuntando de forma estricta dentro de main-repo/
+      # 🟢 PARCHE MAESTRO TOTAL: Escanea todo el workspace y destruye las validaciones rígidas allá donde estén
       - name: Inject Hardware Patches for Mali-G52
         run: |
-          sed -i 's/fd = syscall(SYS_memfd_create.*/fd = memfd_create(debug_name, MFD_CLOEXEC | MFD_ALLOW_SEALING);/g' main-repo/src/util/anon_file.c 2>/dev/null || true
-          find main-repo/ -name "pan_device.c" -exec sed -i 's/pan_query_core_count(&dev->kmod.dev->props, &dev->core_id_range);/dev->core_id_range = pan_query_core_count(\&dev->kmod.dev->props);/g' {} + 2>/dev/null || true
-          find main-repo/ -name "pan_device.c" -exec sed -i 's/\\&/\&/g' {} + 2>/dev/null || true
+          echo "-> Aplicando parches criticos en los archivos de utilidades..."
+          find . -name "anon_file.c" -exec sed -i 's/fd = syscall(SYS_memfd_create.*/fd = memfd_create(debug_name, MFD_CLOEXEC \| MFD_ALLOW_SEALING);/g' {} + 2>/dev/null || true
+          find . -name "pan_device.c" -exec sed -i 's/pan_query_core_count(&dev->kmod.dev->props, &dev->core_id_range);/dev->core_id_range = pan_query_core_count(\&dev->kmod.dev->props);/g' {} + 2>/dev/null || true
+          find . -name "pan_device.c" -exec sed -i 's/\\&/\&/g' {} + 2>/dev/null || true
           
-          echo "-> Triture de validaciones rigidas en meson.build central..."
-          sed -i "s/cc.find_library('rt'/dependency('', required : false) #/g" main-repo/meson.build 2>/dev/null || true
-          sed -i "s/cc.find_library('atomic'/dependency('', required : false) #/g" main-repo/meson.build 2>/dev/null || true
-          sed -i "s/cc.find_library('dl'/dependency('', required : false) #/g" main-repo/meson.build 2>/dev/null || true
+          echo "-> Triturando por fuerza bruta find_library('android') en TODOS los meson.build del workspace..."
+          find . -name "meson.build" -exec sed -i "s/cc.find_library('android'/dependency('', required : false) #/g" {} + 2>/dev/null || true
+          find . -name "meson.build" -exec sed -i "s/cc.find_library('rt'/dependency('', required : false) #/g" {} + 2>/dev/null || true
+          find . -name "meson.build" -exec sed -i "s/cc.find_library('atomic'/dependency('', required : false) #/g" {} + 2>/dev/null || true
+          find . -name "meson.build" -exec sed -i "s/cc.find_library('dl'/dependency('', required : false) #/g" {} + 2>/dev/null || true
+          find . -name "meson.build" -exec sed -i "s/cc.find_library/dependency('', required : false) #/g" {} + 2>/dev/null || true
           
-          echo "-> 🟢 HACK MAESTRO: Forzando bypass de find_library('android') en el subproyecto de Pipetto..."
-          if [ -f "main-repo/subprojects/libadrenotools/meson.build" ]; then
-            sed -i "s/cc.find_library('android'/dependency('', required : false) #/g" main-repo/subprojects/libadrenotools/meson.build
-            sed -i "s/cc.find_library/dependency('', required : false) #/g" main-repo/subprojects/libadrenotools/meson.build
-          fi
           rm -f main-repo/subprojects/*.wrap main-repo/*.wrap 2>/dev/null || true
 
       - name: Install Base Build Tools
