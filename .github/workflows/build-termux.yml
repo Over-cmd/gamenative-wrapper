@@ -50,7 +50,7 @@ jobs:
           done
           echo "REAL_NDK_HOME=$TRUE_NDK" >> $GITHUB_ENV
 
-      # 🟢 PASO MAESTRO ANTI-CORTAFUEGOS: Descarga y extrae libdrm de forma manual saltándonos el gestor de Meson
+      # Descarga y extrae libdrm de forma manual saltándonos el gestor de internet roto de Meson
       - name: Pre-Download and Unpack libdrm Source
         run: |
           mkdir -p subprojects
@@ -59,8 +59,6 @@ jobs:
           
           echo "-> Extrayendo codigo en la carpeta local de subproyectos..."
           tar -xzf drm-libdrm-2.4.120.tar.gz -C subprojects/
-          
-          # Renombramos la carpeta extraída para que coincida exactamente con lo que busca meson.build
           mv subprojects/drm-libdrm-2.4.120 subprojects/libdrm
           echo "-> Codigo de libdrm inyectado físicamente con éxito en subprojects/libdrm"
 
@@ -72,7 +70,7 @@ jobs:
           directory = libdrm
           EOF
 
-      # Configuración limpia: Meson detectará la carpeta física local y no usará la red
+      # Configuración limpia sin descargas de red externas
       - name: Configure Mesa 25 Cross-Compilation (Meson)
         run: |
           export ANDROID_NDK_HOME="${{ env.REAL_NDK_HOME }}"
@@ -123,8 +121,9 @@ jobs:
           chmod -R 755 pkg/ && chmod 644 pkg/usr/lib/*.so* 2>/dev/null || true
           cd pkg && tar -I 'zstd -19 -T0' -cf ../wrapper.tzst usr/ version.txt
           
+      # 🟢 CORRECCIÓN CENTRAL: Cambiado a la accion oficial de subida de artefactos de GitHub
       - name: Upload Final wrapper.tzst for Bannerlator
-        uses: actions/with-artifact@v4
+        uses: actions/upload-artifact@v4
         with:
           name: Pipetto-Mesa25-Mali-Wrapper
           path: wrapper.tzst
