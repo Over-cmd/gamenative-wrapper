@@ -1,4 +1,4 @@
-# COMPILACIÓN INDESTRUCTIBLE GAME NATIVE WRAPPER - MALI-G52 VULKAN
+# COMPILACIÓN INDESTRUCTIBLE GAME NATIVE WRAPPER - MALI-G52 VULKAN PUNTO FINAL
 name: GameNative Vulkan Wrapper Build
 
 on:
@@ -35,7 +35,7 @@ jobs:
 
       - name: Install Base Build Tools
         run: |
-          sudo apt-get update && sudo apt-get install -y build-essential libelf-dev bison flex pkg-config gettext patchelf unzip llvm clang curl
+          sudo apt-get update && sudo apt-get install -y build-essential libelf-dev bison flex pkg-config gettext patchelf unzip llvm clang curl wget
           python -m pip install --upgrade pip
           pip install mako PyYAML 'meson>=1.4.0' ninja packaging
 
@@ -59,25 +59,44 @@ jobs:
           done
           echo "REAL_NDK_HOME=$TRUE_NDK" >> $GITHUB_ENV
 
-      # 🟢 INYECCIÓN MAESTRA DE LIBADRENOTOOLS VIA CDN: Satisface la línea 69 del subproyecto de forma local
-      - name: Pre-Download and Inject Physical libadrenotools Source
+      # 🟢 EXTRAEDOR DE CAJA 1: Descarga fisica directa de Waydroid via Tarball de confianza (Sin Git ni Zips corruptos)
+      - name: Inject Physical libdrm Source via Plain Tarball (No Git)
         run: |
+          echo "-> Purgando configuraciones corruptas globales del entorno..."
+          git config --global --remove-section url.https://github.com 2>/dev/null || true
+          git config --global --unset-all url.https://github.com.insteadof 2>/dev/null || true
+          
+          rm -rf subprojects/libdrm 2>/dev/null || true
           mkdir -p subprojects
-          echo "-> Descargando tarball plano de libadrenotools desde el CDN prioritario de GitHub..."
-          curl -fSL "https://github.com" -o adrenotools.zip
           
-          echo "-> Descomprimiendo en el arbol local de subproyectos..."
-          unzip -q adrenotools.zip -d subprojects/
+          echo "-> Descargando el archivo fuente real de Waydroid libdrm via Tarball API..."
+          curl -fSL "https://github.com" -o waydroid-libdrm.tar.gz
           
-          EXTRACTED_DIR=$(find subprojects/ -maxdepth 1 -type d -name "*libadrenotools*" | head -n 1)
-          mv "$EXTRACTED_DIR" subprojects/libadrenotools
-          echo "-> ¡Codigo fuente inyectado con exito de forma fisica local!"
+          echo "-> Extrayendo estructura de forma estática..."
+          tar -xzf waydroid-libdrm.tar.gz -C subprojects/
           
-          echo "-> Removiendo archivos wrap residuales para obligar a Meson a trabajar 100% offline..."
+          EXTRACTED_DIR=$(find subprojects/ -maxdepth 1 -type d -name "*waydroid-android_external_libdrm*" | head -n 1)
+          mv "$EXTRACTED_DIR" subprojects/libdrm
+          echo "-> Codigo fuente de libdrm inyectado localmente con éxito."
+
+      # 🟢 EXTRAEDOR DE CAJA 2: Descarga física de libadrenotools usando Tarball plano para reventar el error de central-directory
+      - name: Inject Physical libadrenotools Source via Tarball
+        run: |
+          rm -rf subprojects/libadrenotools 2>/dev/null || true
+          echo "-> Descargando tarball nativo de libadrenotools desde la API..."
+          curl -fSL "https://github.com" -o adrenotools.tar.gz
+          
+          echo "-> Extrayendo estructura local con tar..."
+          tar -xzf adrenotools.tar.gz -C subprojects/
+          
+          EXTRACTED_DIR_ADRENO=$(find subprojects/ -maxdepth 1 -type d -name "*bylaws-libadrenotools*" | head -n 1)
+          mv "$EXTRACTED_DIR_ADRENO" subprojects/libadrenotools
+          echo "-> Codigo fuente de libadrenotools inyectado localmente de forma estática."
+          
+          echo "-> Destruyendo archivos wrap residuales para obligar a Meson a trabajar offline..."
           rm -rf subprojects/*.wrap 2>/dev/null || true
           rm -rf *.wrap 2>/dev/null || true
 
-      # Configuración limpia offline del Wrapper
       - name: Configure GameNative Cross-Compilation (Meson)
         run: |
           export ANDROID_NDK_HOME="${{ env.REAL_NDK_HOME }}"
@@ -87,37 +106,48 @@ jobs:
           export PKG_CONFIG_LIBDIR="$GITHUB_WORKSPACE/shims_target"
           export PKG_CONFIG_SYSROOT_DIR=""
           
-          echo "-> Traduciendo variables de entorno en la plantilla de configuracion cruzada..."
           if [ -f "android-64.toml" ]; then envsubst < android-64.toml > android-cross-compiled.txt
           else envsubst < android.toml > android-cross-compiled.txt; fi
           
           sed -i "s|pkg_config_libdir = .*|pkg_config_libdir = '$GITHUB_WORKSPACE/shims_target'|g" android-cross-compiled.txt 2>/dev/null || true
           sed -i "s|pkg_config_path = .*|pkg_config_path = '$GITHUB_WORKSPACE/shims_target'|g" android-cross-compiled.txt 2>/dev/null || true
+          sed -i "s|libdrm_path = .*|libdrm_path = '$GITHUB_WORKSPACE/subprojects/libdrm'|g" android-cross-compiled.txt 2>/dev/null || true
           
-          echo "-> Inicializando Setup de Meson para GameNative con -Dvulkan-drivers=wrapper..."
+          # Inyección forzada de linkers para amarrar la sincronizacion de logs de Pipetto-Crypto (sync_wait)
+          sed -i "s|c_link_args = \[|c_link_args = ['-lsync', '-lhardware', '-L$GITHUB_WORKSPACE/shims_target', |g" android-cross-compiled.txt 2>/dev/null || true
+          sed -i "s|cpp_link_args = \[|cpp_link_args = ['-lsync', '-lhardware', '-L$GITHUB_WORKSPACE/shims_target', |g" android-cross-compiled.txt 2>/dev/null || true
+          
+          echo "-> Inicializando Setup de Meson unificando Panfrost + Wrapper..."
           meson setup build --reconfigure \
             --cross-file android-cross-compiled.txt \
             --wrap-mode=nodownload \
             -Dbuildtype=${{ matrix.build-type }} \
-            -Dplatforms= \
+            -Dplatforms=android \
+            -Dandroid-stub=true \
+            -Dandroid-libbacktrace=disabled \
+            -Dplatform-sdk-version=30 \
             -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dopengl=false -Dgles1=disabled -Dgles2=disabled -Dllvm=disabled -Dvalgrind=disabled -Dzstd=disabled \
-            -Dvulkan-drivers=wrapper -Dgallium-drivers=[]
+            -Dvulkan-drivers=panfrost,wrapper -Dgallium-drivers=[]
 
       - name: Compile GameNative Engine
         run: meson compile -C build
 
-      # EMPAQUETADO OFICIAL Y DIRECTO EN EL CONTENEDOR (ICD 1.0.0 COMPATIBLE)
+      # EMPAQUETADO OFICIAL COMPATIBLE (ICD 1.0.0)
       - name: Structure and Pack wrapper.tzst for Bannerlator
         run: |
           rm -rf pkg && mkdir -p pkg/usr/lib pkg/usr/share/vulkan/icd.d pkg/usr/share/vulkan/settings.d
           
-          echo "-> Localizando el binario principal generado..."
-          TARGET_SO=$(find build/ -not -path "build/subprojects/*" -not -path "build/meson-private/*" -type f -name "*.so" | grep -E "libvulkan|wrapper|gamenative" | head -n 1)
-          if [ -z "$TARGET_SO" ] || [ ! -f "$TARGET_SO" ]; then TARGET_SO=$(find build/src/ -not -path "build/subprojects/*" -type f -name "*.so" | head -n 1); fi
+          cp -v build/src/vulkan/wrapper/libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so 2>/dev/null || true
+          cp -v build/src/panfrost/vulkan/libvulkan_panfrost.so pkg/usr/lib/libvulkan_panfrost.so 2>/dev/null || true
           
-          cp -v "$TARGET_SO" pkg/usr/lib/libvulkan_wrapper.so
+          if [ ! -f "pkg/usr/lib/libvulkan_wrapper.so" ]; then
+            TARGET_WRAP=$(find build/ -name "libvulkan_wrapper.so" | head -n 1)
+            cp -v "$TARGET_WRAP" pkg/usr/lib/libvulkan_wrapper.so
+          fi
+          
           patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so 2>/dev/null || true
-          llvm-strip --strip-unneeded pkg/usr/lib/libvulkan_wrapper.so
+          llvm-strip --strip-unneeded pkg/usr/lib/libvulkan_wrapper.so 2>/dev/null || true
+          llvm-strip --strip-unneeded pkg/usr/lib/libvulkan_panfrost.so 2>/dev/null || true
           
           cat << 'EOF' > pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
           {"ICD": {"api_version": "1.4.352", "library_path": "libvulkan_wrapper.so"}, "file_format_version": "1.0.0"}
@@ -129,7 +159,7 @@ jobs:
           echo '{"env":{"PAN_I_WANT_A_BROKEN_VULKAN_DRIVER":"1","MESA_VK_IGNORE_CONFORMANCE_WARNING":"1","PANVK_DEBUG":"sync,nir","MESA_VK_FORCE_BLIT":"1","MESA_LOADER_DRIVER_OVERRIDE":"panfrost","GALLIUM_DRIVER":"panfrost","vblank_mode":"0","MESA_GLSL_CACHE_DISABLE":"1","MESA_SHADER_CACHE_DISABLE":"true","NIR_DEBUG":"tgsi","MESA_VK_WSI_PRESENT_MODE":"immediate","MESA_VK_WSI_DEBUG":"always_async"}}' > pkg/usr/share/vulkan/settings.d/wrapper_settings.json
           echo "msf:315508" > pkg/version.txt
           
-          chmod -R 755 pkg/ && chmod 755 pkg/usr/lib/libvulkan_wrapper.so
+          chmod -R 755 pkg/ && chmod 755 pkg/usr/lib/*.so
           cd pkg && tar -I 'zstd -19 -T0' -cf ../wrapper.tzst usr/ version.txt
           
       - name: Upload Final wrapper.tzst for Bannerlator
