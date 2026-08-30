@@ -31,18 +31,30 @@ jobs:
             if [ -d "$path/toolchains/llvm/prebuilt/linux-x86_64/bin" ]; then echo "REAL_NDK_HOME=$path" >> $GITHUB_ENV; break; fi
           done
 
+      # 🟢 SOLUCIÓN SUPREMA INDESTRUCTIBLE: Descarga aislada mediante wget + descompresión controlada con unzip (Evita la señal 13 de tar)
       - name: Inject Physical Offline Dependencies (libdrm & adrenotools)
         run: |
           git config --global --remove-section url.https://github.com/ 2>/dev/null || true
-          mkdir -p subprojects/libdrm subprojects/libadrenotools
+          rm -rf subprojects/libdrm subprojects/libadrenotools 2>/dev/null || true
+          mkdir -p subprojects
           
-          # Inyección forzada en bruto sin comandos Git ni Tarballs corruptos en caché
-          curl -fSL "https://github.com" | tar -xzf - -C subprojects/libdrm --strip-components=1
-          curl -fSL "https://github.com" | tar -xzf - -C subprojects/libadrenotools --strip-components=1
+          echo "-> Descargando fuentes estables de dependencias de forma aislada..."
+          wget -qO libdrm-source.zip "https://github.com"
+          wget -qO adrenotools-source.zip "https://github.com"
           
-          # Destruimos la comprobación de la libandroid de Pipetto-Crypto (Evita el bloqueo de la línea 12)
+          echo "-> Desplegando libdrm localmente en subproyectos..."
+          unzip -q libdrm-source.zip -d subprojects/
+          EXTRACTED_DRM=$(find subprojects/ -maxdepth 1 -type d -name "*android_external_libdrm*" | head -n 1)
+          mv "$EXTRACTED_DIR_DRM" "$EXTRACTED_DRM" subprojects/libdrm 2>/dev/null || mv "$EXTRACTED_DRM" subprojects/libdrm
+          
+          echo "-> Desplegando libadrenotools localmente en subproyectos..."
+          unzip -q adrenotools-source.zip -d subprojects/
+          EXTRACTED_ADRENO=$(find subprojects/ -maxdepth 1 -type d -name "*libadrenotools*" | head -n 1)
+          mv "$EXTRACTED_ADRENO" subprojects/libadrenotools
+          
+          echo "-> Rompiendo el validador estricto de libandroid en el subproyecto de Pipetto..."
           sed -i "s/cc.find_library/dependency('', required: false) #/g" subprojects/libadrenotools/meson.build 2>/dev/null || true
-          rm -rf subprojects/*.wrap *.wrap 2>/dev/null || true
+          rm -f subprojects/*.wrap *.wrap 2>/dev/null || true
 
       - name: Configure GameNative Cross-Compilation (Meson)
         run: |
@@ -57,7 +69,7 @@ jobs:
           sed -i "s|pkg_config_path = .*|pkg_config_path = '$PKG_CONFIG_PATH'|g" cross.txt
           sed -i "s|libdrm_path = .*|libdrm_path = '$GITHUB_WORKSPACE/subprojects/libdrm'|g" cross.txt
           
-          # Amarrado de linkers forzados en el Sysroot real del NDK para resolver símbolos como sync_wait
+          # Amarrado de linkers forzados en el Sysroot real del NDK para resolver los símbolos de enlazado de Pipetto
           sed -i "s|c_link_args = \[|c_link_args = ['-landroid', '-lsync', '-lhardware', '-L${{ env.REAL_NDK_HOME }}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/30', '-L$PKG_CONFIG_PATH', |g" cross.txt
           sed -i "s|cpp_link_args = \[|cpp_link_args = ['-landroid', '-lsync', '-lhardware', '-L${{ env.REAL_NDK_HOME }}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/30', '-L$PKG_CONFIG_PATH', |g" cross.txt
           
@@ -66,13 +78,11 @@ jobs:
       - name: Compile GameNative Engine
         run: meson compile -C build
 
-      # Empaquetado oficial limpio con el formato ICD 1.0.0
       - name: Structure and Pack wrapper.tzst for Bannerlator
         run: |
           rm -rf pkg && mkdir -p pkg/usr/lib pkg/usr/share/vulkan/icd.d pkg/usr/share/vulkan/settings.d
           cp -v build/src/vulkan/wrapper/libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so 2>/dev/null || true
           cp -v build/src/panfrost/vulkan/libvulkan_panfrost.so pkg/usr/lib/libvulkan_panfrost.so 2>/dev/null || true
-          
           patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so 2>/dev/null || true
           llvm-strip --strip-unneeded pkg/usr/lib/*.so 2>/dev/null || true
           
