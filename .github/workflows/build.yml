@@ -50,16 +50,16 @@ jobs:
           done
           echo "REAL_NDK_HOME=$TRUE_NDK" >> $GITHUB_ENV
 
-      # Forzamos la descarga del Tarball puro con el hash verificado real que exige la VM
+      # 🟢 INYECCIÓN INDESTRUCTIBLE: Apunta al Tarball oficial de la API de GitLab con su hash verificado
       - name: Create libdrm Tarball Wrap File
         run: |
           mkdir -p subprojects
           cat << 'EOF' > subprojects/libdrm.wrap
           [wrap-file]
-          directory = libdrm-2.4.120
+          directory = drm-libdrm-2.4.120
           source_url = https://freedesktop.org
-          source_filename = libdrm-2.4.120.tar.xz
-          source_hash = 5d5fc3bc011f2f6eeeff6e8da22e14fff781303b435956094c8057b7d6d2e7b8
+          source_filename = drm-libdrm-2.4.120.tar.gz
+          source_hash = bdba5f79ee880c57c461141e97da6ffcb657c9635f7253be622830849202534f
           EOF
 
       - name: Configure Mesa 25 Cross-Compilation (Meson)
@@ -88,11 +88,12 @@ jobs:
       - name: Compile Mesa 25 Drivers
         run: meson compile -C build
 
+      # EMPAQUETADO OFICIAL Y DIRECTO EN EL CONTENEDOR
       - name: Structure and Pack wrapper.tzst for Bannerlator
         run: |
           rm -rf pkg && mkdir -p pkg/usr/lib pkg/usr/share/vulkan/icd.d pkg/usr/share/vulkan/settings.d
           TARGET_SO=$(find build/ -name "libvulkan_panfrost.so" | head -n 1)
-          if [ -z "$TARGET_SO" ] then TARGET_SO=$(find . -name "libvulkan_panfrost.so" | head -n 1); fi
+          if [ -z "$TARGET_SO" ]; then TARGET_SO=$(find . -name "libvulkan_panfrost.so" | head -n 1); fi
           
           cp -v "$TARGET_SO" pkg/usr/lib/libvulkan_panfrost.so
           patchelf --set-soname libvulkan_panfrost.so pkg/usr/lib/libvulkan_panfrost.so
