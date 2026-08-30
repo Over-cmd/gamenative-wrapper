@@ -50,7 +50,18 @@ jobs:
           done
           echo "REAL_NDK_HOME=$TRUE_NDK" >> $GITHUB_ENV
 
-      # 🟢 CONFIGURACIÓN PURA Y CORTA: Forzamos el uso del wrap interno para descargar y compilar libdrm de forma automática
+      # 🟢 INYECCIÓN MAESTRA DEL MANIFIESTO WRAP: Le dice a Meson exactamente de dónde clonar libdrm
+      - name: Create libdrm Wrap File
+        run: |
+          mkdir -p subprojects
+          cat << 'EOF' > subprojects/libdrm.wrap
+          [wrap-git]
+          directory = libdrm
+          url = https://freedesktop.org
+          revision = head
+          depth = 1
+          EOF
+
       - name: Configure Mesa 25 Cross-Compilation (Meson)
         run: |
           export ANDROID_NDK_HOME="${{ env.REAL_NDK_HOME }}"
