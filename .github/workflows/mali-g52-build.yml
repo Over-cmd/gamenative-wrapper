@@ -25,17 +25,27 @@ jobs:
           ref: master
           path: main-repo/subprojects/libadrenotools
 
+      # 🟢 PASO QUIRÚRGICO DE REEMPLAZO TOTAL CON EXPRESIÓN REGULAR BLINDADA
       - name: Inject Hardware Patches for Mali-G52
         run: |
           echo "-> Aplicando parches criticos en los archivos de utilidades..."
-          find . -name "anon_file.c" -exec sed -i 's/fd = syscall(SYS_memfd_create.*/fd = memfd_create(debug_name, MFD_CLOEXEC \| MFD_ALLOW_SEALING);/g' {} + 2>/dev/null || true
-          find . -name "pan_device.c" -exec sed -i 's/pan_query_core_count(&dev->kmod.dev->props, &dev->core_id_range);/dev->core_id_range = pan_query_core_count(\&dev->kmod.dev->props);/g' {} + 2>/dev/null || true
-          find . -name "pan_device.c" -exec sed -i 's/\\&/\&/g' {} + 2>/dev/null || true
+          sed -i 's/fd = syscall(SYS_memfd_create.*/fd = memfd_create(debug_name, MFD_CLOEXEC \| MFD_ALLOW_SEALING);/g' main-repo/src/util/anon_file.c 2>/dev/null || true
+          find main-repo/ -name "pan_device.c" -exec sed -i 's/pan_query_core_count(&dev->kmod.dev->props, &dev->core_id_range);/dev->core_id_range = pan_query_core_count(\&dev->kmod.dev->props);/g' {} + 2>/dev/null || true
+          find main-repo/ -name "pan_device.c" -exec sed -i 's/\\&/\&/g' {} + 2>/dev/null || true
           
-          echo "-> Purgando validaciones rigidas de librerias de sistema..."
-          find . -name "meson.build" -exec sed -i "s/cc.find_library('rt'/dependency('', required : false) #/g" {} + 2>/dev/null || true
-          find . -name "meson.build" -exec sed -i "s/cc.find_library('atomic'/dependency('', required : false) #/g" {} + 2>/dev/null || true
-          find . -name "meson.build" -exec sed -i "s/cc.find_library('dl'/dependency('', required : false) #/g" {} + 2>/dev/null || true
+          echo "-> Destruyendo el validador rigido de libandroid en el subproyecto de Pipetto..."
+          # 🟢 CLAVE: Usamos comillas dobles y comodines para machacar la línea 12 sin que Bash se confunda
+          if [ -f "main-repo/subprojects/libadrenotools/meson.build" ]; then
+            sed -i "s/.*find_library.*android.*/  dep_android = dependency('', required : false)/g" main-repo/subprojects/libadrenotools/meson.build
+            sed -i "s/.*find_library.*android.*/  dep_android = dependency('', required : false)/g" main-repo/subprojects/libadrenotools/meson.build
+            echo "=== Verificando parche aplicado en el subproyecto ==="
+            cat main-repo/subprojects/libadrenotools/meson.build | head -n 20
+          fi
+          
+          echo "-> Purgando validaciones rigidas de librerias de sistema en meson.build central..."
+          sed -i "s/cc.find_library('rt'/dependency('', required : false) #/g" main-repo/meson.build 2>/dev/null || true
+          sed -i "s/cc.find_library('atomic'/dependency('', required : false) #/g" main-repo/meson.build 2>/dev/null || true
+          sed -i "s/cc.find_library('dl'/dependency('', required : false) #/g" main-repo/meson.build 2>/dev/null || true
           
           rm -f main-repo/subprojects/*.wrap main-repo/*.wrap 2>/dev/null || true
 
@@ -72,13 +82,6 @@ jobs:
           # Inyeccion masiva de linkers en el Sysroot real del NDK para resolver simbolos graficos
           sed -i "s|c_link_args = \[|c_link_args = ['-landroid', '-lsync', '-lhardware', '-L${{ env.REAL_NDK_HOME }}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/30', '-L$PKG_CONFIG_PATH', |g" cross.txt
           sed -i "s|cpp_link_args = \[|cpp_link_args = ['-landroid', '-lsync', '-lhardware', '-L${{ env.REAL_NDK_HOME }}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/30', '-L$PKG_CONFIG_PATH', |g" cross.txt
-          
-          # 🟢 JUGADA MAESTRA EXTRA: Forzamos el bypass de dependencias inyectando la propiedad simulada 'has_android' en las tripas del cross-file compilado
-          sed -i "s|\[properties\]|\[properties\]\nhas_android = true\nandroid = true|g" cross.txt
-          
-          echo "-> Aplicando bypass de contingencia directo en las fuentes volatiles antes del Setup..."
-          sed -i "s/cc.find_library('android'/dependency('', required : false) #/g" subprojects/libadrenotools/meson.build 2>/dev/null || true
-          sed -i "s/cc.find_library/dependency('', required : false) #/g" subprojects/libadrenotools/meson.build 2>/dev/null || true
           
           echo "-> Lanzando inicialización de Meson para tu Mali-G52..."
           meson setup build --reconfigure --cross-file cross.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dandroid-stub=true -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dopengl=false -Dgles1=disabled -Dgles2=disabled -Dllvm=disabled -Dvalgrind=disabled -Dzstd=disabled -Dvulkan-drivers=panfrost,wrapper -Dgallium-drivers=[]
