@@ -1,179 +1,76 @@
-# COMPILACIÓN INDESTRUCTIBLE GAME NATIVE WRAPPER - MALI-G52 VULKAN FINAL VALIDADO
 name: GameNative Vulkan Wrapper Build
 
-on:
-  push:
-  pull_request:
-  workflow_dispatch:
-
-permissions:
-  contents: read
+on: [push, pull_request, workflow_dispatch]
 
 jobs:
   build-gamenative-wrapper:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        build-type: [release]
-
     steps:
-      - name: Checkout Repository Source
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      # Parches de fuerza bruta indispensables para liberar la Mali-G52 (Unisoc T618)
-      - name: Inject Hardware Patches for Mali-G52 (Bifrost v3)
+      - name: Inject Hardware Patches for Mali-G52
         run: |
-          sed -i 's/fd = syscall(SYS_memfd_create, debug_name, MFD_CLOEXEC | MFD_ALLOW_SEALING);/fd = memfd_create(debug_name, MFD_CLOEXEC | MFD_ALLOW_SEALING);/g' src/util/anon_file.c 2>/dev/null || true
+          sed -i 's/fd = syscall(SYS_memfd_create.*/fd = memfd_create(debug_name, MFD_CLOEXEC | MFD_ALLOW_SEALING);/g' src/util/anon_file.c 2>/dev/null || true
           find . -name "pan_device.c" -exec sed -i 's/pan_query_core_count(&dev->kmod.dev->props, &dev->core_id_range);/dev->core_id_range = pan_query_core_count(\&dev->kmod.dev->props);/g' {} + 2>/dev/null || true
           find . -name "pan_device.c" -exec sed -i 's/\\&/\&/g' {} + 2>/dev/null || true
           sed -i "s/cc.find_library('rt'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
-
-      - name: Set up Python Environment
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
+          sed -i "s/cc.find_library('atomic'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
+          sed -i "s/cc.find_library('dl'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 
       - name: Install Base Build Tools
         run: |
           sudo apt-get update && sudo apt-get install -y build-essential libelf-dev bison flex pkg-config gettext patchelf unzip llvm clang curl wget
-          python -m pip install --upgrade pip
-          pip install mako PyYAML 'meson>=1.4.0' ninja packaging
+          python -m pip install --upgrade pip && pip install mako PyYAML 'meson>=1.4.0' ninja packaging
 
-      - name: Unzip Local Android Environment Shims
-        run: |
-          echo "-> Descomprimiendo shims.zip en el area de trabajo..."
-          if [ -f "shims.zip" ]; then
-            unzip -o shims.zip -d ./
-            mkdir -p "$GITHUB_WORKSPACE/shims_target"
-            cp -rf ./shims/* "$GITHUB_WORKSPACE/shims_target/"
-          else
-            echo "🚨 ERROR: Falta shims.zip en la raiz de tu repositorio!" && exit 1
-          fi
+      - name: Unzip Local Android Shims
+        run: unzip -o shims.zip -d ./ && mkdir -p "$GITHUB_WORKSPACE/shims_target" && cp -rf ./shims/* "$GITHUB_WORKSPACE/shims_target/"
 
       - name: Auto-Detect True Android NDK Path
-        id: ndk-detector
         run: |
-          TRUE_NDK=""
           for path in /usr/local/lib/android/sdk/ndk/* /home/runner/Android/Sdk/ndk/*; do
-            if [ -d "$path/toolchains/llvm/prebuilt/linux-x86_64/bin" ]; then TRUE_NDK="$path"; break; fi
+            if [ -d "$path/toolchains/llvm/prebuilt/linux-x86_64/bin" ]; then echo "REAL_NDK_HOME=$path" >> $GITHUB_ENV; break; fi
           done
-          echo "REAL_NDK_HOME=$TRUE_NDK" >> $GITHUB_ENV
 
-      # 🟢 EXTRAEDOR BLINDADO 1: Separamos las variables al 100% en Bash para destruir el bug de 'github.comwaydroid'
-      - name: Inject Physical libdrm Source via Blinded Shell
+      - name: Inject Physical Offline Dependencies (libdrm & adrenotools)
         run: |
-          echo "-> Purgando cualquier configuracion proxy de Git..."
           git config --global --remove-section url.https://github.com 2>/dev/null || true
-          
-          rm -rf subprojects/libdrm 2>/dev/null || true
-          mkdir -p subprojects
-          
-          # Definimos las variables desglosadas con barras forzadas
-          BASE_URL="https://github.com"
-          USER_ORG="waydroid"
-          REPO_NAME="android_external_libdrm"
-          ZIP_PATH="archive/refs/heads/lineage-18.1.zip"
-          
-          echo "-> Descargando el archivo zip unificado de forma fragmentada..."
-          curl -fSL "${BASE_URL}/${USER_ORG}/${REPO_NAME}/${ZIP_PATH}" -o waydroid-libdrm.zip
-          
-          echo "-> Extrayendo estructura local con unzip..."
-          unzip -q waydroid-libdrm.zip -d subprojects/
-          
-          EXTRACTED_DIR=$(find subprojects/ -maxdepth 1 -type d -name "*android_external_libdrm*" | head -n 1)
-          mv "$EXTRACTED_DIR" subprojects/libdrm
-          echo "-> Código fuente de libdrm inyectado con éxito en disco."
+          mkdir -p subprojects/libdrm subprojects/libadrenotools
+          curl -fSL "https://github.comwaydroid/android_external_libdrm/archive/refs/heads/lineage-18.1.tar.gz" | tar -xzf - -C subprojects/libdrm --strip-components=1
+          curl -fSL "https://github.comPipetto-crypto/libadrenotools/archive/refs/heads/master.tar.gz" | tar -xzf - -C subprojects/libadrenotools --strip-components=1
+          sed -i "s/cc.find_library/dependency('', required: false) #/g" subprojects/libadrenotools/meson.build 2>/dev/null || true
+          rm -rf subprojects/*.wrap *.wrap 2>/dev/null || true
 
-      # 🟢 EXTRAEDOR BLINDADO 2: Separamos las variables para libadrenotools
-      - name: Inject Physical libadrenotools Source via Blinded Shell
-        run: |
-          rm -rf subprojects/libadrenotools 2>/dev/null || true
-          
-          BASE_URL="https://github.com"
-          USER_ORG="bylaws"
-          REPO_NAME="libadrenotools"
-          ZIP_PATH="archive/refs/heads/master.zip"
-          
-          echo "-> Descargando zip nativo de libadrenotools..."
-          curl -fSL "${BASE_URL}/${USER_ORG}/${REPO_NAME}/${ZIP_PATH}" -o adrenotools.zip
-          
-          echo "-> Extrayendo estructura local con unzip..."
-          unzip -q adrenotools.zip -d subprojects/
-          
-          EXTRACTED_DIR_ADRENO=$(find subprojects/ -maxdepth 1 -type d -name "*libadrenotools*" | head -n 1)
-          mv "$EXTRACTED_DIR_ADRENO" subprojects/libadrenotools
-          
-          echo "-> Destruyendo archivos wrap residuales para obligar a Meson a trabajar offline..."
-          rm -rf subprojects/*.wrap 2>/dev/null || true
-          rm -rf *.wrap 2>/dev/null || true
-
-       Eagle setup build
       - name: Configure GameNative Cross-Compilation (Meson)
         run: |
           export ANDROID_NDK_HOME="${{ env.REAL_NDK_HOME }}"
           export MESON_WORKING_DIR="$GITHUB_WORKSPACE"
-          
           export PKG_CONFIG_PATH="$GITHUB_WORKSPACE/shims_target"
           export PKG_CONFIG_LIBDIR="$GITHUB_WORKSPACE/shims_target"
-          export PKG_CONFIG_SYSROOT_DIR=""
-          
-          if [ -f "android-64.toml" ]; then envsubst < android-64.toml > android-cross-compiled.txt
-          else envsubst < android.toml > android-cross-compiled.txt; fi
-          
-          sed -i "s|pkg_config_libdir = .*|pkg_config_libdir = '$GITHUB_WORKSPACE/shims_target'|g" android-cross-compiled.txt 2>/dev/null || true
-          sed -i "s|pkg_config_path = .*|pkg_config_path = '$GITHUB_WORKSPACE/shims_target'|g" android-cross-compiled.txt 2>/dev/null || true
-          sed -i "s|libdrm_path = .*|libdrm_path = '$GITHUB_WORKSPACE/subprojects/libdrm'|g" android-cross-compiled.txt 2>/dev/null || true
-          
-          # Inyección forzada de linkers para amarrar la sincronización de logs de Pipetto-Crypto (sync_wait)
-          sed -i "s|c_link_args = \[|c_link_args = ['-lsync', '-lhardware', '-L$GITHUB_WORKSPACE/shims_target', |g" android-cross-compiled.txt 2>/dev/null || true
-          sed -i "s|cpp_link_args = \[|cpp_link_args = ['-lsync', '-lhardware', '-L$GITHUB_WORKSPACE/shims_target', |g" android-cross-compiled.txt 2>/dev/null || true
-          
-          echo "-> Inicializando Setup de Meson unificando Panfrost + Wrapper..."
-          meson setup build --reconfigure \
-            --cross-file android-cross-compiled.txt \
-            --wrap-mode=nodownload \
-            -Dbuildtype=${{ matrix.build-type }} \
-            -Dplatforms=android \
-            -Dandroid-stub=true \
-            -Dandroid-libbacktrace=disabled \
-            -Dplatform-sdk-version=30 \
-            -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dopengl=false -Dgles1=disabled -Dgles2=disabled -Dllvm=disabled -Dvalgrind=disabled -Dzstd=disabled \
-            -Dvulkan-drivers=panfrost,wrapper -Dgallium-drivers=[]
+          if [ -f "android-64.toml" ]; then envsubst < android-64.toml > cross.txt; else envsubst < android.toml > cross.txt; fi
+          sed -i "s|pkg_config_libdir = .*|pkg_config_libdir = '$PKG_CONFIG_PATH'|g" cross.txt
+          sed -i "s|pkg_config_path = .*|pkg_config_path = '$PKG_CONFIG_PATH'|g" cross.txt
+          sed -i "s|libdrm_path = .*|libdrm_path = '$GITHUB_WORKSPACE/subprojects/libdrm'|g" cross.txt
+          sed -i "s|c_link_args = \[|c_link_args = ['-landroid', '-lsync', '-lhardware', '-L${{ env.REAL_NDK_HOME }}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/30', '-L$PKG_CONFIG_PATH', |g" cross.txt
+          sed -i "s|cpp_link_args = \[|cpp_link_args = ['-landroid', '-lsync', '-lhardware', '-L${{ env.REAL_NDK_HOME }}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/30', '-L$PKG_CONFIG_PATH', |g" cross.txt
+          meson setup build --reconfigure --cross-file cross.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dandroid-stub=true -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dopengl=false -Dgles1=disabled -Dgles2=disabled -Dllvm=disabled -Dvalgrind=disabled -Dzstd=disabled -Dvulkan-drivers=panfrost,wrapper -Dgallium-drivers=[]
 
       - name: Compile GameNative Engine
         run: meson compile -C build
 
-      # EMPAQUETADO OFICIAL COMPATIBLE (ICD 1.0.0)
       - name: Structure and Pack wrapper.tzst for Bannerlator
         run: |
           rm -rf pkg && mkdir -p pkg/usr/lib pkg/usr/share/vulkan/icd.d pkg/usr/share/vulkan/settings.d
-          
           cp -v build/src/vulkan/wrapper/libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so 2>/dev/null || true
           cp -v build/src/panfrost/vulkan/libvulkan_panfrost.so pkg/usr/lib/libvulkan_panfrost.so 2>/dev/null || true
-          
-          if [ ! -f "pkg/usr/lib/libvulkan_wrapper.so" ]; then
-            TARGET_WRAP=$(find build/ -name "libvulkan_wrapper.so" | head -n 1)
-            cp -v "$TARGET_WRAP" pkg/usr/lib/libvulkan_wrapper.so
-          fi
-          
           patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so 2>/dev/null || true
-          llvm-strip --strip-unneeded pkg/usr/lib/libvulkan_wrapper.so 2>/dev/null || true
-          llvm-strip --strip-unneeded pkg/usr/lib/libvulkan_panfrost.so 2>/dev/null || true
-          
-          cat << 'EOF' > pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
-          {"ICD": {"api_version": "1.4.352", "library_path": "libvulkan_wrapper.so"}, "file_format_version": "1.0.0"}
-          EOF
-          cat << 'EOF' > pkg/usr/share/vulkan/icd.d/wrapper_icd.arm.json
-          {"ICD": {"api_version": "1.4.352", "library_path": "libvulkan_wrapper.so"}, "file_format_version": "1.0.0"}
-          EOF
-          
+          llvm-strip --strip-unneeded pkg/usr/lib/*.so 2>/dev/null || true
+          echo '{"ICD": {"api_version": "1.4.352", "library_path": "libvulkan_wrapper.so"}, "file_format_version": "1.0.0"}' > pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
+          echo '{"ICD": {"api_version": "1.4.352", "library_path": "libvulkan_wrapper.so"}, "file_format_version": "1.0.0"}' > pkg/usr/share/vulkan/icd.d/wrapper_icd.arm.json
           echo '{"env":{"PAN_I_WANT_A_BROKEN_VULKAN_DRIVER":"1","MESA_VK_IGNORE_CONFORMANCE_WARNING":"1","PANVK_DEBUG":"sync,nir","MESA_VK_FORCE_BLIT":"1","MESA_LOADER_DRIVER_OVERRIDE":"panfrost","GALLIUM_DRIVER":"panfrost","vblank_mode":"0","MESA_GLSL_CACHE_DISABLE":"1","MESA_SHADER_CACHE_DISABLE":"true","NIR_DEBUG":"tgsi","MESA_VK_WSI_PRESENT_MODE":"immediate","MESA_VK_WSI_DEBUG":"always_async"}}' > pkg/usr/share/vulkan/settings.d/wrapper_settings.json
-          echo "msf:315508" > pkg/version.txt
-          
-          chmod -R 755 pkg/ && chmod 755 pkg/usr/lib/*.so
+          echo "msf:315508" > pkg/version.txt && chmod -R 755 pkg/
           cd pkg && tar -I 'zstd -19 -T0' -cf ../wrapper.tzst usr/ version.txt
-          
-      - name: Upload Final wrapper.tzst for Bannerlator
+
+      - name: Upload Final wrapper.tzst
         uses: actions/upload-artifact@v4
         with:
           name: GameNative-Mali-G52-Wrapper
