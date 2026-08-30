@@ -35,11 +35,10 @@ jobs:
 
       - name: Install Base Build Tools
         run: |
-          sudo apt-get update && sudo apt-get install -y build-essential libelf-dev bison flex pkg-config gettext patchelf unzip llvm clang
+          sudo apt-get update && sudo apt-get install -y build-essential libelf-dev bison flex pkg-config gettext patchelf unzip llvm clang curl
           python -m pip install --upgrade pip
           pip install mako PyYAML 'meson>=1.4.0' ninja packaging
 
-      # 🟢 PASO MAESTRO DEL WRAPPER: Extrae de forma reglamentaria tus shims nativos locales exigidos por el repositorio
       - name: Unzip Local Android Environment Shims
         run: |
           echo "-> Descomprimiendo shims.zip en el area de trabajo..."
@@ -47,8 +46,6 @@ jobs:
             unzip -o shims.zip -d ./
             mkdir -p "$GITHUB_WORKSPACE/shims_target"
             cp -rf ./shims/* "$GITHUB_WORKSPACE/shims_target/"
-            echo "=== Estructura verificada de los archivos .pc locales ==="
-            ls -la "$GITHUB_WORKSPACE/shims_target"
           else
             echo "🚨 ERROR: Falta shims.zip en la raiz de tu repositorio!" && exit 1
           fi
@@ -62,7 +59,25 @@ jobs:
           done
           echo "REAL_NDK_HOME=$TRUE_NDK" >> $GITHUB_ENV
 
-      # Configuración limpia del GameNative Wrapper usando tus shims locales descompresos
+      # 🟢 INYECCIÓN MAESTRA DE LIBADRENOTOOLS VIA CDN: Satisface la línea 69 del subproyecto de forma local
+      - name: Pre-Download and Inject Physical libadrenotools Source
+        run: |
+          mkdir -p subprojects
+          echo "-> Descargando tarball plano de libadrenotools desde el CDN prioritario de GitHub..."
+          curl -fSL "https://github.com" -o adrenotools.zip
+          
+          echo "-> Descomprimiendo en el arbol local de subproyectos..."
+          unzip -q adrenotools.zip -d subprojects/
+          
+          EXTRACTED_DIR=$(find subprojects/ -maxdepth 1 -type d -name "*libadrenotools*" | head -n 1)
+          mv "$EXTRACTED_DIR" subprojects/libadrenotools
+          echo "-> ¡Codigo fuente inyectado con exito de forma fisica local!"
+          
+          echo "-> Removiendo archivos wrap residuales para obligar a Meson a trabajar 100% offline..."
+          rm -rf subprojects/*.wrap 2>/dev/null || true
+          rm -rf *.wrap 2>/dev/null || true
+
+      # Configuración limpia offline del Wrapper
       - name: Configure GameNative Cross-Compilation (Meson)
         run: |
           export ANDROID_NDK_HOME="${{ env.REAL_NDK_HOME }}"
@@ -76,7 +91,6 @@ jobs:
           if [ -f "android-64.toml" ]; then envsubst < android-64.toml > android-cross-compiled.txt
           else envsubst < android.toml > android-cross-compiled.txt; fi
           
-          # Inyectamos la subcarpeta local corregida en las propiedades del cross-file compilado
           sed -i "s|pkg_config_libdir = .*|pkg_config_libdir = '$GITHUB_WORKSPACE/shims_target'|g" android-cross-compiled.txt 2>/dev/null || true
           sed -i "s|pkg_config_path = .*|pkg_config_path = '$GITHUB_WORKSPACE/shims_target'|g" android-cross-compiled.txt 2>/dev/null || true
           
@@ -92,7 +106,7 @@ jobs:
       - name: Compile GameNative Engine
         run: meson compile -C build
 
-      # EMPAQUETADO ULTRA-LIMPIO FORMATO ICD 1.0.0 EXIGIDO POR BANNERLATOR
+      # EMPAQUETADO OFICIAL Y DIRECTO EN EL CONTENEDOR (ICD 1.0.0 COMPATIBLE)
       - name: Structure and Pack wrapper.tzst for Bannerlator
         run: |
           rm -rf pkg && mkdir -p pkg/usr/lib pkg/usr/share/vulkan/icd.d pkg/usr/share/vulkan/settings.d
