@@ -59,44 +59,55 @@ jobs:
           done
           echo "REAL_NDK_HOME=$TRUE_NDK" >> $GITHUB_ENV
 
-      # 🟢 EXTRAEDOR DE CAJA 1 REPARADO: Se descarga el .zip real de Waydroid libdrm usando la web de descargas crudas
-      - name: Inject Physical libdrm Source via Unzip (No Tar)
+      # 🟢 EXTRAEDOR BLINDADO 1: Separamos las variables al 100% en Bash para destruir el bug de 'github.comwaydroid'
+      - name: Inject Physical libdrm Source via Blinded Shell
         run: |
-          echo "-> Purgando configuraciones corruptas globales del entorno..."
+          echo "-> Purgando cualquier configuracion proxy de Git..."
           git config --global --remove-section url.https://github.com 2>/dev/null || true
-          git config --global --unset-all url.https://github.com.insteadof 2>/dev/null || true
           
           rm -rf subprojects/libdrm 2>/dev/null || true
           mkdir -p subprojects
           
-          echo "-> Descargando el archivo zip legítimo de Waydroid libdrm..."
-          curl -fSL "https://github.comwaydroid/android_external_libdrm/archive/refs/heads/lineage-18.1.zip" -o waydroid-libdrm.zip
+          # Definimos las variables desglosadas con barras forzadas
+          BASE_URL="https://github.com"
+          USER_ORG="waydroid"
+          REPO_NAME="android_external_libdrm"
+          ZIP_PATH="archive/refs/heads/lineage-18.1.zip"
+          
+          echo "-> Descargando el archivo zip unificado de forma fragmentada..."
+          curl -fSL "${BASE_URL}/${USER_ORG}/${REPO_NAME}/${ZIP_PATH}" -o waydroid-libdrm.zip
           
           echo "-> Extrayendo estructura local con unzip..."
           unzip -q waydroid-libdrm.zip -d subprojects/
           
           EXTRACTED_DIR=$(find subprojects/ -maxdepth 1 -type d -name "*android_external_libdrm*" | head -n 1)
           mv "$EXTRACTED_DIR" subprojects/libdrm
-          echo "-> Código fuente de libdrm inyectado localmente con éxito."
+          echo "-> Código fuente de libdrm inyectado con éxito en disco."
 
-      # 🟢 EXTRAEDOR DE CAJA 2 REPARADO: Se descarga el .zip real de libadrenotools usando la web de descargas crudas
-      - name: Inject Physical libadrenotools Source via Unzip
+      # 🟢 EXTRAEDOR BLINDADO 2: Separamos las variables para libadrenotools
+      - name: Inject Physical libadrenotools Source via Blinded Shell
         run: |
           rm -rf subprojects/libadrenotools 2>/dev/null || true
+          
+          BASE_URL="https://github.com"
+          USER_ORG="bylaws"
+          REPO_NAME="libadrenotools"
+          ZIP_PATH="archive/refs/heads/master.zip"
+          
           echo "-> Descargando zip nativo de libadrenotools..."
-          curl -fSL "https://github.combylaws/libadrenotools/archive/refs/heads/master.zip" -o adrenotools.zip
+          curl -fSL "${BASE_URL}/${USER_ORG}/${REPO_NAME}/${ZIP_PATH}" -o adrenotools.zip
           
           echo "-> Extrayendo estructura local con unzip..."
           unzip -q adrenotools.zip -d subprojects/
           
           EXTRACTED_DIR_ADRENO=$(find subprojects/ -maxdepth 1 -type d -name "*libadrenotools*" | head -n 1)
           mv "$EXTRACTED_DIR_ADRENO" subprojects/libadrenotools
-          echo "-> Código fuente de libadrenotools inyectado localmente."
           
           echo "-> Destruyendo archivos wrap residuales para obligar a Meson a trabajar offline..."
           rm -rf subprojects/*.wrap 2>/dev/null || true
           rm -rf *.wrap 2>/dev/null || true
 
+       Eagle setup build
       - name: Configure GameNative Cross-Compilation (Meson)
         run: |
           export ANDROID_NDK_HOME="${{ env.REAL_NDK_HOME }}"
