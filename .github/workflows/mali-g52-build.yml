@@ -27,6 +27,10 @@ jobs:
           find . -name "pan_device.c" -exec sed -i 's/pan_query_core_count(&dev->kmod.dev->props, &dev->core_id_range);/dev->core_id_range = pan_query_core_count(\&dev->kmod.dev->props);/g' {} + 2>/dev/null || true
           find . -name "pan_device.c" -exec sed -i 's/\\&/\&/g' {} + 2>/dev/null || true
           sed -i "s/cc.find_library('rt'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
+          
+          echo "-> 🟢 HACK 5: Destruyendo el bloqueo de la libreria 'atomic' integrada en Android Clang..."
+          # Reemplazamos el chequeo rigido de cc.find_library('atomic') para que devuelva una dependencia vacia funcional
+          sed -i "s/cc.find_library('atomic'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 
       - name: Set up Python Environment
         uses: actions/setup-python@v5
@@ -59,16 +63,15 @@ jobs:
           done
           echo "REAL_NDK_HOME=$TRUE_NDK" >> $GITHUB_ENV
 
-      # 🟢 SOLUCIÓN DEFINITIVA DE INYECCIÓN DE DEPENDENCIAS SIN UNZIP NI TAR CUROUPTO
+      # Extraedor desglosado de dependencias locales offline (Waydroid libdrm)
       - name: Inject Physical libdrm Source via Blinded Shell
         run: |
           echo "-> Purgando cualquier configuracion proxy de Git..."
-          git config --global --remove-section url.https://github.com/ 2>/dev/null || true
+          git config --global --remove-section url.https://github.com 2>/dev/null || true
           
           rm -rf subprojects/libdrm 2>/dev/null || true
           mkdir -p subprojects
           
-          # Desglosamos las variables de forma tajante para evitar fusiones de palabras en la cache de Actions
           BLIND_HOST="github.com"
           BLIND_USER="waydroid"
           BLIND_REPO="android_external_libdrm"
@@ -84,6 +87,7 @@ jobs:
           mv "$EXTRACTED_DIR" subprojects/libdrm
           echo "-> Código fuente de libdrm inyectado con éxito en disco."
 
+      # Extraedor desglosado de dependencias locales offline (libadrenotools)
       - name: Inject Physical libadrenotools Source via Blinded Shell
         run: |
           rm -rf subprojects/libadrenotools 2>/dev/null || true
