@@ -50,7 +50,7 @@ jobs:
           done
           echo "REAL_NDK_HOME=$TRUE_NDK" >> $GITHUB_ENV
 
-      # 🟢 PASO COMPACTO INDESTRUCTIBLE: Resetea Git a la fuerza y clona Waydroid de forma directa sin zips corruptos
+      # 🟢 CORRECCIÓN CENTRAL: Añadida la barra inclinada '/' obligatoria entre github.com y waydroid
       - name: Inject Physical libdrm Source via Clean Git
         run: |
           echo "-> Destruyendo variables de redireccion corruptas en la configuracion de Git..."
