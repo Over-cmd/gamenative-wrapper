@@ -31,6 +31,7 @@ jobs:
           echo "-> Inicializando submodulos de libadrenotools de forma recursiva..."
           git submodule update --init --recursive
 
+      # 🟢 PASO QUIRÚRGICO DE INTERCEPCIÓN: Machacamos el archivo secundario justo ahora que ya existe en disco
       - name: Inject Hardware Patches for Mali-G52
         run: |
           echo "-> Aplicando parches de hardware en los archivos de utilidades..."
@@ -38,9 +39,18 @@ jobs:
           find main-repo/ -name "pan_device.c" -exec sed -i 's/pan_query_core_count(&dev->kmod.dev->props, &dev->core_id_range);/dev->core_id_range = pan_query_core_count(\&dev->kmod.dev->props);/g' {} + 2>/dev/null || true
           find main-repo/ -name "pan_device.c" -exec sed -i 's/\\&/\&/g' {} + 2>/dev/null || true
           
-          echo "-> Purgando validaciones rigidas de librerias obsoletas de PC de escritorio..."
-          sed -i "s/cc.find_library('rt'/dependency('', required : false) #/g" main-repo/meson.build 2>/dev/null || true
+          echo "-> 🟢 HACK MAESTRO INTERMEDIO: Triturando validaciones rigidas de libandroid y liblog en libadrenotools..."
+          if [ -f "main-repo/subprojects/libadrenotools/meson.build" ]; then
+            # Reemplazamos las lineas 12 y 13 por dependencias vacias que siempre devuelven TRUE de forma offline
+            sed -i "s|.*find_library.*android.*|  dep_android = dependency('', required : false)|g" main-repo/subprojects/libadrenotools/meson.build
+            sed -i "s|.*find_library.*log.*|  dep_log = dependency('', required : false)|g" main-repo/subprojects/libadrenotools/meson.build
+            echo "=== Verificando parches inyectados en libadrenotools ==="
+            cat main-repo/subprojects/libadrenotools/meson.build | head -n 25
+          fi
+          
+          echo "-> Purgando validaciones rigidas de librerias obsoletas en meson.build central..."
           sed -i "s/cc.find_library('atomic'/dependency('', required : false) #/g" main-repo/meson.build 2>/dev/null || true
+          sed -i "s/cc.find_library('rt'/dependency('', required : false) #/g" main-repo/meson.build 2>/dev/null || true
           sed -i "s/cc.find_library('dl'/dependency('', required : false) #/g" main-repo/meson.build 2>/dev/null || true
           
           rm -f main-repo/subprojects/*.wrap main-repo/*.wrap 2>/dev/null || true
@@ -63,7 +73,6 @@ jobs:
             if [ -d "$path/toolchains/llvm/prebuilt/linux-x86_64/bin" ]; then echo "REAL_NDK_HOME=$path" >> $GITHUB_ENV; break; fi
           done
 
-      # 🟢 PASO INTEGRAL: Escribimos el cross.txt definitivo unificado con las rutas exactas de main-repo/ y los Shims
       - name: Generate Indestructible Meson Cross-File
         run: |
           cd main-repo
@@ -105,9 +114,6 @@ jobs:
           c_link_args = ['-landroid', '-llog', '-lsync', '-lhardware', '-L' + ndk_sysroot_lib, '-L' + shims_path, '--sysroot=' + ndk_sysroot, '-Wl,--allow-shlib-undefined', '-llog', '-lsync']
           cpp_link_args = ['-landroid', '-llog', '-lsync', '-lhardware', '-L' + ndk_sysroot_lib, '-L' + shims_path, '--sysroot=' + ndk_sysroot, '-Wl,--allow-shlib-undefined', '-llog', '-lsync']
           EOF
-          
-          echo "=== Cross-File Estructural Validado con Éxito ==="
-          cat cross.txt
 
       - name: Configure GameNative Cross-Compilation (Meson)
         run: |
