@@ -129,7 +129,6 @@ jobs:
           echo "-> Ejecutando compilación cruzada hacia ARM64 a través de Ninja..."
           meson compile -C build
 
-      # 🟢 EMPAQUETADO BLINDADO: Copia el binario puro sin alterar cabeceras que causan Segfaults
       - name: Structure and Pack wrapper.tzst for Bannerlator
         run: |
           echo "-> Creando arbol de carpetas estricto para el emulador..."
@@ -145,10 +144,8 @@ jobs:
           
           if [ -n "$TARGET_SO" ] && [ -f "$TARGET_SO" ]; then
             echo "-> 🎯 ¡Binario legítimo de Vulkan Wrapper localizado en: $TARGET_SO!"
-            echo "-> Copiando a usr/lib sin alterar firmas binarias externas..."
+            echo "-> Copiando a usr/lib..."
             cp -v "$TARGET_SO" pkg/usr/lib/libvulkan_wrapper.so
-            
-            # 🟢 CLAVE: Solo limpiamos código muerto para que pese menos, NO forzamos un SET-SONAME invasivo
             llvm-strip --strip-unneeded pkg/usr/lib/libvulkan_wrapper.so
           else
             echo "🚨 ERROR CRITICO SEVERO: El compilador terminó pero no se encontró la librería .so esperada."
@@ -176,12 +173,12 @@ jobs:
           }
           EOF
 
-          echo '{"env":{"PAN_I_WANT_A_BROKEN_VULKAN_DRIVER":"1","MESA_VK_IGNORE_CONFORMANCE_WARNING":"1","PANVK_DEBUG":"sync,nir","MESA_VK_FORCE_BLIT":"1","MESA_LOADER_DRIVER_OVERRIDE":"panfrost","GALLIUM_DRIVER":"panfrost","ZINK_DEBUG":"vulkan","MESA_VK_WSI_PRESENT_MODE":"mailbox","vblank_mode":"0","MESA_GLSL_CACHE_DISABLE":"1","MESA_SHADER_CACHE_DISABLE":"true","NIR_DEBUG":"tgsi"}}' > pkg/usr/share/vulkan/settings.d/wrapper_settings.json
+          # 🟢 ANCORA DE CONEXIÓN VULKAN: Forzamos el backend nativo WSI de Android eliminando X11
+          echo '{"env":{"PAN_I_WANT_A_BROKEN_VULKAN_DRIVER":"1","MESA_VK_IGNORE_CONFORMANCE_WARNING":"1","PANVK_DEBUG":"sync,nir","MESA_VK_FORCE_BLIT":"1","MESA_LOADER_DRIVER_OVERRIDE":"panfrost","GALLIUM_DRIVER":"panfrost","ZINK_DEBUG":"vulkan","vblank_mode":"0","MESA_GLSL_CACHE_DISABLE":"1","MESA_SHADER_CACHE_DISABLE":"true","NIR_DEBUG":"tgsi","MESA_VK_WSI_PRESENT_MODE":"immediate","MESA_VK_WSI_DEBUG":"always_async"}}' > pkg/usr/share/vulkan/settings.d/wrapper_settings.json
 
           echo "msf:315508" > pkg/version.txt
           
-          echo "-> Ajustando permisos totales y empaquetando..."
-          # 🟢 CLAVE DE ARRANQUE: Otorgamos permisos 755 de ejecución al binario para que Android pueda levantarlo
+          echo "-> Ajustando permisos y empaquetando..."
           chmod -R 755 pkg/
           chmod 755 pkg/usr/lib/libvulkan_wrapper.so
           chmod 644 pkg/usr/share/vulkan/icd.d/*.json 
