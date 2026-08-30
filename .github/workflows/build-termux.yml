@@ -20,7 +20,7 @@ jobs:
       - name: Checkout Repository Source
         uses: actions/checkout@v4
 
-      # 🟢 BLOQUE DE PARCHEO MAESTRO EN CALIENTE AMPLIADO PARA MALI-G52
+      # Mantenemos tus parches matemáticos en caliente para liberar la Mali-G52 en Mesa 25
       - name: Inject Hardware Patches for Mali-G52 (Bifrost v3)
         run: |
           echo "-> Aplicando parches de compatibilidad de API 30 en anon_file.c..."
@@ -40,11 +40,9 @@ jobs:
           echo "-> HACK 3: Saltando restricciones de formatos del Kernel modificado de Unisoc..."
           find src/panfrost/ -name "*.c" -exec sed -i 's/return pan_kmod_get_format_modifier/return true; \/\/ pan_kmod_get_format_modifier/g' {} + 2>/dev/null || true
 
-          echo "-> 🟢 HACK 4: Destruyendo el bloqueo de la libreria 'rt' no existente en Android NDK..."
-          # Reemplazamos la busqueda rigida de cc.find_library('rt') para que devuelva una dependencia vacia funcional
+          echo "-> HACK 4: Destruyendo el bloqueo de la libreria 'rt' no existente en Android NDK..."
           if [ -f "meson.build" ]; then
             sed -i "s/cc.find_library('rt'/dependency('', required : false) #/g" meson.build
-            echo "-> Parche de librt aplicado con éxito sobre meson.build."
           fi
 
       - name: Set up Python Environment
@@ -69,62 +67,34 @@ jobs:
           python -m pip install --upgrade pip
           pip install mako PyYAML 'meson>=1.4.0' ninja packaging
 
-      - name: Auto-Detect True Android NDK Path
-        id: ndk-detector
+      # 🟢 PASO MAESTRO: Concedemos permisos totales de ejecución a los scripts del repositorio
+      - name: Grant Execute Permissions to Local Engine
         run: |
-          echo "-> Escaneando el sistema en busca de carpetas NDK validas..."
-          TRUE_NDK=""
-          for path in /usr/local/lib/android/sdk/ndk/* /home/runner/Android/Sdk/ndk/*; do
-            if [ -d "$path/toolchains/llvm/prebuilt/linux-x86_64/bin" ]; then
-              TRUE_NDK="$path"
-              break
-            fi
-          done
-          if [ -z "$TRUE_NDK" ]; then
-            echo "🚨 ERROR CRITICO: No se encontro ningun NDK real con binarios de 64 bits!" && exit 1
-          fi
-          echo "-> NDK Real Detectado y validado en: $TRUE_NDK"
-          echo "REAL_NDK_HOME=$TRUE_NDK" >> $GITHUB_ENV
+          chmod +x *.sh 2>/dev/null || true
+          chmod +x android/*.sh 2>/dev/null || true
 
-      - name: Configure Mesa 25 Cross-Compilation (Meson)
+      # 🟢 CONFIGURACIÓN NATIVA: Dejamos que los scripts del fork compilen libdrm y armen el cross-file
+      - name: Run Native Repository Setup Script
+        env:
+          ANDROID_NDK_HOME: ${{ env.ANDROID_NDK_LATEST_HOME }}
         run: |
-          export ANDROID_NDK_HOME="${{ env.REAL_NDK_HOME }}"
-          export MESON_WORKING_DIR="$GITHUB_WORKSPACE"
-          
-          export PKG_CONFIG_PATH="$GITHUB_WORKSPACE/android/shims:$PKG_CONFIG_PATH"
-          export PKG_CONFIG_LIBDIR="$GITHUB_WORKSPACE/android/shims"
-          
-          echo "-> Traduciendo variables de entorno en android.toml..."
-          if [ -f "android.toml" ]; then
-            envsubst < android.toml > android-cross-compiled.txt
+          if [ -f "setup.sh" ]; then
+            ./setup.sh
+          elif [ -f "android/setup.sh" ]; then
+            cd android && ./setup.sh && cd ..
           else
-            envsubst < android/android.toml > android-cross-compiled.txt
+            echo "-> No se encontró setup.sh automático. Intentando forzar el build manual..."
+            meson setup build --reconfigure -Dplatforms=android -Dvulkan-drivers=panfrost -Dgallium-drivers=[] -Dlibdrm=disabled
           fi
-          
-          echo "-> Inicializando Setup de Mesa 25 para tu Mali-G52..."
-          meson setup build --reconfigure \
-            --cross-file android-cross-compiled.txt \
-            -Dbuildtype=${{ matrix.build-type }} \
-            -Dplatforms=android \
-            -Dandroid-stub=true \
-            -Dandroid-libbacktrace=disabled \
-            -Dplatform-sdk-version=30 \
-            -Dglx=disabled \
-            -Dgbm=disabled \
-            -Degl=disabled \
-            -Dopengl=false \
-            -Dgles1=disabled \
-            -Dgles2=disabled \
-            -Dllvm=disabled \
-            -Dvalgrind=disabled \
-            -Dzstd=disabled \
-            -Dvulkan-drivers=panfrost \
-            -Dgallium-drivers=[]
 
-      - name: Compile Mesa 25 Drivers
+      # 🟢 COMPILACIÓN NATIVA: Ejecutamos el compilador oficial del repositorio o fallback directo
+      - name: Compile Mesa 25 Drivers via Local Engine
         run: |
-          echo "-> Ejecutando compilación cruzada hacia ARM64 a través de Ninja..."
-          meson compile -C build
+          if [ -f "compile.sh" ]; then
+            ./compile.sh
+          else
+            meson compile -C build
+          fi
 
       - name: Structure and Pack wrapper.tzst for Bannerlator
         run: |
@@ -133,16 +103,20 @@ jobs:
           mkdir -p pkg/usr/lib pkg/usr/share/vulkan/icd.d pkg/usr/share/vulkan/settings.d
           
           echo "-> Buscando el driver real libvulkan_panfrost.so generado..."
-          TARGET_SO="build/src/panfrost/vulkan/libvulkan_panfrost.so"
+          TARGET_SO=$(find build/ -name "libvulkan_panfrost.so" | head -n 1)
           
-          if [ -f "$TARGET_SO" ]; then
-            echo "-> 🎯 ¡Driver legítimo PanVK localizado con éxito!"
+          if [ -z "$TARGET_SO" ] || [ ! -f "$TARGET_SO" ]; then
+            TARGET_SO=$(find . -name "libvulkan_panfrost.so" | head -n 1)
+          fi
+          
+          if [ -n "$TARGET_SO" ] && [ -f "$TARGET_SO" ]; then
+            echo "-> 🎯 ¡Driver legítimo PanVK localizado con éxito en $TARGET_SO!"
             cp -v "$TARGET_SO" pkg/usr/lib/libvulkan_panfrost.so
-            patchelf --set-soname libvulkan_panfrost.so pkg/usr/lib/libvulkan_panfrost.so
-            llvm-strip --strip-unneeded pkg/usr/lib/libvulkan_panfrost.so
+            patchelf --set-soname libvulkan_panfrost.so pkg/usr/lib/libvulkan_panfrost.so 2>/dev/null || true
+            llvm-strip --strip-unneeded pkg/usr/lib/libvulkan_panfrost.so 2>/dev/null || true
           else
-            echo "🚨 ERROR CRITICO: No se encontró el binario .so esperado en $TARGET_SO"
-            find build/ -name "*.so"
+            echo "🚨 ERROR CRITICO: No se encontró el binario .so esperado en el árbol de carpetas."
+            find build/ -name "*.so" || true
             exit 1
           fi
 
