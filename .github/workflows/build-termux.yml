@@ -79,7 +79,7 @@ jobs:
           echo "-> NDK Real Detectado y validado en: $TRUE_NDK"
           echo "REAL_NDK_HOME=$TRUE_NDK" >> $GITHUB_ENV
 
-      # FASE MAESTRA DE CONFIGURACIÓN: Corregido el nombre de la bandera para Mesa 25
+      # FASE MAESTRA DE CONFIGURACIÓN: Removida la bandera conflictiva de KMDs de la linea de comandos
       - name: Configure Mesa 25 Cross-Compilation (Meson)
         run: |
           export ANDROID_NDK_HOME="${{ env.REAL_NDK_HOME }}"
@@ -113,8 +113,7 @@ jobs:
             -Dvalgrind=disabled \
             -Dzstd=disabled \
             -Dvulkan-drivers=panfrost \
-            -Dgallium-drivers=[] \
-            -Dgallium-panfrost-kmds=kbase,panthor
+            -Dgallium-drivers=[]
 
       - name: Compile Mesa 25 Drivers
         run: |
