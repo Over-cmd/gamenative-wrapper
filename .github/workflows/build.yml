@@ -50,16 +50,13 @@ jobs:
           done
           echo "REAL_NDK_HOME=$TRUE_NDK" >> $GITHUB_ENV
 
-      # 🟢 CLONACIÓN MAESTRA DE WAYDROID: Descarga el libdrm adaptado para Android con meson.build real de GitHub
+      # 🟢 CLONACIÓN DE UN SÓLO BLOQUE: Evita que la terminal de GitHub rompa o trunque la URL de Waydroid
       - name: Clone Android libdrm Source from Waydroid
         run: |
-          mkdir -p subprojects
-          echo "-> Clonando libdrm optimizado para Android desde Waydroid..."
-          git clone https://github.com subprojects/libdrm --depth=1
-          
-          echo "-> Destruyendo archivos wrap residuales para eludir el cortafuegos de red de Meson..."
-          rm -rf subprojects/*.wrap 2>/dev/null || true
-          rm -rf *.wrap 2>/dev/null || true
+          rm -rf subprojects/libdrm 2>/dev/null || true
+          git clone --depth=1 "https://github.com" "subprojects/libdrm"
+          rm -f subprojects/*.wrap 2>/dev/null || true
+          rm -f *.wrap 2>/dev/null || true
 
       - name: Configure Mesa 25 Cross-Compilation (Meson)
         run: |
@@ -73,7 +70,6 @@ jobs:
           if [ -f "android/android.toml" ]; then envsubst < android/android.toml > android-cross-compiled.txt
           else envsubst < android.toml > android-cross-compiled.txt; fi
           
-          # Vinculamos la carpeta fisica de Waydroid en las propiedades locales
           sed -i "s|\[properties\]|[properties]\nlibdrm_path = '$GITHUB_WORKSPACE/subprojects/libdrm'|g" android-cross-compiled.txt 2>/dev/null || true
           
           meson setup build --reconfigure \
