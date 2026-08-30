@@ -1,4 +1,4 @@
-name: GameNative Vulkan Wrapper Build
+name: Pipetto-Crypto Mesa 25 Vulkan Build
 
 on:
   push:
@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 jobs:
-  build-gamenative-wrapper:
+  build-mali-driver:
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -20,7 +20,8 @@ jobs:
       - name: Checkout Repository Source
         uses: actions/checkout@v4
 
-      - name: Patch anon_file.c for memfd_create
+      # Parches críticos de fuerza bruta para que la Mali-G52 no sea rechazada por Mesa 25
+      - name: Inject Hardware Patches for Mali-G52 (Bifrost v3)
         run: |
           echo "-> Aplicando parches de compatibilidad de API 30 en anon_file.c..."
           TARGET_FILE="src/util/anon_file.c"
@@ -61,19 +62,6 @@ jobs:
           python -m pip install --upgrade pip
           pip install mako PyYAML 'meson>=1.4.0' ninja packaging
 
-      - name: Unzip Local Android Environment Shims
-        run: |
-          echo "-> Descomprimiendo shims.zip en el area de trabajo..."
-          if [ -f "shims.zip" ]; then
-            unzip -o shims.zip -d ./
-            mkdir -p "$GITHUB_WORKSPACE/shims_target"
-            cp -rf ./shims/* "$GITHUB_WORKSPACE/shims_target/"
-            echo "=== Estructura verificada de los archivos .pc de X11 ==="
-            ls -la "$GITHUB_WORKSPACE/shims_target"
-          else
-            echo "🚨 ERROR: Falta shims.zip en la raiz de tu repositorio!" && exit 1
-          fi
-
       - name: Auto-Detect True Android NDK Path
         id: ndk-detector
         run: |
@@ -91,27 +79,31 @@ jobs:
           echo "-> NDK Real Detectado y validado en: $TRUE_NDK"
           echo "REAL_NDK_HOME=$TRUE_NDK" >> $GITHUB_ENV
 
-      - name: Configure GameNative Cross-Compilation (Meson)
+      # FASE MAESTRA DE CONFIGURACIÓN: Compilamos estrictamente el driver panfrost real de Mesa 25
+      - name: Configure Mesa 25 Cross-Compilation (Meson)
         run: |
           export ANDROID_NDK_HOME="${{ env.REAL_NDK_HOME }}"
           export MESON_WORKING_DIR="$GITHUB_WORKSPACE"
           
-          export PKG_CONFIG_PATH="$GITHUB_WORKSPACE/shims_target"
-          export PKG_CONFIG_LIBDIR="$GITHUB_WORKSPACE/shims_target"
-          export PKG_CONFIG_SYSROOT_DIR=""
+          # Mapeamos los shims nativos de Android que tiene tu repositorio en su subcarpeta
+          export PKG_CONFIG_PATH="$GITHUB_WORKSPACE/android/shims:$PKG_CONFIG_PATH"
+          export PKG_CONFIG_LIBDIR="$GITHUB_WORKSPACE/android/shims"
           
-          echo "-> Traduciendo variables de entorno en android-64.toml..."
-          if [ -f "android-64.toml" ]; then
-            envsubst < android-64.toml > android-cross-compiled.txt
-          else
+          echo "-> Traduciendo variables de entorno en android.toml..."
+          if [ -f "android.toml" ]; then
             envsubst < android.toml > android-cross-compiled.txt
+          else
+            envsubst < android/android.toml > android-cross-compiled.txt
           fi
           
-          echo "-> Inicializando Setup de Meson con -Dvulkan-drivers=wrapper..."
+          echo "-> Inicializando Setup de Mesa 25 para tu Mali-G52..."
           meson setup build --reconfigure \
             --cross-file android-cross-compiled.txt \
             -Dbuildtype=${{ matrix.build-type }} \
-            -Dplatforms= \
+            -Dplatforms=android \
+            -Dandroid-stub=true \
+            -Dandroid-libbacktrace=disabled \
+            -Dplatform-sdk-version=30 \
             -Dglx=disabled \
             -Dgbm=disabled \
             -Degl=disabled \
@@ -121,71 +113,70 @@ jobs:
             -Dllvm=disabled \
             -Dvalgrind=disabled \
             -Dzstd=disabled \
-            -Dvulkan-drivers=wrapper \
-            -Dgallium-drivers=[]
+            -Dvulkan-drivers=panfrost \
+            -Dgallium-drivers=[] \
+            -Dpanfrost-kmds=kbase,panthor
 
-      - name: Compile GameNative Engine
+      - name: Compile Mesa 25 Drivers
         run: |
           echo "-> Ejecutando compilación cruzada hacia ARM64 a través de Ninja..."
           meson compile -C build
 
+      # EMPAQUETADO OFICIAL PIPETTO-CRYPTO: Respeta la estructura legítima de Mesa 25
       - name: Structure and Pack wrapper.tzst for Bannerlator
         run: |
           echo "-> Creando arbol de carpetas estricto para el emulador..."
           rm -rf pkg
           mkdir -p pkg/usr/lib pkg/usr/share/vulkan/icd.d pkg/usr/share/vulkan/settings.d
           
-          echo "-> Buscando el binario real del wrapper generado por el compilador..."
-          TARGET_SO=$(find build/ -not -path "build/subprojects/*" -not -path "build/meson-private/*" -type f -name "*.so" | grep -E "libvulkan|wrapper|gamenative" | head -n 1)
+          echo "-> Buscando el driver real libvulkan_panfrost.so generado..."
+          TARGET_SO="build/src/panfrost/vulkan/libvulkan_panfrost.so"
           
-          if [ -z "$TARGET_SO" ] || [ ! -f "$TARGET_SO" ]; then
-            TARGET_SO=$(find build/src/ -not -path "build/subprojects/*" -type f -name "*.so" | head -n 1)
-          fi
-          
-          if [ -n "$TARGET_SO" ] && [ -f "$TARGET_SO" ]; then
-            echo "-> 🎯 ¡Binario legítimo de Vulkan Wrapper localizado en: $TARGET_SO!"
-            echo "-> Copiando a usr/lib..."
-            cp -v "$TARGET_SO" pkg/usr/lib/libvulkan_wrapper.so
-            llvm-strip --strip-unneeded pkg/usr/lib/libvulkan_wrapper.so
+          if [ -f "$TARGET_SO" ]; then
+            echo "-> 🎯 ¡Driver legítimo PanVK localizado con éxito!"
+            cp -v "$TARGET_SO" pkg/usr/lib/libvulkan_panfrost.so
+            patchelf --set-soname libvulkan_panfrost.so pkg/usr/lib/libvulkan_panfrost.so
+            llvm-strip --strip-unneeded pkg/usr/lib/libvulkan_panfrost.so
           else
-            echo "🚨 ERROR CRITICO SEVERO: El compilador terminó pero no se encontró la librería .so esperada."
+            echo "🚨 ERROR CRITICO: No se encontró el binario .so esperado en $TARGET_SO"
+            find build/ -name "*.so"
             exit 1
           fi
 
-          echo "-> Creando manifiestos ICD JSON oficiales con formato compatible 1.0.0..."
-          cat << 'EOF' > pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
+          echo "-> Creando manifiestos ICD JSON oficiales apuntando al driver real..."
+          cat << 'EOF' > pkg/usr/share/vulkan/icd.d/panfrost_icd.aarch64.json
           {
               "ICD": {
                   "api_version": "1.4.352",
-                  "library_path": "libvulkan_wrapper.so"
+                  "library_path": "libvulkan_panfrost.so"
               },
               "file_format_version": "1.0.0"
           }
           EOF
 
-          cat << 'EOF' > pkg/usr/share/vulkan/icd.d/wrapper_icd.arm.json
+          cat << 'EOF' > pkg/usr/share/vulkan/icd.d/panfrost_icd.arm.json
           {
               "ICD": {
                   "api_version": "1.4.352",
-                  "library_path": "libvulkan_wrapper.so"
+                  "library_path": "libvulkan_panfrost.so"
               },
               "file_format_version": "1.0.0"
           }
           EOF
 
-          # 🟢 ANCORA DE CONEXIÓN VULKAN: Forzamos el backend nativo WSI de Android eliminando X11
-          echo '{"env":{"PAN_I_WANT_A_BROKEN_VULKAN_DRIVER":"1","MESA_VK_IGNORE_CONFORMANCE_WARNING":"1","PANVK_DEBUG":"sync,nir","MESA_VK_FORCE_BLIT":"1","MESA_LOADER_DRIVER_OVERRIDE":"panfrost","GALLIUM_DRIVER":"panfrost","ZINK_DEBUG":"vulkan","vblank_mode":"0","MESA_GLSL_CACHE_DISABLE":"1","MESA_SHADER_CACHE_DISABLE":"true","NIR_DEBUG":"tgsi","MESA_VK_WSI_PRESENT_MODE":"immediate","MESA_VK_WSI_DEBUG":"always_async"}}' > pkg/usr/share/vulkan/settings.d/wrapper_settings.json
+          # Variables ambientales inyectadas para saltarse el cortafuegos de Unisoc en tu Mali-G52
+          echo '{"env":{"PAN_I_WANT_A_BROKEN_VULKAN_DRIVER":"1","MESA_VK_IGNORE_CONFORMANCE_WARNING":"1","PANVK_DEBUG":"sync,nir","MESA_VK_FORCE_BLIT":"1","MESA_LOADER_DRIVER_OVERRIDE":"panfrost","GALLIUM_DRIVER":"panfrost","vblank_mode":"0","MESA_GLSL_CACHE_DISABLE":"1","MESA_SHADER_CACHE_DISABLE":"true","NIR_DEBUG":"tgsi","MESA_VK_WSI_PRESENT_MODE":"immediate","MESA_VK_WSI_DEBUG":"always_async"}}' > pkg/usr/share/vulkan/settings.d/wrapper_settings.json
 
           echo "msf:315508" > pkg/version.txt
           
           echo "-> Ajustando permisos y empaquetando..."
           chmod -R 755 pkg/
-          chmod 755 pkg/usr/lib/libvulkan_wrapper.so
+          chmod 644 pkg/usr/lib/*.so* 2>/dev/null || true
           chmod 644 pkg/usr/share/vulkan/icd.d/*.json 
           chmod 644 pkg/usr/share/vulkan/settings.d/*.json 
           chmod 644 pkg/version.txt
 
-          echo "=== Arbol de Estructura Purificada Final ==="
+          echo "=== Arbol de Estructura Final del TZST ==="
           ls -R pkg
           echo "=========================================="
           
@@ -196,5 +187,5 @@ jobs:
       - name: Upload Final wrapper.tzst for Bannerlator
         uses: actions/upload-artifact@v4
         with:
-          name: GameNative-Mali-G52-Wrapper
+          name: Pipetto-Mesa25-Mali-Wrapper
           path: wrapper.tzst
