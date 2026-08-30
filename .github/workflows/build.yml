@@ -37,7 +37,7 @@ jobs:
 
       - name: Install Base Build Tools
         run: |
-          sudo apt-get update && sudo apt-get install -y build-essential libelf-dev bison flex pkg-config gettext patchelf unzip llvm clang curl
+          sudo apt-get update && sudo apt-get install -y build-essential libelf-dev bison flex pkg-config gettext patchelf unzip llvm clang
           python -m pip install --upgrade pip
           pip install mako PyYAML 'meson>=1.4.0' ninja packaging
 
@@ -50,18 +50,14 @@ jobs:
           done
           echo "REAL_NDK_HOME=$TRUE_NDK" >> $GITHUB_ENV
 
-      # 🟢 CORRECCIÓN CENTRAL: Descarga agresiva con curl emulando agente real para forzar la bajada del tarball
-      - name: Pre-Download and Inject Physical libdrm Source
+      # 🟢 CLONACIÓN MAESTRA DE WAYDROID: Descarga el libdrm adaptado para Android con meson.build real de GitHub
+      - name: Clone Android libdrm Source from Waydroid
         run: |
           mkdir -p subprojects
-          echo "-> Descargando tarball de libdrm mediante curl con simulador de agente..."
-          curl -fSL -A "Mozilla/5.0" "https://freedesktop.org" -o drm-libdrm-2.4.120.tar.gz
+          echo "-> Clonando libdrm optimizado para Android desde Waydroid..."
+          git clone https://github.com subprojects/libdrm --depth=1
           
-          echo "-> Extrayendo codigo plano en subproyectos..."
-          tar -xzf drm-libdrm-2.4.120.tar.gz -C subprojects/
-          mv subprojects/drm-libdrm-2.4.120 subprojects/libdrm
-          
-          echo "-> Destruyendo archivos wrap para eludir el cortafuegos de red de Meson..."
+          echo "-> Destruyendo archivos wrap residuales para eludir el cortafuegos de red de Meson..."
           rm -rf subprojects/*.wrap 2>/dev/null || true
           rm -rf *.wrap 2>/dev/null || true
 
@@ -77,6 +73,7 @@ jobs:
           if [ -f "android/android.toml" ]; then envsubst < android/android.toml > android-cross-compiled.txt
           else envsubst < android.toml > android-cross-compiled.txt; fi
           
+          # Vinculamos la carpeta fisica de Waydroid en las propiedades locales
           sed -i "s|\[properties\]|[properties]\nlibdrm_path = '$GITHUB_WORKSPACE/subprojects/libdrm'|g" android-cross-compiled.txt 2>/dev/null || true
           
           meson setup build --reconfigure \
