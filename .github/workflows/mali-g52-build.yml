@@ -63,6 +63,52 @@ jobs:
             if [ -d "$path/toolchains/llvm/prebuilt/linux-x86_64/bin" ]; then echo "REAL_NDK_HOME=$path" >> $GITHUB_ENV; break; fi
           done
 
+      # 🟢 PASO INTEGRAL: Escribimos el cross.txt definitivo unificado con las rutas exactas de main-repo/ y los Shims
+      - name: Generate Indestructible Meson Cross-File
+        run: |
+          cd main-repo
+          NDK_SYSROOT_LIB="${{ env.REAL_NDK_HOME }}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/30"
+          
+          cat << EOF > cross.txt
+          [constants]
+          ndk_home = '${{ env.REAL_NDK_HOME }}'
+          working_dir = '$GITHUB_WORKSPACE/main-repo'
+          ndk_bin = ndk_home / 'toolchains/llvm/prebuilt/linux-x86_64/bin'
+          ndk_sysroot = ndk_home / 'toolchains/llvm/prebuilt/linux-x86_64/sysroot'
+          ndk_sysroot_lib = '${NDK_SYSROOT_LIB}'
+          shims_path = '$GITHUB_WORKSPACE/shims_target'
+
+          [binaries]
+          c = [ndk_bin / 'clang', '-target', 'aarch64-linux-android30', '-D__TERMUX__']
+          cpp = [ndk_bin / 'clang++', '-target', 'aarch64-linux-android30', '-fno-exceptions', '--start-no-unused-arguments', '--end-no-unused-arguments', '-D__TERMUX__']
+          ar = ndk_bin / 'llvm-ar'
+          strip = ndk_bin / 'llvm-strip'
+          pkg-config = '/usr/bin/pkg-config'
+
+          [host_machine]
+          system = 'android'
+          cpu_family = 'aarch64'
+          cpu = 'aarch64'
+          endian = 'little'
+
+          [properties]
+          sys_root = ndk_sysroot
+          libdir = ndk_sysroot_lib
+          needs_exe_wrapper = true
+          pkg_config_path = shims_path
+          pkg_config_libdir = shims_path
+          libdrm_path = '$GITHUB_WORKSPACE/main-repo/subprojects/libdrm'
+
+          [built-in options]
+          c_args = ['--sysroot=' + ndk_sysroot, '-fno-emulated-tls', '-I' + shims_path / 'include', '-isystem' + ndk_sysroot / 'usr/include', '-DHAVE_STRUCT_TIMESPEC', '-DHAVE_DLFCN_H', '-UHAVE_SECURE_GETENV', '-UHAVE_QSORT_S', '-include', 'fcntl.h', '-include', 'time.h', '-Wl,-llog', '-Wl,-lsync', '-fvisibility=default']
+          cpp_args = ['--sysroot=' + ndk_sysroot, '-fno-emulated-tls', '-I' + shims_path / 'include', '-isystem' + ndk_sysroot / 'usr/include', '-DHAVE_STRUCT_TIMESPEC', '-DHAVE_DLFCN_H', '-UHAVE_SECURE_GETENV', '-UHAVE_QSORT_S', '-include', 'fcntl.h', '-include', 'time.h', '-include', 'dlfcn.h', '-Wl,-llog', '-Wl,-lsync', '-fvisibility=default', '-D_LIBCPP_ABI_NAMESPACE=__1']
+          c_link_args = ['-landroid', '-llog', '-lsync', '-lhardware', '-L' + ndk_sysroot_lib, '-L' + shims_path, '--sysroot=' + ndk_sysroot, '-Wl,--allow-shlib-undefined', '-llog', '-lsync']
+          cpp_link_args = ['-landroid', '-llog', '-lsync', '-lhardware', '-L' + ndk_sysroot_lib, '-L' + shims_path, '--sysroot=' + ndk_sysroot, '-Wl,--allow-shlib-undefined', '-llog', '-lsync']
+          EOF
+          
+          echo "=== Cross-File Estructural Validado con Éxito ==="
+          cat cross.txt
+
       - name: Configure GameNative Cross-Compilation (Meson)
         run: |
           cd main-repo
@@ -71,30 +117,8 @@ jobs:
           export PKG_CONFIG_PATH="$GITHUB_WORKSPACE/shims_target"
           export PKG_CONFIG_LIBDIR="$GITHUB_WORKSPACE/shims_target"
           
-          if [ -f "android-64.toml" ]; then envsubst < android-64.toml > cross.txt; else envsubst < android.toml > cross.txt; fi
-          
-          # 🟢 RUTAS OFICIALES EN CALIENTE DEL ANDROID NDK
-          NDK_SYSROOT_LIB="${{ env.REAL_NDK_HOME }}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/30"
-          
-          sed -i "s|pkg_config_libdir = .*|pkg_config_libdir = '$PKG_CONFIG_PATH'|g" cross.txt
-          sed -i "s|pkg_config_path = .*|pkg_config_path = '$PKG_CONFIG_PATH'|g" cross.txt
-          sed -i "s|libdrm_path = .*|libdrm_path = '$GITHUB_WORKSPACE/main-repo/subprojects/libdrm'|g" cross.txt
-          
-          # Inyectamos el enlazador prioritario apuntando a los archivos reales de Google
-          sed -i "s|c_link_args = \[|c_link_args = ['-landroid', '-llog', '-lsync', '-lhardware', '-L${NDK_SYSROOT_LIB}', '-L$PKG_CONFIG_PATH', |g" cross.txt
-          sed -i "s|cpp_link_args = \[|cpp_link_args = ['-landroid', '-llog', '-lsync', '-lhardware', '-L${NDK_SYSROOT_LIB}', '-L$PKG_CONFIG_PATH', |g" cross.txt
-          
-          # 🟢 INSTALACIÓN REAL DE LA RUTA EN LAS PROPIEDADES DE COMPILACIÓN:
-          # Le enseñamos a Meson exactamente en qué carpetas del NDK viven libandroid.so y liblog.so reales de forma nativa
-          if grep -q "\[properties\]" cross.txt; then
-            sed -i "s|\[properties\]|\[properties\]\nsys_root = '${{ env.REAL_NDK_HOME }}/toolchains/llvm/prebuilt/linux-x86_64/sysroot'\nlibdir = '${NDK_SYSROOT_LIB}'|g" cross.txt
-          fi
-          
-          echo "=== Contenido del Cross-File con Rutas de Android Reales ==="
-          cat cross.txt
-          
           echo "-> Lanzando inicialización de Meson para tu Mali-G52..."
-          meson setup build --reconfigure --cross-file cross.txt --wrap-mode=forcefallback -Dbuildtype=release -Dplatforms=android -Dandroid-stub=true -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dopengl=false -Dgles1=disabled -Dgles2=disabled -Dllvm=disabled -Dvalgrind=disabled -Dzstd=disabled -Dvulkan-drivers=panfrost,wrapper -Dgallium-drivers=[]
+          meson setup build --reconfigure --cross-file cross.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dandroid-stub=true -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dopengl=false -Dgles1=disabled -Dgles2=disabled -Dllvm=disabled -Dvalgrind=disabled -Dzstd=disabled -Dvulkan-drivers=panfrost,wrapper -Dgallium-drivers=[]
 
       - name: Compile GameNative Engine
         run: |
