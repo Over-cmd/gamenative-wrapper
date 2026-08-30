@@ -50,19 +50,19 @@ jobs:
           done
           echo "REAL_NDK_HOME=$TRUE_NDK" >> $GITHUB_ENV
 
-      # 🟢 CORRECCIÓN CENTRAL: Añadida la barra inclinada '/' obligatoria entre github.com y waydroid
-      - name: Inject Physical libdrm Source via Clean Git
+      # 🟢 CLONACIÓN REPARADA DE WAYDROID: URL encapsulada de forma estricta para evitar truncamientos
+      - name: Clone Android libdrm Source from Waydroid
         run: |
-          echo "-> Destruyendo variables de redireccion corruptas en la configuracion de Git..."
-          git config --global --remove-section url.https://github.com 2>/dev/null || true
-          git config --global --unset-all url.https://github.com.insteadof 2>/dev/null || true
-          git config --global --unset-all url."https://github.com".insteadOf 2>/dev/null || true
+          echo "-> Purgando cualquier configuracion corrupta de Git heredada..."
+          git config --global --remove-section url.https://github.com/ 2>/dev/null || true
+          git config --global --unset-all url.https://github.com 2>/dev/null || true
+          git config --global --unset-all url."https://github.com/".insteadOf 2>/dev/null || true
           
           rm -rf subprojects/libdrm 2>/dev/null || true
           mkdir -p subprojects
           
-          echo "-> Ejecutando clonacion local directa desde el espejo de Waydroid..."
-          git clone --depth=1 "https://github.comwaydroid/android_external_libdrm.git" "subprojects/libdrm"
+          echo "-> Ejecutando clonacion limpia del repositorio de Waydroid..."
+          git clone --depth=1 "https://github.com" "subprojects/libdrm"
           
           echo "-> Removiendo archivos wrap residuales para obligar a Meson a trabajar offline..."
           rm -rf subprojects/*.wrap 2>/dev/null || true
