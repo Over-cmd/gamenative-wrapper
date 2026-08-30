@@ -84,13 +84,11 @@ jobs:
           sed -i "s|pkg_config_path = .*|pkg_config_path = '$PKG_CONFIG_PATH'|g" cross.txt
           sed -i "s|libdrm_path = .*|libdrm_path = '$GITHUB_WORKSPACE/main-repo/subprojects/libdrm'|g" cross.txt
           
-          # Inyección forzada de argumentos del compilador cruzado apuntando al Sysroot de Google
           sed -i "s|c_link_args = \[|c_link_args = ['-landroid', '-llog', '-lsync', '-lhardware', '-L${{ env.REAL_NDK_HOME }}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/30', '-L$PKG_CONFIG_PATH', |g" cross.txt
           sed -i "s|cpp_link_args = \[|cpp_link_args = ['-landroid', '-llog', '-lsync', '-lhardware', '-L${{ env.REAL_NDK_HOME }}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/30', '-L$PKG_CONFIG_PATH', |g" cross.txt
           
-          # 🟢 JUGADA MAESTRA INDESTRUCTIBLE: Obligamos a Meson a saltarse find_library('android') y find_library('log') 
-          # definiendo las dependencias como ya resueltas en los metadatos del cross-file compilado
-          echo -e "\n[binaries]\nandroid = 'true'\nlog = 'true'\ndl = 'true'\nrt = 'true'\natomic = 'true'" >> cross.txt
+          # 🟢 JUGADA MAESTRA CORREGIDA: Sincronizamos las propiedades inyectándolas dentro del bloque binaries existente
+          sed -i "s|\[binaries\]|\[binaries\]\nandroid = 'true'\nlog = 'true'\ndl = 'true'\nrt = 'true'\natomic = 'true'|g" cross.txt
           
           echo "=== Contenido Verificado del Cross-File Compilado ==="
           cat cross.txt
