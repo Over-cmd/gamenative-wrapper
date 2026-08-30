@@ -37,7 +37,7 @@ jobs:
 
       - name: Install Base Build Tools
         run: |
-          sudo apt-get update && sudo apt-get install -y build-essential libelf-dev bison flex pkg-config gettext patchelf unzip llvm clang curl
+          sudo apt-get update && sudo apt-get install -y build-essential libelf-dev bison flex pkg-config gettext patchelf unzip llvm clang
           python -m pip install --upgrade pip
           pip install mako PyYAML 'meson>=1.4.0' ninja packaging
 
@@ -50,23 +50,15 @@ jobs:
           done
           echo "REAL_NDK_HOME=$TRUE_NDK" >> $GITHUB_ENV
 
-      # 🟢 EXTRAEDOR UNZIP SINCRO: Extrae el paquete zip real entregado por la API de GitHub
-      - name: Inject Physical libdrm Source via Zip Extract
+      # 🟢 PASO MAESTRO ANTI-ZIPS: Clonamos de GitHub a GitHub de forma directa sin usar archivos comprimidos corruptos
+      - name: Inject Physical libdrm Source via Direct Git Clone
         run: |
+          rm -rf subprojects/libdrm 2>/dev/null || true
           mkdir -p subprojects
-          echo "-> Descargando el archivo fuente real de Waydroid libdrm..."
-          curl -fSL "https://github.com" -o waydroid-libdrm.zip
+          echo "-> Realizando clonación limpia de la biblioteca de renderizado..."
+          git clone --depth=1 "https://github.com" "subprojects/libdrm"
           
-          echo "-> Descomprimiendo el paquete en la carpeta local de subproyectos..."
-          unzip -q waydroid-libdrm.zip -d subprojects/
-          
-          # La API de GitHub extrae con un nombre de directorio aleatorio largo (ej: waydroid-android_external_libdrm-4a5b6c)
-          # Buscamos esa carpeta en subprojects/ y la renombramos estrictamente a 'libdrm'
-          EXTRACTED_DIR=$(find subprojects/ -maxdepth 1 -type d -name "*waydroid*" | head -n 1)
-          mv "$EXTRACTED_DIR" subprojects/libdrm
-          echo "-> ¡Codigo fuente de libdrm inyectado físicamente de forma local en subprojects/libdrm!"
-          
-          echo "-> Eliminando archivos wrap residuales para obligar a Meson a trabajar 100% offline..."
+          echo "-> Destruyendo archivos wrap para obligar a Meson a trabajar en modo 100% local..."
           rm -rf subprojects/*.wrap 2>/dev/null || true
           rm -rf *.wrap 2>/dev/null || true
 
