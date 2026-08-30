@@ -28,9 +28,6 @@ jobs:
           find . -name "pan_device.c" -exec sed -i 's/\\&/\&/g' {} + 2>/dev/null || true
           sed -i "s/cc.find_library('rt'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
           sed -i "s/cc.find_library('atomic'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
-          
-          echo "-> 🟢 HACK 6: Anulando el bloqueo de la libreria 'dl' integrada en la libc de Android..."
-          # Reemplazamos el chequeo rigido de cc.find_library('dl') para bypasser la linea 1514
           sed -i "s/cc.find_library('dl'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 
       - name: Set up Python Environment
@@ -71,43 +68,39 @@ jobs:
           git config --global --remove-section url.https://github.com 2>/dev/null || true
           
           rm -rf subprojects/libdrm 2>/dev/null || true
-          mkdir -p subprojects
+          mkdir -p subprojects/libdrm
           
           BLIND_HOST="github.com"
           BLIND_USER="waydroid"
           BLIND_REPO="android_external_libdrm"
-          BLIND_PATH="archive/refs/heads/lineage-18.1.zip"
+          BLIND_PATH="archive/refs/heads/lineage-18.1.tar.gz"
           
-          echo "-> Descargando el archivo zip unificado de forma fragmentada..."
-          curl -fSL "https://${BLIND_HOST}/${BLIND_USER}/${BLIND_REPO}/${BLIND_PATH}" -o waydroid-libdrm.zip
+          echo "-> Descargando el archivo tarball de Waydroid libdrm de forma fragmentada..."
+          curl -fSL "https://${BLIND_HOST}/${BLIND_USER}/${BLIND_REPO}/${BLIND_PATH}" -o waydroid-libdrm.tar.gz
           
-          echo "-> Extrayendo estructura local con unzip..."
-          unzip -q waydroid-libdrm.zip -d subprojects/
-          
-          EXTRACTED_DIR=$(find subprojects/ -maxdepth 1 -type d -name "*android_external_libdrm*" | head -n 1)
-          mv "$EXTRACTED_DIR" subprojects/libdrm
+          echo "-> Extrayendo estructura local saltando la carpeta raiz variable..."
+          tar -xzf waydroid-libdrm.tar.gz -C subprojects/libdrm --strip-components=1
           echo "-> Código fuente de libdrm inyectado con éxito en disco."
 
-      # Extraedor desglosado de dependencias locales offline (libadrenotools)
+      # 🟢 EXTRAEDOR BLINDADO 2 CORREGIDO: Forzamos la descompresión limpia directa saltándonos el prefijo bylaws
       - name: Inject Physical libadrenotools Source via Blinded Shell
         run: |
           rm -rf subprojects/libadrenotools 2>/dev/null || true
+          mkdir -p subprojects/libadrenotools
           
           BLIND_HOST="github.com"
           BLIND_USER="bylaws"
           BLIND_REPO="libadrenotools"
-          BLIND_PATH="archive/refs/heads/master.zip"
+          BLIND_PATH="archive/refs/heads/master.tar.gz"
           
-          echo "-> Descargando zip nativo de libadrenotools..."
-          curl -fSL "https://${BLIND_HOST}/${BLIND_USER}/${BLIND_REPO}/${BLIND_PATH}" -o adrenotools.zip
+          echo "-> Descargando tarball nativo de libadrenotools..."
+          curl -fSL "https://${BLIND_HOST}/${BLIND_USER}/${BLIND_REPO}/${BLIND_PATH}" -o adrenotools.tar.gz
           
-          echo "-> Extrayendo estructura local con unzip..."
-          unzip -q adrenotools.zip -d subprojects/
+          echo "-> Extrayendo estructura local en su destino exacto mediante strip-components..."
+          tar -xzf adrenotools.tar.gz -C subprojects/libadrenotools --strip-components=1
+          echo "-> Código fuente de libadrenotools inyectado con éxito en disco."
           
-          EXTRACTED_DIR_ADRENO=$(find subprojects/ -maxdepth 1 -type d -name "*libadrenotools*" | head -n 1)
-          mv "$EXTRACTED_DIR_ADRENO" subprojects/libadrenotools
-          
-          echo "-> Destruyendo archivos wrap para obligar a Meson a trabajar offline..."
+          echo "-> Destruyendo archivos wrap residuales para obligar a Meson a trabajar offline..."
           rm -rf subprojects/*.wrap 2>/dev/null || true
           rm -rf *.wrap 2>/dev/null || true
 
