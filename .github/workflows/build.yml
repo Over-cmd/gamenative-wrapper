@@ -1,4 +1,4 @@
-# COMPILACIÓN INDESTRUCTIBLE GAME NATIVE WRAPPER - MALI-G52 VULKAN PUNTO FINAL
+# COMPILACIÓN INDESTRUCTIBLE GAME NATIVE WRAPPER - MALI-G52 VULKAN FINAL VALIDADO
 name: GameNative Vulkan Wrapper Build
 
 on:
@@ -59,8 +59,8 @@ jobs:
           done
           echo "REAL_NDK_HOME=$TRUE_NDK" >> $GITHUB_ENV
 
-      # 🟢 EXTRAEDOR DE CAJA 1: Descarga fisica directa de Waydroid via Tarball de confianza (Sin Git ni Zips corruptos)
-      - name: Inject Physical libdrm Source via Plain Tarball (No Git)
+      # 🟢 EXTRAEDOR DE CAJA 1 REPARADO: Se descarga el .zip real de Waydroid libdrm usando la web de descargas crudas
+      - name: Inject Physical libdrm Source via Unzip (No Tar)
         run: |
           echo "-> Purgando configuraciones corruptas globales del entorno..."
           git config --global --remove-section url.https://github.com 2>/dev/null || true
@@ -69,29 +69,29 @@ jobs:
           rm -rf subprojects/libdrm 2>/dev/null || true
           mkdir -p subprojects
           
-          echo "-> Descargando el archivo fuente real de Waydroid libdrm via Tarball API..."
-          curl -fSL "https://github.com" -o waydroid-libdrm.tar.gz
+          echo "-> Descargando el archivo zip legítimo de Waydroid libdrm..."
+          curl -fSL "https://github.comwaydroid/android_external_libdrm/archive/refs/heads/lineage-18.1.zip" -o waydroid-libdrm.zip
           
-          echo "-> Extrayendo estructura de forma estática..."
-          tar -xzf waydroid-libdrm.tar.gz -C subprojects/
+          echo "-> Extrayendo estructura local con unzip..."
+          unzip -q waydroid-libdrm.zip -d subprojects/
           
-          EXTRACTED_DIR=$(find subprojects/ -maxdepth 1 -type d -name "*waydroid-android_external_libdrm*" | head -n 1)
+          EXTRACTED_DIR=$(find subprojects/ -maxdepth 1 -type d -name "*android_external_libdrm*" | head -n 1)
           mv "$EXTRACTED_DIR" subprojects/libdrm
-          echo "-> Codigo fuente de libdrm inyectado localmente con éxito."
+          echo "-> Código fuente de libdrm inyectado localmente con éxito."
 
-      # 🟢 EXTRAEDOR DE CAJA 2: Descarga física de libadrenotools usando Tarball plano para reventar el error de central-directory
-      - name: Inject Physical libadrenotools Source via Tarball
+      # 🟢 EXTRAEDOR DE CAJA 2 REPARADO: Se descarga el .zip real de libadrenotools usando la web de descargas crudas
+      - name: Inject Physical libadrenotools Source via Unzip
         run: |
           rm -rf subprojects/libadrenotools 2>/dev/null || true
-          echo "-> Descargando tarball nativo de libadrenotools desde la API..."
-          curl -fSL "https://github.com" -o adrenotools.tar.gz
+          echo "-> Descargando zip nativo de libadrenotools..."
+          curl -fSL "https://github.combylaws/libadrenotools/archive/refs/heads/master.zip" -o adrenotools.zip
           
-          echo "-> Extrayendo estructura local con tar..."
-          tar -xzf adrenotools.tar.gz -C subprojects/
+          echo "-> Extrayendo estructura local con unzip..."
+          unzip -q adrenotools.zip -d subprojects/
           
-          EXTRACTED_DIR_ADRENO=$(find subprojects/ -maxdepth 1 -type d -name "*bylaws-libadrenotools*" | head -n 1)
+          EXTRACTED_DIR_ADRENO=$(find subprojects/ -maxdepth 1 -type d -name "*libadrenotools*" | head -n 1)
           mv "$EXTRACTED_DIR_ADRENO" subprojects/libadrenotools
-          echo "-> Codigo fuente de libadrenotools inyectado localmente de forma estática."
+          echo "-> Código fuente de libadrenotools inyectado localmente."
           
           echo "-> Destruyendo archivos wrap residuales para obligar a Meson a trabajar offline..."
           rm -rf subprojects/*.wrap 2>/dev/null || true
@@ -113,7 +113,7 @@ jobs:
           sed -i "s|pkg_config_path = .*|pkg_config_path = '$GITHUB_WORKSPACE/shims_target'|g" android-cross-compiled.txt 2>/dev/null || true
           sed -i "s|libdrm_path = .*|libdrm_path = '$GITHUB_WORKSPACE/subprojects/libdrm'|g" android-cross-compiled.txt 2>/dev/null || true
           
-          # Inyección forzada de linkers para amarrar la sincronizacion de logs de Pipetto-Crypto (sync_wait)
+          # Inyección forzada de linkers para amarrar la sincronización de logs de Pipetto-Crypto (sync_wait)
           sed -i "s|c_link_args = \[|c_link_args = ['-lsync', '-lhardware', '-L$GITHUB_WORKSPACE/shims_target', |g" android-cross-compiled.txt 2>/dev/null || true
           sed -i "s|cpp_link_args = \[|cpp_link_args = ['-lsync', '-lhardware', '-L$GITHUB_WORKSPACE/shims_target', |g" android-cross-compiled.txt 2>/dev/null || true
           
