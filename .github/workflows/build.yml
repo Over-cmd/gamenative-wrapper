@@ -1,4 +1,5 @@
-name: Pipetto-Crypto Mesa 25 Vulkan Build
+# COMPILACIÓN INDESTRUCTIBLE GAME NATIVE WRAPPER - MALI-G52 VULKAN
+name: GameNative Vulkan Wrapper Build
 
 on:
   push:
@@ -9,7 +10,7 @@ permissions:
   contents: read
 
 jobs:
-  build-mali-driver:
+  build-gamenative-wrapper:
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -25,9 +26,6 @@ jobs:
           sed -i 's/fd = syscall(SYS_memfd_create, debug_name, MFD_CLOEXEC | MFD_ALLOW_SEALING);/fd = memfd_create(debug_name, MFD_CLOEXEC | MFD_ALLOW_SEALING);/g' src/util/anon_file.c 2>/dev/null || true
           find . -name "pan_device.c" -exec sed -i 's/pan_query_core_count(&dev->kmod.dev->props, &dev->core_id_range);/dev->core_id_range = pan_query_core_count(\&dev->kmod.dev->props);/g' {} + 2>/dev/null || true
           find . -name "pan_device.c" -exec sed -i 's/\\&/\&/g' {} + 2>/dev/null || true
-          find src/panfrost/vulkan/ -name "*.c" -exec sed -i 's/if (!dev->kmod.props.bifrost_v3)/if (false)/g' {} + 2>/dev/null || true
-          find src/panfrost/vulkan/ -name "*.c" -exec sed -i 's/if (dev->kmod.props.bifrost_version < 3)/if (false)/g' {} + 2>/dev/null || true
-          find src/panfrost/ -name "*.c" -exec sed -i 's/return pan_kmod_get_format_modifier/return true; \/\/ pan_kmod_get_format_modifier/g' {} + 2>/dev/null || true
           sed -i "s/cc.find_library('rt'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 
       - name: Set up Python Environment
@@ -37,9 +35,23 @@ jobs:
 
       - name: Install Base Build Tools
         run: |
-          sudo apt-get update && sudo apt-get install -y build-essential libelf-dev bison flex pkg-config gettext patchelf unzip llvm clang curl
+          sudo apt-get update && sudo apt-get install -y build-essential libelf-dev bison flex pkg-config gettext patchelf unzip llvm clang
           python -m pip install --upgrade pip
           pip install mako PyYAML 'meson>=1.4.0' ninja packaging
+
+      # 🟢 PASO MAESTRO DEL WRAPPER: Extrae de forma reglamentaria tus shims nativos locales exigidos por el repositorio
+      - name: Unzip Local Android Environment Shims
+        run: |
+          echo "-> Descomprimiendo shims.zip en el area de trabajo..."
+          if [ -f "shims.zip" ]; then
+            unzip -o shims.zip -d ./
+            mkdir -p "$GITHUB_WORKSPACE/shims_target"
+            cp -rf ./shims/* "$GITHUB_WORKSPACE/shims_target/"
+            echo "=== Estructura verificada de los archivos .pc locales ==="
+            ls -la "$GITHUB_WORKSPACE/shims_target"
+          else
+            echo "🚨 ERROR: Falta shims.zip en la raiz de tu repositorio!" && exit 1
+          fi
 
       - name: Auto-Detect True Android NDK Path
         id: ndk-detector
@@ -50,78 +62,64 @@ jobs:
           done
           echo "REAL_NDK_HOME=$TRUE_NDK" >> $GITHUB_ENV
 
-      # 🟢 CLONACIÓN REPARADA DE WAYDROID: URL encapsulada de forma estricta para evitar truncamientos
-      - name: Clone Android libdrm Source from Waydroid
-        run: |
-          echo "-> Purgando cualquier configuracion corrupta de Git heredada..."
-          git config --global --remove-section url.https://github.com/ 2>/dev/null || true
-          git config --global --unset-all url.https://github.com 2>/dev/null || true
-          git config --global --unset-all url."https://github.com/".insteadOf 2>/dev/null || true
-          
-          rm -rf subprojects/libdrm 2>/dev/null || true
-          mkdir -p subprojects
-          
-          echo "-> Ejecutando clonacion limpia del repositorio de Waydroid..."
-          git clone --depth=1 "https://github.com" "subprojects/libdrm"
-          
-          echo "-> Removiendo archivos wrap residuales para obligar a Meson a trabajar offline..."
-          rm -rf subprojects/*.wrap 2>/dev/null || true
-          rm -rf *.wrap 2>/dev/null || true
-
-      - name: Configure Mesa 25 Cross-Compilation (Meson)
+      # Configuración limpia del GameNative Wrapper usando tus shims locales descompresos
+      - name: Configure GameNative Cross-Compilation (Meson)
         run: |
           export ANDROID_NDK_HOME="${{ env.REAL_NDK_HOME }}"
           export MESON_WORKING_DIR="$GITHUB_WORKSPACE"
           
-          export PKG_CONFIG_PATH="$GITHUB_WORKSPACE/android/shims:$PKG_CONFIG_PATH"
-          export PKG_CONFIG_LIBDIR="$GITHUB_WORKSPACE/android/shims"
+          export PKG_CONFIG_PATH="$GITHUB_WORKSPACE/shims_target"
+          export PKG_CONFIG_LIBDIR="$GITHUB_WORKSPACE/shims_target"
           export PKG_CONFIG_SYSROOT_DIR=""
           
-          if [ -f "android/android.toml" ]; then envsubst < android/android.toml > android-cross-compiled.txt
+          echo "-> Traduciendo variables de entorno en la plantilla de configuracion cruzada..."
+          if [ -f "android-64.toml" ]; then envsubst < android-64.toml > android-cross-compiled.txt
           else envsubst < android.toml > android-cross-compiled.txt; fi
           
-          sed -i "s|\[properties\]|[properties]\nlibdrm_path = '$GITHUB_WORKSPACE/subprojects/libdrm'|g" android-cross-compiled.txt 2>/dev/null || true
+          # Inyectamos la subcarpeta local corregida en las propiedades del cross-file compilado
+          sed -i "s|pkg_config_libdir = .*|pkg_config_libdir = '$GITHUB_WORKSPACE/shims_target'|g" android-cross-compiled.txt 2>/dev/null || true
+          sed -i "s|pkg_config_path = .*|pkg_config_path = '$GITHUB_WORKSPACE/shims_target'|g" android-cross-compiled.txt 2>/dev/null || true
           
+          echo "-> Inicializando Setup de Meson para GameNative con -Dvulkan-drivers=wrapper..."
           meson setup build --reconfigure \
             --cross-file android-cross-compiled.txt \
             --wrap-mode=nodownload \
             -Dbuildtype=${{ matrix.build-type }} \
-            -Dplatforms=android \
-            -Dandroid-stub=true \
-            -Dandroid-libbacktrace=disabled \
-            -Dplatform-sdk-version=30 \
+            -Dplatforms= \
             -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dopengl=false -Dgles1=disabled -Dgles2=disabled -Dllvm=disabled -Dvalgrind=disabled -Dzstd=disabled \
-            -Dvulkan-drivers=panfrost -Dgallium-drivers=[]
+            -Dvulkan-drivers=wrapper -Dgallium-drivers=[]
 
-      - name: Compile Mesa 25 Drivers
+      - name: Compile GameNative Engine
         run: meson compile -C build
 
-      # EMPAQUETADO OFICIAL Y DIRECTO EN EL CONTENEDOR
+      # EMPAQUETADO ULTRA-LIMPIO FORMATO ICD 1.0.0 EXIGIDO POR BANNERLATOR
       - name: Structure and Pack wrapper.tzst for Bannerlator
         run: |
           rm -rf pkg && mkdir -p pkg/usr/lib pkg/usr/share/vulkan/icd.d pkg/usr/share/vulkan/settings.d
-          TARGET_SO=$(find build/ -name "libvulkan_panfrost.so" | head -n 1)
-          if [ -z "$TARGET_SO" ]; then TARGET_SO=$(find . -name "libvulkan_panfrost.so" | head -n 1); fi
           
-          cp -v "$TARGET_SO" pkg/usr/lib/libvulkan_panfrost.so
-          patchelf --set-soname libvulkan_panfrost.so pkg/usr/lib/libvulkan_panfrost.so
-          llvm-strip --strip-unneeded pkg/usr/lib/libvulkan_panfrost.so
+          echo "-> Localizando el binario principal generado..."
+          TARGET_SO=$(find build/ -not -path "build/subprojects/*" -not -path "build/meson-private/*" -type f -name "*.so" | grep -E "libvulkan|wrapper|gamenative" | head -n 1)
+          if [ -z "$TARGET_SO" ] || [ ! -f "$TARGET_SO" ]; then TARGET_SO=$(find build/src/ -not -path "build/subprojects/*" -type f -name "*.so" | head -n 1); fi
           
-          cat << 'EOF' > pkg/usr/share/vulkan/icd.d/panfrost_icd.aarch64.json
-          {"ICD": {"api_version": "1.4.352", "library_path": "libvulkan_panfrost.so"}, "file_format_version": "1.0.0"}
+          cp -v "$TARGET_SO" pkg/usr/lib/libvulkan_wrapper.so
+          patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so 2>/dev/null || true
+          llvm-strip --strip-unneeded pkg/usr/lib/libvulkan_wrapper.so
+          
+          cat << 'EOF' > pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
+          {"ICD": {"api_version": "1.4.352", "library_path": "libvulkan_wrapper.so"}, "file_format_version": "1.0.0"}
           EOF
-          cat << 'EOF' > pkg/usr/share/vulkan/icd.d/panfrost_icd.arm.json
-          {"ICD": {"api_version": "1.4.352", "library_path": "libvulkan_panfrost.so"}, "file_format_version": "1.0.0"}
+          cat << 'EOF' > pkg/usr/share/vulkan/icd.d/wrapper_icd.arm.json
+          {"ICD": {"api_version": "1.4.352", "library_path": "libvulkan_wrapper.so"}, "file_format_version": "1.0.0"}
           EOF
           
           echo '{"env":{"PAN_I_WANT_A_BROKEN_VULKAN_DRIVER":"1","MESA_VK_IGNORE_CONFORMANCE_WARNING":"1","PANVK_DEBUG":"sync,nir","MESA_VK_FORCE_BLIT":"1","MESA_LOADER_DRIVER_OVERRIDE":"panfrost","GALLIUM_DRIVER":"panfrost","vblank_mode":"0","MESA_GLSL_CACHE_DISABLE":"1","MESA_SHADER_CACHE_DISABLE":"true","NIR_DEBUG":"tgsi","MESA_VK_WSI_PRESENT_MODE":"immediate","MESA_VK_WSI_DEBUG":"always_async"}}' > pkg/usr/share/vulkan/settings.d/wrapper_settings.json
           echo "msf:315508" > pkg/version.txt
           
-          chmod -R 755 pkg/ && chmod 644 pkg/usr/lib/*.so* 2>/dev/null || true
+          chmod -R 755 pkg/ && chmod 755 pkg/usr/lib/libvulkan_wrapper.so
           cd pkg && tar -I 'zstd -19 -T0' -cf ../wrapper.tzst usr/ version.txt
           
       - name: Upload Final wrapper.tzst for Bannerlator
         uses: actions/upload-artifact@v4
         with:
-          name: Pipetto-Mesa25-Mali-Wrapper
+          name: GameNative-Mali-G52-Wrapper
           path: wrapper.tzst
