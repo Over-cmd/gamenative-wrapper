@@ -79,13 +79,12 @@ jobs:
           echo "-> NDK Real Detectado y validado en: $TRUE_NDK"
           echo "REAL_NDK_HOME=$TRUE_NDK" >> $GITHUB_ENV
 
-      # FASE MAESTRA DE CONFIGURACIÓN: Compilamos estrictamente el driver panfrost real de Mesa 25
+      # FASE MAESTRA DE CONFIGURACIÓN: Corregido el nombre de la bandera para Mesa 25
       - name: Configure Mesa 25 Cross-Compilation (Meson)
         run: |
           export ANDROID_NDK_HOME="${{ env.REAL_NDK_HOME }}"
           export MESON_WORKING_DIR="$GITHUB_WORKSPACE"
           
-          # Mapeamos los shims nativos de Android que tiene tu repositorio en su subcarpeta
           export PKG_CONFIG_PATH="$GITHUB_WORKSPACE/android/shims:$PKG_CONFIG_PATH"
           export PKG_CONFIG_LIBDIR="$GITHUB_WORKSPACE/android/shims"
           
@@ -115,14 +114,13 @@ jobs:
             -Dzstd=disabled \
             -Dvulkan-drivers=panfrost \
             -Dgallium-drivers=[] \
-            -Dpanfrost-kmds=kbase,panthor
+            -Dgallium-panfrost-kmds=kbase,panthor
 
       - name: Compile Mesa 25 Drivers
         run: |
           echo "-> Ejecutando compilación cruzada hacia ARM64 a través de Ninja..."
           meson compile -C build
 
-      # EMPAQUETADO OFICIAL PIPETTO-CRYPTO: Respeta la estructura legítima de Mesa 25
       - name: Structure and Pack wrapper.tzst for Bannerlator
         run: |
           echo "-> Creando arbol de carpetas estricto para el emulador..."
@@ -164,7 +162,6 @@ jobs:
           }
           EOF
 
-          # Variables ambientales inyectadas para saltarse el cortafuegos de Unisoc en tu Mali-G52
           echo '{"env":{"PAN_I_WANT_A_BROKEN_VULKAN_DRIVER":"1","MESA_VK_IGNORE_CONFORMANCE_WARNING":"1","PANVK_DEBUG":"sync,nir","MESA_VK_FORCE_BLIT":"1","MESA_LOADER_DRIVER_OVERRIDE":"panfrost","GALLIUM_DRIVER":"panfrost","vblank_mode":"0","MESA_GLSL_CACHE_DISABLE":"1","MESA_SHADER_CACHE_DISABLE":"true","NIR_DEBUG":"tgsi","MESA_VK_WSI_PRESENT_MODE":"immediate","MESA_VK_WSI_DEBUG":"always_async"}}' > pkg/usr/share/vulkan/settings.d/wrapper_settings.json
 
           echo "msf:315508" > pkg/version.txt
