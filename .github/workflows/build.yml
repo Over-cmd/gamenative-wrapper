@@ -7,6 +7,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: 'recursive' # Forzamos la descarga nativa de submódulos locales si existen
 
       - name: Inject Hardware Patches for Mali-G52
         run: |
@@ -19,7 +21,7 @@ jobs:
 
       - name: Install Base Build Tools
         run: |
-          sudo apt-get update && sudo apt-get install -y build-essential libelf-dev bison flex pkg-config gettext patchelf unzip llvm clang curl wget
+          sudo apt-get update && sudo apt-get install -y build-essential libelf-dev bison flex pkg-config gettext patchelf unzip llvm clang
           python -m pip install --upgrade pip && pip install mako PyYAML 'meson>=1.4.0' ninja packaging
 
       - name: Unzip Local Android Shims
@@ -31,27 +33,35 @@ jobs:
             if [ -d "$path/toolchains/llvm/prebuilt/linux-x86_64/bin" ]; then echo "REAL_NDK_HOME=$path" >> $GITHUB_ENV; break; fi
           done
 
-      - name: Inject Physical Offline Dependencies (libdrm & adrenotools)
+      # 🟢 PASO MAESTRO SECO: Clonado interno directo y limpio sin usar comandos curl truncables
+      - name: Force Clone Internal Dependencies Native
         run: |
           git config --global --remove-section url.https://github.com 2>/dev/null || true
-          mkdir -p subprojects/libdrm subprojects/libadrenotools
-          curl -fSL "https://github.comwaydroid/android_external_libdrm/archive/refs/heads/lineage-18.1.tar.gz" | tar -xzf - -C subprojects/libdrm --strip-components=1
-          curl -fSL "https://github.comPipetto-crypto/libadrenotools/archive/refs/heads/master.tar.gz" | tar -xzf - -C subprojects/libadrenotools --strip-components=1
+          rm -rf subprojects/libdrm subprojects/libadrenotools 2>/dev/null || true
+          mkdir -p subprojects
+          
+          git clone --depth=1 https://github.comwaydroid/android_external_libdrm.git subprojects/libdrm
+          git clone --depth=1 https://github.comPipetto-crypto/libadrenotools.git subprojects/libadrenotools
+          
           sed -i "s/cc.find_library/dependency('', required: false) #/g" subprojects/libadrenotools/meson.build 2>/dev/null || true
-          rm -rf subprojects/*.wrap *.wrap 2>/dev/null || true
+          rm -f subprojects/*.wrap *.wrap 2>/dev/null || true
 
+       Eagle setup build
       - name: Configure GameNative Cross-Compilation (Meson)
         run: |
           export ANDROID_NDK_HOME="${{ env.REAL_NDK_HOME }}"
           export MESON_WORKING_DIR="$GITHUB_WORKSPACE"
           export PKG_CONFIG_PATH="$GITHUB_WORKSPACE/shims_target"
           export PKG_CONFIG_LIBDIR="$GITHUB_WORKSPACE/shims_target"
+          
           if [ -f "android-64.toml" ]; then envsubst < android-64.toml > cross.txt; else envsubst < android.toml > cross.txt; fi
+          
           sed -i "s|pkg_config_libdir = .*|pkg_config_libdir = '$PKG_CONFIG_PATH'|g" cross.txt
           sed -i "s|pkg_config_path = .*|pkg_config_path = '$PKG_CONFIG_PATH'|g" cross.txt
           sed -i "s|libdrm_path = .*|libdrm_path = '$GITHUB_WORKSPACE/subprojects/libdrm'|g" cross.txt
           sed -i "s|c_link_args = \[|c_link_args = ['-landroid', '-lsync', '-lhardware', '-L${{ env.REAL_NDK_HOME }}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/30', '-L$PKG_CONFIG_PATH', |g" cross.txt
           sed -i "s|cpp_link_args = \[|cpp_link_args = ['-landroid', '-lsync', '-lhardware', '-L${{ env.REAL_NDK_HOME }}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/30', '-L$PKG_CONFIG_PATH', |g" cross.txt
+          
           meson setup build --reconfigure --cross-file cross.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dandroid-stub=true -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dopengl=false -Dgles1=disabled -Dgles2=disabled -Dllvm=disabled -Dvalgrind=disabled -Dzstd=disabled -Dvulkan-drivers=panfrost,wrapper -Dgallium-drivers=[]
 
       - name: Compile GameNative Engine
@@ -64,9 +74,11 @@ jobs:
           cp -v build/src/panfrost/vulkan/libvulkan_panfrost.so pkg/usr/lib/libvulkan_panfrost.so 2>/dev/null || true
           patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so 2>/dev/null || true
           llvm-strip --strip-unneeded pkg/usr/lib/*.so 2>/dev/null || true
+          
           echo '{"ICD": {"api_version": "1.4.352", "library_path": "libvulkan_wrapper.so"}, "file_format_version": "1.0.0"}' > pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
           echo '{"ICD": {"api_version": "1.4.352", "library_path": "libvulkan_wrapper.so"}, "file_format_version": "1.0.0"}' > pkg/usr/share/vulkan/icd.d/wrapper_icd.arm.json
           echo '{"env":{"PAN_I_WANT_A_BROKEN_VULKAN_DRIVER":"1","MESA_VK_IGNORE_CONFORMANCE_WARNING":"1","PANVK_DEBUG":"sync,nir","MESA_VK_FORCE_BLIT":"1","MESA_LOADER_DRIVER_OVERRIDE":"panfrost","GALLIUM_DRIVER":"panfrost","vblank_mode":"0","MESA_GLSL_CACHE_DISABLE":"1","MESA_SHADER_CACHE_DISABLE":"true","NIR_DEBUG":"tgsi","MESA_VK_WSI_PRESENT_MODE":"immediate","MESA_VK_WSI_DEBUG":"always_async"}}' > pkg/usr/share/vulkan/settings.d/wrapper_settings.json
+          
           echo "msf:315508" > pkg/version.txt && chmod -R 755 pkg/
           cd pkg && tar -I 'zstd -19 -T0' -cf ../wrapper.tzst usr/ version.txt
 
