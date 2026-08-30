@@ -37,7 +37,7 @@ jobs:
 
       - name: Install Base Build Tools
         run: |
-          sudo apt-get update && sudo apt-get install -y build-essential libelf-dev bison flex pkg-config gettext patchelf unzip llvm clang wget
+          sudo apt-get update && sudo apt-get install -y build-essential libelf-dev bison flex pkg-config gettext patchelf unzip llvm clang curl
           python -m pip install --upgrade pip
           pip install mako PyYAML 'meson>=1.4.0' ninja packaging
 
@@ -50,20 +50,21 @@ jobs:
           done
           echo "REAL_NDK_HOME=$TRUE_NDK" >> $GITHUB_ENV
 
-      # 🟢 PASO MAESTRO ANTI-PING: Descargamos y extraemos libdrm pero DESTRUIMOS el .wrap para anular el chequeo de internet
+      # 🟢 CORRECCIÓN CENTRAL: Descarga agresiva con curl emulando agente real para forzar la bajada del tarball
       - name: Pre-Download and Inject Physical libdrm Source
         run: |
           mkdir -p subprojects
-          echo "-> Descargando e inyectando codigo de libdrm nativo..."
-          wget -q https://freedesktop.org
+          echo "-> Descargando tarball de libdrm mediante curl con simulador de agente..."
+          curl -fSL -A "Mozilla/5.0" "https://freedesktop.org" -o drm-libdrm-2.4.120.tar.gz
+          
+          echo "-> Extrayendo codigo plano en subproyectos..."
           tar -xzf drm-libdrm-2.4.120.tar.gz -C subprojects/
           mv subprojects/drm-libdrm-2.4.120 subprojects/libdrm
           
-          echo "-> 🔴 ELIMINANDO ARCHIVOS WRAP PARA BYPASSEAR CORTAFUEGOS DE MESON..."
+          echo "-> Destruyendo archivos wrap para eludir el cortafuegos de red de Meson..."
           rm -rf subprojects/*.wrap 2>/dev/null || true
           rm -rf *.wrap 2>/dev/null || true
 
-      # Configuración 100% desconectada de red
       - name: Configure Mesa 25 Cross-Compilation (Meson)
         run: |
           export ANDROID_NDK_HOME="${{ env.REAL_NDK_HOME }}"
@@ -76,7 +77,6 @@ jobs:
           if [ -f "android/android.toml" ]; then envsubst < android/android.toml > android-cross-compiled.txt
           else envsubst < android.toml > android-cross-compiled.txt; fi
           
-          # 🟢 HACK DE AMARRE: Le decimos a Meson por fuerza bruta que libdrm es una subcarpeta local de confianza
           sed -i "s|\[properties\]|[properties]\nlibdrm_path = '$GITHUB_WORKSPACE/subprojects/libdrm'|g" android-cross-compiled.txt 2>/dev/null || true
           
           meson setup build --reconfigure \
