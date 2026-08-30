@@ -35,7 +35,7 @@ jobs:
 
       - name: Install Base Build Tools
         run: |
-          sudo apt-get update && sudo apt-get install -y build-essential libelf-dev bison flex pkg-config gettext patchelf unzip llvm clang curl
+          sudo apt-get update && sudo apt-get install -y build-essential libelf-dev bison flex pkg-config gettext patchelf unzip llvm clang curl wget
           python -m pip install --upgrade pip
           pip install mako PyYAML 'meson>=1.4.0' ninja packaging
 
@@ -59,23 +59,36 @@ jobs:
           done
           echo "REAL_NDK_HOME=$TRUE_NDK" >> $GITHUB_ENV
 
-      - name: Pre-Download and Inject Physical libdrm Source via Direct Git Clone
+      # 🟢 SOLUCIÓN ANTIBUGLOOP: Descarga física directa vía Tarball eludiendo a Git al 100%
+      - name: Inject Physical libdrm Source via Plain Tarball (No Git)
         run: |
+          echo "-> Purgando configuraciones corruptas globales del entorno..."
+          git config --global --remove-section url.https://github.com/ 2>/dev/null || true
+          git config --global --unset-all url.https://github.com 2>/dev/null || true
+          
           rm -rf subprojects/libdrm 2>/dev/null || true
           mkdir -p subprojects
-          echo "-> Realizando clonacion limpia de la biblioteca de renderizado..."
-          git clone --depth=1 "https://github.com" "subprojects/libdrm"
           
-          echo "-> Removiendo archivos wrap residuales para obligar a Meson a trabajar en modo 100% local..."
+          echo "-> Descargando el archivo fuente real de Waydroid libdrm via Tarball API..."
+          curl -fSL "https://github.com" -o waydroid-libdrm.tar.gz
+          
+          echo "-> Extrayendo estructura de forma estática..."
+          tar -xzf waydroid-libdrm.tar.gz -C subprojects/
+          
+          EXTRACTED_DIR=$(find subprojects/ -maxdepth 1 -type d -name "*waydroid-android_external_libdrm*" | head -n 1)
+          mv "$EXTRACTED_DIR" subprojects/libdrm
+          echo "-> Codigo fuente inyectado localmente con éxito."
+          
+          echo "-> Destruyendo archivos wrap residuales..."
           rm -rf subprojects/*.wrap 2>/dev/null || true
           rm -rf *.wrap 2>/dev/null || true
 
-      # 🟢 PASO DE INYECCIÓN DE ADRENOTOOLS EXIGIDO POR EL WRAPPER
+      # 🟢 INYECCIÓN DE ADRENOTOOLS REPARADA EXIGIDA POR EL WRAPPER
       - name: Inject libadrenotools Source
         run: |
-          curl -fSL "https://github.com" -o adrenotools.zip
-          unzip -q adrenotools.zip -d subprojects/
-          EXTRACTED_DIR=$(find subprojects/ -maxdepth 1 -type d -name "*libadrenotools*" | head -n 1)
+          curl -fSL "https://github.com" -o adrenotools.tar.gz
+          tar -xzf adrenotools.tar.gz -C subprojects/
+          EXTRACTED_DIR=$(find subprojects/ -maxdepth 1 -type d -name "*bylaws-libadrenotools*" | head -n 1)
           mv "$EXTRACTED_DIR" subprojects/libadrenotools
           rm -f subprojects/*.wrap 2>/dev/null || true
 
@@ -95,7 +108,7 @@ jobs:
           sed -i "s|pkg_config_path = .*|pkg_config_path = '$GITHUB_WORKSPACE/shims_target'|g" android-cross-compiled.txt 2>/dev/null || true
           sed -i "s|libdrm_path = .*|libdrm_path = '$GITHUB_WORKSPACE/subprojects/libdrm'|g" android-cross-compiled.txt 2>/dev/null || true
           
-          # 🟢 CORRECCIÓN HISTÓRICA: Se añade 'wrapper' a la matriz y se inyecta -lsync de forma agresiva en los c_link_args para amarrar sync_wait
+          # Inyección forzada de linkers para amarrar la sincronizacion de logs de Pipetto-Crypto (sync_wait)
           sed -i "s|c_link_args = \[|c_link_args = ['-lsync', '-lhardware', '-L$GITHUB_WORKSPACE/shims_target', |g" android-cross-compiled.txt 2>/dev/null || true
           sed -i "s|cpp_link_args = \[|cpp_link_args = ['-lsync', '-lhardware', '-L$GITHUB_WORKSPACE/shims_target', |g" android-cross-compiled.txt 2>/dev/null || true
           
@@ -114,17 +127,14 @@ jobs:
       - name: Compile GameNative Engine
         run: meson compile -C build
 
-      # EMPAQUETADO COMPATIBLE DIRECTO CON LOS NUEVOS BINARIOS UNIFICADOS
+      # EMPAQUETADO OFICIAL COMPATIBLE (ICD 1.0.0)
       - name: Structure and Pack wrapper.tzst for Bannerlator
         run: |
           rm -rf pkg && mkdir -p pkg/usr/lib pkg/usr/share/vulkan/icd.d pkg/usr/share/vulkan/settings.d
           
-          echo "-> Localizando los binarios generados..."
-          # Capturamos libvulkan_wrapper.so como driver principal y libvulkan_panfrost.so como backend fisico
           cp -v build/src/vulkan/wrapper/libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so 2>/dev/null || true
           cp -v build/src/panfrost/vulkan/libvulkan_panfrost.so pkg/usr/lib/libvulkan_panfrost.so 2>/dev/null || true
           
-          # Fallback integral en caso de variaciones de rutas
           if [ ! -f "pkg/usr/lib/libvulkan_wrapper.so" ]; then
             TARGET_WRAP=$(find build/ -name "libvulkan_wrapper.so" | head -n 1)
             cp -v "$TARGET_WRAP" pkg/usr/lib/libvulkan_wrapper.so
