@@ -31,7 +31,6 @@ jobs:
           echo "-> Inicializando submodulos de libadrenotools de forma recursiva..."
           git submodule update --init --recursive
 
-      # 🟢 PASO CORREGIDO: Aplicamos los parches 'sed' apuntando estrictamente dentro de main-repo/
       - name: Inject Hardware Patches for Mali-G52
         run: |
           echo "-> Aplicando parches de hardware en los archivos de utilidades..."
@@ -39,11 +38,10 @@ jobs:
           find main-repo/ -name "pan_device.c" -exec sed -i 's/pan_query_core_count(&dev->kmod.dev->props, &dev->core_id_range);/dev->core_id_range = pan_query_core_count(\&dev->kmod.dev->props);/g' {} + 2>/dev/null || true
           find main-repo/ -name "pan_device.c" -exec sed -i 's/\\&/\&/g' {} + 2>/dev/null || true
           
-          echo "-> Triturando el validador rigido de la linea 1279 de atomic en meson.build central..."
-          # 🟢 CORRECCIÓN CENTRAL: Forzamos el bypass de find_library en las rutas reales de main-repo/
-          sed -i "s/cc.find_library('atomic'/dependency('', required : false) #/g" main-repo/meson.build
-          sed -i "s/cc.find_library('rt'/dependency('', required : false) #/g" main-repo/meson.build
-          sed -i "s/cc.find_library('dl'/dependency('', required : false) #/g" main-repo/meson.build
+          echo "-> Purgando validaciones rigidas de librerias obsoletas de PC de escritorio..."
+          sed -i "s/cc.find_library('rt'/dependency('', required : false) #/g" main-repo/meson.build 2>/dev/null || true
+          sed -i "s/cc.find_library('atomic'/dependency('', required : false) #/g" main-repo/meson.build 2>/dev/null || true
+          sed -i "s/cc.find_library('dl'/dependency('', required : false) #/g" main-repo/meson.build 2>/dev/null || true
           
           rm -f main-repo/subprojects/*.wrap main-repo/*.wrap 2>/dev/null || true
 
@@ -52,19 +50,12 @@ jobs:
           sudo apt-get update && sudo apt-get install -y build-essential libelf-dev bison flex pkg-config gettext patchelf unzip llvm clang
           python -m pip install --upgrade pip && pip install mako PyYAML 'meson>=1.4.0' ninja packaging
 
-      - name: Unzip Local Android Shims and Create Hard Bypass Stubs
+      - name: Unzip Local Android Shims
         run: |
           cd main-repo
           unzip -o shims.zip -d ./
           mkdir -p "$GITHUB_WORKSPACE/shims_target"
           cp -rf ./shims/* "$GITHUB_WORKSPACE/shims_target/"
-          
-          echo "-> Generando archivos de biblioteca vacios para contingencia..."
-          touch "$GITHUB_WORKSPACE/shims_target/libdl.a"
-          touch "$GITHUB_WORKSPACE/shims_target/libandroid.a"
-          touch "$GITHUB_WORKSPACE/shims_target/liblog.a"
-          touch "$GITHUB_WORKSPACE/shims_target/libatomic.a"
-          touch "$GITHUB_WORKSPACE/shims_target/librt.a"
 
       - name: Auto-Detect True Android NDK Path
         run: |
@@ -82,24 +73,28 @@ jobs:
           
           if [ -f "android-64.toml" ]; then envsubst < android-64.toml > cross.txt; else envsubst < android.toml > cross.txt; fi
           
-          NDK_LIB_DIR="${{ env.REAL_NDK_HOME }}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/30"
+          # 🟢 RUTAS OFICIALES EN CALIENTE DEL ANDROID NDK
+          NDK_SYSROOT_LIB="${{ env.REAL_NDK_HOME }}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/30"
           
           sed -i "s|pkg_config_libdir = .*|pkg_config_libdir = '$PKG_CONFIG_PATH'|g" cross.txt
           sed -i "s|pkg_config_path = .*|pkg_config_path = '$PKG_CONFIG_PATH'|g" cross.txt
           sed -i "s|libdrm_path = .*|libdrm_path = '$GITHUB_WORKSPACE/main-repo/subprojects/libdrm'|g" cross.txt
           
-          sed -i "s|c_link_args = \[|c_link_args = ['-landroid', '-llog', '-lsync', '-lhardware', '-L${NDK_LIB_DIR}', '-L$PKG_CONFIG_PATH', |g" cross.txt
-          sed -i "s|cpp_link_args = \[|cpp_link_args = ['-landroid', '-llog', '-lsync', '-lhardware', '-L${NDK_LIB_DIR}', '-L$PKG_CONFIG_PATH', |g" cross.txt
+          # Inyectamos el enlazador prioritario apuntando a los archivos reales de Google
+          sed -i "s|c_link_args = \[|c_link_args = ['-landroid', '-llog', '-lsync', '-lhardware', '-L${NDK_SYSROOT_LIB}', '-L$PKG_CONFIG_PATH', |g" cross.txt
+          sed -i "s|cpp_link_args = \[|cpp_link_args = ['-landroid', '-llog', '-lsync', '-lhardware', '-L${NDK_SYSROOT_LIB}', '-L$PKG_CONFIG_PATH', |g" cross.txt
           
+          # 🟢 INSTALACIÓN REAL DE LA RUTA EN LAS PROPIEDADES DE COMPILACIÓN:
+          # Le enseñamos a Meson exactamente en qué carpetas del NDK viven libandroid.so y liblog.so reales de forma nativa
           if grep -q "\[properties\]" cross.txt; then
-            sed -i "s|\[properties\]|\[properties\]\nc_link_args = ['-L${NDK_LIB_DIR}']\ncpp_link_args = ['-L${NDK_LIB_DIR}']|g" cross.txt
+            sed -i "s|\[properties\]|\[properties\]\nsys_root = '${{ env.REAL_NDK_HOME }}/toolchains/llvm/prebuilt/linux-x86_64/sysroot'\nlibdir = '${NDK_SYSROOT_LIB}'|g" cross.txt
           fi
           
-          echo "=== Contenido Verificado del Cross-File Compilado ==="
+          echo "=== Contenido del Cross-File con Rutas de Android Reales ==="
           cat cross.txt
           
           echo "-> Lanzando inicialización de Meson para tu Mali-G52..."
-          meson setup build --reconfigure --cross-file cross.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dandroid-stub=true -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dopengl=false -Dgles1=disabled -Dgles2=disabled -Dllvm=disabled -Dvalgrind=disabled -Dzstd=disabled -Dvulkan-drivers=panfrost,wrapper -Dgallium-drivers=[]
+          meson setup build --reconfigure --cross-file cross.txt --wrap-mode=forcefallback -Dbuildtype=release -Dplatforms=android -Dandroid-stub=true -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dopengl=false -Dgles1=disabled -Dgles2=disabled -Dllvm=disabled -Dvalgrind=disabled -Dzstd=disabled -Dvulkan-drivers=panfrost,wrapper -Dgallium-drivers=[]
 
       - name: Compile GameNative Engine
         run: |
