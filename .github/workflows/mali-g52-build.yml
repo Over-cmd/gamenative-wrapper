@@ -1,4 +1,4 @@
-# COMMIT BOMBA PARA FORZAR LIMPIEZA DE CACHE DEL SERVIDOR - MALI-G52 VULKAN
+# COMPILACIÓN INDESTRUCTIBLE DIRECTA MESA 25 PARA MALI-G52
 name: Pipetto-Crypto Mesa 25 Vulkan Build
 
 on:
@@ -51,8 +51,12 @@ jobs:
           done
           echo "REAL_NDK_HOME=$TRUE_NDK" >> $GITHUB_ENV
 
-      # 🟢 PASO DE CLONACIÓN SEGURO: URL limpia y destrucción de wrapped files
+      # 🟢 CLONACIÓN BLINDADA: Rompe de raíz el bug del acoplamiento separando los argumentos del host y del usuario
       - name: Clone Android libdrm Source from Waydroid
+        env:
+          TARGET_HOST: "github.com"
+          TARGET_USER: "waydroid"
+          TARGET_REPO: "android_external_libdrm.git"
         run: |
           echo "-> Purgando cualquier configuracion corrupta de Git heredada..."
           git config --global --remove-section url.https://github.com 2>/dev/null || true
@@ -62,8 +66,8 @@ jobs:
           rm -rf subprojects/libdrm 2>/dev/null || true
           mkdir -p subprojects
           
-          echo "-> Ejecutando clonacion limpia del repositorio de Waydroid..."
-          git clone --depth=1 "https://github.comwaydroid/android_external_libdrm.git" "subprojects/libdrm"
+          echo "-> Ejecutando clonacion limpia forzando la inyeccion de barras de sistema..."
+          git clone --depth=1 "https://${TARGET_HOST}/${TARGET_USER}/${TARGET_REPO}" "subprojects/libdrm"
           
           echo "-> Removiendo archivos wrap residuales para obligar a Meson a trabajar offline..."
           rm -rf subprojects/*.wrap 2>/dev/null || true
