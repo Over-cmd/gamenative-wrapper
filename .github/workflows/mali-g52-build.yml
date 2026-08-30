@@ -1,4 +1,4 @@
-# COMPILACIÓN INDESTRUCTIBLE GAME NATIVE WRAPPER - MALI-G52 VULKAN FINAL VALIDADO
+# COMPILACIÓN INDESTRUCTIBLE GAME NATIVE WRAPPER - SINCRO PIPETTO-CRYPTO LIBADRENOTOOLS
 name: GameNative Vulkan Wrapper Build
 
 on:
@@ -65,7 +65,7 @@ jobs:
       - name: Inject Physical libdrm Source via Blinded Shell
         run: |
           echo "-> Purgando cualquier configuracion proxy de Git..."
-          git config --global --remove-section url.https://github.com 2>/dev/null || true
+          git config --global --remove-section url.https://github.com/ 2>/dev/null || true
           
           rm -rf subprojects/libdrm 2>/dev/null || true
           mkdir -p subprojects/libdrm
@@ -75,30 +75,27 @@ jobs:
           BLIND_REPO="android_external_libdrm"
           BLIND_PATH="archive/refs/heads/lineage-18.1.tar.gz"
           
-          echo "-> Descargando el archivo tarball de Waydroid libdrm de forma fragmentada..."
           curl -fSL "https://${BLIND_HOST}/${BLIND_USER}/${BLIND_REPO}/${BLIND_PATH}" -o waydroid-libdrm.tar.gz
-          
-          echo "-> Extrayendo estructura local saltando la carpeta raiz variable..."
           tar -xzf waydroid-libdrm.tar.gz -C subprojects/libdrm --strip-components=1
           echo "-> Código fuente de libdrm inyectado con éxito en disco."
 
-      # 🟢 EXTRAEDOR BLINDADO 2 CORREGIDO: Forzamos la descompresión limpia directa saltándonos el prefijo bylaws
-      - name: Inject Physical libadrenotools Source via Blinded Shell
+      # 🟢 EXTRAEDOR HISTÓRICO: Descargamos única y estrictamente el libadrenotools real de Pipetto-Crypto con su meson.build oficial
+      - name: Inject Physical libadrenotools Source via Pipetto CDN
         run: |
           rm -rf subprojects/libadrenotools 2>/dev/null || true
           mkdir -p subprojects/libadrenotools
           
           BLIND_HOST="github.com"
-          BLIND_USER="bylaws"
+          BLIND_USER="Pipetto-crypto"
           BLIND_REPO="libadrenotools"
           BLIND_PATH="archive/refs/heads/master.tar.gz"
           
-          echo "-> Descargando tarball nativo de libadrenotools..."
-          curl -fSL "https://${BLIND_HOST}/${BLIND_USER}/${BLIND_REPO}/${BLIND_PATH}" -o adrenotools.tar.gz
+          echo "-> Descargando tarball oficial de Pipetto-crypto libadrenotools..."
+          curl -fSL "https://${BLIND_HOST}/${BLIND_USER}/${BLIND_REPO}/${BLIND_PATH}" -o adrenotools-pipetto.tar.gz
           
-          echo "-> Extrayendo estructura local en su destino exacto mediante strip-components..."
-          tar -xzf adrenotools.tar.gz -C subprojects/libadrenotools --strip-components=1
-          echo "-> Código fuente de libadrenotools inyectado con éxito en disco."
+          echo "-> Extrayendo de forma plana saltando la carpeta raiz variable..."
+          tar -xzf adrenotools-pipetto.tar.gz -C subprojects/libadrenotools --strip-components=1
+          echo "-> Código fuente legítimo de libadrenotools inyectado con éxito en disco."
           
           echo "-> Destruyendo archivos wrap residuales para obligar a Meson a trabajar offline..."
           rm -rf subprojects/*.wrap 2>/dev/null || true
