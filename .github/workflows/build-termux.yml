@@ -1,3 +1,4 @@
+# COMMIT BOMBA PARA FORZAR LIMPIEZA DE CACHE DEL SERVIDOR - MALI-G52 VULKAN
 name: Pipetto-Crypto Mesa 25 Vulkan Build
 
 on:
@@ -37,7 +38,7 @@ jobs:
 
       - name: Install Base Build Tools
         run: |
-          sudo apt-get update && sudo apt-get install -y build-essential libelf-dev bison flex pkg-config gettext patchelf unzip llvm clang curl wget
+          sudo apt-get update && sudo apt-get install -y build-essential libelf-dev bison flex pkg-config gettext patchelf unzip llvm clang curl
           python -m pip install --upgrade pip
           pip install mako PyYAML 'meson>=1.4.0' ninja packaging
 
@@ -50,27 +51,21 @@ jobs:
           done
           echo "REAL_NDK_HOME=$TRUE_NDK" >> $GITHUB_ENV
 
-      # 🟢 PASO INDESTRUCTIBLE: Resetea Git y baja el paquete plano usando curl limpio
-      - name: Force Fetch Local libdrm Package
+      # 🟢 PASO DE CLONACIÓN SEGURO: URL limpia y destrucción de wrapped files
+      - name: Clone Android libdrm Source from Waydroid
         run: |
-          echo "-> Purgando cualquier configuracion de red o proxy corrupto de Git..."
-          git config --global --unset-all url.https://github.com 2>/dev/null || true
-          git config --global --unset-all url."https://github.com/".insteadOf 2>/dev/null || true
+          echo "-> Purgando cualquier configuracion corrupta de Git heredada..."
+          git config --global --remove-section url.https://github.com 2>/dev/null || true
+          git config --global --unset-all url.https://github.com.insteadof 2>/dev/null || true
+          git config --global --unset-all url."https://github.com".insteadOf 2>/dev/null || true
           
           rm -rf subprojects/libdrm 2>/dev/null || true
           mkdir -p subprojects
           
-          echo "-> Descargando el archivo fuente real de Waydroid libdrm via CDN..."
-          curl -fSL "https://github.com" -o waydroid-libdrm.zip
+          echo "-> Ejecutando clonacion limpia del repositorio de Waydroid..."
+          git clone --depth=1 "https://github.comwaydroid/android_external_libdrm.git" "subprojects/libdrm"
           
-          echo "-> Descomprimiendo el paquete en la carpeta local de subproyectos..."
-          unzip -q waydroid-libdrm.zip -d subprojects/
-          
-          EXTRACTED_DIR=$(find subprojects/ -maxdepth 1 -type d -name "*android_external_libdrm*" | head -n 1)
-          mv "$EXTRACTED_DIR" subprojects/libdrm
-          echo "-> ¡Codigo fuente unificado localmente en subprojects/libdrm!"
-          
-          echo "-> Eliminando archivos wrap para obligar a Meson a trabajar offline..."
+          echo "-> Removiendo archivos wrap residuales para obligar a Meson a trabajar offline..."
           rm -rf subprojects/*.wrap 2>/dev/null || true
           rm -rf *.wrap 2>/dev/null || true
 
