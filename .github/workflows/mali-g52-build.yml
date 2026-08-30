@@ -25,13 +25,14 @@ jobs:
           ref: master
           path: main-repo/subprojects/libadrenotools
 
+      # 🟢 PASO MAESTRO 1: Descargamos los sub-submódulos al principio para tener todos los archivos en disco
       - name: Fetch libadrenotools Git Submodules Recursively
         run: |
           cd main-repo/subprojects/libadrenotools
           echo "-> Inicializando submodulos criticos de libadrenotools de forma recursiva..."
           git submodule update --init --recursive
 
-      # 🟢 PASO MAESTRO RECURSIVO: Escanea todo el workspace y tritura los validadores 'dl' y 'android' recién clonados
+      # 🟢 PASO MAESTRO 2: Ahora que linkernsbypass está en el disco, find triturará su libdl de forma masiva
       - name: Inject Hardware Patches for Mali-G52
         run: |
           echo "-> Aplicando parches criticos en los archivos de utilidades..."
@@ -45,7 +46,7 @@ jobs:
             sed -i "s/.*find_library.*log.*/  dep_log = dependency('', required : false)/g" main-repo/subprojects/libadrenotools/meson.build
           fi
           
-          echo "-> 🟢 HACK TOTAL RECURSIVO: Triturando chequeos de 'dl', 'rt' y 'atomic' en todos los submódulos clonados..."
+          echo "-> Triturando chequeos de 'dl', 'rt' y 'atomic' en TODOS los submódulos clonados..."
           find . -name "meson.build" -exec sed -i "s/cc.find_library('dl'/dependency('', required : false) #/g" {} + 2>/dev/null || true
           find . -name "meson.build" -exec sed -i "s/cc.find_library('rt'/dependency('', required : false) #/g" {} + 2>/dev/null || true
           find . -name "meson.build" -exec sed -i "s/cc.find_library('atomic'/dependency('', required : false) #/g" {} + 2>/dev/null || true
