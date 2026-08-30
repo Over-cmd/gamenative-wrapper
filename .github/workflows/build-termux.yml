@@ -37,7 +37,7 @@ jobs:
 
       - name: Install Base Build Tools
         run: |
-          sudo apt-get update && sudo apt-get install -y build-essential libelf-dev bison flex pkg-config gettext patchelf unzip llvm clang wget
+          sudo apt-get update && sudo apt-get install -y build-essential libelf-dev bison flex pkg-config gettext patchelf unzip llvm clang
           python -m pip install --upgrade pip
           pip install mako PyYAML 'meson>=1.4.0' ninja packaging
 
@@ -50,27 +50,17 @@ jobs:
           done
           echo "REAL_NDK_HOME=$TRUE_NDK" >> $GITHUB_ENV
 
-      # Descarga y extrae libdrm de forma manual saltándonos el gestor de internet roto de Meson
-      - name: Pre-Download and Unpack libdrm Source
+      # 🟢 CLONACIÓN REPARADA DE WAYDROID: De GitHub a GitHub, 100% legal y con meson.build moderno
+      - name: Clone Android libdrm Source from Waydroid
         run: |
           mkdir -p subprojects
-          echo "-> Descargando tarball oficial de libdrm desde el espejo estable..."
-          wget -q https://freedesktop.org
+          echo "-> Clonando libdrm optimizado para Android desde Waydroid..."
+          git clone https://github.com subprojects/libdrm --depth=1
           
-          echo "-> Extrayendo codigo en la carpeta local de subproyectos..."
-          tar -xzf drm-libdrm-2.4.120.tar.gz -C subprojects/
-          mv subprojects/drm-libdrm-2.4.120 subprojects/libdrm
-          echo "-> Codigo de libdrm inyectado físicamente con éxito en subprojects/libdrm"
+          echo "-> Destruyendo archivos wrap residuales para eludir el cortafuegos de red de Meson..."
+          rm -rf subprojects/*.wrap 2>/dev/null || true
+          rm -rf *.wrap 2>/dev/null || true
 
-      # Creamos un wrap vacío de tipo local para indicarle a Meson que no intente buscar en internet
-      - name: Create Dummy Local Wrap File
-        run: |
-          cat << 'EOF' > subprojects/libdrm.wrap
-          [wrap-file]
-          directory = libdrm
-          EOF
-
-      # Configuración limpia sin descargas de red externas
       - name: Configure Mesa 25 Cross-Compilation (Meson)
         run: |
           export ANDROID_NDK_HOME="${{ env.REAL_NDK_HOME }}"
@@ -82,6 +72,9 @@ jobs:
           
           if [ -f "android/android.toml" ]; then envsubst < android/android.toml > android-cross-compiled.txt
           else envsubst < android.toml > android-cross-compiled.txt; fi
+          
+          # Vinculamos la carpeta fisica de Waydroid en las propiedades locales
+          sed -i "s|\[properties\]|[properties]\nlibdrm_path = '$GITHUB_WORKSPACE/subprojects/libdrm'|g" android-cross-compiled.txt 2>/dev/null || true
           
           meson setup build --reconfigure \
             --cross-file android-cross-compiled.txt \
@@ -121,7 +114,6 @@ jobs:
           chmod -R 755 pkg/ && chmod 644 pkg/usr/lib/*.so* 2>/dev/null || true
           cd pkg && tar -I 'zstd -19 -T0' -cf ../wrapper.tzst usr/ version.txt
           
-      # 🟢 CORRECCIÓN CENTRAL: Cambiado a la accion oficial de subida de artefactos de GitHub
       - name: Upload Final wrapper.tzst for Bannerlator
         uses: actions/upload-artifact@v4
         with:
