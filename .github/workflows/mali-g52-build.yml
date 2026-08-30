@@ -27,10 +27,11 @@ jobs:
           find . -name "pan_device.c" -exec sed -i 's/pan_query_core_count(&dev->kmod.dev->props, &dev->core_id_range);/dev->core_id_range = pan_query_core_count(\&dev->kmod.dev->props);/g' {} + 2>/dev/null || true
           find . -name "pan_device.c" -exec sed -i 's/\\&/\&/g' {} + 2>/dev/null || true
           sed -i "s/cc.find_library('rt'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
-          
-          echo "-> 🟢 HACK 5: Destruyendo el bloqueo de la libreria 'atomic' integrada en Android Clang..."
-          # Reemplazamos el chequeo rigido de cc.find_library('atomic') para que devuelva una dependencia vacia funcional
           sed -i "s/cc.find_library('atomic'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
+          
+          echo "-> 🟢 HACK 6: Anulando el bloqueo de la libreria 'dl' integrada en la libc de Android..."
+          # Reemplazamos el chequeo rigido de cc.find_library('dl') para bypasser la linea 1514
+          sed -i "s/cc.find_library('dl'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 
       - name: Set up Python Environment
         uses: actions/setup-python@v5
