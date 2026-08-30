@@ -50,24 +50,19 @@ jobs:
           done
           echo "REAL_NDK_HOME=$TRUE_NDK" >> $GITHUB_ENV
 
-      # 🟢 PASO DE EXTERMINACIÓN: Limpiamos los proxies corruptos de Git e inyectamos libdrm de forma física plana
-      - name: Download and Unpack Stable libdrm Offline
+      # 🟢 SOLUCIÓN DE FUERZA DE GITHUB: Bajamos el empaque zip directo desde los servidores raíz de GitHub sin usar comandos git corruptos
+      - name: Download and Unpack libdrm via GitHub CDN (No block)
         run: |
-          echo "-> Reseteando configuraciones proxy corruptas de Git..."
-          git config --global --unset-all url.https://github.com 2>/dev/null || true
-          git config --global --unset-all url."https://github.com/".insteadOf 2>/dev/null || true
-          
           mkdir -p subprojects
-          echo "-> Descargando codigo fuente plano desde el espejo oficial de lanzamientos..."
-          # Usamos un espejo alternativo de cgit estable que no bloquea a las VMs de GitHub
-          wget --no-check-certificate -qO libdrm-stable.tar.gz "https://freedesktop.org"
+          echo "-> Descargando codigo de libdrm desde el espejo prioritario de GitHub..."
+          curl -fSL "https://github.com" -o libdrm-stable.zip
           
-          echo "-> Extrayendo de forma directa sin usar herramientas corruptas..."
-          tar -xzf libdrm-stable.tar.gz -C subprojects/
+          echo "-> Descomprimiendo el paquete local de subproyectos..."
+          unzip -q libdrm-stable.zip -d subprojects/
           mv subprojects/drm-libdrm-2.4.120 subprojects/libdrm
           echo "-> Estructura local armada con éxito en subprojects/libdrm"
           
-          echo "-> Eliminando archivos wrap para obligar a Meson a trabajar en modo 100% desconectado..."
+          echo "-> Eliminando archivos wrap para obligar a Meson a trabajar en modo offline..."
           rm -rf subprojects/*.wrap 2>/dev/null || true
           rm -rf *.wrap 2>/dev/null || true
 
