@@ -20,7 +20,7 @@ jobs:
       - name: Checkout Repository Source
         uses: actions/checkout@v4
 
-      # Parches críticos de fuerza bruta para que la Mali-G52 no sea rechazada por Mesa 25
+      # 🟢 BLOQUE DE PARCHEO MAESTRO EN CALIENTE AMPLIADO PARA MALI-G52
       - name: Inject Hardware Patches for Mali-G52 (Bifrost v3)
         run: |
           echo "-> Aplicando parches de compatibilidad de API 30 en anon_file.c..."
@@ -39,6 +39,13 @@ jobs:
           
           echo "-> HACK 3: Saltando restricciones de formatos del Kernel modificado de Unisoc..."
           find src/panfrost/ -name "*.c" -exec sed -i 's/return pan_kmod_get_format_modifier/return true; \/\/ pan_kmod_get_format_modifier/g' {} + 2>/dev/null || true
+
+          echo "-> 🟢 HACK 4: Destruyendo el bloqueo de la libreria 'rt' no existente en Android NDK..."
+          # Reemplazamos la busqueda rigida de cc.find_library('rt') para que devuelva una dependencia vacia funcional
+          if [ -f "meson.build" ]; then
+            sed -i "s/cc.find_library('rt'/dependency('', required : false) #/g" meson.build
+            echo "-> Parche de librt aplicado con éxito sobre meson.build."
+          fi
 
       - name: Set up Python Environment
         uses: actions/setup-python@v5
@@ -79,7 +86,6 @@ jobs:
           echo "-> NDK Real Detectado y validado en: $TRUE_NDK"
           echo "REAL_NDK_HOME=$TRUE_NDK" >> $GITHUB_ENV
 
-      # FASE MAESTRA DE CONFIGURACIÓN: Removida la bandera conflictiva de KMDs de la linea de comandos
       - name: Configure Mesa 25 Cross-Compilation (Meson)
         run: |
           export ANDROID_NDK_HOME="${{ env.REAL_NDK_HOME }}"
