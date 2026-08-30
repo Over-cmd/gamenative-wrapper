@@ -6,24 +6,49 @@ jobs:
   build-gamenative-wrapper:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      # 🟢 PASO MAESTRO 1: Descargamos el código central del repositorio
+      - name: Checkout Core Source
+        uses: actions/checkout@v4
+        with:
+          path: main-repo
+
+      # 🟢 PASO MAESTRO 2: Descargamos libdrm de forma nativa por bus de GitHub a GitHub
+      - name: Checkout Android libdrm Source via Native Checkout
+        uses: actions/checkout@v4
+        with:
+          repository: waydroid/android_external_libdrm
+          ref: lineage-18.1
+          path: main-repo/subprojects/libdrm
+
+      # 🟢 PASO MAESTRO 3: Descargamos libadrenotools por bus nativo
+      - name: Checkout libadrenotools Source via Native Checkout
+        uses: actions/checkout@v4
+        with:
+          repository: Pipetto-crypto/libadrenotools
+          ref: master
+          path: main-repo/subprojects/libadrenotools
 
       - name: Inject Hardware Patches for Mali-G52
         run: |
+          cd main-repo
           sed -i 's/fd = syscall(SYS_memfd_create.*/fd = memfd_create(debug_name, MFD_CLOEXEC | MFD_ALLOW_SEALING);/g' src/util/anon_file.c 2>/dev/null || true
           find . -name "pan_device.c" -exec sed -i 's/pan_query_core_count(&dev->kmod.dev->props, &dev->core_id_range);/dev->core_id_range = pan_query_core_count(\&dev->kmod.dev->props);/g' {} + 2>/dev/null || true
           find . -name "pan_device.c" -exec sed -i 's/\\&/\&/g' {} + 2>/dev/null || true
           sed -i "s/cc.find_library('rt'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
           sed -i "s/cc.find_library('atomic'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
           sed -i "s/cc.find_library('dl'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
+          sed -i "s/cc.find_library/dependency('', required: false) #/g" subprojects/libadrenotools/meson.build 2>/dev/null || true
+          rm -f subprojects/*.wrap *.wrap 2>/dev/null || true
 
       - name: Install Base Build Tools
         run: |
-          sudo apt-get update && sudo apt-get install -y build-essential libelf-dev bison flex pkg-config gettext patchelf unzip llvm clang curl wget
+          sudo apt-get update && sudo apt-get install -y build-essential libelf-dev bison flex pkg-config gettext patchelf unzip llvm clang
           python -m pip install --upgrade pip && pip install mako PyYAML 'meson>=1.4.0' ninja packaging
 
       - name: Unzip Local Android Shims
-        run: unzip -o shims.zip -d ./ && mkdir -p "$GITHUB_WORKSPACE/shims_target" && cp -rf ./shims/* "$GITHUB_WORKSPACE/shims_target/"
+        run: |
+          cd main-repo
+          unzip -o shims.zip -d ./ && mkdir -p "$GITHUB_WORKSPACE/shims_target" && cp -rf ./shims/* "$GITHUB_WORKSPACE/shims_target/"
 
       - name: Auto-Detect True Android NDK Path
         run: |
@@ -31,35 +56,12 @@ jobs:
             if [ -d "$path/toolchains/llvm/prebuilt/linux-x86_64/bin" ]; then echo "REAL_NDK_HOME=$path" >> $GITHUB_ENV; break; fi
           done
 
-      # 🟢 SOLUCIÓN SUPREMA INDESTRUCTIBLE: Descarga aislada mediante wget + descompresión controlada con unzip (Evita la señal 13 de tar)
-      - name: Inject Physical Offline Dependencies (libdrm & adrenotools)
-        run: |
-          git config --global --remove-section url.https://github.com/ 2>/dev/null || true
-          rm -rf subprojects/libdrm subprojects/libadrenotools 2>/dev/null || true
-          mkdir -p subprojects
-          
-          echo "-> Descargando fuentes estables de dependencias de forma aislada..."
-          wget -qO libdrm-source.zip "https://github.com"
-          wget -qO adrenotools-source.zip "https://github.com"
-          
-          echo "-> Desplegando libdrm localmente en subproyectos..."
-          unzip -q libdrm-source.zip -d subprojects/
-          EXTRACTED_DRM=$(find subprojects/ -maxdepth 1 -type d -name "*android_external_libdrm*" | head -n 1)
-          mv "$EXTRACTED_DIR_DRM" "$EXTRACTED_DRM" subprojects/libdrm 2>/dev/null || mv "$EXTRACTED_DRM" subprojects/libdrm
-          
-          echo "-> Desplegando libadrenotools localmente en subproyectos..."
-          unzip -q adrenotools-source.zip -d subprojects/
-          EXTRACTED_ADRENO=$(find subprojects/ -maxdepth 1 -type d -name "*libadrenotools*" | head -n 1)
-          mv "$EXTRACTED_ADRENO" subprojects/libadrenotools
-          
-          echo "-> Rompiendo el validador estricto de libandroid en el subproyecto de Pipetto..."
-          sed -i "s/cc.find_library/dependency('', required: false) #/g" subprojects/libadrenotools/meson.build 2>/dev/null || true
-          rm -f subprojects/*.wrap *.wrap 2>/dev/null || true
-
+       eagle setup build
       - name: Configure GameNative Cross-Compilation (Meson)
         run: |
+          cd main-repo
           export ANDROID_NDK_HOME="${{ env.REAL_NDK_HOME }}"
-          export MESON_WORKING_DIR="$GITHUB_WORKSPACE"
+          export MESON_WORKING_DIR="$GITHUB_WORKSPACE/main-repo"
           export PKG_CONFIG_PATH="$GITHUB_WORKSPACE/shims_target"
           export PKG_CONFIG_LIBDIR="$GITHUB_WORKSPACE/shims_target"
           
@@ -67,22 +69,27 @@ jobs:
           
           sed -i "s|pkg_config_libdir = .*|pkg_config_libdir = '$PKG_CONFIG_PATH'|g" cross.txt
           sed -i "s|pkg_config_path = .*|pkg_config_path = '$PKG_CONFIG_PATH'|g" cross.txt
-          sed -i "s|libdrm_path = .*|libdrm_path = '$GITHUB_WORKSPACE/subprojects/libdrm'|g" cross.txt
+          sed -i "s|libdrm_path = .*|libdrm_path = '$GITHUB_WORKSPACE/main-repo/subprojects/libdrm'|g" cross.txt
           
-          # Amarrado de linkers forzados en el Sysroot real del NDK para resolver los símbolos de enlazado de Pipetto
+          # Enlazamos las dependencias nativas del sistema bionico de Google de forma directa en el compilador cruzado
           sed -i "s|c_link_args = \[|c_link_args = ['-landroid', '-lsync', '-lhardware', '-L${{ env.REAL_NDK_HOME }}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/30', '-L$PKG_CONFIG_PATH', |g" cross.txt
           sed -i "s|cpp_link_args = \[|cpp_link_args = ['-landroid', '-lsync', '-lhardware', '-L${{ env.REAL_NDK_HOME }}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/30', '-L$PKG_CONFIG_PATH', |g" cross.txt
           
           meson setup build --reconfigure --cross-file cross.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dandroid-stub=true -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dopengl=false -Dgles1=disabled -Dgles2=disabled -Dllvm=disabled -Dvalgrind=disabled -Dzstd=disabled -Dvulkan-drivers=panfrost,wrapper -Dgallium-drivers=[]
 
       - name: Compile GameNative Engine
-        run: meson compile -C build
+        run: |
+          cd main-repo
+          meson compile -C build
 
+       bondage packaging
       - name: Structure and Pack wrapper.tzst for Bannerlator
         run: |
+          cd main-repo
           rm -rf pkg && mkdir -p pkg/usr/lib pkg/usr/share/vulkan/icd.d pkg/usr/share/vulkan/settings.d
           cp -v build/src/vulkan/wrapper/libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so 2>/dev/null || true
           cp -v build/src/panfrost/vulkan/libvulkan_panfrost.so pkg/usr/lib/libvulkan_panfrost.so 2>/dev/null || true
+          
           patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so 2>/dev/null || true
           llvm-strip --strip-unneeded pkg/usr/lib/*.so 2>/dev/null || true
           
@@ -91,7 +98,7 @@ jobs:
           echo '{"env":{"PAN_I_WANT_A_BROKEN_VULKAN_DRIVER":"1","MESA_VK_IGNORE_CONFORMANCE_WARNING":"1","PANVK_DEBUG":"sync,nir","MESA_VK_FORCE_BLIT":"1","MESA_LOADER_DRIVER_OVERRIDE":"panfrost","GALLIUM_DRIVER":"panfrost","vblank_mode":"0","MESA_GLSL_CACHE_DISABLE":"1","MESA_SHADER_CACHE_DISABLE":"true","NIR_DEBUG":"tgsi","MESA_VK_WSI_PRESENT_MODE":"immediate","MESA_VK_WSI_DEBUG":"always_async"}}' > pkg/usr/share/vulkan/settings.d/wrapper_settings.json
           
           echo "msf:315508" > pkg/version.txt && chmod -R 755 pkg/
-          cd pkg && tar -I 'zstd -19 -T0' -cf ../wrapper.tzst usr/ version.txt
+          cd pkg && tar -I 'zstd -19 -T0' -cf ../../wrapper.tzst usr/ version.txt
 
       - name: Upload Final wrapper.tzst
         uses: actions/upload-artifact@v4
