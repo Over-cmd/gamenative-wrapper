@@ -31,12 +31,20 @@ jobs:
           echo "-> Inicializando submodulos de libadrenotools de forma recursiva..."
           git submodule update --init --recursive
 
+      # 🟢 PASO CORREGIDO: Aplicamos los parches 'sed' apuntando estrictamente dentro de main-repo/
       - name: Inject Hardware Patches for Mali-G52
         run: |
           echo "-> Aplicando parches de hardware en los archivos de utilidades..."
-          find . -name "anon_file.c" -exec sed -i 's/fd = syscall(SYS_memfd_create.*/fd = memfd_create(debug_name, MFD_CLOEXEC \| MFD_ALLOW_SEALING);/g' {} + 2>/dev/null || true
+          sed -i 's/fd = syscall(SYS_memfd_create.*/fd = memfd_create(debug_name, MFD_CLOEXEC \| MFD_ALLOW_SEALING);/g' main-repo/src/util/anon_file.c 2>/dev/null || true
           find main-repo/ -name "pan_device.c" -exec sed -i 's/pan_query_core_count(&dev->kmod.dev->props, &dev->core_id_range);/dev->core_id_range = pan_query_core_count(\&dev->kmod.dev->props);/g' {} + 2>/dev/null || true
           find main-repo/ -name "pan_device.c" -exec sed -i 's/\\&/\&/g' {} + 2>/dev/null || true
+          
+          echo "-> Triturando el validador rigido de la linea 1279 de atomic en meson.build central..."
+          # 🟢 CORRECCIÓN CENTRAL: Forzamos el bypass de find_library en las rutas reales de main-repo/
+          sed -i "s/cc.find_library('atomic'/dependency('', required : false) #/g" main-repo/meson.build
+          sed -i "s/cc.find_library('rt'/dependency('', required : false) #/g" main-repo/meson.build
+          sed -i "s/cc.find_library('dl'/dependency('', required : false) #/g" main-repo/meson.build
+          
           rm -f main-repo/subprojects/*.wrap main-repo/*.wrap 2>/dev/null || true
 
       - name: Install Base Build Tools
@@ -74,18 +82,15 @@ jobs:
           
           if [ -f "android-64.toml" ]; then envsubst < android-64.toml > cross.txt; else envsubst < android.toml > cross.txt; fi
           
-          # Definimos las rutas del sistema del NDK real de ARM64
           NDK_LIB_DIR="${{ env.REAL_NDK_HOME }}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/30"
           
           sed -i "s|pkg_config_libdir = .*|pkg_config_libdir = '$PKG_CONFIG_PATH'|g" cross.txt
           sed -i "s|pkg_config_path = .*|pkg_config_path = '$PKG_CONFIG_PATH'|g" cross.txt
           sed -i "s|libdrm_path = .*|libdrm_path = '$GITHUB_WORKSPACE/main-repo/subprojects/libdrm'|g" cross.txt
           
-          # 🟢 CORRECCIÓN HISTÓRICA DE ENLAZADO: Inyectamos las carpetas de librerias de Google directamente en el cross-file para que find_library() las localice de inmediato
           sed -i "s|c_link_args = \[|c_link_args = ['-landroid', '-llog', '-lsync', '-lhardware', '-L${NDK_LIB_DIR}', '-L$PKG_CONFIG_PATH', |g" cross.txt
           sed -i "s|cpp_link_args = \[|cpp_link_args = ['-landroid', '-llog', '-lsync', '-lhardware', '-L${NDK_LIB_DIR}', '-L$PKG_CONFIG_PATH', |g" cross.txt
           
-          # 🟢 PARCHE INTEGRAL DE BUSCADOR DE SITEMA: Forzamos a Meson a buscar librerias nativas agregando la ruta del NDK al pool de librerias del cross-file
           if grep -q "\[properties\]" cross.txt; then
             sed -i "s|\[properties\]|\[properties\]\nc_link_args = ['-L${NDK_LIB_DIR}']\ncpp_link_args = ['-L${NDK_LIB_DIR}']|g" cross.txt
           fi
