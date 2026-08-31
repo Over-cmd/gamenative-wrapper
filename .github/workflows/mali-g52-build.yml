@@ -17,19 +17,16 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
-          # 🟢 CORRECCIÓN 1: Forzamos la clonación profunda recursiva de todos los submódulos de Pipetto
           submodules: recursive
           fetch-depth: 0
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Install Compilers, Meson and Ninja Packager
+      - name: Install Zstd and Patchelf Packager
         run: |
           sudo apt-get update
-          sudo apt-get install -y zstd patchelf python3 python3-pip python3-setuptools ninja-build
-          # 🟢 CORRECCIÓN 2: Instalamos Meson actualizado vía Pip en el host de las Actions
-          pip3 install mako PyYAML 'meson>=1.4.0' packaging
+          sudo apt-get install -y zstd patchelf
 
       - name: Surgical Silicon Modification (Anti-Overflow MALI Hybrid Injection)
         run: |
@@ -40,7 +37,7 @@ jobs:
             echo "-> Aplicando parches de alineación de memoria de 32 bits en: $WRAPPER_DEVICE"
             sed -i 's/\r$//' "$WRAPPER_DEVICE"
             sed -i '1i#include <stdint.h>' "$WRAPPER_DEVICE"
-            sed -i '1iextern int mallopt(int param, int value);' "$WRAPPER_DEVICE"
+            sed -i '1iextern int param, int value);' "$WRAPPER_DEVICE"
             sed -i '1iextern int setenv(const char *name, const char *value, int overwrite);' "$WRAPPER_DEVICE"
             
             sed -i '/vk_icdGetInstanceProcAddr/!b;n;i\\ extern int mallopt(int p, int v);\\n extern int setenv(const char *n, const char *v, int o);\\n mallopt(-1002, 0);\\n setenv("MESA_VK_WSI_PRESENT_MODE", "mailbox", 1);\\n setenv("vblank_mode", "0", 1);\\n if (sizeof(void*) == 4) {\\n   setenv("MESA_VK_WSI_QUEUE_SIZE", "1", 1);\\n }' "$WRAPPER_DEVICE"
@@ -50,11 +47,7 @@ jobs:
             find src/ -name "*.c" -exec sed -i 's/vk_icdGetInstanceProcAddr/extern int mallopt(int p, int v); extern int setenv(const char *n, const char *v, int o); mallopt(-1002, 0); setenv("MESA_VK_WSI_PRESENT_MODE", "mailbox", 1); setenv("vblank_mode", "0", 1); if (sizeof(void*) == 4) { setenv("MESA_VK_WSI_QUEUE_SIZE", "1", 1); } vk_icdGetInstanceProcAddr/g' {} + || true
           fi
 
-      - name: Wrapper Compiler (Atomic Processing Docker MALI)
-        run: |
-          docker run --rm -v "${{ github.workspace }}:/workspace" ${{ env.IMAGE_TAG }} ${{ env.BUILD_DIR }}
-
-      - name: Run Build Script (Panfrost Custom Phase and Packing)
+      - name: Run Build Script (Docker Double-Pass and Packing)
         run: |
           chmod +x build.sh
           ./build.sh
