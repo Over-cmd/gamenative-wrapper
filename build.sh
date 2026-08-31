@@ -39,26 +39,26 @@ EOF
   echo "-> Parche físico de gralloc con prototipo inyectado con éxito."
 fi
 
-# 🟢 INYECCIÓN MAESTRA REAL: Sincronizamos las firmas de log exactas de Pipetto dentro de Panfrost para cerrar ld.lld
-echo "-> 3c. Inyectando réplicas de firmas de trazas idénticas en panvk_android.c..."
+# 🟢 CORRECCIÓN SUPREMA DE LOGS: Convertimos las inyecciones de trazas a 'static' para aniquilar el error de -Wmissing-prototypes
+echo "-> 3c. Inyectando réplicas de firmas de trazas STATIC en panvk_android.c..."
 ANDROID_TARGET="src/panfrost/vulkan/panvk_android.c"
 if [ -f "$ANDROID_TARGET" ]; then
   cat << 'EOF' >> "$ANDROID_TARGET"
 
 #include <stdarg.h>
 
-/* Firmas reales clonadas del wrapper_log de Pipetto-Crypto para dar paso en verde a ld.lld */
-int get_wrapper_log_level(const char *option) {
+/* Al ser declaradas como static, Clang silencia el flag -Werror de inmediato y pasa de largo */
+static int get_wrapper_log_level(const char *option) {
     (void)option;
     return 0;
 }
 
-void write_to_logfile(const char *fmt, const char *level, ...) {
+static void write_to_logfile(const char *fmt, const char *level, ...) {
     (void)fmt;
     (void)level;
 }
 EOF
-  echo "-> Parche de firmas de trazas de 64 bits inyectado con éxito."
+  echo "-> Parche de firmas de trazas locales static inyectado con éxito."
 fi
 
 echo "-> 4. Neutralizando búsquedas rígidas en subproyectos..."
@@ -160,7 +160,7 @@ meson compile -C build
 echo "-> 12. Estructurando empaque compatible ICD 1.0.0..."
 rm -rf pkg && mkdir -p pkg/usr/lib pkg/usr/share/vulkan/icd.d pkg/usr/share/vulkan/settings.d
 
-# Pescamos el binario físico de Panfrost real compilado al 100% por Ninja
+# Pescamos el binario real nacido de Panfrost de 64 bits de forma legítima
 cp -v build/src/panfrost/vulkan/libvulkan_panfrost.so pkg/usr/lib/libvulkan_wrapper.so
 
 echo "-> Cambiando quirúrgicamente el SONAME interno para forzar la entrada al contenedor..."
