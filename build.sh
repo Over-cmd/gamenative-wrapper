@@ -41,30 +41,31 @@ echo "-> 6. Instalando herramientas base de compilación en el Host de Ubuntu...
 sudo apt-get update && sudo apt-get install -y build-essential libelf-dev bison flex pkg-config gettext patchelf unzip llvm clang
 python -m pip install --upgrade pip && pip install mako PyYAML 'meson>=1.4.0' ninja packaging
 
-echo "-> 7. Descomprimiendo shims locales e inyectando stubs circulares paralelos..."
-unzip -o shims.zip -d ./
-mkdir -p "$GITHUB_WORKSPACE/shims_target"
-cp -rf ./shims/* "$GITHUB_WORKSPACE/shims_target/"
-
-# Generamos pequeños binarios .so compartidos ficticios para alimentar el enlazador paralelo de Ninja en el objeto 62
-echo "void __stub_placeholder(void) {}" > simple_stub.c
-gcc -shared -fPIC simple_stub.c -o "$GITHUB_WORKSPACE/shims_target/libhardware.so"
-gcc -shared -fPIC simple_stub.c -o "$GITHUB_WORKSPACE/shims_target/libcutils.so"
-gcc -shared -fPIC simple_stub.c -o "$GITHUB_WORKSPACE/shims_target/libnativewindow.so"
-gcc -shared -fPIC simple_stub.c -o "$GITHUB_WORKSPACE/shims_target/libsync.so"
-
-echo "-> 8. Auto-detectando ruta del Android NDK..."
+echo "-> 7. Auto-detectando ruta del Android NDK..."
 TRUE_NDK=""
 for path in /usr/local/lib/android/sdk/ndk/* /home/runner/Android/Sdk/ndk/*; do
   if [ -d "$path/toolchains/llvm/prebuilt/linux-x86_64/bin" ]; then TRUE_NDK="$path"; break; fi
 done
-
 echo "-> NDK detectado en: $TRUE_NDK"
+
 export ANDROID_NDK_HOME="$TRUE_NDK"
 export MESON_WORKING_DIR="$GITHUB_WORKSPACE/main-repo"
 export PKG_CONFIG_PATH="$GITHUB_WORKSPACE/shims_target"
 export PKG_CONFIG_LIBDIR="$GITHUB_WORKSPACE/shims_target"
 NDK_SYSROOT_LIB="$TRUE_NDK/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/30"
+CLANG_CROSS="${TRUE_NDK}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android30-clang"
+
+echo "-> 8. Descomprimiendo shims locales e inyectando stubs binarios cruzados ARM64 legítimos..."
+unzip -o shims.zip -d ./
+mkdir -p "$GITHUB_WORKSPACE/shims_target"
+cp -rf ./shims/* "$GITHUB_WORKSPACE/shims_target/"
+
+# 🟢 SOLUCIÓN SUPREMA: Compilamos los stubs usando el Clang del NDK para forzar arquitectura ARM64 nativa compatible
+echo "void __stub_placeholder(void) {}" > simple_stub.c
+$CLANG_CROSS -shared -fPIC simple_stub.c -o "$GITHUB_WORKSPACE/shims_target/libhardware.so"
+$CLANG_CROSS -shared -fPIC simple_stub.c -o "$GITHUB_WORKSPACE/shims_target/libcutils.so"
+$CLANG_CROSS -shared -fPIC simple_stub.c -o "$GITHUB_WORKSPACE/shims_target/libnativewindow.so"
+$CLANG_CROSS -shared -fPIC simple_stub.c -o "$GITHUB_WORKSPACE/shims_target/libsync.so"
 
 echo "-> 9. Generando el archivo TOML de compilación cruzada cross.txt..."
 if [ -f "android-64.toml" ]; then envsubst < android-64.toml > cross.txt; else envsubst < android.toml > cross.txt; fi
@@ -75,7 +76,7 @@ sed -i "s|libdrm_path = .*|libdrm_path = '$GITHUB_WORKSPACE/main-repo/subproject
 sed -i "s|c_link_args = \[|c_link_args = ['-landroid', '-llog', '-lsync', '-lhardware', '-L${NDK_SYSROOT_LIB}', '-L$PKG_CONFIG_PATH', |g" cross.txt
 sed -i "s|cpp_link_args = \[|cpp_link_args = ['-landroid', '-llog', '-lsync', '-lhardware', '-L${NDK_SYSROOT_LIB}', '-L$PKG_CONFIG_PATH', |g" cross.txt
 
-echo "-> 10. Lanzando inicialización de Meson Setup offline..."
+echo "-> 10. Lanzando inicialización de Meson Setup..."
 meson setup build --reconfigure --cross-file cross.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dandroid-stub=true -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dopengl=false -Dgles1=disabled -Dgles2=disabled -Dllvm=disabled -Dvalgrind=disabled -Dzstd=disabled -Dvulkan-drivers=panfrost,wrapper -Dgallium-drivers=[]
 
 echo "-> 11. Compilando el motor gráfico de extremo a extremo con Ninja..."
