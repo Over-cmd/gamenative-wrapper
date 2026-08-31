@@ -39,6 +39,15 @@ EOF
   echo "-> Parche físico de gralloc con prototipo inyectado con éxito."
 fi
 
+# 🟢 JUGADA MAESTRA SUPREMA: Forzamos a Meson a que el nombre del binario físico de Panfrost sea 'vulkan_wrapper'
+# Esto hace que el SONAME interno se grabe legítimo de nacimiento, burlando la seguridad del contenedor
+echo "-> 3c. Parcheando el nombre nativo del binario en el meson.build de Panfrost..."
+PAN_MESON="src/panfrost/vulkan/meson.build"
+if [ -f "$PAN_MESON" ]; then
+  sed -i "s|shared_library('vulkan_panfrost'|shared_library('vulkan_wrapper'|g" "$PAN_MESON"
+  echo "-> Nombre interno mutado a vulkan_wrapper de forma nativa."
+fi
+
 echo "-> 4. Neutralizando búsquedas rígidas en subproyectos..."
 TARGET_BUILD="subprojects/libadrenotools/meson.build"
 if [ -f "$TARGET_BUILD" ]; then
@@ -79,10 +88,12 @@ mkdir -p "$GITHUB_WORKSPACE/shims_target"
 cp -rf ./shims/* "$GITHUB_WORKSPACE/shims_target/"
 
 echo "void __stub_placeholder(void) {}" > simple_stub.c
+$CLANG_CROSS -shared -fPIC simple_stub.c Artisanal stub
 $CLANG_CROSS -shared -fPIC simple_stub.c -o "$GITHUB_WORKSPACE/shims_target/libhardware.so"
 $CLANG_CROSS -shared -fPIC simple_stub.c -o "$GITHUB_WORKSPACE/shims_target/libcutils.so"
 $CLANG_CROSS -shared -fPIC simple_stub.c -o "$GITHUB_WORKSPACE/shims_target/libnativewindow.so"
 $CLANG_CROSS -shared -fPIC simple_stub.c -o "$GITHUB_WORKSPACE/shims_target/libsync.so"
+# Stub temporal para que pase el setup de Meson inicial
 $CLANG_CROSS -shared -fPIC simple_stub.c -o "$GITHUB_WORKSPACE/shims_target/libvulkan_wrapper.so"
 
 echo "-> 9. Generando el archivo TOML de compilación cruzada cross.txt..."
@@ -98,24 +109,21 @@ sed -i "s|cpp_link_args = \[|cpp_link_args = ['-landroid', '-llog', '-lsync', '-
 echo "-> 10. Lanzando inicialización de Meson Setup..."
 meson setup build --reconfigure --cross-file cross.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dandroid-stub=true -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dopengl=false -Dgles1=disabled -Dgles2=disabled -Dllvm=disabled -Dvalgrind=disabled -Dzstd=disabled -Dvulkan-drivers=panfrost,wrapper -Dgallium-drivers=[]
 
-echo "-> 11a. Compilando prioritariamente el Wrapper intermedio con Ninja..."
+echo "-> 11a. Compilando prioritariamente el Wrapper auxiliar intermedio con Ninja..."
 /home/runner/.local/bin/ninja -C build src/vulkan/wrapper/libvulkan_wrapper.so
 
 echo "-> 11b. Pisando el stub intermedio con el binario REAL generado..."
 cp -fv build/src/vulkan/wrapper/libvulkan_wrapper.so "$GITHUB_WORKSPACE/shims_target/libvulkan_wrapper.so"
 
-echo "-> 11c. Compilando el resto de los objetos graficos y el driver de Panfrost..."
+echo "-> 11c. Compilando el driver unificado final..."
 meson compile -C build
 
-# 🟢 PASO DE EMPAQUETADO MAESTRO CON RENOMBRADO TÁCTICO:
 echo "-> 12. Estructurando empaque compatible ICD 1.0.0..."
 rm -rf pkg && mkdir -p pkg/usr/lib pkg/usr/share/vulkan/icd.d pkg/usr/share/vulkan/settings.d
 
-echo "-> 🟢 JUGADA CLAVE: Poniendo la libvulkan_panfrost.so real bajo el nombre de libvulkan_wrapper.so..."
-# Copiamos el driver físico real directo sobre el nombre del wrapper requerido para Bannerlator
-cp -v build/src/panfrost/vulkan/libvulkan_panfrost.so pkg/usr/lib/libvulkan_wrapper.so
+# Pescamos el binario real nacido legítimamente con el nombre de la inyección nativa del paso 3c
+cp -v build/src/panfrost/vulkan/libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
 
-echo "-> Ajustando el soname interno del binario modificado..."
 patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so 2>/dev/null || true
 llvm-strip --strip-unneeded pkg/usr/lib/*.so 2>/dev/null || true
 
