@@ -2,14 +2,13 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 INICIANDO ENLAZADOR HÍBRIDO FAT BASADO EN TOML OFICIAL"
+echo "🚀 INICIANDO ENLAZADOR HÍBRIDO FAT INDESTRUCTIBLE API 26"
 echo "=========================================================="
 
 echo "-> 1. Submódulos de Pipetto..."
 cd subprojects/libadrenotools && git submodule update --init --recursive && cd ../..
 
 echo "-> 2. Parches de hardware Mali-G52 y Sincronización POSIX..."
-# 🟢 PARCHE REPARADO API 24: Forzamos el uso de syscall nativo directo de Linux para saltarnos las restricciones de la API antigua de Android
 sed -i 's/fd = syscall(SYS_memfd_create.*/fd = syscall(356, debug_name, 0x0001 \| 0x0002);/g' src/util/anon_file.c 2>/dev/null || true
 sed -i '1s|^|static int sync_wait(int fd, int timeout) { return 0; }\n|' src/panfrost/lib/kmod/panthor_kmod.c
 sed -i '1s|^|#include <fcntl.h>\n|' src/vulkan/wrapper/wrapper_log.c
@@ -40,14 +39,15 @@ export NDK_BIN="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin"
 export NDK_SYSROOT="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
 
 # ==========================================
-# 🟢 FASE A: COMPILACIÓN DE 32 BITS (Fiel al plano oficial API 24)
+# 🟢 FASE A: COMPILACIÓN DE 32 BITS (Subido a la API 26 para sync_merge)
 # ==========================================
 echo "-> 7a. Generando cross_32.txt..."
+NDK_SYSROOT_LIB_32="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/arm-linux-androideabi/26"
 cat << EOF > cross_32.txt
 [constants]
 ndk_path = '${ANDROID_NDK_HOME}'
 toolchain = ndk_path + '/toolchains/llvm/prebuilt/linux-x86_64/bin'
-api = '24'
+api = '26'
 
 [binaries]
 c       = toolchain + '/armv7a-linux-androideabi' + api + '-clang'
@@ -71,14 +71,15 @@ meson setup build-32 --cross-file cross_32.txt --wrap-mode=nodownload -Dbuildtyp
 meson compile -C build-32
 
 # ==========================================
-# 🟢 FASE B: COMPILACIÓN DE 64 BITS (ARM64 API 24)
+# 🟢 FASE B: COMPILACIÓN DE 64 BITS (ARM64 API 26)
 # ==========================================
 echo "-> 7b. Generando cross_64.txt..."
+NDK_SYSROOT_LIB_64="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/26"
 cat << EOF > cross_64.txt
 [constants]
 ndk_path = '${ANDROID_NDK_HOME}'
 toolchain = ndk_path + '/toolchains/llvm/prebuilt/linux-x86_64/bin'
-api = '24'
+api = '26'
 
 [binaries]
 c       = toolchain + '/aarch64-linux-android' + api + '-clang'
@@ -138,8 +139,8 @@ void* vk_icdGetInstanceProcAddr(void* instance, const char* pName) {
 }
 EOF
 
-# Compilamos el enrutador puente usando la API estándar del NDK
-$NDK_BIN/aarch64-linux-android24-clang -shared -fPIC -o libvulkan_wrapper.so wrapper.c -ldl --sysroot="$NDK_SYSROOT"
+# Compilamos el puente en base a la API 26 del sistema cruzado
+$NDK_BIN/aarch64-linux-android26-clang -shared -fPIC -o libvulkan_wrapper.so wrapper.c -ldl --sysroot="$NDK_SYSROOT"
 
 # ==========================================
 # 🟢 FASE D: MAQUETADO ICD PLANO DEFINITIVO
@@ -170,5 +171,5 @@ echo "msf:315508" > pkg/version.txt && chmod -R 755 pkg/
 cd pkg && tar -I "zstd -19 -T0" -cf "$GITHUB_WORKSPACE/wrapper.tzst" usr version.txt
 
 echo "=========================================================="
-echo "🟢 ¡FAT BINARY MONOLÍTICO COMPLETADO CON EXCELENCIA!"
+echo "🟢 ¡FAT BINARY HÍBRIDO CONEXIÓN TOTAL EN API 26 COMPLETADO!"
 echo "=========================================================="
