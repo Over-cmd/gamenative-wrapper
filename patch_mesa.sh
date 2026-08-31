@@ -27,14 +27,12 @@ c = "#include \"xf86drm.h\"\n" + c
 f=open(p,"w"); f.write(c); f.close()
 '
 
-# 🟢 REPARACIÓN MAESTRA PASO 719: Inyectamos fcntl.h y unistd.h al inicio de wrapper_log.c para proveer open(), read(), close() y O_RDONLY
-echo "-> [Cirugía] Inyectando cabeceras de control de archivos en wrapper_log.c..."
+echo "-> [Cirugía] Inyectando cabeceras POSIX estándar en wrapper_log.c..."
 python3 -c '
 p="src/vulkan/wrapper/wrapper_log.c"
 f=open(p,"r"); c=f.read(); f.close()
 c = "#include <fcntl.h>\n#include <unistd.h>\n" + c
 f=open(p,"w"); f.write(c); f.close()
-print("-> ¡wrapper_log.c parchado exitosamente!")
 '
 
 echo "-> [Cirugía] Redireccionando inclusiones rígidas de KMOD hacia shims locales..."
@@ -48,15 +46,31 @@ cat << 'EOF' > src/panfrost/lib/kmod/panthor_kmod.c
 const struct pan_kmod_ops panthor_kmod_ops = {0};
 EOF
 
-echo "-> [Cirugía] Escribiendo xf86drm.h simulado con soporte total de Syncobj y Timeline..."
+echo "-> [Cirugía] Escribiendo xf86drm.h simulado con topología de dispositivo biónico..."
 cat << 'EOF' > $(pwd)/shims_64/xf86drm.h
 #ifndef xf86drm_h
 #define xf86drm_h
 #include <stdint.h>
 
+/* Macros de sincronización y control requeridos por el pipeline de Mesa */
 #define DRM_SYNCOBJ_CREATE_SIGNALED (1 << 0)
 
-typedef struct _drmDevice { char **nodes; } *drmDevicePtr;
+#ifndef DRM_NODE_RENDER
+#define DRM_NODE_RENDER 2
+#endif
+
+#ifndef DRM_BUS_PLATFORM
+#define DRM_BUS_PLATFORM 3
+#endif
+
+/* 🟢 REPARACIÓN SUPREMA PASO 762: Damos cuerpo real a la estructura que inspecciona panvk_instance.c */
+struct _drmDevice {
+    char **nodes;
+    int available_nodes;
+    int bustype;
+};
+typedef struct _drmDevice *drmDevicePtr;
+
 typedef struct _drmVersion { int version_major; int version_minor; int version_patchlevel; char *name; char *date; char *desc; } *drmVersionPtr;
 
 static inline drmVersionPtr drmGetVersion(int fd) { (void)fd; return 0; }
