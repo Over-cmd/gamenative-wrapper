@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 INICIANDO ENLAZADOR HÍBRIDO MESA 25 CON STUBS DE KERNEL"
+echo "🚀 INICIANDO ENLAZADOR HÍBRIDO MESA 25 CON PURGA DE KMOD"
 echo "=========================================================="
 
 echo "-> 1. Compilando el Interceptor oficial en Docker..."
@@ -13,31 +13,22 @@ export ANDROID_NDK_HOME="/usr/local/lib/android/sdk/ndk/28.2.13676358"
 export NDK_BIN="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin"
 export NDK_SYSROOT="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
 
-# 🟢 JUGADA MAESTRA EXTRAORDINARIA: Expandimos stub_logs.c con las firmas conformes de kernel DRM que exige pan_kmod.c
+# Micro-fuente C de trazas y funciones biónicas que ld.lld exige resolver
 cat << 'EOF' > stub_logs.c
-#include <stdint.h>
 int get_wrapper_log_level(const char *option) { (void)option; return 0; }
 void write_to_logfile(const char *fmt, const char *level, ...) { (void)fmt; (void)level; }
 int wsi_get_android_blit_type(void* a, void* b) { (void)a; (void)b; return 0; }
 int wsi_configure_android_image(void* a, void* b) { (void)a; (void)b; return 0; }
-
-/* Stubs de Kernel DRM exigidos por la pila de Panfrost en Mesa 25 */
-int drmIoctl(int fd, unsigned long request, void *arg) { (void)fd; (void)request; (void)arg; return 0; }
-int drmCommandWriteRead(int fd, unsigned long drmCommandIndex, void *data, unsigned long size) { (void)fd; (void)drmCommandIndex; (void)data; (void)size; return 0; }
-int drmCommandWrite(int fd, unsigned long drmCommandIndex, void *data, unsigned long size) { (void)fd; (void)drmCommandIndex; (void)data; (void)size; return 0; }
-int drmCommandRead(int fd, unsigned long drmCommandIndex, void *data, unsigned long size) { (void)fd; (void)drmCommandIndex; (void)data; (void)size; return 0; }
-char *drmGetDeviceNameInsubsystem(int fd, const char *subsystem) { (void)fd; (void)subsystem; return 0; }
-void drmFreeDevice(void *device) { (void)device; }
-int drmGetDevices2(uint32_t flags, void *devices[], int max_devices) { (void)flags; (void)devices; (void)max_devices; return -1; }
-void drmFreeDevices(void *devices[], int count) { (void)devices; (void)count; }
 EOF
 
 mkdir -p "$(pwd)/shims_64"
 $NDK_BIN/aarch64-linux-android26-clang -c stub_logs.c -o stub_logs_64.o
 $NDK_BIN/llvm-ar rcs "$(pwd)/shims_64/libvulkan_wrapper.a" stub_logs_64.o
 
-echo "-> 2b. Neutralizando dependencias DRM residuales en caliente..."
+echo "-> 2b. Neutralizando dependencias DRM y módulos de escritorio..."
 echo " " > src/vulkan/runtime/vk_drm_syncobj.c
+mkdir -p src/util
+echo " " > src/util/libdrm.h
 
 # Escribimos el xf86drm.h falso estructurado para resolver validaciones semánticas locales
 cat << 'EOF' > $(pwd)/shims_64/xf86drm.h
@@ -45,17 +36,24 @@ cat << 'EOF' > $(pwd)/shims_64/xf86drm.h
 #define xf86drm_h
 #include <stdint.h>
 typedef struct _drmDevice *drmDevicePtr;
-int drmIoctl(int fd, unsigned long request, void *arg);
-int drmCommandWriteRead(int fd, unsigned long drmCommandIndex, void *data, unsigned long size);
-int drmCommandWrite(int fd, unsigned long drmCommandIndex, void *data, unsigned long size);
-int drmCommandRead(int fd, unsigned long drmCommandIndex, void *data, unsigned long size);
-int drmGetDevices2(uint32_t flags, drmDevicePtr devices[], int max_devices);
-void drmFreeDevices(drmDevicePtr devices[], int count);
 #endif
 EOF
 
 mkdir -p include
 cp -fv $(pwd)/shims_64/xf86drm.h include/xf86drm.h
+
+# 🟢 JAQUE MATE A PAN_KMOD.C: Reemplazamos el archivo por un cascarón compatible libre de llamadas a libdrm de PC
+cat << 'EOF' > src/panfrost/lib/kmod/pan_kmod.c
+#include <stddef.h>
+#include "pan_kmod.h"
+#include "pan_kmod_priv.h"
+
+struct pan_kmod_dev *pan_kmod_dev_create(int fd, uint32_t flags, const struct pan_kmod_allocator *allocator) {
+   (void)fd; (void)flags; (void)allocator; return NULL;
+}
+void pan_kmod_dev_destroy(struct pan_kmod_dev *dev) { (void)dev; }
+const struct pan_kmod_dev_props *pan_kmod_dev_query_props(const struct pan_kmod_dev *dev) { (void)dev; return NULL; }
+EOF
 
 # Mantenemos las firmas unificadas de WSI DRM
 cat << 'EOF' > src/vulkan/wsi/wsi_common_drm.c
