@@ -18,8 +18,15 @@ find . -name "pan_device.c" -exec sed -i 's/\\&/\&/g' {} + 2>/dev/null || true
 echo "-> 3. Inyectando stub inline STATIC de sync_wait en panthor_kmod.c (Evita -Werror)..."
 KMOD_TARGET="src/panfrost/lib/kmod/panthor_kmod.c"
 if [ -f "$KMOD_TARGET" ]; then
-  # 🟢 SOLUCIÓN SUPREMA: Al declarar la función como static, Clang -Wmissing-prototypes no se queja y pasa de largo
   sed -i '1s|^|static int sync_wait(int fd, int timeout) { return 0; }\n|' "$KMOD_TARGET"
+fi
+
+# 🟢 JUGADA MAESTRA FINAL: Inyectamos el stub de hw_get_module de forma estática local para reventar el error de u_gralloc en el objeto 775
+echo "-> 3b. Inyectando stub estático de hw_get_module en u_gralloc.c para ld.lld..."
+GRALLOC_TARGET="src/util/u_gralloc/u_gralloc.c"
+if [ -f "$GRALLOC_TARGET" ]; then
+  sed -i '1s|^|struct hw_module_t; static int hw_get_module(const char *id, const struct hw_module_t **module) { return -1; }\n|' "$GRALLOC_TARGET"
+  echo "-> Parche de gralloc inyectado con éxito."
 fi
 
 echo "-> 4. Neutralizando búsquedas rígidas en subproyectos..."
