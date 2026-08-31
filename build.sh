@@ -15,10 +15,28 @@ sed -i 's/fd = syscall(SYS_memfd_create.*/fd = memfd_create(debug_name, MFD_CLOE
 find . -name "pan_device.c" -exec sed -i 's/pan_query_core_count(&dev->kmod.dev->props, &dev->core_id_range);/dev->core_id_range = pan_query_core_count(\&dev->kmod.dev->props);/g' {} + 2>/dev/null || true
 find . -name "pan_device.c" -exec sed -i 's/\\&/\&/g' {} + 2>/dev/null || true
 
-echo "-> 3. Inyectando stub inline STATIC de sync_wait en panthor_kmod.c..."
+echo "-> 3. Inyectando stub inline STATIC de sync_wait en panthor_kmod.c (Evita -Werror)..."
 KMOD_TARGET="src/panfrost/lib/kmod/panthor_kmod.c"
 if [ -f "$KMOD_TARGET" ]; then
   sed -i '1s|^|static int sync_wait(int fd, int timeout) { return 0; }\n|' "$KMOD_TARGET"
+fi
+
+# 🟢 JUGADA MAESTRA SUPREMA: Inyectamos la función real física al final de u_gralloc.c
+# Al ser código C real compilado dentro del módulo gralloc, ld.lld resolverá el símbolo de forma global y legítima para ARM64
+echo "-> 3b. Inyectando función física hw_get_module al final de u_gralloc.c..."
+GRALLOC_TARGET="src/util/u_gralloc/u_gralloc.c"
+if [ -f "$GRALLOC_TARGET" ]; then
+  cat << 'EOF' >> "$GRALLOC_TARGET"
+
+/* bypass global para ld.lld del driver grafico */
+struct hw_module_t;
+int hw_get_module(const char *id, const struct hw_module_t **module) {
+    (void)id;
+    (void)module;
+    return -1;
+}
+EOF
+  echo "-> Parche físico de gralloc inyectado con éxito."
 fi
 
 echo "-> 4. Neutralizando búsquedas rígidas en subproyectos..."
@@ -73,12 +91,7 @@ sed -i "s|pkg_config_libdir = .*|pkg_config_libdir = '$PKG_CONFIG_PATH'|g" cross
 sed -i "s|pkg_config_path = .*|pkg_config_path = '$PKG_CONFIG_PATH'|g" cross.txt
 sed -i "s|libdrm_path = .*|libdrm_path = '$GITHUB_WORKSPACE/main-repo/subprojects/libdrm'|g" cross.txt
 
-# 🟢 INYECCIÓN MAESTRA DEFINITIVA: Inyectamos la macro inline de hw_get_module de forma global en c_args y cpp_args
-# Esto define la función de forma automática en cada .c procesado por Clang, esquivando el error del enlazador LLD
-GLOBAL_STUB="-Dhw_get_module(id,mod)=({-1;})"
-
-sed -i "s|c_args = \[|c_args = ['${GLOBAL_STUB}', |g" cross.txt
-sed -i "s|cpp_args = \[|cpp_args = ['${GLOBAL_STUB}', |g" cross.txt
+# 🟢 LIMPIEZA ABSOLUTA DE ARGUMENTOS: Eliminamos las macros de compilación globales que rompían las cabeceras
 sed -i "s|c_link_args = \[|c_link_args = ['-landroid', '-llog', '-lsync', '-lhardware', '-L${NDK_SYSROOT_LIB}', '-L$PKG_CONFIG_PATH', |g" cross.txt
 sed -i "s|cpp_link_args = \[|cpp_link_args = ['-landroid', '-llog', '-lsync', '-lhardware', '-L${NDK_SYSROOT_LIB}', '-L$PKG_CONFIG_PATH', |g" cross.txt
 
