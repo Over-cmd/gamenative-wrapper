@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 INICIANDO ENLAZADOR HÍBRIDO MESA 25 INTEGRAL DEFINITIVO"
+echo "🚀 INICIANDO ENLAZADOR HÍBRIDO MESA 25 MASTER-BLINDADO v5"
 echo "=========================================================="
 
 echo "-> 1. Compilando el Interceptor oficial en Docker..."
@@ -24,25 +24,32 @@ mkdir -p "$(pwd)/shims_64"
 $NDK_BIN/aarch64-linux-android26-clang -c stub_logs.c -o stub_logs_64.o
 $NDK_BIN/llvm-ar rcs "$(pwd)/shims_64/libvulkan_wrapper.a" stub_logs_64.o
 
-echo "-> 2b. Neutralizando dependencias DRM residuales mediante stubs simulados..."
+echo "-> 2b. Neutralizando dependencias DRM residuales en caliente..."
 echo " " > src/vulkan/runtime/vk_drm_syncobj.c
 mkdir -p src/util && echo " " > src/util/libdrm.h
 
-# 🟢 RESTAURACIÓN DE CÓDIGO FUENTE LEGÍTIMO: Traemos de vuelta los archivos limpios del repositorio para aplicar los parches sobre seguro
+# Restauramos los archivos para aplicar parches sobre limpio
 git checkout src/vulkan/runtime/vk_instance.c 2>/dev/null || true
 git checkout src/vulkan/wsi/wsi_common_drm.c 2>/dev/null || true
-git checkout src/panfrost/lib/kmod/pan_kmod.h 2>/dev/null || true
 git checkout src/panfrost/lib/kmod/pan_kmod.c 2>/dev/null || true
 git checkout src/panfrost/lib/kmod/panfrost_kmod.c 2>/dev/null || true
 git checkout src/panfrost/lib/kmod/panthor_kmod.c 2>/dev/null || true
 
-# 🟢 CIRUGÍA 1: Cambiamos las inclusiones estrictas con corchetes <xf86drm.h> a comillas locales "xf86drm.h" para burlar el Sysroot del NDK
-sed -i 's/#include <xf86drm.h>/#include "xf86drm.h"/g' src/vulkan/runtime/vk_instance.c 2>/dev/null || true
+# 🟢 INYECCIÓN INDESTRUCTIBLE: Forzamos la inclusión local de xf86drm.h dentro de vk_instance.c usando Python para saltarnos el sysroot de Google
+python3 -c '
+p="src/vulkan/runtime/vk_instance.c"
+f=open(p,"r"); c=f.read(); f.close()
+c = "#include \"xf86drm.h\"\n" + c
+f=open(p,"w"); f.write(c); f.close()
+print("-> Inyección exitosa en vk_instance.c")
+'
+
+# 🟢 CIRUGÍA KMOD: Cambiamos las inclusiones de corchetes a comillas locales para pan_kmod
 sed -i 's/#include <xf86drm.h>/#include "xf86drm.h"/g' src/panfrost/lib/kmod/pan_kmod.c 2>/dev/null || true
 sed -i 's/#include <xf86drm.h>/#include "xf86drm.h"/g' src/panfrost/lib/kmod/panfrost_kmod.c 2>/dev/null || true
 sed -i 's/#include <xf86drm.h>/#include "xf86drm.h"/g' src/panfrost/lib/kmod/panthor_kmod.c 2>/dev/null || true
 
-# 🟢 CABECERA CONTROLADORA DEFINITIVA: Fabricamos un xf86drm.h local falso impecable con TODOS los ioctls y macros que exigen pan_kmod, vk_instance y panthor_kmod
+# 🟢 CABECERA CONTROLADORA DEFINITIVA: Fabricamos un xf86drm.h biónico completo con todas las firmas que buscan vk_instance y pan_kmod
 cat << 'EOF' > $(pwd)/shims_64/xf86drm.h
 #ifndef xf86drm_h
 #define xf86drm_h
@@ -58,16 +65,21 @@ static inline int drmGetDevices2(uint32_t flags, drmDevicePtr devices[], int max
 static inline void drmFreeDevices(drmDevicePtr devices[], int count) { (void)devices; (void)count; }
 static inline int drmPrimeHandleToFD(int fd, uint32_t handle, uint32_t flags, int *prime_fd) { (void)fd; (void)handle; (void)flags; if(prime_fd) *prime_fd = -1; return 0; }
 static inline int drmIoctl(int fd, unsigned long request, void *arg) { (void)fd; (void)request; (void)arg; return 0; }
-static inline int drmCommandWriteRead(int fd, unsigned long cmd, void *data, unsigned long size) { (void)fd; (void)cmd; (void)data; (void)size; return 0; }
-static inline int drmCommandWrite(int fd, unsigned long cmd, void *data, unsigned long size) { (void)fd; (void)cmd; (void)data; (void)size; return 0; }
-static inline int drmCommandRead(int fd, unsigned long cmd, void *data, unsigned long size) { (void)fd; (void)cmd; (void)data; (void)size; return 0; }
+static inline int drmCommandWriteRead(int fd, unsigned long cmd, void *data, unsigned long size) { (void)fd; (cmd); (void)data; (void)size; return 0; }
+static inline int drmCommandWrite(int fd, unsigned long cmd, void *data, unsigned long size) { (void)fd; (cmd); (void)data; (void)size; return 0; }
+static inline int drmCommandRead(int fd, unsigned long cmd, void *data, unsigned long size) { (void)fd; (cmd); (void)data; (void)size; return 0; }
 #endif
 EOF
 
-mkdir -p include && cp -fv $(pwd)/shims_64/xf86drm.h include/xf86drm.h
-mkdir -p src/panfrost/lib/kmod && cp -fv $(pwd)/shims_64/xf86drm.h src/panfrost/lib/kmod/xf86drm.h
+# Duplicamos la cabecera en las rutas relativas nativas de Mesa de forma física real
+mkdir -p include
+cp -fv $(pwd)/shims_64/xf86drm.h include/xf86drm.h
+mkdir -p src/vulkan/runtime
+cp -fv $(pwd)/shims_64/xf86drm.h src/vulkan/runtime/xf86drm.h
+mkdir -p src/panfrost/lib/kmod
+cp -fv $(pwd)/shims_64/xf86drm.h src/panfrost/lib/kmod/xf86drm.h
 
-# 🟢 STUBS DE WSI DRM COMPLETOS CON SUS FIRMAS EXPLICITAS ASOCIADAS
+# 🟢 STUBS DE WSI DRM COMPLETOS
 cat << 'EOF' > src/vulkan/wsi/wsi_common_drm.c
 #include <stdint.h>
 #include <stdbool.h>
