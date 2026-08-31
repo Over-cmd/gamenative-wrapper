@@ -39,8 +39,7 @@ EOF
   echo "-> Parche físico de gralloc con prototipo inyectado con éxito."
 fi
 
-# 🟢 JUGADA MAESTRA SUPREMA: Forzamos a Meson a que el nombre del binario físico de Panfrost sea 'vulkan_wrapper'
-# Esto hace que el SONAME interno se grabe legítimo de nacimiento, burlando la seguridad del contenedor
+# Forzamos a Meson a que el nombre del binario físico de Panfrost sea 'vulkan_wrapper'
 echo "-> 3c. Parcheando el nombre nativo del binario en el meson.build de Panfrost..."
 PAN_MESON="src/panfrost/vulkan/meson.build"
 if [ -f "$PAN_MESON" ]; then
@@ -88,15 +87,13 @@ mkdir -p "$GITHUB_WORKSPACE/shims_target"
 cp -rf ./shims/* "$GITHUB_WORKSPACE/shims_target/"
 
 echo "void __stub_placeholder(void) {}" > simple_stub.c
-$CLANG_CROSS -shared -fPIC simple_stub.c Artisanal stub
 $CLANG_CROSS -shared -fPIC simple_stub.c -o "$GITHUB_WORKSPACE/shims_target/libhardware.so"
 $CLANG_CROSS -shared -fPIC simple_stub.c -o "$GITHUB_WORKSPACE/shims_target/libcutils.so"
 $CLANG_CROSS -shared -fPIC simple_stub.c -o "$GITHUB_WORKSPACE/shims_target/libnativewindow.so"
 $CLANG_CROSS -shared -fPIC simple_stub.c -o "$GITHUB_WORKSPACE/shims_target/libsync.so"
-# Stub temporal para que pase el setup de Meson inicial
 $CLANG_CROSS -shared -fPIC simple_stub.c -o "$GITHUB_WORKSPACE/shims_target/libvulkan_wrapper.so"
 
-echo "-> 9. Generando el archivo TOML de compilación cruzada cross.txt..."
+echo "-> 9. Generating Meson machine cross-file cross.txt..."
 if [ -f "android-64.toml" ]; then envsubst < android-64.toml > cross.txt; else envsubst < android.toml > cross.txt; fi
 
 sed -i "s|pkg_config_libdir = .*|pkg_config_libdir = '$PKG_CONFIG_PATH'|g" cross.txt
