@@ -21,22 +21,23 @@ if [ -f "$KMOD_TARGET" ]; then
   sed -i '1s|^|static int sync_wait(int fd, int timeout) { return 0; }\n|' "$KMOD_TARGET"
 fi
 
-# 🟢 JUGADA MAESTRA SUPREMA: Inyectamos la función real física al final de u_gralloc.c
-# Al ser código C real compilado dentro del módulo gralloc, ld.lld resolverá el símbolo de forma global y legítima para ARM64
-echo "-> 3b. Inyectando función física hw_get_module al final de u_gralloc.c..."
+# 🟢 CORRECCIÓN SUPREMA: Añadimos el prototipo explícito de la función para bofetear el flag -Wmissing-prototypes de Mesa
+echo "-> 3b. Inyectando función física real con prototipo al final de u_gralloc.c..."
 GRALLOC_TARGET="src/util/u_gralloc/u_gralloc.c"
 if [ -f "$GRALLOC_TARGET" ]; then
   cat << 'EOF' >> "$GRALLOC_TARGET"
 
-/* bypass global para ld.lld del driver grafico */
+/* bypass global con prototipo legal para silenciar -Werror y resolver ld.lld */
 struct hw_module_t;
+int hw_get_module(const char *id, const struct hw_module_t **module);
+
 int hw_get_module(const char *id, const struct hw_module_t **module) {
     (void)id;
     (void)module;
     return -1;
 }
 EOF
-  echo "-> Parche físico de gralloc inyectado con éxito."
+  echo "-> Parche físico de gralloc con prototipo inyectado con éxito."
 fi
 
 echo "-> 4. Neutralizando búsquedas rígidas en subproyectos..."
@@ -91,7 +92,6 @@ sed -i "s|pkg_config_libdir = .*|pkg_config_libdir = '$PKG_CONFIG_PATH'|g" cross
 sed -i "s|pkg_config_path = .*|pkg_config_path = '$PKG_CONFIG_PATH'|g" cross.txt
 sed -i "s|libdrm_path = .*|libdrm_path = '$GITHUB_WORKSPACE/main-repo/subprojects/libdrm'|g" cross.txt
 
-# 🟢 LIMPIEZA ABSOLUTA DE ARGUMENTOS: Eliminamos las macros de compilación globales que rompían las cabeceras
 sed -i "s|c_link_args = \[|c_link_args = ['-landroid', '-llog', '-lsync', '-lhardware', '-L${NDK_SYSROOT_LIB}', '-L$PKG_CONFIG_PATH', |g" cross.txt
 sed -i "s|cpp_link_args = \[|cpp_link_args = ['-landroid', '-llog', '-lsync', '-lhardware', '-L${NDK_SYSROOT_LIB}', '-L$PKG_CONFIG_PATH', |g" cross.txt
 
