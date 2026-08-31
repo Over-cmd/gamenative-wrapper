@@ -81,65 +81,29 @@ EOF
 echo "-> 9. Lanzando inicialización de Meson Setup..."
 meson setup build --cross-file cross.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dandroid-stub=true -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=panfrost,wrapper
 
-echo "-> 10. Compilando el motor gráfico con Ninja..."
+echo "-> 10. Compilando el motor gráfico completo con Ninja..."
 meson compile -C build
 
-# ==========================================
-# 🟢 11. ENRUTADOR PUENTE CON INYECCIÓN DE ENTORNO EN CALIENTE (HARDCODED)
-# ==========================================
-echo "-> 11. Fabricando el código fuente del enrutador con variables de entorno forzadas..."
-cat << 'EOF' > wrapper.c
-#define _GNU_SOURCE
-#include <stdio.h>
-#include <stdlib.h>
-#include <dlfcn.h>
-
-static void* handle = NULL;
-
-__attribute__((constructor)) void init_wrapper() {
-    // Forzar la inyección de variables de entorno de Mesa directamente en la memoria del hilo de ejecución
-    setenv("PAN_I_WANT_A_BROKEN_VULKAN_DRIVER", "1", 1);
-    setenv("MESA_VK_IGNORE_CONFORMANCE_WARNING", "1", 1);
-    setenv("PANVK_DEBUG", "sync,nir", 1);
-    setenv("MESA_VK_FORCE_BLIT", "1", 1);
-    setenv("MESA_LOADER_DRIVER_OVERRIDE", "panfrost", 1);
-    setenv("GALLIUM_DRIVER", "panfrost", 1);
-
-    if (sizeof(void*) == 8) {
-        handle = dlopen("/usr/lib/libvulkan_panfrost_64.so", RTLD_NOW | RTLD_GLOBAL);
-        if (!handle) handle = dlopen("./libvulkan_panfrost_64.so", RTLD_NOW | RTLD_GLOBAL);
-    } else {
-        handle = dlopen("/usr/lib/libvulkan_panfrost_32.so", RTLD_NOW | RTLD_GLOBAL);
-        if (!handle) handle = dlopen("./libvulkan_panfrost_32.so", RTLD_NOW | RTLD_GLOBAL);
-    }
-}
-
-void* vk_icdGetInstanceProcAddr(void* instance, const char* pName) {
-    if (!handle) return NULL;
-    typedef void* (*PFN_icdGet)(void*, const char*);
-    PFN_icdGet real_icd = (PFN_icdGet)dlsym(handle, "vk_icdGetInstanceProcAddr");
-    return real_icd ? real_icd(instance, pName) : NULL;
-}
-EOF
-
-$CLANG_CROSS -shared -fPIC -o libvulkan_wrapper.so wrapper.c -ldl --sysroot="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
-
-echo "-> 12. Estructurando empaque compatible ICD para Bannerlator..."
+echo "-> 12. Estructurando empaque compatible ICD nativo..."
 rm -rf pkg && mkdir -p pkg/usr/lib pkg/usr/share/vulkan/icd.d pkg/usr/share/vulkan/settings.d
 
-cp -v libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
-cp -v build/src/panfrost/vulkan/libvulkan_panfrost.so pkg/usr/lib/libvulkan_panfrost_64.so
-cp -v build/src/vulkan/wrapper/libvulkan_wrapper.so pkg/usr/lib/libvulkan_panfrost_32.so
+# 🟢 REORDENADO CLAVE: El driver físico de Panfrost adopta la identidad real de libvulkan_wrapper.so para Bannerlator
+cp -v build/src/panfrost/vulkan/libvulkan_panfrost.so pkg/usr/lib/libvulkan_wrapper.so
 
+# El subproducto Wrapper original pasa a las ranuras auxiliares secundarias
+cp -v build/src/vulkan/wrapper/libvulkan_wrapper.so pkg/usr/lib/libvulkan_panfrost_64.so
+cp -v "$GITHUB_WORKSPACE/shims_target/libvulkan_wrapper.so" pkg/usr/lib/libvulkan_panfrost_32.so
+
+echo "-> Sifonando la identidad final del archivo con patchelf..."
 patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
-patchelf --set-soname libvulkan_panfrost_64.so pkg/usr/lib/libvulkan_panfrost_64.so
+patchelf --set-soname libvulkan_panfrost_64.so pkg/usr/lib/libvulkan_panfrost_64.so 2>/dev/null || true
 llvm-strip --strip-unneeded pkg/usr/lib/*.so 2>/dev/null || true
 
 echo '{"ICD": {"api_version": "1.4.352", "library_path": "libvulkan_wrapper.so"}, "file_format_version": "1.0.0"}' > pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
-echo '{"ICD": {"api_version": "1.4.352", "library_path": "libvulkan_wrapper.so"}, "file_format_version": "1.0.0"}' > pkg/usr/share/vulkan/icd.d/wrapper_icd.arm.json
+echo '{"env":{"PAN_I_WANT_A_BROKEN_VULKAN_DRIVER":"1","MESA_VK_IGNORE_CONFORMANCE_WARNING":"1","PANVK_DEBUG":"sync,nir","MESA_VK_FORCE_BLIT":"1","MESA_LOADER_DRIVER_OVERRIDE":"panfrost","GALLIUM_DRIVER":"panfrost"}}' > pkg/usr/share/vulkan/settings.d/wrapper_settings.json
 
 echo "msf:315508" > pkg/version.txt && chmod -R 755 pkg/
 cd pkg && tar -I "zstd -19 -T0" -cf "$GITHUB_WORKSPACE/wrapper.tzst" usr version.txt
 echo "=========================================================="
-echo "🟢 ECOSYSTEMA COMPLETO CONFIGURADO CON ÉXITO PARA BANNERLATOR"
+echo "🟢 ECOSYSTEMA CONEXIÓN TOTAL ARM64 GENERADO CON ÉXITO"
 echo "=========================================================="
