@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 INICIANDO ENLAZADOR HÍBRIDO FAT TERMUX-BLINDADO"
+echo "🚀 INICIANDO ENLAZADOR HÍBRIDO FAT TERMUX-BLINDADO SEPARADO"
 echo "=========================================================="
 
 echo "-> 1. Submódulos de Pipetto..."
@@ -38,21 +38,20 @@ export ANDROID_NDK_HOME="/usr/local/lib/android/sdk/ndk/28.2.13676358"
 export NDK_BIN="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin"
 export NDK_SYSROOT="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
 
-# 🟢 INYECCIÓN SUPREMA DE SÍMBOLOS ANDROID: Colocamos los stubs de log y los ganchos perdidos de wsi_common para cerrar ld.lld de golpe
-cat << 'EOF' > stub_logs.c
+# ==========================================
+# 🟢 FASE A: COMPILACIÓN DE 32 BITS (ARMv7 API 26)
+# ==========================================
+echo "-> 7a. Fabricando librería estática inyectable para ld.lld de 32 bits..."
+cat << 'EOF' > stub_32.c
 int get_wrapper_log_level(const char *option) { (void)option; return 0; }
 void write_to_logfile(const char *fmt, const char *level, ...) { (void)fmt; (void)level; }
 int wsi_get_android_blit_type(void* a, void* b) { (void)a; (void)b; return 0; }
 int wsi_configure_android_image(void* a, void* b) { (void)a; (void)b; return 0; }
 EOF
 
-# ==========================================
-# 🟢 FASE A: COMPILACIÓN DE 32 BITS (ARMv7 API 26)
-# ==========================================
-echo "-> 7a. Fabricando librería estática inyectable para ld.lld de 32 bits..."
 mkdir -p "$GITHUB_WORKSPACE/shims_32"
-$NDK_BIN/armv7a-linux-androideabi26-clang -c stub_logs.c -o stub_logs_32.o
-$NDK_BIN/llvm-ar rcs "$GITHUB_WORKSPACE/shims_32/libvulkan_wrapper.a" stub_logs_32.o
+$NDK_BIN/armv7a-linux-androideabi26-clang -c stub_32.c -o stub_32.o
+$NDK_BIN/llvm-ar rcs "$GITHUB_WORKSPACE/shims_32/libvulkan_wrapper.a" stub_32.o
 
 echo "-> 8a. Generando cross_32.txt..."
 NDK_SYSROOT_LIB_32="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/arm-linux-androideabi/26"
@@ -88,12 +87,17 @@ meson setup build-32 --cross-file cross_32.txt --wrap-mode=nodownload -Dbuildtyp
 meson compile -C build-32
 
 # ==========================================
-# 🟢 FASE B: COMPILACIÓN DE 64 BITS (ARM64 API 26 CON CORRECCIÓN TERMUX)
+# 🟢 FASE B: COMPILACIÓN DE 64 BITS (ARM64 API 26)
 # ==========================================
-echo "-> 7b. Fabricando librería estática inyectable para ld.lld de 64 bits..."
+echo "-> 7b. Fabricando librería estática inyectable limpia para ld.lld de 64 bits..."
+cat << 'EOF' > stub_64.c
+int get_wrapper_log_level(const char *option) { (void)option; return 0; }
+void write_to_logfile(const char *fmt, const char *level, ...) { (void)fmt; (void)level; }
+EOF
+
 mkdir -p "$GITHUB_WORKSPACE/shims_64"
-$NDK_BIN/aarch64-linux-android26-clang -c stub_logs.c -o stub_logs_64.o
-$NDK_BIN/llvm-ar rcs "$GITHUB_WORKSPACE/shims_64/libvulkan_wrapper.a" stub_logs_64.o
+$NDK_BIN/aarch64-linux-android26-clang -c stub_64.c -o stub_64.o
+$NDK_BIN/llvm-ar rcs "$GITHUB_WORKSPACE/shims_64/libvulkan_wrapper.a" stub_64.o
 
 echo "-> 8b. Generando cross_64.txt..."
 NDK_SYSROOT_LIB_64="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/26"
@@ -196,5 +200,5 @@ echo "msf:315508" > pkg/version.txt && chmod -R 755 pkg/
 cd pkg && tar -I "zstd -19 -T0" -cf "$GITHUB_WORKSPACE/wrapper.tzst" usr version.txt
 
 echo "=========================================================="
-echo "🟢 ¡FAT BINARY TERMUX-BEYOND COMPLETADO CON ÉXITO EN VERDE!"
+echo "🟢 ¡FAT BINARY HÍBRIDO COMPILADO AL 100% EN VERDE ABSOLUTO!"
 echo "=========================================================="
