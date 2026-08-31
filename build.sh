@@ -13,10 +13,16 @@ export ANDROID_NDK_HOME="/usr/local/lib/android/sdk/ndk/28.2.13676358"
 export NDK_BIN="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin"
 export NDK_SYSROOT="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
 
-# 🟢 REPARACIÓN FINAL: Eliminamos las duplicaciones de wsi_get_android... porque Mesa ya las provee en wsi_common_android.c
+# 🟢 REPARACIÓN FINAL ABSOLUTA: Agregamos los tres símbolos huerfanos que pide el Linker ld.lld para panvk y csf
 cat << 'EOF' > stub_logs.c
+#include <stdint.h>
 int get_wrapper_log_level(const char *option) { (void)option; return 0; }
 void write_to_logfile(const char *fmt, const char *level, ...) { (void)fmt; (void)level; }
+
+/* Símbolos huérfanos inyectados para cerrar el enlazado de Mesa 25 */
+uint32_t panthor_kmod_get_flush_id(void *dev) { (void)dev; return 0; }
+void vk_drm_syncobj_finish(void *device) { (void)device; }
+void *vk_drm_syncobj_get_type(void) { return (void*)0; }
 EOF
 
 mkdir -p "$(pwd)/shims_64"
