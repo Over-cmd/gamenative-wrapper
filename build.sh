@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 INICIANDO ENLAZADOR HÍBRIDO MESA 25 CON FLAGS DE CLANG"
+echo "🚀 INICIANDO ENLAZADOR HÍBRIDO MESA 25 CON STUBS COMPLETOS"
 echo "=========================================================="
 
 echo "-> 1. Compilando el Interceptor oficial en Docker..."
@@ -13,6 +13,7 @@ export ANDROID_NDK_HOME="/usr/local/lib/android/sdk/ndk/28.2.13676358"
 export NDK_BIN="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin"
 export NDK_SYSROOT="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
 
+# Micro-fuente C de trazas y funciones biónicas que ld.lld exige resolver
 cat << 'EOF' > stub_logs.c
 int get_wrapper_log_level(const char *option) { (void)option; return 0; }
 void write_to_logfile(const char *fmt, const char *level, ...) { (void)fmt; (void)level; }
@@ -24,12 +25,24 @@ mkdir -p "$(pwd)/shims_64"
 $NDK_BIN/aarch64-linux-android26-clang -c stub_logs.c -o stub_logs_64.o
 $NDK_BIN/llvm-ar rcs "$(pwd)/shims_64/libvulkan_wrapper.a" stub_logs_64.o
 
-echo "-> 2b. Neutralizando dependencias DRM estáticas..."
+echo "-> 2b. Neutralizando dependencias DRM residuales mediante stubs simulados..."
 echo " " > src/vulkan/runtime/vk_drm_syncobj.c
-mkdir -p src/util
-echo " " > src/util/libdrm.h
 
-# 🟢 CIRUGÍA LIMPIA DE wsi_common_drm.c: Mantenemos las funciones vacías que pide el enlazador de Mesa
+# 🟢 JUGADA MAESTRA SUPREMA: Escribimos un xf86drm.h falso impecable para que vk_instance.c lea las firmas sin macros globales rotas
+cat << 'EOF' > $(pwd)/shims_64/xf86drm.h
+#ifndef xf86drm_h
+#define xf86drm_h
+typedef struct _drmDevice *drmDevicePtr;
+static inline int drmGetDevices2(uint32_t flags, drmDevicePtr devices[], int max_devices) { return -1; }
+static inline void drmFreeDevices(drmDevicePtr devices[], int count) {}
+#endif
+EOF
+
+# Lo enlazamos en las carpetas nativas de Mesa para garantizar que Clang lo absorba con corchetes <xf86drm.h>
+mkdir -p include
+cp -fv $(pwd)/shims_64/xf86drm.h include/xf86drm.h
+
+# 🟢 COMPILACIÓN LIMPIA DE wsi_common_drm.c: Cascarones vacíos para el linker
 cat << 'EOF' > src/vulkan/wsi/wsi_common_drm.c
 #include <stdint.h>
 #include "vk_device.h"
@@ -53,10 +66,10 @@ Name: libdrm
 Description: Userspace interface to kernel DRM services
 Version: 2.4.120
 Libs: -L$(pwd)/shims_64 -lvulkan_wrapper
-Cflags: -I.
+Cflags: -I$(pwd)/shims_64 -I$(pwd)/include
 EOF
 
-echo "-> 3. Generando cross_64.txt con macros inyectadas para saltar errores DRM..."
+echo "-> 3. Generando cross_64.txt libre de macros ARRAY_SIZE..."
 cat << EOF > cross_64.txt
 [constants]
 ndk_path = '${ANDROID_NDK_HOME}'
@@ -84,9 +97,9 @@ pkg_config_path = '$(pwd)/shims_64'
 pkg_config_libdir = '$(pwd)/shims_64'
 
 [built-in options]
-# 🟢 TRUCO INDESTRUCTIBLE: Engañamos a Clang redefiniendo los tipos de libdrm ausentes mediante banderas -D directas
-c_args = ['--sysroot=' + '${NDK_SYSROOT}', '-D__TERMUX__', '-DdrmDevicePtr=void*', '-DdrmGetDevices2(a,b,c)=-1', '-DdrmFreeDevices(a,b)=((void)0)', '-DARRAY_SIZE(a)=256']
-cpp_args = ['--sysroot=' + '${NDK_SYSROOT}', '-D__TERMUX__', '-DdrmDevicePtr=void*', '-DdrmGetDevices2(a,b,c)=-1', '-DdrmFreeDevices(a,b)=((void)0)', '-DARRAY_SIZE(a)=256']
+# 🟢 FLAGS PURIFICADOS: Dejamos los argumentos limpios de macros que rompan aserciones internas
+c_args = ['--sysroot=' + '${NDK_SYSROOT}', '-D__TERMUX__']
+cpp_args = ['--sysroot=' + '${NDK_SYSROOT}', '-D__TERMUX__']
 c_link_args = ['-landroid', '-llog', '-lsync', '-lvulkan_wrapper', '-L${NDK_SYSROOT_LIB_64}', '-L$(pwd)/shims_64']
 cpp_link_args = ['-landroid', '-llog', '-lsync', '-lvulkan_wrapper', '-L${NDK_SYSROOT_LIB_64}', '-L$(pwd)/shims_64']
 EOF
@@ -123,5 +136,5 @@ echo "msf:315508" > pkg/version.txt && chmod -R 755 pkg/
 cd pkg && tar -I "zstd -19 -T0" -cf "../wrapper.tzst" usr version.txt
 
 echo "=========================================================="
-echo "🟢 ¡SCRIPT TERMINADO POR COMPLETO Y BLINDADO EN VERDE!"
+echo "🟢 ¡FAT PACK INTEGRAL COMPLETADO EN VERDE COMPLETO!"
 echo "=========================================================="
