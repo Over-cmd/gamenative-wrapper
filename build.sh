@@ -2,126 +2,116 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 INICIANDO PIPELINE MULTI-ETAPA FIEL AL DOCKERFILE ORIGINAL"
+echo "🚀 INICIANDO ENLAZADOR HÍBRIDO FAT BASADO EN TOML OFICIAL"
 echo "=========================================================="
 
-echo "-> STAGE 1: Inicializando submódulos y aplicando parches base..."
+echo "-> 1. Submódulos de Pipetto..."
 cd subprojects/libadrenotools && git submodule update --init --recursive && cd ../..
 
-# Parches críticos de hardware para la GPU Mali-G52
+echo "-> 2. Parches de hardware Mali-G52..."
 sed -i 's/fd = syscall(SYS_memfd_create.*/fd = memfd_create(debug_name, MFD_CLOEXEC \| MFD_ALLOW_SEALING);/g' src/util/anon_file.c 2>/dev/null || true
 sed -i '1s|^|static int sync_wait(int fd, int timeout) { return 0; }\n|' src/panfrost/lib/kmod/panthor_kmod.c
 sed -i '1s|^|#include <fcntl.h>\n|' src/vulkan/wrapper/wrapper_log.c
 
-# Neutralizar las búsquedas rígidas de librerías del sistema que rompen el setup cruzado
+echo "-> 3. Inyectando bypass de asignación de memoria hw_get_module..."
+cat << 'EOF' >> src/vulkan/wrapper/wrapper_device.c
+struct hw_module_t;
+int hw_get_module(const char *id, const struct hw_module_t **module);
+int hw_get_module(const char *id, const struct hw_module_t **module) { (void)id; (void)module; return -1; }
+EOF
+
+echo "-> 4. Bypass de validaciones de Meson..."
 sed -i "s|libandroid_dep = .*|libandroid_dep = dependency('', required : false)|g" subprojects/libadrenotools/meson.build
 sed -i "s|liblog_dep = .*|liblog_dep = dependency('', required : false)|g" subprojects/libadrenotools/meson.build
 find subprojects/libadrenotools/ -name "meson.build" -exec sed -i "s/cc.find_library('dl'/dependency('', required : false) #/g" {} + 2>/dev/null || true
-
-# Sanear las búsquedas de librerías obsoletas en el meson.build central de Mesa
 sed -i "s/cc.find_library('dl'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/cc.find_library('rt'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/cc.find_library('atomic'/dependency('', required : false) #/g" meson.build
 sed -i "s/dependency('libclc')/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/dep_libclc = .*/dep_libclc = dependency('', required : false)/g" meson.build 2>/dev/null || true
 
-echo "-> Instalando herramientas de Python requeridas..."
+echo "-> 5. Pip e instalables..."
 python -m pip install --upgrade pip && pip install mako PyYAML 'meson>=1.4.0' ninja packaging
 
-# Detectar el Android NDK oficial preinstalado en el entorno de GitHub
+echo "-> 6. Detectando NDK oficial..."
 export ANDROID_NDK_HOME="/usr/local/lib/android/sdk/ndk/28.2.13676358"
 export NDK_BIN="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin"
-export NDK_SYSROOT="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
-
-# Extraer shims locales de contingencia
-unzip -o shims.zip -d ./ && mkdir -p "$GITHUB_WORKSPACE/shims_target" && cp -rf ./shims/* "$GITHUB_WORKSPACE/shims_target/"
 
 # ==========================================
-# 🟢 STAGE 2: COMPILACIÓN DE 32 BITS (Mali-G52 MP2)
+# 🟢 FASE A: COMPILACIÓN DE 32 BITS (Fiel al plano oficial)
 # ==========================================
-echo "-> Generando archivo de configuración cruzada cross_32.txt..."
-NDK_SYSROOT_LIB_32="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/arm-linux-androideabi/30"
+echo "-> 7a. Generando cross_32.txt..."
 cat << EOF > cross_32.txt
 [constants]
-ndk_bin = '${NDK_BIN}'
-ndk_sysroot = '${NDK_SYSROOT}'
+ndk_path = '${ANDROID_NDK_HOME}'
+toolchain = ndk_path + '/toolchains/llvm/prebuilt/linux-x86_64/bin'
+api = '24'
+
 [binaries]
-c = [ndk_bin / 'armv7a-linux-androideabi30-clang', '-D__TERMUX__']
-cpp = [ndk_bin / 'armv7a-linux-androideabi30-clang++', '-fno-exceptions', '--start-no-unused-arguments', '--end-no-unused-arguments', '-D__TERMUX__']
-ar = ndk_bin / 'llvm-ar'
-strip = ndk_bin / 'llvm-strip'
-pkg-config = '/usr/bin/pkg-config'
+c       = toolchain + '/armv7a-linux-androideabi' + api + '-clang'
+cpp     = toolchain + '/armv7a-linux-androideabi' + api + '-clang++'
+ar      = toolchain + '/llvm-ar'
+strip   = toolchain + '/llvm-strip'
+pkgconfig = 'false'
+
+[properties]
+needs_exe_wrapper = true
+
 [host_machine]
 system = 'android'
 cpu_family = 'arm'
-cpu = 'arm'
+cpu = 'armv7a'
 endian = 'little'
-[properties]
-sys_root = ndk_sysroot
-libdir = '${NDK_SYSROOT_LIB_32}'
-pkg_config_path = '$GITHUB_WORKSPACE/shims_target'
-pkg_config_libdir = '$GITHUB_WORKSPACE/shims_target'
-[built-in options]
-c_args = ['--sysroot=' + ndk_sysroot, '-I$GITHUB_WORKSPACE/shims_target/include', '-Wl,-llog', '-Wl,-lsync']
-cpp_args = ['--sysroot=' + ndk_sysroot, '-I$GITHUB_WORKSPACE/shims_target/include', '-Wl,-llog', '-Wl,-lsync']
-c_link_args = ['-landroid', '-llog', '-lsync', '-L${NDK_SYSROOT_LIB_32}', '-L$GITHUB_WORKSPACE/shims_target']
-cpp_link_args = ['-landroid', '-llog', '-lsync', '-L${NDK_SYSROOT_LIB_32}', '-L$GITHUB_WORKSPACE/shims_target']
 EOF
 
-echo "-> Ejecutando Meson y Ninja para compilar el driver físico de 32 bits..."
+echo "-> 8a. Lanzando Setup y Compilación de Mesa de 32 bits..."
 meson setup build-32 --cross-file cross_32.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dandroid-stub=true -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=panfrost
 meson compile -C build-32
 
 # ==========================================
-# 🟢 STAGE 3: COMPILACIÓN DE 64 BITS (Mali-G52 MP2)
+# 🟢 FASE B: COMPILACIÓN DE 64 BITS (ARM64)
 # ==========================================
-echo "-> Generando archivo de configuración cruzada cross_64.txt..."
-NDK_SYSROOT_LIB_64="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/30"
+echo "-> 7b. Generando cross_64.txt..."
 cat << EOF > cross_64.txt
 [constants]
-ndk_bin = '${NDK_BIN}'
-ndk_sysroot = '${NDK_SYSROOT}'
+ndk_path = '${ANDROID_NDK_HOME}'
+toolchain = ndk_path + '/toolchains/llvm/prebuilt/linux-x86_64/bin'
+api = '24'
+
 [binaries]
-c = [ndk_bin / 'aarch64-linux-android30-clang', '-D__TERMUX__']
-cpp = [ndk_bin / 'aarch64-linux-android30-clang++', '-fno-exceptions', '--start-no-unused-arguments', '--end-no-unused-arguments', '-D__TERMUX__']
-ar = ndk_bin / 'llvm-ar'
-strip = ndk_bin / 'llvm-strip'
-pkg-config = '/usr/bin/pkg-config'
+c       = toolchain + '/aarch64-linux-android' + api + '-clang'
+cpp     = toolchain + '/aarch64-linux-android' + api + '-clang++'
+ar      = toolchain + '/llvm-ar'
+strip   = toolchain + '/llvm-strip'
+pkgconfig = 'false'
+
+[properties]
+needs_exe_wrapper = true
+
 [host_machine]
 system = 'android'
 cpu_family = 'aarch64'
 cpu = 'aarch64'
 endian = 'little'
-[properties]
-sys_root = ndk_sysroot
-libdir = '${NDK_SYSROOT_LIB_64}'
-pkg_config_path = '$GITHUB_WORKSPACE/shims_target'
-pkg_config_libdir = '$GITHUB_WORKSPACE/shims_target'
-[built-in options]
-c_args = ['--sysroot=' + ndk_sysroot, '-I$GITHUB_WORKSPACE/shims_target/include', '-Wl,-llog', '-Wl,-lsync']
-cpp_args = ['--sysroot=' + ndk_sysroot, '-I$GITHUB_WORKSPACE/shims_target/include', '-Wl,-llog', '-Wl,-lsync']
-c_link_args = ['-landroid', '-llog', '-lsync', '-L${NDK_SYSROOT_LIB_64}', '-L$GITHUB_WORKSPACE/shims_target']
-cpp_link_args = ['-landroid', '-llog', '-lsync', '-L${NDK_SYSROOT_LIB_64}', '-L$GITHUB_WORKSPACE/shims_target/include']
 EOF
 
-echo "-> Ejecutando Meson y Ninja para compilar el driver físico de 64 bits..."
+echo "-> 8b. Lanzando Setup y Compilación de Mesa de 64 bits..."
 meson setup build-64 --cross-file cross_64.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dandroid-stub=true -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=panfrost
 meson compile -C build-64
 
 # ==========================================
-# 🟢 STAGE 4: COMPILACIÓN DEL ENRUTADOR PUENTE DINÁMICO EN C
+# 🟢 FASE C: CONSTRUCCIÓN DEL PUENTE INTERCEPTOR FAT EN C
 # ==========================================
-echo "-> Fabricando el código fuente del enrutador dinámico (wrapper.c) extraído del Dockerfile..."
+echo "-> 9. Escribiendo el enrutador puente dinámico del Dockerfile..."
 cat << 'EOF' > wrapper.c
 #define _GNU_SOURCE
-#include <stdio.h>
+#include <stdio;h>
 #include <stdlib.h>
 #include <dlfcn.h>
 
 static void* handle = NULL;
 
 __attribute__((constructor)) void init_wrapper() {
-    // Forzar variables de entorno nativas de Mesa para despertar el bus gráfico de Panfrost
     setenv("PAN_I_WANT_A_BROKEN_VULKAN_DRIVER", "1", 1);
     setenv("MESA_VK_IGNORE_CONFORMANCE_WARNING", "1", 1);
     setenv("PANVK_DEBUG", "sync,nir", 1);
@@ -138,7 +128,6 @@ __attribute__((constructor)) void init_wrapper() {
     }
 }
 
-// Interceptor universal de entrada ICD de Vulkan que redirige las llamadas hacia los drivers físicos reales de Mesa
 void* vk_icdGetInstanceProcAddr(void* instance, const char* pName) {
     if (!handle) return NULL;
     typedef void* (*PFN_icdGet)(void*, const char*);
@@ -147,34 +136,37 @@ void* vk_icdGetInstanceProcAddr(void* instance, const char* pName) {
 }
 EOF
 
-echo "-> Compilando el enrutador puente como 'libvulkan_wrapper.so' de 64 bits pura..."
-$NDK_BIN/aarch64-linux-android30-clang -shared -fPIC -o libvulkan_wrapper.so wrapper.c -ldl --sysroot="$NDK_SYSROOT"
+# Compilamos el enrutador puente con el Clang del NDK para asegurar firmas biónicas compatibles
+$NDK_BIN/aarch64-linux-android24-clang -shared -fPIC -o libvulkan_wrapper.so wrapper.c -ldl --sysroot="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
 
 # ==========================================
-# 🟢 STAGE 5: EMPAQUETADO COMPATIBLE BANNERLATOR
+# 🟢 FASE D: MAQUETADO ICD PLANO DEFINITIVO
 # ==========================================
-echo "-> Maquetando la estructura plana limpia del paquete ICD..."
+echo "-> 10. Estructurando carpetas finales..."
 rm -rf pkg && mkdir -p pkg/usr/lib pkg/usr/share/vulkan/icd.d
 
-# 1. Copiar los binarios reales renombrados exactamente como los requiere el dlopen() en runtime
+echo "-> [A] Copiando el Enrutador Fat unificado como entrada principal..."
 cp -v libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
+
+echo "-> [B] Copiando el driver físico real de 64 bits generado en la fase B..."
 cp -v build-64/src/panfrost/vulkan/libvulkan_panfrost.so pkg/usr/lib/libvulkan_panfrost_64.so
+
+echo "-> [C] Copiando el driver físico real de 32 bits generado en la fase A..."
 cp -v build-32/src/panfrost/vulkan/libvulkan_panfrost.so pkg/usr/lib/libvulkan_panfrost_32.so
 
-# 2. Sellar identidades internas y remover símbolos muertos para optimizar peso
+echo "-> [D] Estampando identidades SONAME y aplicando strip..."
 patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
 patchelf --set-soname libvulkan_panfrost_64.so pkg/usr/lib/libvulkan_panfrost_64.so
 patchelf --set-soname libvulkan_panfrost_32.so pkg/usr/lib/libvulkan_panfrost_32.so
 $NDK_BIN/llvm-strip --strip-unneeded pkg/usr/lib/*.so 2>/dev/null || true
 
-# 3. Escribir los manifiestos JSON limpios sin la carpeta settings.d solicitada
+echo "-> [E] Escribiendo manifiestos ICD limpios..."
 echo '{"ICD": {"api_version": "1.4.352", "library_path": "libvulkan_wrapper.so"}, "file_format_version": "1.0.0"}' > pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
 echo '{"ICD": {"api_version": "1.4.352", "library_path": "libvulkan_wrapper.so"}, "file_format_version": "1.0.0"}' > pkg/usr/share/vulkan/icd.d/wrapper_icd.arm.json
 
-# 4. Comprimir el paquete en el formato definitivo .tzst
 echo "msf:315508" > pkg/version.txt && chmod -R 755 pkg/
 cd pkg && tar -I "zstd -19 -T0" -cf "$GITHUB_WORKSPACE/wrapper.tzst" usr version.txt
 
 echo "=========================================================="
-echo "🟢 ¡ECOSISTEMA UNIFICADO DE 32/64 BITS GENERADO CON ÉXITO!"
+echo "🟢 ¡FAT BINARY MONOLÍTICO SEGUIDO AL PLANO OFICIAL COMPLETADO!"
 echo "=========================================================="
