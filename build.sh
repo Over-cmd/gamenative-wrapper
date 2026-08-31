@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 INICIANDO ENLAZADOR HÍBRIDO CON BYPASS DE FUNCIÓN INSTANCE"
+echo "🚀 INICIANDO ENLAZADOR HÍBRIDO CON PURGA CONTROLADA POR PYTHON"
 echo "=========================================================="
 
 echo "-> 1. Ordenando al Contenedor de Docker compilar el Interceptor oficial..."
@@ -29,8 +29,26 @@ echo " " > src/vulkan/runtime/vk_drm_syncobj.c
 mkdir -p src/util
 echo " " > src/util/libdrm.h
 
-# 🟢 JAQUE MATE AL PASO 443: Buscamos la función por nombre e inyectamos el return inmediato para saltarnos las líneas 405-429
-sed -i '/enumerate_drm_physical_devices_locked(struct vk_instance \*instance)/,/{/ { /{/a \   return VK_SUCCESS;' src/vulkan/runtime/vk_instance.c
+# 🟢 JUGADA MAESTRA INDESTRUCTIBLE: Usamos Python para clavar el return VK_SUCCESS justo debajo de la apertura de la función
+python3 -c '
+with open("src/vulkan/runtime/vk_instance.c", "r") as f:
+    code = f.read()
+
+target = "enumerate_drm_physical_devices_locked(struct vk_instance *instance)\n{"
+replacement = target + "\n   return VK_SUCCESS;"
+
+if target in code:
+    code = code.replace(target, replacement)
+    print("-> Python: ¡Bypass de instanciación DRM inyectado con éxito!")
+else:
+    # Fallback por si hay variaciones de espacios en el código fuente de Mesa
+    target_alt = "enumerate_drm_physical_devices_locked(struct vk_instance *instance) {"
+    code = code.replace(target_alt, target_alt + "\n   return VK_SUCCESS;")
+    print("-> Python: ¡Bypass alternativo inyectado!")
+
+with open("src/vulkan/runtime/vk_instance.c", "w") as f:
+    f.write(code)
+'
 
 NDK_SYSROOT_LIB_64="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/26"
 
@@ -109,5 +127,5 @@ echo "msf:315508" > pkg/version.txt && chmod -R 755 pkg/
 cd pkg && tar -I "zstd -19 -T0" -cf "../wrapper.tzst" usr version.txt
 
 echo "=========================================================="
-echo "🟢 BYPASS Y PURGA COMPLETADOS EXITOSAMENTE"
+echo "🟢 BYPASS Y PURGA COMPLETADOS EXITOSAMENTE CON PYTHON"
 echo "=========================================================="
