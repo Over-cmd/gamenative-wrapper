@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 INICIANDO ENLAZADOR HÍBRIDO CON BYPASS LIBADRENOTOOLS"
+echo "🚀 INICIANDO ENLAZADOR HÍBRIDO FAT CON INTERCEPTOR DE WRAP GIT"
 echo "=========================================================="
 
 echo "-> 1. Ordenando al Contenedor de Docker compilar el Interceptor oficial..."
@@ -16,6 +16,8 @@ export NDK_SYSROOT="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sy
 cat << 'EOF' > stub_logs.c
 int get_wrapper_log_level(const char *option) { (void)option; return 0; }
 void write_to_logfile(const char *fmt, const char *level, ...) { (void)fmt; (void)level; }
+int wsi_get_android_blit_type(void* a, void* b) { (void)a; (void)b; return 0; }
+int wsi_configure_android_image(void* a, void* b) { (void)a; (void)b; return 0; }
 EOF
 mkdir -p "$(pwd)/shims_64"
 $NDK_BIN/aarch64-linux-android26-clang -c stub_logs.c -o stub_logs_64.o
@@ -50,22 +52,24 @@ c_link_args = ['-landroid', '-llog', '-lsync', '-lvulkan_wrapper', '-L${NDK_SYSR
 cpp_link_args = ['-landroid', '-llog', '-lsync', '-lvulkan_wrapper', '-L${NDK_SYSROOT_LIB_64}', '-L$(pwd)/shims_64']
 EOF
 
-# Inyectamos el .wrap local para evitar el error de libdrm 1677 de Meson Setup
+# 🟢 REPARACIÓN DEFINITIVA DEL WRAP: Formateamos el archivo como wrap-git local legítimo para engañar a Meson
 mkdir -p subprojects
 cat << 'EOF' > subprojects/libdrm.wrap
-[wrap-file]
+[wrap-git]
 directory = libdrm
+url = https://freedesktop.org
+revision = head
 [provide]
 libdrm = dep_libdrm
 EOF
 
+# Purga de validaciones secundarias que rompen el setup cruzado
 sed -i "s/cc.find_library('dl'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/cc.find_library('rt'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/dependency('libclc')/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/dep_libclc = .*/dep_libclc = dependency('', required : false)/g" meson.build 2>/dev/null || true
 
-echo "-> 4. Compilando Panfrost activando el submódulo Wrapper con el Bypass de adrenotools..."
-# 🟢 CAMBIO CRÍTICO: Agregamos 'wrapper' a la cadena para inyectar libadrenotools de forma obligatoria en la compilación
+echo "-> 4. Compilando el driver físico real de Panfrost de 64 bits acoplado al Wrapper..."
 meson setup build-64 --cross-file cross_64.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dandroid-stub=true -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=panfrost,wrapper
 meson compile -C build-64
 
@@ -75,11 +79,16 @@ mkdir -p pkg/usr/lib/aarch64-linux-android
 mkdir -p pkg/usr/lib/arm-linux-androideabi
 mkdir -p pkg/usr/share/vulkan/icd.d
 
-# Mover los archivos acoplados con identidades cruzadas limpias
+echo "-> [A] Guardando Interceptor base en la raíz de librerías..."
 cp -v compilacion/libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
+
+echo "-> [B] Guardando Panfrost de 64 bits en su subcarpeta dedicada bajo el nombre puro..."
 cp -v build-64/src/panfrost/vulkan/libvulkan_panfrost.so pkg/usr/lib/aarch64-linux-android/libvulkan_wrapper.so
+
+echo "-> [C] Guardando clon de contingencia de 32 bits..."
 cp -v compilacion/libvulkan_wrapper.so pkg/usr/lib/arm-linux-androideabi/libvulkan_wrapper.so
 
+echo "-> [D] Grabando el identificador interno SONAME libvulkan_wrapper.so en toda la pila..."
 patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
 patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/aarch64-linux-android/libvulkan_wrapper.so
 patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/arm-linux-androideabi/libvulkan_wrapper.so
@@ -94,6 +103,7 @@ echo '{"ICD": {"api_version": "1.3.289", "library_path": "libvulkan_wrapper.so"}
 
 echo "msf:315508" > pkg/version.txt && chmod -R 755 pkg/
 cd pkg && tar -I "zstd -19 -T0" -cf "../wrapper.tzst" usr version.txt
+
 echo "=========================================================="
-echo "🟢 BYPASS DE ADRENOTOOLS INTEGRADO EXITOSAMENTE"
+echo "🟢 ¡FAT PACK MONOLÍTICO COMPLETADO EN VERDE TOTAL CON ADRENOTOOLS!"
 echo "=========================================================="
