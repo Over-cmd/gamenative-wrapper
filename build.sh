@@ -21,7 +21,7 @@ $NDK_BIN/llvm-ar rcs "$(pwd)/shims_64/libvulkan_wrapper.a" stub_logs_64.o
 
 NDK_SYSROOT_LIB_64="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/26"
 
-echo "-> 2. Generando cross_64.txt con Pkg-Config activo para resolver libdrm..."
+echo "-> 2. Generando cross_64.txt con inyección nativa de cabeceras DRM..."
 cat << EOF > cross_64.txt
 [constants]
 ndk_path = '${ANDROID_NDK_HOME}'
@@ -33,7 +33,6 @@ c       = toolchain + '/aarch64-linux-android' + api + '-clang'
 cpp     = toolchain + '/aarch64-linux-android' + api + '-clang++'
 ar      = toolchain + '/llvm-ar'
 strip   = toolchain + '/llvm-strip'
-pkg-config = '/usr/bin/pkg-config'
 
 [host_machine]
 system = 'android'
@@ -45,16 +44,16 @@ endian = 'little'
 needs_exe_wrapper = true
 sys_root = '${NDK_SYSROOT}'
 libdir = '${NDK_SYSROOT_LIB_64}'
-libdrm_path = '$(pwd)/subprojects/libdrm'
 
 [built-in options]
-c_args = ['--sysroot=' + '${NDK_SYSROOT}', '-D__TERMUX__']
-cpp_args = ['--sysroot=' + '${NDK_SYSROOT}', '-D__TERMUX__']
+c_args = ['--sysroot=' + '${NDK_SYSROOT}', '-D__TERMUX__', '-I$(pwd)/subprojects/libdrm', '-I$(pwd)/subprojects/libdrm/include/drm']
+cpp_args = ['--sysroot=' + '${NDK_SYSROOT}', '-D__TERMUX__', '-I$(pwd)/subprojects/libdrm', '-I$(pwd)/subprojects/libdrm/include/drm']
 c_link_args = ['-landroid', '-llog', '-lsync', '-lvulkan_wrapper', '-L${NDK_SYSROOT_LIB_64}', '-L$(pwd)/shims_64']
 cpp_link_args = ['-landroid', '-llog', '-lsync', '-lvulkan_wrapper', '-L${NDK_SYSROOT_LIB_64}', '-L$(pwd)/shims_64']
 EOF
 
-# Limpieza rápida de validaciones obsoletas de PC de escritorio
+# 🟢 MACHACADOR DE VALIDACIÓN DE LIBDRM: Forzamos a Meson a saltarse la búsqueda estricta de libdrm en disco
+sed -i "s/dependency('libdrm',.*/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/cc.find_library('dl'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/cc.find_library('rt'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/dependency('libclc')/dependency('', required : false) #/g" meson.build 2>/dev/null || true
