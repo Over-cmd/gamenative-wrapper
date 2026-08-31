@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 INICIANDO ENLAZADOR HÍBRIDO CON ANULATION POR MACRO #IF 0"
+echo "🚀 INICIANDO ENLAZADOR HÍBRIDO CON REESCRITURA DE INSTANCE"
 echo "=========================================================="
 
 echo "-> 1. Ordenando al Contenedor de Docker compilar el Interceptor oficial..."
@@ -29,32 +29,35 @@ echo " " > src/vulkan/runtime/vk_drm_syncobj.c
 mkdir -p src/util
 echo " " > src/util/libdrm.h
 
-# 🟢 JAQUE MATE AL PASO 442/443: Usamos Python para envolver la función conflictiva en un bloque #if 0 inviolable para Clang
+# 🟢 JAQUE MATE AL PASO 446: Usamos Python para extirpar la función de escritorio problemática y soldar un cascarón vacío limpio e inmune
 python3 -c '
 with open("src/vulkan/runtime/vk_instance.c", "r") as f:
     code = f.read()
 
-# Definimos la versión limpia de reemplazo rápido que inyecta la macro de apagado total
-clean_function = """
-static VkResult
-enumerate_drm_physical_devices_locked(struct vk_instance *instance)
-{
-   return VK_SUCCESS;
-}
-#if 0
-"""
+# Buscamos el inicio exacto del bloque de la función DRM de escritorio
+start_pattern = "enumerate_drm_physical_devices_locked(struct vk_instance *instance)"
+# Buscamos el inicio de la siguiente función legítima del archivo de Mesa para marcar el límite
+end_pattern = "enumerate_physical_devices_locked(struct vk_instance *instance)"
 
-target = "enumerate_drm_physical_devices_locked(struct vk_instance *instance)\n{"
-if target in code:
-    code = code.replace(target, clean_function)
-    print("-> Python: ¡Macro #if 0 inyectada de forma reglamentaria!")
+if start_pattern in code and end_pattern in code:
+    # Dividimos el archivo para aislar la función rota
+    parts_start = code.split(start_pattern)
+    before_func = parts_start[0]
+    rest_of_code = parts_start[1]
+    
+    parts_end = rest_of_code.split(end_pattern)
+    after_func = parts_end[1]
+    
+    # Limpiamos modificadores sueltos (como el "static VkResult" que quedó flotando antes)
+    before_func = before_func.rsplit("static VkResult", 1)[0]
+    
+    # Reconstruimos el archivo inyectando una versión de la función 100% limpia que no busca tarjetas de PC
+    code = before_func + "static VkResult\nenumerate_drm_physical_devices_locked(struct vk_instance *instance)\n{\n   return VK_SUCCESS;\n}\n\nstatic VkResult\n" + end_pattern + after_func
+    print("-> Python: ¡Función DRM de escritorio extirpada y reconstruida en limpio con éxito!")
 else:
-    target_alt = "enumerate_drm_physical_devices_locked(struct vk_instance *instance) {"
-    code = code.replace(target_alt, clean_function)
-    print("-> Python: ¡Macro #if 0 alternativa inyectada!")
-
-# Cerramos la macro #endif justo antes de que empiece el siguiente bloque legítimo del archivo de Mesa
-code = code.replace("enumerate_physical_devices_locked(struct vk_instance *instance)", "#endif\nstatic VkResult\nenumerate_physical_devices_locked(struct vk_instance *instance)")
+    print("-> Python: [ERROR] No se encontraron los patrones, aplicando fallback de seguridad...")
+    # Fallback por si hay saltos de línea imprevistos
+    code = code.replace("drmDevicePtr devices[256];", "return VK_SUCCESS; //")
 
 with open("src/vulkan/runtime/vk_instance.c", "w") as f:
     f.write(code)
@@ -137,5 +140,5 @@ echo "msf:315508" > pkg/version.txt && chmod -R 755 pkg/
 cd pkg && tar -I "zstd -19 -T0" -cf "../wrapper.tzst" usr version.txt
 
 echo "=========================================================="
-echo "🟢 BYPASS Y PURGA COMPLETADOS EXITOSAMENTE CON PREPROCESADOR"
+echo "🟢 BYPASS Y PURGA COMPLETADOS EXITOSAMENTE CON PYTHON"
 echo "=========================================================="
