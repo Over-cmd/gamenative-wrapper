@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 INICIANDO ENLAZADOR HÍBRIDO MESA 25 TRIPLE PURGA KMOD"
+echo "🚀 INICIANDO ENLAZADOR HÍBRIDO MESA 25 MASTER-BLINDADO"
 echo "=========================================================="
 
 echo "-> 1. Compilando el Interceptor oficial en Docker..."
@@ -29,48 +29,42 @@ echo "-> 2b. Neutralizando dependencias DRM residuales mediante stubs simulados.
 echo " " > src/vulkan/runtime/vk_drm_syncobj.c
 mkdir -p src/util && echo " " > src/util/libdrm.h
 
-# Escribimos el xf86drm.h falso limpio de colisiones para resolver vk_instance.c
+# 🟢 RESTAURACIÓN DE CÓDIGO FUENTE LEGÍTIMO: Recuperamos los archivos originales limpios para evitar conflictos de firmas en Mesa 25
+git checkout src/panfrost/lib/kmod/pan_kmod.c 2>/dev/null || true
+git checkout src/panfrost/lib/kmod/panfrost_kmod.c 2>/dev/null || true
+git checkout src/panfrost/lib/kmod/panthor_kmod.c 2>/dev/null || true
+
+# 🟢 CABECERA CONTROLADORA DEFINITIVA: Inyectamos todas las firmas, macros e ioctls que exigen pan_kmod.h y vk_instance.c de golpe
 cat << 'EOF' > $(pwd)/shims_64/xf86drm.h
 #ifndef xf86drm_h
 #define xf86drm_h
 #include <stdint.h>
+
+/* Macro nativo exigido por pan_kmod.h en la línea 568 */
+#define DRM_CLOEXEC 0x140000
+
 typedef struct _drmDevice { char **nodes; } *drmDevicePtr;
 typedef struct _drmVersion { int version_major; int version_minor; int version_patchlevel; char *name; char *date; char *desc; } *drmVersionPtr;
+
 static inline drmVersionPtr drmGetVersion(int fd) { (void)fd; return 0; }
 static inline void drmFreeVersion(drmVersionPtr v) { (void)v; }
 static inline int drmCloseBufferHandle(int fd, uint32_t handle) { (void)fd; (void)handle; return 0; }
-static inline int drmPrimeFDToHandle(int fd, int prime_fd, uint32_t *handle) { (void)fd; (prime_fd); (void)handle; return 0; }
+static inline int drmPrimeFDToHandle(int fd, int prime_fd, uint32_t *handle) { (void)fd; (void)prime_fd; (void)handle; return 0; }
 static inline int drmGetDevices2(uint32_t flags, drmDevicePtr devices[], int max_devices) { (void)flags; (void)devices; (void)max_devices; return -1; }
 static inline void drmFreeDevices(drmDevicePtr devices[], int count) { (void)devices; (void)count; }
+
+/* Inyecciones biónicas que resuelven las llamadas del núcleo de Panfrost de Mesa 25 */
+static inline int drmPrimeHandleToFD(int fd, uint32_t handle, uint32_t flags, int *prime_fd) { (void)fd; (void)handle; (void)flags; if(prime_fd) *prime_fd = -1; return 0; }
+static inline int drmIoctl(int fd, unsigned long request, void *arg) { (void)fd; (void)request; (void)arg; return 0; }
+static inline int drmCommandWriteRead(int fd, unsigned long cmd, void *data, unsigned long size) { (void)fd; (void)cmd; (void)data; (void)size; return 0; }
+static inline int drmCommandWrite(int fd, unsigned long cmd, void *data, unsigned long size) { (void)fd; (void)cmd; (void)data; (void)size; return 0; }
+static inline int drmCommandRead(int fd, unsigned long cmd, void *data, unsigned long size) { (void)fd; (void)cmd; (void)data; (void)size; return 0; }
 #endif
 EOF
 
 mkdir -p include && cp -fv $(pwd)/shims_64/xf86drm.h include/xf86drm.h
 
-# 🟢 JAQUE MATE TOTAL A LA SUB CARPETA KMOD: Machacamos los tres archivos del módulo de escritorio por cascarones limpios e inmunes
-cat << 'EOF' > src/panfrost/lib/kmod/pan_kmod.c
-#include <stddef.h>
-#include "pan_kmod.h"
-struct pan_kmod_dev *pan_kmod_dev_create(int fd, uint32_t flags, const struct pan_kmod_allocator *allocator) { (void)fd; (void)flags; (void)allocator; return NULL; }
-void pan_kmod_dev_destroy(struct pan_kmod_dev *dev) { (void)dev; }
-const struct pan_kmod_dev_props *pan_kmod_dev_query_props(const struct pan_kmod_dev *dev) { (void)dev; return NULL; }
-EOF
-
-cat << 'EOF' > src/panfrost/lib/kmod/panfrost_kmod.c
-#include <stddef.h>
-#include "pan_kmod.h"
-#include "pan_kmod_priv.h"
-const struct pan_kmod_ops panfrost_kmod_ops = {0};
-EOF
-
-cat << 'EOF' > src/panfrost/lib/kmod/panthor_kmod.c
-#include <stddef.h>
-#include "pan_kmod.h"
-#include "pan_kmod_priv.h"
-const struct pan_kmod_ops panthor_kmod_ops = {0};
-EOF
-
-# Mantenemos las firmas unificadas de WSI DRM
+# STUBS DE WSI DRM COMPLETOS
 cat << 'EOF' > src/vulkan/wsi/wsi_common_drm.c
 #include <stdint.h>
 #include <stdbool.h>
@@ -105,24 +99,29 @@ cat << EOF > cross_64.txt
 ndk_path = '${ANDROID_NDK_HOME}'
 toolchain = ndk_path + '/toolchains/llvm/prebuilt/linux-x86_64/bin'
 api = '26'
+
 [binaries]
 c       = toolchain + '/aarch64-linux-android' + api + '-clang'
 cpp     = toolchain + '/aarch64-linux-android' + api + '-clang++'
 ar      = toolchain + '/llvm-ar'
 strip   = toolchain + '/llvm-strip'
 pkg-config = '/usr/bin/pkg-config'
+
 [host_machine]
 system = 'android'
 cpu_family = 'aarch64'
 cpu = 'aarch64'
 endian = 'little'
+
 [properties]
 needs_exe_wrapper = true
 sys_root = '${NDK_SYSROOT}'
 libdir = '${NDK_SYSROOT_LIB_64}'
 pkg_config_path = '$(pwd)/shims_64'
 pkg_config_libdir = '$(pwd)/shims_64'
+
 [built-in options]
+# Forzamos el flag global de inyección invisible; Clang inyectará de forma invisible los ioctls resueltos en toda la pila de Panfrost
 c_args = ['--sysroot=' + '${NDK_SYSROOT}', '-D__TERMUX__', '-I$(pwd)/shims_64', '-include', 'xf86drm.h']
 cpp_args = ['--sysroot=' + '${NDK_SYSROOT}', '-D__TERMUX__', '-I$(pwd)/shims_64', '-include', 'xf86drm.h']
 c_link_args = ['-landroid', '-llog', '-lsync', '-lvulkan_wrapper', '-L${NDK_SYSROOT_LIB_64}', '-L$(pwd)/shims_64']
