@@ -1,29 +1,67 @@
-name: 🚀 Compilación Monolítica Fat Mali-G52
+name: Mesa Vulkan Wrapper Mali Packager (.tzst)
 
 on:
+  push:
+    branches: [ "main", "master" ]
   workflow_dispatch:
 
+env:
+  BUILD_DIR: compilacion
+  IMAGE_TAG: ghcr.io/leegao/mesa-wrapper-ci/wrapper-compiler:latest
+
 jobs:
-  build:
-    runs-on: ubuntu-22.04
+  build-aarch64-wrapper:
+    runs-on: ubuntu-latest
 
     steps:
-    - name: 📥 Checkout Code
-      uses: actions/checkout@v4
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          # 🟢 CORRECCIÓN 1: Forzamos la clonación profunda recursiva de todos los submódulos de Pipetto
+          submodules: recursive
+          fetch-depth: 0
 
-    - name: 🛠️ Install Zstd Packager
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y zstd patchelf
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-    - name: 🏗️ Lanzando Script de Compilación Monolítica Híbrida
-      run: |
-        chmod +x build.sh
-        ./build.sh
+      - name: Install Compilers, Meson and Ninja Packager
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y zstd patchelf python3 python3-pip python3-setuptools ninja-build
+          # 🟢 CORRECCIÓN 2: Instalamos Meson actualizado vía Pip en el host de las Actions
+          pip3 install mako PyYAML 'meson>=1.4.0' packaging
 
-    - name: 📦 Exportando Artefacto Ganador Descargable (.TZST)
-      uses: actions/upload-artifact@v4
-      with:
-        name: Bannerlator-Mali-Wrapper
-        path: ${{ github.workspace }}/wrapper.tzst
-        if-no-files-found: error
+      - name: Surgical Silicon Modification (Anti-Overflow MALI Hybrid Injection)
+        run: |
+          echo "-> Rastreando el corazón del Wrapper para soldar compatibilidad híbrida Vulkan..."
+          WRAPPER_DEVICE=$(find src/ -name "wrapper_device.c" | head -n 1)
+          
+          if [ -n "$WRAPPER_DEVICE" ] && [ -f "$WRAPPER_DEVICE" ]; then
+            echo "-> Aplicando parches de alineación de memoria de 32 bits en: $WRAPPER_DEVICE"
+            sed -i 's/\r$//' "$WRAPPER_DEVICE"
+            sed -i '1i#include <stdint.h>' "$WRAPPER_DEVICE"
+            sed -i '1iextern int mallopt(int param, int value);' "$WRAPPER_DEVICE"
+            sed -i '1iextern int setenv(const char *name, const char *value, int overwrite);' "$WRAPPER_DEVICE"
+            
+            sed -i '/vk_icdGetInstanceProcAddr/!b;n;i\\ extern int mallopt(int p, int v);\\n extern int setenv(const char *n, const char *v, int o);\\n mallopt(-1002, 0);\\n setenv("MESA_VK_WSI_PRESENT_MODE", "mailbox", 1);\\n setenv("vblank_mode", "0", 1);\\n if (sizeof(void*) == 4) {\\n   setenv("MESA_VK_WSI_QUEUE_SIZE", "1", 1);\\n }' "$WRAPPER_DEVICE"
+            echo "-> Envoltura híbrida inyectada con éxito."
+          else
+            echo "-> Archivo wrapper_device.c no encontrado, aplicando fallback..."
+            find src/ -name "*.c" -exec sed -i 's/vk_icdGetInstanceProcAddr/extern int mallopt(int p, int v); extern int setenv(const char *n, const char *v, int o); mallopt(-1002, 0); setenv("MESA_VK_WSI_PRESENT_MODE", "mailbox", 1); setenv("vblank_mode", "0", 1); if (sizeof(void*) == 4) { setenv("MESA_VK_WSI_QUEUE_SIZE", "1", 1); } vk_icdGetInstanceProcAddr/g' {} + || true
+          fi
+
+      - name: Wrapper Compiler (Atomic Processing Docker MALI)
+        run: |
+          docker run --rm -v "${{ github.workspace }}:/workspace" ${{ env.IMAGE_TAG }} ${{ env.BUILD_DIR }}
+
+      - name: Run Build Script (Panfrost Custom Phase and Packing)
+        run: |
+          chmod +x build.sh
+          ./build.sh
+
+      - name: Upload Final wrapper.tzst for Bannerlator
+        uses: actions/upload-artifact@v4
+        with:
+          name: Bannerlator-Mali-Wrapper
+          path: ${{ github.workspace }}/wrapper.tzst
+          if-no-files-found: error
