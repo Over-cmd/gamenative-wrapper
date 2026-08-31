@@ -68,8 +68,8 @@ cpp_link_args = ['-landroid', '-llog', '-lsync', '-lhardware', '-lvulkan_wrapper
 EOF
 
 echo "-> 9. Compilación en dos fases (Bypass circular)..."
-# 🟢 JAQUE MATE A LLVM: Desactivamos la opción explícitamente (-Dllvm=disabled) para que no busque el subproyecto inválido
-meson setup build --cross-file cross.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dandroid-stub=true -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dvulkan-drivers=panfrost,wrapper
+# 🟢 APAGADO DE DRIVERS CPU: Forzamos la matriz de Gallium vacía (-Dgallium-drivers=[]) para anular llvmpipe por completo
+meson setup build --cross-file cross.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dandroid-stub=true -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=panfrost,wrapper
 ninja -C build src/vulkan/wrapper/libvulkan_wrapper.so
 cp -fv build/src/vulkan/wrapper/libvulkan_wrapper.so "$GITHUB_WORKSPACE/shims_target/libvulkan_wrapper.so"
 meson compile -C build
