@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 INICIANDO ENLAZADOR HÍBRIDO MESA 25 REAL COMPLETO"
+echo "🚀 INICIANDO ENLAZADOR HÍBRIDO MESA 25 CON FLAGS DE CLANG"
 echo "=========================================================="
 
 echo "-> 1. Compilando el Interceptor oficial en Docker..."
@@ -24,24 +24,13 @@ mkdir -p "$(pwd)/shims_64"
 $NDK_BIN/aarch64-linux-android26-clang -c stub_logs.c -o stub_logs_64.o
 $NDK_BIN/llvm-ar rcs "$(pwd)/shims_64/libvulkan_wrapper.a" stub_logs_64.o
 
-echo "-> 2b. Ejecutando cirugías atómicas en caliente..."
+echo "-> 2b. Neutralizando dependencias DRM estáticas..."
 echo " " > src/vulkan/runtime/vk_drm_syncobj.c
 mkdir -p src/util
 echo " " > src/util/libdrm.h
 
-# 🟢 CIRUGÍA 1: Python extirpa la enumeración DRM de vk_instance.c
-python3 -c '
-p="src/vulkan/runtime/vk_instance.c"; f=open(p,"r"); c=f.read(); f.close()
-t="enumerate_drm_physical_devices_locked(struct vk_instance *instance)\n{"
-c=c.replace(t, t+"\n   return VK_SUCCESS;")
-f=open(p,"w"); f.write(code if "code" in locals() else c); f.close()
-print("-> vk_instance.c Inyectado")'
-
-# 🟢 CIRUGÍA 2: Python parcha wsi_common_drm.c con las firmas EXACTAS de Mesa 25
-python3 -c '
-p="src/vulkan/wsi/wsi_common_drm.c"; f=open(p,"r"); c=f.read(); f.close()
-patched = "#if 0\n" + c + "\n#endif\n"
-stubs = """
+# 🟢 CIRUGÍA LIMPIA DE wsi_common_drm.c: Mantenemos las funciones vacías que pide el enlazador de Mesa
+cat << 'EOF' > src/vulkan/wsi/wsi_common_drm.c
 #include <stdint.h>
 #include "vk_device.h"
 #include "wsi_common_private.h"
@@ -55,9 +44,7 @@ VkResult wsi_create_sync_for_image_syncobj(const struct wsi_swapchain *c, const 
 _Bool wsi_common_drm_devices_equal(int a, int b) { return 0; }
 _Bool wsi_device_matches_drm_fd(VkPhysicalDevice p, int d) { return 0; }
 _Bool wsi_drm_image_needs_buffer_blit(const struct wsi_device *w, const struct wsi_drm_image_params *p) { return 0; }
-"""
-f=open(p,"w"); f.write(patched + stubs); f.close()
-print("-> wsi_common_drm.c Inyectado con firmas oficiales")'
+EOF
 
 NDK_SYSROOT_LIB_64="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/26"
 
@@ -69,32 +56,37 @@ Libs: -L$(pwd)/shims_64 -lvulkan_wrapper
 Cflags: -I.
 EOF
 
-echo "-> 3. Generando cross_64.txt..."
+echo "-> 3. Generando cross_64.txt con macros inyectadas para saltar errores DRM..."
 cat << EOF > cross_64.txt
 [constants]
 ndk_path = '${ANDROID_NDK_HOME}'
 toolchain = ndk_path + '/toolchains/llvm/prebuilt/linux-x86_64/bin'
 api = '26'
+
 [binaries]
 c       = toolchain + '/aarch64-linux-android' + api + '-clang'
 cpp     = toolchain + '/aarch64-linux-android' + api + '-clang++'
 ar      = toolchain + '/llvm-ar'
 strip   = toolchain + '/llvm-strip'
 pkg-config = '/usr/bin/pkg-config'
+
 [host_machine]
 system = 'android'
 cpu_family = 'aarch64'
 cpu = 'aarch64'
 endian = 'little'
+
 [properties]
 needs_exe_wrapper = true
 sys_root = '${NDK_SYSROOT}'
 libdir = '${NDK_SYSROOT_LIB_64}'
 pkg_config_path = '$(pwd)/shims_64'
 pkg_config_libdir = '$(pwd)/shims_64'
+
 [built-in options]
-c_args = ['--sysroot=' + '${NDK_SYSROOT}', '-D__TERMUX__']
-cpp_args = ['--sysroot=' + '${NDK_SYSROOT}', '-D__TERMUX__']
+# 🟢 TRUCO INDESTRUCTIBLE: Engañamos a Clang redefiniendo los tipos de libdrm ausentes mediante banderas -D directas
+c_args = ['--sysroot=' + '${NDK_SYSROOT}', '-D__TERMUX__', '-DdrmDevicePtr=void*', '-DdrmGetDevices2(a,b,c)=-1', '-DdrmFreeDevices(a,b)=((void)0)', '-DARRAY_SIZE(a)=256']
+cpp_args = ['--sysroot=' + '${NDK_SYSROOT}', '-D__TERMUX__', '-DdrmDevicePtr=void*', '-DdrmGetDevices2(a,b,c)=-1', '-DdrmFreeDevices(a,b)=((void)0)', '-DARRAY_SIZE(a)=256']
 c_link_args = ['-landroid', '-llog', '-lsync', '-lvulkan_wrapper', '-L${NDK_SYSROOT_LIB_64}', '-L$(pwd)/shims_64']
 cpp_link_args = ['-landroid', '-llog', '-lsync', '-lvulkan_wrapper', '-L${NDK_SYSROOT_LIB_64}', '-L$(pwd)/shims_64']
 EOF
