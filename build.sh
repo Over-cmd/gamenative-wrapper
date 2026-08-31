@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 INICIANDO ENLAZADOR HÍBRIDO CON BYPASS DE INSTANCE"
+echo "🚀 INICIANDO ENLAZADOR HÍBRIDO CON BYPASS DE FUNCIÓN INSTANCE"
 echo "=========================================================="
 
 echo "-> 1. Ordenando al Contenedor de Docker compilar el Interceptor oficial..."
@@ -29,8 +29,8 @@ echo " " > src/vulkan/runtime/vk_drm_syncobj.c
 mkdir -p src/util
 echo " " > src/util/libdrm.h
 
-# 🟢 JAQUE MATE AL PASO 443: Inyectamos un return inmediato en la línea 614 de vk_instance.c para saltar el escaneo DRM de escritorio
-sed -i '614i\   return VK_SUCCESS;' src/vulkan/runtime/vk_instance.c
+# 🟢 JAQUE MATE AL PASO 443: Buscamos la función por nombre e inyectamos el return inmediato para saltarnos las líneas 405-429
+sed -i '/enumerate_drm_physical_devices_locked(struct vk_instance \*instance)/,/{/ { /{/a \   return VK_SUCCESS;' src/vulkan/runtime/vk_instance.c
 
 NDK_SYSROOT_LIB_64="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/26"
 
