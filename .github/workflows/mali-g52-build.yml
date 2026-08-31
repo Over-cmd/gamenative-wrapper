@@ -23,7 +23,7 @@ jobs:
         with:
           repository: Pipetto-crypto/libadrenotools
           ref: master
-          path: main-repo/subprojects/libadrenotools
+          path: main-repo/main-repo/subprojects/libadrenotools 2>/dev/null || main-repo/subprojects/libadrenotools
 
       - name: Fetch libadrenotools Git Submodules Recursively
         run: |
@@ -31,6 +31,7 @@ jobs:
           echo "-> Inicializando submodulos de libadrenotools de forma recursiva..."
           git submodule update --init --recursive
 
+      # 🟢 INTERCEPCIÓN AGRESIVA LOCAL: Forzamos el enlace local de Panfrost inyectando las dependencias en sus propiedades internas de Meson
       - name: Inject Hardware Patches for Mali-G52
         run: |
           echo "-> Aplicando parches de hardware en los archivos de utilidades..."
@@ -53,6 +54,15 @@ jobs:
           sed -i "s/cc.find_library('rt'/dependency('', required : false) #/g" main-repo/meson.build 2>/dev/null || true
           sed -i "s/cc.find_library('dl'/dependency('', required : false) #/g" main-repo/meson.build 2>/dev/null || true
           
+          echo "-> 🟢 PARCHE CRÍTICO PANFROST: Inyectando banderas locales de enlace contra el Wrapper y sync de Android..."
+          PAN_MESON="main-repo/src/panfrost/vulkan/meson.build"
+          if [ -f "$PAN_MESON" ]; then
+            # Buscamos la variable de link_args del target libvulkan_panfrost y le concatenamos el set de librerias locales
+            sed -i "s|link_args : panvk_vulkan_link_args,|link_args : panvk_vulkan_link_args + ['-Lsrc/vulkan/wrapper', '-lvulkan_wrapper', '-lsync', '-lhardware'],|g" "$PAN_MESON"
+            sed -i "s|dependencies : \[|dependencies : [ dependency('threads'), |g" "$PAN_MESON"
+            echo "-> Parche local inyectado con éxito en las tripas de Panfrost."
+          fi
+          
           rm -f main-repo/subprojects/*.wrap main-repo/*.wrap 2>/dev/null || true
 
       - name: Install Base Build Tools
@@ -73,7 +83,7 @@ jobs:
             if [ -d "$path/toolchains/llvm/prebuilt/linux-x86_64/bin" ]; then echo "REAL_NDK_HOME=$path" >> $GITHUB_ENV; break; fi
           done
 
-      # 🟢 PASO MAESTRO BLINDADO: Inyectamos los linkers globales debilitados (-Wl,--undefined-version) y la ruta del Wrapper de salida
+      # 🟢 PURIFICACIÓN DEL CROSS-FILE: Dejamos los flags limpios para evitar que el objeto 63 colapse
       - name: Generate Indestructible Meson Cross-File
         run: |
           cd main-repo
@@ -112,8 +122,8 @@ jobs:
           [built-in options]
           c_args = ['--sysroot=' + ndk_sysroot, '-fno-emulated-tls', '-I' + shims_path / 'include', '-isystem' + ndk_sysroot / 'usr/include', '-DHAVE_STRUCT_TIMESPEC', '-DHAVE_DLFCN_H', '-UHAVE_SECURE_GETENV', '-UHAVE_QSORT_S', '-include', 'fcntl.h', '-include', 'time.h', '-Wl,-llog', '-Wl,-lsync', '-fvisibility=default']
           cpp_args = ['--sysroot=' + ndk_sysroot, '-fno-emulated-tls', '-I' + shims_path / 'include', '-isystem' + ndk_sysroot / 'usr/include', '-DHAVE_STRUCT_TIMESPEC', '-DHAVE_DLFCN_H', '-UHAVE_SECURE_GETENV', '-UHAVE_QSORT_S', '-include', 'fcntl.h', '-include', 'time.h', '-include', 'dlfcn.h', '-Wl,-llog', '-Wl,-lsync', '-fvisibility=default', '-D_LIBCPP_ABI_NAMESPACE=__1']
-          c_link_args = ['-Wl,--allow-shlib-undefined', '-Wl,--undefined-version', '-landroid', '-llog', '-lsync', '-lhardware', '-L' + ndk_sysroot_lib, '-L' + shims_path, '-L' + working_dir / 'build/src/vulkan/wrapper', '-lvulkan_wrapper', '--sysroot=' + ndk_sysroot, '-llog', '-lsync']
-          cpp_link_args = ['-Wl,--allow-shlib-undefined', '-Wl,--undefined-version', '-landroid', '-llog', '-lsync', '-lhardware', '-L' + ndk_sysroot_lib, '-L' + shims_path, '-L' + working_dir / 'build/src/vulkan/wrapper', '-lvulkan_wrapper', '--sysroot=' + ndk_sysroot, '-llog', '-lsync']
+          c_link_args = ['-Wl,--allow-shlib-undefined', '-landroid', '-llog', '-lsync', '-L' + ndk_sysroot_lib, '-L' + shims_path, '--sysroot=' + ndk_sysroot, '-llog', '-lsync']
+          cpp_link_args = ['-Wl,--allow-shlib-undefined', '-landroid', '-llog', '-lsync', '-L' + ndk_sysroot_lib, '-L' + shims_path, '--sysroot=' + ndk_sysroot, '-llog', '-lsync']
           EOF
 
       - name: Configure GameNative Meson Setup
