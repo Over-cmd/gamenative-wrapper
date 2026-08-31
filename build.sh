@@ -108,37 +108,35 @@ echo "-> 11c. Compilando el driver unificado final..."
 meson compile -C build
 
 # ==========================================
-# 🟢 12. ESTRUCTURA COMPATIBLE MONOLÍTICA REPARADA
+# 🟢 12. ESTRUCTURA ICD PLANA PERFECTA PARA BANNERLATOR
 # ==========================================
 echo "-> Estructurando empaque compatible ICD para Bannerlator..."
 rm -rf pkg && mkdir -p pkg/usr/lib pkg/usr/share/vulkan/icd.d pkg/usr/share/vulkan/settings.d
 
-echo "-> [A] Copiando el Wrapper enrutador real (libvulkan_wrapper.so)..."
+echo "-> [A] Colocando el Wrapper principal en la entrada que leerá Bannerlator..."
 cp -v build/src/vulkan/wrapper/libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
 
-echo "-> [B] Copiando el driver físico real de Panfrost mapeado como de 64 bits..."
-# Es crucial guardarlo con el nombre exacto que tu código wrapper.c busca con dlopen()
+echo "-> [B] Colocando el driver físico real de Panfrost mapeado según las rutas de tu dlopen()..."
 cp -v build/src/panfrost/vulkan/libvulkan_panfrost.so pkg/usr/lib/libvulkan_panfrost_64.so
 
-echo "-> [C] Inyectando el stub de 32 bits de contingencia..."
+echo "-> [C] Colocando el stub de contingencia para que las apps de 32 bits no congelen el cargador..."
 cp -v "$GITHUB_WORKSPACE/shims_target/libvulkan_wrapper.so" pkg/usr/lib/libvulkan_panfrost_32.so
 
-echo "-> [D] Aplicando patchelf y limpieza de firmas ARM64..."
+echo "-> [D] Estampando SONAMES limpios y removiendo basura de compilación..."
 patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so 2>/dev/null || true
 patchelf --set-soname libvulkan_panfrost_64.so pkg/usr/lib/libvulkan_panfrost_64.so 2>/dev/null || true
 llvm-strip --strip-unneeded pkg/usr/lib/*.so 2>/dev/null || true
 
-# Configuración estructural del manifiesto JSON ICD de Mesa
+# Los manifiestos oficiales le dicen a Bannerlator que cargue libvulkan_wrapper.so para inicializar la GPU
 echo '{"ICD": {"api_version": "1.4.352", "library_path": "libvulkan_wrapper.so"}, "file_format_version": "1.0.0"}' > pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
 echo '{"ICD": {"api_version": "1.4.352", "library_path": "libvulkan_wrapper.so"}, "file_format_version": "1.0.0"}' > pkg/usr/share/vulkan/icd.d/wrapper_icd.arm.json
 echo '{"env":{"PAN_I_WANT_A_BROKEN_VULKAN_DRIVER":"1","MESA_VK_IGNORE_CONFORMANCE_WARNING":"1","PANVK_DEBUG":"sync,nir","MESA_VK_FORCE_BLIT":"1","MESA_LOADER_DRIVER_OVERRIDE":"panfrost","GALLIUM_DRIVER":"panfrost","vblank_mode":"0","MESA_GLSL_CACHE_DISABLE":"1","MESA_SHADER_CACHE_DISABLE":"true","NIR_DEBUG":"tgsi","MESA_VK_WSI_PRESENT_MODE":"immediate","MESA_VK_WSI_DEBUG":"always_async"}}' > pkg/usr/share/vulkan/settings.d/wrapper_settings.json
 
 echo "msf:315508" > pkg/version.txt && chmod -R 755 pkg/
 
-# Compresión final directa en el directorio
 cd pkg
 tar -I 'zstd -19 -T0' -cf "$GITHUB_WORKSPACE/wrapper.tzst" usr version.txt
 
 echo "=========================================================="
-echo "🟢 COMPILACIÓN HÍBRIDA COMPLETADA Y SELLADA CON ÉXITO"
+echo "🟢 ECOSYSTEMA COMPLETADO, PROCESADO Y CERTIFICADO"
 echo "=========================================================="
