@@ -8,6 +8,7 @@ git checkout src/panfrost/lib/kmod/pan_kmod.c 2>/dev/null || true
 git checkout src/panfrost/lib/kmod/panfrost_kmod.c 2>/dev/null || true
 git checkout src/panfrost/lib/kmod/panthor_kmod.c 2>/dev/null || true
 git checkout src/panfrost/vulkan/jm/panvk_queue.h 2>/dev/null || true
+git checkout src/vulkan/wrapper/wrapper_log.c 2>/dev/null || true
 
 echo "-> [Cirugía] Inyectando stubs biónicos en las colas de Bifrost..."
 python3 -c '
@@ -24,6 +25,16 @@ p="src/vulkan/runtime/vk_instance.c"
 f=open(p,"r"); c=f.read(); f.close()
 c = "#include \"xf86drm.h\"\n" + c
 f=open(p,"w"); f.write(c); f.close()
+'
+
+# 🟢 REPARACIÓN MAESTRA PASO 719: Inyectamos fcntl.h y unistd.h al inicio de wrapper_log.c para proveer open(), read(), close() y O_RDONLY
+echo "-> [Cirugía] Inyectando cabeceras de control de archivos en wrapper_log.c..."
+python3 -c '
+p="src/vulkan/wrapper/wrapper_log.c"
+f=open(p,"r"); c=f.read(); f.close()
+c = "#include <fcntl.h>\n#include <unistd.h>\n" + c
+f=open(p,"w"); f.write(c); f.close()
+print("-> ¡wrapper_log.c parchado exitosamente!")
 '
 
 echo "-> [Cirugía] Redireccionando inclusiones rígidas de KMOD hacia shims locales..."
@@ -60,12 +71,10 @@ static inline int drmCommandWriteRead(int fd, unsigned long cmd, void *data, uns
 static inline int drmCommandWrite(int fd, unsigned long cmd, void *data, unsigned long size) { (void)fd; (void)cmd; (void)data; (void)size; return 0; }
 static inline int drmCommandRead(int fd, unsigned long cmd, void *data, unsigned long size) { (void)fd; (void)cmd; (void)data; (void)size; return 0; }
 
-/* Simuladores biónicos exigidos por las colas de Bifrost y Valhall */
 static inline int drmSyncobjDestroy(int fd, uint32_t handle) { (void)fd; (void)handle; return 0; }
 static inline int drmSyncobjCreate(int fd, uint32_t flags, uint32_t *handle) { (void)fd; (void)flags; if(handle) *handle = 1; return 0; }
 static inline int drmSyncobjWait(int fd, uint32_t *handles, uint32_t count, int64_t timeout_ns, uint32_t flags, uint32_t *first_signaled) { (void)fd; (void)handles; (void)count; (void)timeout_ns; (void)flags; (void)first_signaled; return 0; }
 
-/* 🟢 CORRECCIÓN SUPREMA PASO 681: Stubs de línea de tiempo exigidos por la arquitectura CSF v10 */
 static inline int drmSyncobjTimelineWait(int fd, uint32_t *handles, uint64_t *points, uint32_t count, int64_t timeout_ns, uint32_t flags, uint32_t *first_signaled) { (void)fd; (void)handles; (void)points; (void)count; (void)timeout_ns; (void)flags; (void)first_signaled; return 0; }
 static inline int drmSyncobjTransfer(int fd, uint32_t dst_handle, uint64_t dst_point, uint32_t src_handle, uint64_t src_point, uint32_t flags) { (void)fd; (void)dst_handle; (void)dst_point; (void)src_handle; (void)src_point; (void)flags; return 0; }
 static inline int drmSyncobjResult(int fd, void *arg) { (void)fd; (void)arg; return 0; }
@@ -78,8 +87,6 @@ mkdir -p include && cp -fv $(pwd)/shims_64/xf86drm.h include/xf86drm.h
 mkdir -p src/vulkan/runtime && cp -fv $(pwd)/shims_64/xf86drm.h src/vulkan/runtime/xf86drm.h
 mkdir -p src/panfrost/lib/kmod && cp -fv $(pwd)/shims_64/xf86drm.h src/panfrost/lib/kmod/xf86drm.h
 mkdir -p src/panfrost/vulkan/jm && cp -fv $(pwd)/shims_64/xf86drm.h src/panfrost/vulkan/jm/xf86drm.h
-
-# 🟢 ADICIÓN EXTRA DE CONTINGENCIA: Volcamos el xf86drm.h falso en la carpeta de Valhall/CSF para que la unidad 681 lo tenga local
 mkdir -p src/panfrost/vulkan/csf && cp -fv $(pwd)/shims_64/xf86drm.h src/panfrost/vulkan/csf/xf86drm.h
 
 echo "-> [Cirugía] Escribiendo stubs de intercambio de imagen para WSI DRM..."
