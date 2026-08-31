@@ -1,46 +1,29 @@
-name: GameNative Vulkan Wrapper Build
+name: 🚀 Compilación Monolítica Fat Mali-G52
 
 on:
-  push:
-    branches: [ wrapper-25 ]
-  pull_request:
-    branches: [ wrapper-25 ]
   workflow_dispatch:
 
-permissions:
-  contents: read
-
 jobs:
-  build-gamenative-wrapper:
-    runs-on: ubuntu-latest
+  build:
+    runs-on: ubuntu-22.04
+
     steps:
-      - name: Checkout Core Source
-        uses: actions/checkout@v4
-        with:
-          path: main-repo
+    - name: 📥 Checkout Code
+      uses: actions/checkout@v4
 
-      - name: Checkout Android libdrm Source
-        uses: actions/checkout@v4
-        with:
-          repository: waydroid/android_external_libdrm
-          ref: lineage-18.1
-          path: main-repo/subprojects/libdrm
+    - name: 🛠️ Install Zstd Packager
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y zstd patchelf
 
-      - name: Checkout libadrenotools Source
-        uses: actions/checkout@v4
-        with:
-          repository: Pipetto-crypto/libadrenotools
-          ref: master
-          path: main-repo/subprojects/libadrenotools
+    - name: 🏗️ Lanzando Script de Compilación Monolítica Híbrida
+      run: |
+        chmod +x build.sh
+        ./build.sh
 
-      - name: Execute External Indestructible Build Script
-        run: |
-          cd main-repo
-          chmod +x build.sh
-          ./build.sh
-
-      - name: Upload Final wrapper.tzst Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: GameNative-Mali-G52-Wrapper
-          path: wrapper.tzst
+    - name: 📦 Exportando Artefacto Ganador Descargable (.TZST)
+      uses: actions/upload-artifact@v4
+      with:
+        name: Bannerlator-Mali-Wrapper
+        path: ${{ github.workspace }}/wrapper.tzst
+        if-no-files-found: error
