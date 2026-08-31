@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 INICIANDO ENLAZADOR HÍBRIDO MESA 25 CON PROTOTIPOS ESTÁTICOS"
+echo "🚀 INICIANDO ENLAZADOR HÍBRIDO MESA 25 CON PROTOTIPOS CORREGIDOS"
 echo "=========================================================="
 
 echo "-> 1. Compilando el Interceptor oficial en Docker..."
@@ -41,22 +41,23 @@ EOF
 mkdir -p include
 cp -fv $(pwd)/shims_64/xf86drm.h include/xf86drm.h
 
-# 🟢 JUGADA MAESTRA INDESTRUCTIBLE: Convertimos todas las funciones en 'static' para aniquilar los errores de prototipos en Mesa 25
+# 🟢 JUGADA MAESTRA DEFINTIVA: Incluimos la cabecera privada para validar prototipos y quitamos el 'static' de los stubs
 cat << 'EOF' > src/vulkan/wsi/wsi_common_drm.c
 #include <stdint.h>
+#include <stdbool.h>
 #include "vk_device.h"
 #include "wsi_common_private.h"
 
-static VkResult wsi_drm_configure_image(const struct wsi_swapchain *c, const VkSwapchainCreateInfoKHR *p, const struct wsi_drm_image_params *pa, struct wsi_image_info *i) { return 0; }
-static VkResult wsi_prepare_signal_dma_buf_from_semaphore(struct wsi_swapchain *c, const struct wsi_image *i) { return 0; }
-static VkResult wsi_signal_dma_buf_from_semaphore(const struct wsi_swapchain *c, const struct wsi_image *i) { return 0; }
-static VkResult wsi_create_sync_for_dma_buf_wait(const struct wsi_swapchain *c, const struct wsi_image *i, enum vk_sync_features f, struct vk_sync **s) { return 0; }
-static VkResult wsi_create_image_explicit_sync_drm(const struct wsi_swapchain *c, struct wsi_image *i) { return 0; }
-static void wsi_destroy_image_explicit_sync_drm(const struct wsi_swapchain *c, struct wsi_image *i) {}
-static VkResult wsi_create_sync_for_image_syncobj(const struct wsi_swapchain *c, const struct wsi_image *i, enum vk_sync_features f, struct vk_sync **s) { return 0; }
-static _Bool wsi_common_drm_devices_equal(int a, int b) { return 0; }
-static _Bool wsi_device_matches_drm_fd(VkPhysicalDevice p, int d) { return 0; }
-static _Bool wsi_drm_image_needs_buffer_blit(const struct wsi_device *w, const struct wsi_drm_image_params *p) { return 0; }
+VkResult wsi_drm_configure_image(const struct wsi_swapchain *c, const VkSwapchainCreateInfoKHR *p, const struct wsi_drm_image_params *pa, struct wsi_image_info *i) { return 0; }
+VkResult wsi_prepare_signal_dma_buf_from_semaphore(struct wsi_swapchain *c, const struct wsi_image *i) { return 0; }
+VkResult wsi_signal_dma_buf_from_semaphore(const struct wsi_swapchain *c, const struct wsi_image *i) { return 0; }
+VkResult wsi_create_sync_for_dma_buf_wait(const struct wsi_swapchain *c, const struct wsi_image *i, enum vk_sync_features f, struct vk_sync **s) { return 0; }
+VkResult wsi_create_image_explicit_sync_drm(const struct wsi_swapchain *c, struct wsi_image *i) { return 0; }
+void wsi_destroy_image_explicit_sync_drm(const struct wsi_swapchain *c, struct wsi_image *i) {}
+VkResult wsi_create_sync_for_image_syncobj(const struct wsi_swapchain *c, const struct wsi_image *i, enum vk_sync_features f, struct vk_sync **s) { return 0; }
+_Bool wsi_common_drm_devices_equal(int a, int b) { return 0; }
+_Bool wsi_device_matches_drm_fd(VkPhysicalDevice p, int d) { return 0; }
+_Bool wsi_drm_image_needs_buffer_blit(const struct wsi_device *w, const struct wsi_drm_image_params *p) { return 0; }
 EOF
 
 NDK_SYSROOT_LIB_64="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/26"
