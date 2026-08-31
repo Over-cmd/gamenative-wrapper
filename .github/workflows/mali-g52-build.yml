@@ -1,6 +1,14 @@
 name: GameNative Vulkan Wrapper Build
 
-on: [push, pull_request, workflow_dispatch]
+on:
+  push:
+    branches: [ wrapper-25 ]
+  pull_request:
+    branches: [ wrapper-25 ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   build-gamenative-wrapper:
@@ -25,137 +33,13 @@ jobs:
           ref: master
           path: main-repo/subprojects/libadrenotools
 
-      - name: Fetch libadrenotools Git Submodules Recursively
-        run: |
-          cd main-repo/subprojects/libadrenotools
-          echo "-> Inicializando submodulos de libadrenotools de forma recursiva..."
-          git submodule update --init --recursive
-
-      - name: Inject Hardware Patches for Mali-G52
-        run: |
-          echo "-> Aplicando parches de hardware en los archivos de utilidades..."
-          sed -i 's/fd = syscall(SYS_memfd_create.*/fd = memfd_create(debug_name, MFD_CLOEXEC \| MFD_ALLOW_SEALING);/g' main-repo/src/util/anon_file.c 2>/dev/null || true
-          find main-repo/ -name "pan_device.c" -exec sed -i 's/pan_query_core_count(&dev->kmod.dev->props, &dev->core_id_range);/dev->core_id_range = pan_query_core_count(\&dev->kmod.dev->props);/g' {} + 2>/dev/null || true
-          find main-repo/ -name "pan_device.c" -exec sed -i 's/\\&/\&/g' {} + 2>/dev/null || true
-          
-          echo "-> Inyectando stub inline de sync_wait en panthor_kmod.c..."
-          KMOD_TARGET="main-repo/src/panfrost/lib/kmod/panthor_kmod.c"
-          if [ -f "$KMOD_TARGET" ]; then
-            sed -i '1s|^|int sync_wait(int fd, int timeout) { return 0; }\n|' "$KMOD_TARGET"
-          fi
-          
-          echo "-> Neutralizando búsquedas rígidas sin borrar declaraciones de variables..."
-          TARGET_BUILD="main-repo/subprojects/libadrenotools/meson.build"
-          if [ -f "$TARGET_BUILD" ]; then
-            sed -i "s|libandroid_dep = .*|libandroid_dep = dependency('', required : false)|g" "$TARGET_BUILD"
-            sed -i "s|liblog_dep = .*|liblog_dep = dependency('', required : false)|g" "$TARGET_BUILD"
-          fi
-          
-          find main-repo/subprojects/libadrenotools/ -name "meson.build" -exec sed -i "s|.*find_library.*dl.*|libdl_dep = dependency('', required : false)|g" {} + 2>/dev/null || true
-          find main-repo/subprojects/libadrenotools/ -name "meson.build" -exec sed -i "s/cc.find_library('dl'/dependency('', required : false) #/g" {} + 2>/dev/null || true
-          
-          echo "-> Purgando validaciones rigidas de librerias obsoletas en meson.build central..."
-          sed -i "s/cc.find_library('atomic'/dependency('', required : false) #/g" main-repo/meson.build 2>/dev/null || true
-          sed -i "s/cc.find_library('rt'/dependency('', required : false) #/g" main-repo/meson.build 2>/dev/null || true
-          sed -i "s/cc.find_library('dl'/dependency('', required : false) #/g" main-repo/meson.build 2>/dev/null || true
-          
-          rm -f main-repo/subprojects/*.wrap main-repo/*.wrap 2>/dev/null || true
-
-      - name: Install Base Build Tools
-        run: |
-          sudo apt-get update && sudo apt-get install -y build-essential libelf-dev bison flex pkg-config gettext patchelf unzip llvm clang
-          python -m pip install --upgrade pip && pip install mako PyYAML 'meson>=1.4.0' ninja packaging
-
-      - name: Unzip Local Android Shims
+      - name: Execute External Indestructible Build Script
         run: |
           cd main-repo
-          unzip -o shims.zip -d ./
-          mkdir -p "$GITHUB_WORKSPACE/shims_target"
-          cp -rf ./shims/* "$GITHUB_WORKSPACE/shims_target/"
+          chmod +x build.sh
+          ./build.sh
 
-      - name: Auto-Detect True Android NDK Path
-        run: |
-          for path in /usr/local/lib/android/sdk/ndk/* /home/runner/Android/Sdk/ndk/*; do
-            if [ -d "$path/toolchains/llvm/prebuilt/linux-x86_64/bin" ]; then echo "REAL_NDK_HOME=$path" >> $GITHUB_ENV; break; fi
-          done
-
-      - name: Generate Indestructible Meson Cross-File
-        run: |
-          cd main-repo
-          NDK_SYSROOT_LIB="${{ env.REAL_NDK_HOME }}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/30"
-          
-          cat << EOF > cross.txt
-          [constants]
-          ndk_home = '${{ env.REAL_NDK_HOME }}'
-          working_dir = '$GITHUB_WORKSPACE/main-repo'
-          ndk_bin = ndk_home / 'toolchains/llvm/prebuilt/linux-x86_64/bin'
-          ndk_sysroot = ndk_home / 'toolchains/llvm/prebuilt/linux-x86_64/sysroot'
-          ndk_sysroot_lib = '${NDK_SYSROOT_LIB}'
-          shims_path = '$GITHUB_WORKSPACE/shims_target'
-
-          [binaries]
-          c = [ndk_bin / 'clang', '-target', 'aarch64-linux-android30', '-D__TERMUX__']
-          cpp = [ndk_bin / 'clang++', '-target', 'aarch64-linux-android30', '-fno-exceptions', '--start-no-unused-arguments', '--end-no-unused-arguments', '-D__TERMUX__']
-          ar = ndk_bin / 'llvm-ar'
-          strip = ndk_bin / 'llvm-strip'
-          pkg-config = '/usr/bin/pkg-config'
-
-          [host_machine]
-          system = 'android'
-          cpu_family = 'aarch64'
-          cpu = 'aarch64'
-          endian = 'little'
-
-          [properties]
-          sys_root = ndk_sysroot
-          libdir = ndk_sysroot_lib
-          needs_exe_wrapper = true
-          pkg_config_path = shims_path
-          pkg_config_libdir = shims_path
-          libdrm_path = '$GITHUB_WORKSPACE/main-repo/subprojects/libdrm'
-
-          [built-in options]
-          c_args = ['--sysroot=' + ndk_sysroot, '-fno-emulated-tls', '-I' + shims_path / 'include', '-isystem' + ndk_sysroot / 'usr/include', '-DHAVE_STRUCT_TIMESPEC', '-DHAVE_DLFCN_H', '-UHAVE_SECURE_GETENV', '-UHAVE_QSORT_S', '-include', 'fcntl.h', '-include', 'time.h', '-Wl,-llog', '-Wl,-lsync', '-fvisibility=default']
-          cpp_args = ['--sysroot=' + ndk_sysroot, '-fno-emulated-tls', '-I' + shims_path / 'include', '-isystem' + ndk_sysroot / 'usr/include', '-DHAVE_STRUCT_TIMESPEC', '-DHAVE_DLFCN_H', '-UHAVE_SECURE_GETENV', '-UHAVE_QSORT_S', '-include', 'fcntl.h', '-include', 'time.h', '-include', 'dlfcn.h', '-Wl,-llog', '-Wl,-lsync', '-fvisibility=default', '-D_LIBCPP_ABI_NAMESPACE=__1']
-          c_link_args = ['-Wl,--allow-shlib-undefined', '-landroid', '-llog', '-lsync', '-lhardware', '-L' + ndk_sysroot_lib, '-L' + shims_path, '--sysroot=' + ndk_sysroot, '-llog', '-lsync']
-          cpp_link_args = ['-Wl,--allow-shlib-undefined', '-landroid', '-llog', '-lsync', '-lhardware', '-L' + ndk_sysroot_lib, '-L' + shims_path, '--sysroot=' + ndk_sysroot, '-llog', '-lsync']
-          EOF
-
-      # 🟢 CORRECCIÓN CENTRAL: Cambiamos -Dandroid-stub=true por -Dandroid-stub=false para apagar de raiz el bucle conflictivo
-      - name: Configure GameNative Meson Setup
-        run: |
-          cd main-repo
-          export ANDROID_NDK_HOME="${{ env.REAL_NDK_HOME }}"
-          export MESON_WORKING_DIR="$GITHUB_WORKSPACE/main-repo"
-          export PKG_CONFIG_PATH="$GITHUB_WORKSPACE/shims_target"
-          export PKG_CONFIG_LIBDIR="$GITHUB_WORKSPACE/shims_target"
-          
-          echo "-> Lanzando inicialización de Meson para tu Mali-G52..."
-          meson setup build --reconfigure --cross-file cross.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dandroid-stub=false -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dopengl=false -Dgles1=disabled -Dgles2=disabled -Dllvm=disabled -Dvalgrind=disabled -Dzstd=disabled -Dvulkan-drivers=panfrost,wrapper -Dgallium-drivers=[]
-
-      - name: Compile GameNative Engine
-        run: |
-          cd main-repo
-          meson compile -C build
-
-      - name: Structure and Pack wrapper.tzst for Bannerlator
-        run: |
-          cd main-repo
-          rm -rf pkg && mkdir -p pkg/usr/lib pkg/usr/share/vulkan/icd.d pkg/usr/share/vulkan/settings.d
-          cp -v build/src/vulkan/wrapper/libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so 2>/dev/null || true
-          cp -v build/src/panfrost/vulkan/libvulkan_panfrost.so pkg/usr/lib/libvulkan_panfrost.so 2>/dev/null || true
-          
-          patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so 2>/dev/null || true
-          llvm-strip --strip-unneeded pkg/usr/lib/*.so 2>/dev/null || true
-          
-          echo '{"ICD": {"api_version": "1.4.352", "library_path": "libvulkan_wrapper.so"}, "file_format_version": "1.0.0"}' > pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
-          echo '{"ICD": {"api_version": "1.4.352", "library_path": "libvulkan_wrapper.so"}, "file_format_version": "1.0.0"}' > pkg/usr/share/vulkan/icd.d/wrapper_icd.arm.json
-          echo '{"env":{"PAN_I_WANT_A_BROKEN_VULKAN_DRIVER":"1","MESA_VK_IGNORE_CONFORMANCE_WARNING":"1","PANVK_DEBUG":"sync,nir","MESA_VK_FORCE_BLIT":"1","MESA_LOADER_DRIVER_OVERRIDE":"panfrost","GALLIUM_DRIVER":"panfrost","vblank_mode":"0","MESA_GLSL_CACHE_DISABLE":"1","MESA_SHADER_CACHE_DISABLE":"true","NIR_DEBUG":"tgsi","MESA_VK_WSI_PRESENT_MODE":"immediate","MESA_VK_WSI_DEBUG":"always_async"}}' > pkg/usr/share/vulkan/settings.d/wrapper_settings.json
-          
-          echo "msf:315508" > pkg/version.txt && chmod -R 755 pkg/
-          cd pkg && tar -I 'zstd -19 -T0' -cf ../../wrapper.tzst usr/ version.txt
-
-      - name: Upload Final wrapper.tzst
+      - name: Upload Final wrapper.tzst Artifact
         uses: actions/upload-artifact@v4
         with:
           name: GameNative-Mali-G52-Wrapper
