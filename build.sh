@@ -31,7 +31,6 @@ echo "-> 6. Configurando entorno NDK r28 oficial de GitHub..."
 export ANDROID_NDK_HOME="/usr/local/lib/android/sdk/ndk/28.2.13676358"
 NDK_SYSROOT_LIB="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/30"
 export CLANG_CROSS="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android30-clang"
-export CLANG_CPP_CROSS="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android30-clang++"
 export LLVM_AR="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar"
 
 echo "-> 7. Shims e inyección de Librerías Estáticas ARM64 Legítimas..."
@@ -86,17 +85,26 @@ echo "-> 10. Compilando el motor gráfico con Ninja..."
 meson compile -C build
 
 # ==========================================
-# 🟢 11. GENERACIÓN DEL ENRUTADOR PUENTE DINÁMICO REAL EN C
+# 🟢 11. ENRUTADOR PUENTE CON INYECCIÓN DE ENTORNO EN CALIENTE (HARDCODED)
 # ==========================================
-echo "-> 11. Fabricando el código fuente del enrutador dinámico compatible..."
+echo "-> 11. Fabricando el código fuente del enrutador con variables de entorno forzadas..."
 cat << 'EOF' > wrapper.c
 #define _GNU_SOURCE
 #include <stdio.h>
+#include <stdlib.h>
 #include <dlfcn.h>
 
 static void* handle = NULL;
 
 __attribute__((constructor)) void init_wrapper() {
+    // Forzar la inyección de variables de entorno de Mesa directamente en la memoria del hilo de ejecución
+    setenv("PAN_I_WANT_A_BROKEN_VULKAN_DRIVER", "1", 1);
+    setenv("MESA_VK_IGNORE_CONFORMANCE_WARNING", "1", 1);
+    setenv("PANVK_DEBUG", "sync,nir", 1);
+    setenv("MESA_VK_FORCE_BLIT", "1", 1);
+    setenv("MESA_LOADER_DRIVER_OVERRIDE", "panfrost", 1);
+    setenv("GALLIUM_DRIVER", "panfrost", 1);
+
     if (sizeof(void*) == 8) {
         handle = dlopen("/usr/lib/libvulkan_panfrost_64.so", RTLD_NOW | RTLD_GLOBAL);
         if (!handle) handle = dlopen("./libvulkan_panfrost_64.so", RTLD_NOW | RTLD_GLOBAL);
@@ -114,32 +122,21 @@ void* vk_icdGetInstanceProcAddr(void* instance, const char* pName) {
 }
 EOF
 
-# Compilamos el enrutador en ARM64 real para que actúe como la librería libvulkan_wrapper.so de entrada solicitada
 $CLANG_CROSS -shared -fPIC -o libvulkan_wrapper.so wrapper.c -ldl --sysroot="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
 
-# ==========================================
-# 🟢 12. ESTRUCTURA COMPATIBLE MONOLÍTICA FAT PARA BANNERLATOR
-# ==========================================
 echo "-> 12. Estructurando empaque compatible ICD para Bannerlator..."
 rm -rf pkg && mkdir -p pkg/usr/lib pkg/usr/share/vulkan/icd.d pkg/usr/share/vulkan/settings.d
 
-echo "-> [A] Colocando el Enrutador en la entrada principal..."
 cp -v libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
-
-echo "-> [B] Colocando el driver real de Panfrost de 64 bits en la ruta que buscará el dlopen()..."
 cp -v build/src/panfrost/vulkan/libvulkan_panfrost.so pkg/usr/lib/libvulkan_panfrost_64.so
-
-echo "-> [C] Rellenando ranura de 32 bits con el stub protector..."
 cp -v build/src/vulkan/wrapper/libvulkan_wrapper.so pkg/usr/lib/libvulkan_panfrost_32.so
 
-echo "-> [D] Estampando firmas de SONAMES nativas en los binarios..."
 patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
 patchelf --set-soname libvulkan_panfrost_64.so pkg/usr/lib/libvulkan_panfrost_64.so
 llvm-strip --strip-unneeded pkg/usr/lib/*.so 2>/dev/null || true
 
-# Escribimos los manifiestos oficiales de Mesa
 echo '{"ICD": {"api_version": "1.4.352", "library_path": "libvulkan_wrapper.so"}, "file_format_version": "1.0.0"}' > pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
-echo '{"env":{"PAN_I_WANT_A_BROKEN_VULKAN_DRIVER":"1","MESA_VK_IGNORE_CONFORMANCE_WARNING":"1","PANVK_DEBUG":"sync,nir","MESA_VK_FORCE_BLIT":"1","MESA_LOADER_DRIVER_OVERRIDE":"panfrost","GALLIUM_DRIVER":"panfrost"}}' > pkg/usr/share/vulkan/settings.d/wrapper_settings.json
+echo '{"ICD": {"api_version": "1.4.352", "library_path": "libvulkan_wrapper.so"}, "file_format_version": "1.0.0"}' > pkg/usr/share/vulkan/icd.d/wrapper_icd.arm.json
 
 echo "msf:315508" > pkg/version.txt && chmod -R 755 pkg/
 cd pkg && tar -I "zstd -19 -T0" -cf "$GITHUB_WORKSPACE/wrapper.tzst" usr version.txt
