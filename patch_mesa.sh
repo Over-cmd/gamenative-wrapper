@@ -9,7 +9,7 @@ git checkout src/panfrost/lib/kmod/panfrost_kmod.c 2>/dev/null || true
 git checkout src/panfrost/lib/kmod/panthor_kmod.c 2>/dev/null || true
 git checkout src/panfrost/vulkan/jm/panvk_queue.h 2>/dev/null || true
 
-echo "-> [Cirugía] Inyectando stubs biónicos en las colas de Bifrost (Paso 627)..."
+echo "-> [Cirugía] Inyectando stubs biónicos en las colas de Bifrost..."
 python3 -c '
 p="src/panfrost/vulkan/jm/panvk_queue.h"
 f=open(p,"r"); c=f.read(); f.close()
@@ -18,7 +18,7 @@ c = c.replace("#include <stdint.h>", inj)
 f=open(p,"w"); f.write(c); f.close()
 '
 
-echo "-> [Cirugía] Inyectando xf86drm relativo en el core de Vulkan (Paso 446)..."
+echo "-> [Cirugía] Inyectando xf86drm relativo en el core de Vulkan..."
 python3 -c '
 p="src/vulkan/runtime/vk_instance.c"
 f=open(p,"r"); c=f.read(); f.close()
@@ -30,21 +30,25 @@ echo "-> [Cirugía] Redireccionando inclusiones rígidas de KMOD hacia shims loc
 sed -i 's/#include <xf86drm.h>/#include "xf86drm.h"/g' src/panfrost/lib/kmod/pan_kmod.c 2>/dev/null || true
 sed -i 's/#include <xf86drm.h>/#include "xf86drm.h"/g' src/panfrost/lib/kmod/panfrost_kmod.c 2>/dev/null || true
 
-echo "-> [Cirugía] Neutralizando el módulo CSF de Panthor de PC de escritorio..."
+echo "-> [Cirugía] Neutralizando el módulo CSF de Panthor..."
 cat << 'EOF' > src/panfrost/lib/kmod/panthor_kmod.c
 #include <stddef.h>
 #include "pan_kmod.h"
 const struct pan_kmod_ops panthor_kmod_ops = {0};
 EOF
 
-echo "-> [Cirugía] Escribiendo xf86drm.h simulado indestructible..."
+echo "-> [Cirugía] Escribiendo xf86drm.h simulado con soporte total de Syncobj..."
 cat << 'EOF' > $(pwd)/shims_64/xf86drm.h
 #ifndef xf86drm_h
 #define xf86drm_h
 #include <stdint.h>
-#define DRM_CLOEXEC 0x140000
+
+/* Macros de sincronización requeridos por las colas Bifrost de panvk */
+#define DRM_SYNCOBJ_CREATE_SIGNALED (1 << 0)
+
 typedef struct _drmDevice { char **nodes; } *drmDevicePtr;
 typedef struct _drmVersion { int version_major; int version_minor; int version_patchlevel; char *name; char *date; char *desc; } *drmVersionPtr;
+
 static inline drmVersionPtr drmGetVersion(int fd) { (void)fd; return 0; }
 static inline void drmFreeVersion(drmVersionPtr v) { (void)v; }
 static inline int drmCloseBufferHandle(int fd, uint32_t handle) { (void)fd; (void)handle; return 0; }
@@ -56,7 +60,11 @@ static inline int drmIoctl(int fd, unsigned long request, void *arg) { (void)fd;
 static inline int drmCommandWriteRead(int fd, unsigned long cmd, void *data, unsigned long size) { (void)fd; (void)cmd; (void)data; (void)size; return 0; }
 static inline int drmCommandWrite(int fd, unsigned long cmd, void *data, unsigned long size) { (void)fd; (void)cmd; (void)data; (void)size; return 0; }
 static inline int drmCommandRead(int fd, unsigned long cmd, void *data, unsigned long size) { (void)fd; (void)cmd; (void)data; (void)size; return 0; }
+
+/* 🟢 SIMULADORES BIÓNICOS EXIGIDOS EN EL PASO 638 */
 static inline int drmSyncobjDestroy(int fd, uint32_t handle) { (void)fd; (void)handle; return 0; }
+static inline int drmSyncobjCreate(int fd, uint32_t flags, uint32_t *handle) { (void)fd; (void)flags; if(handle) *handle = 1; return 0; }
+static inline int drmSyncobjWait(int fd, uint32_t *handles, uint32_t count, int64_t timeout_ns, uint32_t flags, uint32_t *first_signaled) { (void)fd; (void)handles; (void)count; (void)timeout_ns; (void)flags; (void)first_signaled; return 0; }
 #endif
 EOF
 
@@ -66,7 +74,7 @@ mkdir -p src/vulkan/runtime && cp -fv $(pwd)/shims_64/xf86drm.h src/vulkan/runti
 mkdir -p src/panfrost/lib/kmod && cp -fv $(pwd)/shims_64/xf86drm.h src/panfrost/lib/kmod/xf86drm.h
 mkdir -p src/panfrost/vulkan/jm && cp -fv $(pwd)/shims_64/xf86drm.h src/panfrost/vulkan/jm/xf86drm.h
 
-echo "-> [Cirugía] Escribiendo stubs de intercambio de imagen para WSI DRM (Paso 459)..."
+echo "-> [Cirugía] Escribiendo stubs de intercambio de imagen para WSI DRM..."
 cat << 'EOF' > src/vulkan/wsi/wsi_common_drm.c
 #include <stdint.h>
 #include <stdbool.h>
