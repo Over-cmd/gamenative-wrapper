@@ -2,7 +2,7 @@
 set -e # Aborta el script inmediatamente si algún comando crítico falla
 
 echo "=========================================================="
-echo "🚀 INICIANDO SCRIPT DE COMPILACIÓN EN CALIENTE MALI-G52"
+echo "🚀 INICIANDO SCRIPT DE COMPILACIÓN HÍBRIDO MALI-G52"
 echo "=========================================================="
 
 echo "-> 1. Inicializando submodulos de libadrenotools de forma recursiva..."
@@ -10,12 +10,12 @@ cd subprojects/libadrenotools
 git submodule update --init --recursive
 cd ../..
 
-echo "-> 2. Aplicando parches de hardware en los archivos de utilidades..."
+echo "-> 2. Applying Mali hardware patches..."
 sed -i 's/fd = syscall(SYS_memfd_create.*/fd = memfd_create(debug_name, MFD_CLOEXEC \| MFD_ALLOW_SEALING);/g' src/util/anon_file.c 2>/dev/null || true
 find . -name "pan_device.c" -exec sed -i 's/pan_query_core_count(&dev->kmod.dev->props, &dev->core_id_range);/dev->core_id_range = pan_query_core_count(\&dev->kmod.dev->props);/g' {} + 2>/dev/null || true
 find . -name "pan_device.c" -exec sed -i 's/\\&/\&/g' {} + 2>/dev/null || true
 
-echo "-> 3. Inyectando stub inline STATIC de sync_wait en panthor_kmod.c (Evita -Werror)..."
+echo "-> 3. Inyectando stub inline STATIC de sync_wait en panthor_kmod.c..."
 KMOD_TARGET="src/panfrost/lib/kmod/panthor_kmod.c"
 if [ -f "$KMOD_TARGET" ]; then
   sed -i '1s|^|static int sync_wait(int fd, int timeout) { return 0; }\n|' "$KMOD_TARGET"
@@ -107,17 +107,22 @@ cp -fv build/src/vulkan/wrapper/libvulkan_wrapper.so "$GITHUB_WORKSPACE/shims_ta
 echo "-> 11c. Compilando el driver unificado final..."
 meson compile -C build
 
+# 🟢 EMPAQUETADO HÍBRIDO TOTAL REPARADO
 echo "-> 12. Estructurando empaque compatible ICD 1.0.0..."
 rm -rf pkg && mkdir -p pkg/usr/lib pkg/usr/share/vulkan/icd.d pkg/usr/share/vulkan/settings.d
 
-# 🟢 REESCRITURA DE SONAME EN CALIENTE: 
-# Pescamos el binario real compilado exitosamente por Ninja y lo renombramos a libvulkan_wrapper.so
-cp -v build/src/panfrost/vulkan/libvulkan_panfrost.so pkg/usr/lib/libvulkan_wrapper.so
+echo "-> Copiando el Wrapper de Pipetto (El interceptor de permisos)..."
+cp -v build/src/vulkan/wrapper/libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
 
-echo "-> Modificando de forma quirurgica el SONAME interno para forzar la entrada al contenedor..."
-patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
+echo "-> Copiando el driver fisico de Panfrost real compilado..."
+cp -v build/src/panfrost/vulkan/libvulkan_panfrost.so pkg/usr/lib/libvulkan_panfrost.so
+
+echo "-> Asegurando los identificadores de SONAME nativos..."
+patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so 2>/dev/null || true
+patchelf --set-soname libvulkan_panfrost.so pkg/usr/lib/libvulkan_panfrost.so 2>/dev/null || true
 llvm-strip --strip-unneeded pkg/usr/lib/*.so 2>/dev/null || true
 
+# El JSON inicializa libvulkan_wrapper.so, el cual llama internamente a libadrenotools + libvulkan_panfrost.so de forma legal
 echo '{"ICD": {"api_version": "1.4.352", "library_path": "libvulkan_wrapper.so"}, "file_format_version": "1.0.0"}' > pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
 echo '{"ICD": {"api_version": "1.4.352", "library_path": "libvulkan_wrapper.so"}, "file_format_version": "1.0.0"}' > pkg/usr/share/vulkan/icd.d/wrapper_icd.arm.json
 echo '{"env":{"PAN_I_WANT_A_BROKEN_VULKAN_DRIVER":"1","MESA_VK_IGNORE_CONFORMANCE_WARNING":"1","PANVK_DEBUG":"sync,nir","MESA_VK_FORCE_BLIT":"1","MESA_LOADER_DRIVER_OVERRIDE":"panfrost","GALLIUM_DRIVER":"panfrost","vblank_mode":"0","MESA_GLSL_CACHE_DISABLE":"1","MESA_SHADER_CACHE_DISABLE":"true","NIR_DEBUG":"tgsi","MESA_VK_WSI_PRESENT_MODE":"immediate","MESA_VK_WSI_DEBUG":"always_async"}}' > pkg/usr/share/vulkan/settings.d/wrapper_settings.json
