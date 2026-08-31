@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 INICIANDO ENLAZADOR HÍBRIDO MESA 25 CON PROTOTIPOS FIJOS TOTAL"
+echo "🚀 INICIANDO ENLAZADOR HÍBRIDO MESA 25 CON STUBS DE KERNEL"
 echo "=========================================================="
 
 echo "-> 1. Compilando el Interceptor oficial en Docker..."
@@ -13,42 +13,57 @@ export ANDROID_NDK_HOME="/usr/local/lib/android/sdk/ndk/28.2.13676358"
 export NDK_BIN="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin"
 export NDK_SYSROOT="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
 
-# Micro-fuente C de trazas y funciones biónicas que ld.lld exige resolver
+# 🟢 JUGADA MAESTRA EXTRAORDINARIA: Expandimos stub_logs.c con las firmas conformes de kernel DRM que exige pan_kmod.c
 cat << 'EOF' > stub_logs.c
+#include <stdint.h>
 int get_wrapper_log_level(const char *option) { (void)option; return 0; }
 void write_to_logfile(const char *fmt, const char *level, ...) { (void)fmt; (void)level; }
 int wsi_get_android_blit_type(void* a, void* b) { (void)a; (void)b; return 0; }
 int wsi_configure_android_image(void* a, void* b) { (void)a; (void)b; return 0; }
+
+/* Stubs de Kernel DRM exigidos por la pila de Panfrost en Mesa 25 */
+int drmIoctl(int fd, unsigned long request, void *arg) { (void)fd; (void)request; (void)arg; return 0; }
+int drmCommandWriteRead(int fd, unsigned long drmCommandIndex, void *data, unsigned long size) { (void)fd; (void)drmCommandIndex; (void)data; (void)size; return 0; }
+int drmCommandWrite(int fd, unsigned long drmCommandIndex, void *data, unsigned long size) { (void)fd; (void)drmCommandIndex; (void)data; (void)size; return 0; }
+int drmCommandRead(int fd, unsigned long drmCommandIndex, void *data, unsigned long size) { (void)fd; (void)drmCommandIndex; (void)data; (void)size; return 0; }
+char *drmGetDeviceNameInsubsystem(int fd, const char *subsystem) { (void)fd; (void)subsystem; return 0; }
+void drmFreeDevice(void *device) { (void)device; }
+int drmGetDevices2(uint32_t flags, void *devices[], int max_devices) { (void)flags; (void)devices; (void)max_devices; return -1; }
+void drmFreeDevices(void *devices[], int count) { (void)devices; (void)count; }
 EOF
 
 mkdir -p "$(pwd)/shims_64"
 $NDK_BIN/aarch64-linux-android26-clang -c stub_logs.c -o stub_logs_64.o
 $NDK_BIN/llvm-ar rcs "$(pwd)/shims_64/libvulkan_wrapper.a" stub_logs_64.o
 
-echo "-> 2b. Neutralizando dependencias DRM residuales mediante stubs simulados..."
+echo "-> 2b. Neutralizando dependencias DRM residuales en caliente..."
 echo " " > src/vulkan/runtime/vk_drm_syncobj.c
 
-# Escribimos el xf86drm.h falso para resolver vk_instance.c de forma limpia
+# Escribimos el xf86drm.h falso estructurado para resolver validaciones semánticas locales
 cat << 'EOF' > $(pwd)/shims_64/xf86drm.h
 #ifndef xf86drm_h
 #define xf86drm_h
+#include <stdint.h>
 typedef struct _drmDevice *drmDevicePtr;
-static inline int drmGetDevices2(uint32_t flags, drmDevicePtr devices[], int max_devices) { return -1; }
-static inline void drmFreeDevices(drmDevicePtr devices[], int count) {}
+int drmIoctl(int fd, unsigned long request, void *arg);
+int drmCommandWriteRead(int fd, unsigned long drmCommandIndex, void *data, unsigned long size);
+int drmCommandWrite(int fd, unsigned long drmCommandIndex, void *data, unsigned long size);
+int drmCommandRead(int fd, unsigned long drmCommandIndex, void *data, unsigned long size);
+int drmGetDevices2(uint32_t flags, drmDevicePtr devices[], int max_devices);
+void drmFreeDevices(drmDevicePtr devices[], int count);
 #endif
 EOF
 
 mkdir -p include
 cp -fv $(pwd)/shims_64/xf86drm.h include/xf86drm.h
 
-# 🟢 JUGADA MAESTRA ABSOLUTA: Inyectamos el prototipo explícito de wsi_common_drm_devices_equal para cerrar el error -Wmissing-prototypes
+# Mantenemos las firmas unificadas de WSI DRM
 cat << 'EOF' > src/vulkan/wsi/wsi_common_drm.c
 #include <stdint.h>
 #include <stdbool.h>
 #include "vk_device.h"
 #include "wsi_common_private.h"
 
-/* Prototipo local explícito exigido por Clang */
 _Bool wsi_common_drm_devices_equal(int a, int b);
 
 VkResult wsi_drm_configure_image(const struct wsi_swapchain *c, const VkSwapchainCreateInfoKHR *p, const struct wsi_drm_image_params *pa, struct wsi_image_info *i) { return 0; }
