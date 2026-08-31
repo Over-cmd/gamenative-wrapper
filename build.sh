@@ -8,6 +8,9 @@ echo "-> 2. Parches de hardware Mali-G52..."
 sed -i 's/fd = syscall(SYS_memfd_create.*/fd = memfd_create(debug_name, MFD_CLOEXEC \| MFD_ALLOW_SEALING);/g' src/util/anon_file.c 2>/dev/null || true
 sed -i '1s|^|static int sync_wait(int fd, int timeout) { return 0; }\n|' src/panfrost/lib/kmod/panthor_kmod.c
 
+echo "-> 2b. 🟢 REPARACIÓN DE LECTURA DE LOGS: Inyectando cabecera fcntl.h en el wrapper_log de Pipetto..."
+sed -i '1s|^|#include <fcntl.h>\n|' src/vulkan/wrapper/wrapper_log.c
+
 echo "-> 3. Prototipos Públicos en Panfrost (Evita -Werror)..."
 cat << 'EOF' >> src/panfrost/vulkan/panvk_android.c
 #include <stdarg.h>
@@ -68,7 +71,6 @@ cpp_link_args = ['-landroid', '-llog', '-lsync', '-lhardware', '-lvulkan_wrapper
 EOF
 
 echo "-> 9. Compilación en dos fases (Bypass circular)..."
-# 🟢 APAGADO DE DRIVERS CPU: Forzamos la matriz de Gallium vacía (-Dgallium-drivers=[]) para anular llvmpipe por completo
 meson setup build --cross-file cross.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dandroid-stub=true -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=panfrost,wrapper
 ninja -C build src/vulkan/wrapper/libvulkan_wrapper.so
 cp -fv build/src/vulkan/wrapper/libvulkan_wrapper.so "$GITHUB_WORKSPACE/shims_target/libvulkan_wrapper.so"
