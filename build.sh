@@ -26,11 +26,11 @@ sed -i "s/cc.find_library('atomic'/dependency('', required : false) #/g" meson.b
 echo "-> 5. Pip e instalables..."
 python -m pip install --upgrade pip && pip install mako PyYAML 'meson>=1.4.0' ninja packaging
 
-echo "-> 6. Entorno NDK ARM64..."
-TRUE_NDK=$(dirname $(dirname $(find /usr/local/lib/android/sdk/ndk/ -name "aarch64-linux-android30-clang" -print -quit)))
-export ANDROID_NDK_HOME="$TRUE_NDK"
-NDK_SYSROOT_LIB="$TRUE_NDK/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/30"
-export CLANG_CROSS="$TRUE_NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android30-clang"
+# 🟢 HARDCODE INDESTRUCTIBLE DEL NDK 28: Rutas fijas sin búsquedas inestables
+echo "-> 6. Configurando entorno NDK r28 oficial de GitHub..."
+export ANDROID_NDK_HOME="/usr/local/lib/android/sdk/ndk/28.2.13676358"
+NDK_SYSROOT_LIB="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/30"
+export CLANG_CROSS="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android30-clang"
 
 echo "-> 7. Shims e inyección ARM64..."
 unzip -o shims.zip -d ./ && mkdir -p "$GITHUB_WORKSPACE/shims_target" && cp -rf ./shims/* "$GITHUB_WORKSPACE/shims_target/"
@@ -41,8 +41,8 @@ $CLANG_CROSS -shared -fPIC simple_stub.c -o "$GITHUB_WORKSPACE/shims_target/libv
 echo "-> 8. Generando cross.txt unificado..."
 cat << EOF > cross.txt
 [constants]
-ndk_bin = '${TRUE_NDK}/toolchains/llvm/prebuilt/linux-x86_64/bin'
-ndk_sysroot = '${TRUE_NDK}/toolchains/llvm/prebuilt/linux-x86_64/sysroot'
+ndk_bin = '${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin'
+ndk_sysroot = '${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot'
 [binaries]
 c = [ndk_bin / 'clang', '-target', 'aarch64-linux-android30', '-D__TERMUX__']
 cpp = [ndk_bin / 'clang++', '-target', 'aarch64-linux-android30', '-fno-exceptions', '--start-no-unused-arguments', '--end-no-unused-arguments', '-D__TERMUX__']
