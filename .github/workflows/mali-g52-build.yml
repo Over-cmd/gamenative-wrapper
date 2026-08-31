@@ -39,8 +39,8 @@ jobs:
           chmod +x build.sh
           ./build.sh
 
-      - name: Upload Final wrapper.tzst Artifact
+            - name: Upload Final wrapper.tzst Artifact
         uses: actions/upload-artifact@v4
         with:
           name: GameNative-Mali-G52-Wrapper
-          path: wrapper.tzst
+          path: wrapper.tzst # Lee de forma directa el archivo exportado en la raíz global
