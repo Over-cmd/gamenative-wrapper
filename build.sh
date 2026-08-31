@@ -107,12 +107,15 @@ cp -fv build/src/vulkan/wrapper/libvulkan_wrapper.so "$GITHUB_WORKSPACE/shims_ta
 echo "-> 11c. Compilando el resto de los objetos graficos y el driver de Panfrost..."
 meson compile -C build
 
-# 🟢 PASO DE EMPAQUETADO BLINDADO Y CORREGIDO: Empaquetamos apuntando de forma estricta a la subcarpeta pkg sin perder las variables
+# 🟢 PASO DE EMPAQUETADO MAESTRO CON RENOMBRADO TÁCTICO:
 echo "-> 12. Estructurando empaque compatible ICD 1.0.0..."
 rm -rf pkg && mkdir -p pkg/usr/lib pkg/usr/share/vulkan/icd.d pkg/usr/share/vulkan/settings.d
-cp -v build/src/vulkan/wrapper/libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so 2>/dev/null || true
-cp -v build/src/panfrost/vulkan/libvulkan_panfrost.so pkg/usr/lib/libvulkan_panfrost.so 2>/dev/null || true
 
+echo "-> 🟢 JUGADA CLAVE: Poniendo la libvulkan_panfrost.so real bajo el nombre de libvulkan_wrapper.so..."
+# Copiamos el driver físico real directo sobre el nombre del wrapper requerido para Bannerlator
+cp -v build/src/panfrost/vulkan/libvulkan_panfrost.so pkg/usr/lib/libvulkan_wrapper.so
+
+echo "-> Ajustando el soname interno del binario modificado..."
 patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so 2>/dev/null || true
 llvm-strip --strip-unneeded pkg/usr/lib/*.so 2>/dev/null || true
 
@@ -122,7 +125,6 @@ echo '{"env":{"PAN_I_WANT_A_BROKEN_VULKAN_DRIVER":"1","MESA_VK_IGNORE_CONFORMANC
 
 echo "msf:315508" > pkg/version.txt && chmod -R 755 pkg/
 
-# 🟢 AJUSTE DE RUTA: Comprimimos directamente dentro del subdirectorio y guardamos el archivo .tzst en el area de trabajo global
 cd pkg
 tar -I 'zstd -19 -T0' -cf "$GITHUB_WORKSPACE/wrapper.tzst" usr version.txt
 
