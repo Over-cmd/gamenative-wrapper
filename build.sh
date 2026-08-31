@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 INICIANDO ENLAZADOR HÍBRIDO MESA 25 INTEGRAL"
+echo "🚀 INICIANDO ENLAZADOR HÍBRIDO MESA 25 CON INYECCIÓN DE CABECERAS"
 echo "=========================================================="
 
 echo "-> 1. Compilando el Interceptor oficial en Docker..."
@@ -13,6 +13,7 @@ export ANDROID_NDK_HOME="/usr/local/lib/android/sdk/ndk/28.2.13676358"
 export NDK_BIN="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin"
 export NDK_SYSROOT="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
 
+# Micro-fuente C de trazas y funciones biónicas que ld.lld exige resolver
 cat << 'EOF' > stub_logs.c
 int get_wrapper_log_level(const char *option) { (void)option; return 0; }
 void write_to_logfile(const char *fmt, const char *level, ...) { (void)fmt; (void)level; }
@@ -24,44 +25,47 @@ mkdir -p "$(pwd)/shims_64"
 $NDK_BIN/aarch64-linux-android26-clang -c stub_logs.c -o stub_logs_64.o
 $NDK_BIN/llvm-ar rcs "$(pwd)/shims_64/libvulkan_wrapper.a" stub_logs_64.o
 
-echo "-> 2b. Ejecutando cirugías atómicas en caliente..."
+echo "-> 2b. Neutralizando dependencias DRM residuales mediante stubs simulados..."
 echo " " > src/vulkan/runtime/vk_drm_syncobj.c
 mkdir -p src/util && echo " " > src/util/libdrm.h
 
-# 🟢 CIRUGÍA 1: Python extirpa la enumeración DRM de vk_instance.c
-python3 -c '
-p="src/vulkan/runtime/vk_instance.c"; f=open(p,"r"); c=f.read(); f.close()
-t="enumerate_drm_physical_devices_locked(struct vk_instance *instance)\n{"
-c=c.replace(t, t+"\n   return VK_SUCCESS;")
-f=open(p,"w"); f.write(c); f.close()
-'
-
-# 🟢 CIRUGÍA 2: Python parcha wsi_common_drm.c con las firmas EXACTAS de Mesa 25
-python3 -c '
-p="src/vulkan/wsi/wsi_common_drm.c"
-stubs = """#include <stdint.h>\n#include <stdbool.h>\n#include "vk_device.h"\n#include "wsi_common_private.h"\n_Bool wsi_common_drm_devices_equal(int a, int b);\nVkResult wsi_drm_configure_image(const struct wsi_swapchain *c, const VkSwapchainCreateInfoKHR *p, const struct wsi_drm_image_params *pa, struct wsi_image_info *i) { return 0; }\nVkResult wsi_prepare_signal_dma_buf_from_semaphore(struct wsi_swapchain *c, const struct wsi_image *i) { return 0; }\nVkResult wsi_signal_dma_buf_from_semaphore(const struct wsi_swapchain *c, const struct wsi_image *i) { return 0; }\nVkResult wsi_create_sync_for_dma_buf_wait(const struct wsi_swapchain *c, const struct wsi_image *i, enum vk_sync_features f, struct vk_sync **s) { return 0; }\nVkResult wsi_create_image_explicit_sync_drm(const struct wsi_swapchain *c, struct wsi_image *i) { return 0; }\nvoid wsi_destroy_image_explicit_sync_drm(const struct wsi_swapchain *c, struct wsi_image *i) {}\nVkResult wsi_create_sync_for_image_syncobj(const struct wsi_swapchain *c, const struct wsi_image *i, enum vk_sync_features f, struct vk_sync **s) { return 0; }\n_Bool wsi_common_drm_devices_equal(int a, int b) { return 0; }\n_Bool wsi_device_matches_drm_fd(VkPhysicalDevice p, int d) { return 0; }\n_Bool wsi_drm_image_needs_buffer_blit(const struct wsi_device *w, const struct wsi_drm_image_params *p) { return 0; }\n"""
-f=open(p,"w"); f.write(stubs); f.close()
-'
-
-# 🟢 CIRUGÍA 3: Cambiamos la llamada estricta de xf86drm.h a comillas en pan_kmod.c para burlar el Sysroot
-sed -i 's/#include <xf86drm.h>/#include "xf86drm.h"/g' src/panfrost/lib/kmod/pan_kmod.c
-
-# Fabricamos un xf86drm.h local falso impecable para alimentar a vk_instance y pan_kmod de golpe
+# 🟢 CABECERA CONTROLADORA COMPLETA: Agregamos todas las estructuras que buscan tanto vk_instance como pan_kmod de golpe
 cat << 'EOF' > $(pwd)/shims_64/xf86drm.h
 #ifndef xf86drm_h
 #define xf86drm_h
 #include <stdint.h>
-typedef struct _drmDevice *drmDevicePtr;
+typedef struct _drmDevice { char **nodes; } *drmDevicePtr;
 typedef struct _drmVersion { int version_major; int version_minor; int version_patchlevel; char *name; char *date; char *desc; } *drmVersionPtr;
-static inline drmVersionPtr drmGetVersion(int fd) { return NULL; }
-static inline void drmFreeVersion(drmVersionPtr v) {}
-static inline int drmCloseBufferHandle(int fd, uint32_t handle) { return 0; }
-static inline int drmPrimeFDToHandle(int fd, int prime_fd, uint32_t *handle) { return 0; }
+static inline drmVersionPtr drmGetVersion(int fd) { (void)fd; return 0; }
+static inline void drmFreeVersion(drmVersionPtr v) { (void)v; }
+static inline int drmCloseBufferHandle(int fd, uint32_t handle) { (void)fd; (void)handle; return 0; }
+static inline int drmPrimeFDToHandle(int fd, int prime_fd, uint32_t *handle) { (void)fd; (void)prime_fd; (void)handle; return 0; }
+static inline int drmGetDevices2(uint32_t flags, drmDevicePtr devices[], int max_devices) { (void)flags; (void)devices; (void)max_devices; return -1; }
+static inline void drmFreeDevices(drmDevicePtr devices[], int count) { (void)devices; (void)count; }
 #endif
 EOF
 
 mkdir -p include && cp -fv $(pwd)/shims_64/xf86drm.h include/xf86drm.h
 mkdir -p src/panfrost/lib/kmod && cp -fv $(pwd)/shims_64/xf86drm.h src/panfrost/lib/kmod/xf86drm.h
+
+# 🟢 STUBS DE WSI DRM COMPLETOS
+cat << 'EOF' > src/vulkan/wsi/wsi_common_drm.c
+#include <stdint.h>
+#include <stdbool.h>
+#include "vk_device.h"
+#include "wsi_common_private.h"
+_Bool wsi_common_drm_devices_equal(int a, int b);
+VkResult wsi_drm_configure_image(const struct wsi_swapchain *c, const VkSwapchainCreateInfoKHR *p, const struct wsi_drm_image_params *pa, struct wsi_image_info *i) { return 0; }
+VkResult wsi_prepare_signal_dma_buf_from_semaphore(struct wsi_swapchain *c, const struct wsi_image *i) { return 0; }
+VkResult wsi_signal_dma_buf_from_semaphore(const struct wsi_swapchain *c, const struct wsi_image *i) { return 0; }
+VkResult wsi_create_sync_for_dma_buf_wait(const struct wsi_swapchain *c, const struct wsi_image *i, enum vk_sync_features f, struct vk_sync **s) { return 0; }
+VkResult wsi_create_image_explicit_sync_drm(const struct wsi_swapchain *c, struct wsi_image *i) { return 0; }
+void wsi_destroy_image_explicit_sync_drm(const struct wsi_swapchain *c, struct wsi_image *i) {}
+VkResult wsi_create_sync_for_image_syncobj(const struct wsi_swapchain *c, const struct wsi_image *i, enum vk_sync_features f, struct vk_sync **s) { return 0; }
+_Bool wsi_common_drm_devices_equal(int a, int b) { return 0; }
+_Bool wsi_device_matches_drm_fd(VkPhysicalDevice p, int d) { return 0; }
+_Bool wsi_drm_image_needs_buffer_blit(const struct wsi_device *w, const struct wsi_drm_image_params *p) { return 0; }
+EOF
 
 NDK_SYSROOT_LIB_64="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/26"
 
@@ -79,26 +83,31 @@ cat << EOF > cross_64.txt
 ndk_path = '${ANDROID_NDK_HOME}'
 toolchain = ndk_path + '/toolchains/llvm/prebuilt/linux-x86_64/bin'
 api = '26'
+
 [binaries]
 c       = toolchain + '/aarch64-linux-android' + api + '-clang'
 cpp     = toolchain + '/aarch64-linux-android' + api + '-clang++'
 ar      = toolchain + '/llvm-ar'
 strip   = toolchain + '/llvm-strip'
 pkg-config = '/usr/bin/pkg-config'
+
 [host_machine]
 system = 'android'
 cpu_family = 'aarch64'
 cpu = 'aarch64'
 endian = 'little'
+
 [properties]
 needs_exe_wrapper = true
 sys_root = '${NDK_SYSROOT}'
 libdir = '${NDK_SYSROOT_LIB_64}'
 pkg_config_path = '$(pwd)/shims_64'
 pkg_config_libdir = '$(pwd)/shims_64'
+
 [built-in options]
-c_args = ['--sysroot=' + '${NDK_SYSROOT}', '-D__TERMUX__']
-cpp_args = ['--sysroot=' + '${NDK_SYSROOT}', '-D__TERMUX__']
+# 🟢 JAQUE MATE: Forzamos el flag '-include xf86drm.h' e inyectamos la ruta de shims para obligar a Clang a leerlo en toda la pila
+c_args = ['--sysroot=' + '${NDK_SYSROOT}', '-D__TERMUX__', '-I$(pwd)/shims_64', '-include', 'xf86drm.h']
+cpp_args = ['--sysroot=' + '${NDK_SYSROOT}', '-D__TERMUX__', '-I$(pwd)/shims_64', '-include', 'xf86drm.h']
 c_link_args = ['-landroid', '-llog', '-lsync', '-lvulkan_wrapper', '-L${NDK_SYSROOT_LIB_64}', '-L$(pwd)/shims_64']
 cpp_link_args = ['-landroid', '-llog', '-lsync', '-lvulkan_wrapper', '-L${NDK_SYSROOT_LIB_64}', '-L$(pwd)/shims_64']
 EOF
