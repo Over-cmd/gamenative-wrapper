@@ -1,126 +1,86 @@
-# ==========================================
-# STAGE 1: Entorno de compilación base con NDK Real
-# ==========================================
-FROM --platform=linux/amd64 ubuntu:22.04 AS builder
+FROM ghcr.io/termux/package-builder:latest
 
-ENV DEBIAN_FRONTEND=noninteractive
-ENV ANDROID_NDK_HOME=/opt/android-ndk
+USER root
 
-# Instalar dependencias esenciales de compilación para Mesa 3D
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    python3 \
-    python3-pip \
-    python3-setuptools \
-    ninja-build \
-    bison \
-    flex \
-    m4 \
-    pkg-config \
-    unzip \
-    git \
-    curl \
-    glslang-tools \
-    && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends ninja-build && \
+    pip3 install --break-system-packages --ignore-installed --no-cache-dir meson ninja mako pyyaml packaging
 
-# Instalar Meson actualizado vía pip
-RUN pip3 install meson
+RUN mkdir -p /tmp/sysroot && \
+    cd /tmp/sysroot && \
+    TERMUX_REPO="https://packages-cf.termux.dev/apt/termux-main" && \
+    curl -s "${TERMUX_REPO}/dists/stable/main/binary-aarch64/Packages" > Packages && \
+    PACKAGES="libdrm libandroid-shmem libxcb libx11 libxshmfence libxext libxrandr libxrender xorgproto libxau libxdmcp" && \
+    for pkg in $PACKAGES; do \
+        pkg_path=$(awk -v p="Package: $pkg" '$0==p{flag=1} flag && /^Filename:/{print $2; exit}' Packages) && \
+        curl -L -O "${TERMUX_REPO}/${pkg_path}"; \
+    done && \
+    mkdir -p /data/data/com.termux/files/usr && \
+    for f in *.deb; do dpkg-deb -x "$f" /; done && \
+    rm -rf /tmp/sysroot
 
-# Descarga robusta del NDK r26b para Linux AMD64 de Google
-RUN mkdir -p /opt \
-    && curl -L --retry 5 --retry-delay 2 https://google.com -o /tmp/ndk.zip \
-    && unzip -q /tmp/ndk.zip -d /opt \
-    && mv /opt/android-ndk-r26b ${ANDROID_NDK_HOME} \
-    && rm /tmp/ndk.zip
+RUN NDK_DIR=$(find /home/builder/lib -maxdepth 2 -name "android-ndk*" 2>/dev/null | head -n 1) && \
+    NDK_BIN="${NDK_DIR}/toolchains/llvm/prebuilt/linux-x86_64/bin" && \
+    mkdir -p /root/build-config && \
+    cat << EOF > /root/build-config/cross_file.txt
+[binaries]
+c = '${NDK_BIN}/aarch64-linux-android30-clang'
+cpp = '${NDK_BIN}/aarch64-linux-android30-clang++'
+ar = '${NDK_BIN}/llvm-ar'
+strip = '${NDK_BIN}/llvm-strip'
+pkg-config = 'pkg-config'
 
-# Cambiar al directorio de trabajo y clonar el Mesa personalizado
+[constants]
+termux_dir = '/data/data/com.termux/files/usr'
+
+[properties]
+pkg_config_libdir = termux_dir + '/lib/pkgconfig:' + termux_dir + '/share/pkgconfig'
+
+[built-in options]
+c_args = ['-D__TERMUX__', '-D__USE_GNU', '-U__ANDROID__', '-I' + termux_dir + '/include', '-include', 'fcntl.h', '-include', 'unistd.h']
+cpp_args = ['-D__TERMUX__', '-D__USE_GNU', '-U__ANDROID__', '-I' + termux_dir + '/include', '-include', 'fcntl.h', '-include', 'unistd.h']
+c_link_args = ['-L' + termux_dir + '/lib', '-landroid-shmem']
+cpp_link_args = ['-L' + termux_dir + '/lib', '-landroid-shmem']
+
+[host_machine]
+system = 'android'
+cpu_family = 'aarch64'
+cpu = 'armv8-a'
+endian = 'little'
+EOF
+
+RUN cat << 'EOF' > /root/build.sh
+#!/bin/bash
+set -e
+
+BUILD_DIR="${1:-${BUILD_DIR:-build}}"
+
+if [ ! -d "${BUILD_DIR}" ]; then
+  meson setup "${BUILD_DIR}" --cross-file /root/build-config/cross_file.txt \
+      -Dcpp_rtti=false \
+      -Dgbm=disabled \
+      -Dopengl=false \
+      -Dllvm=disabled \
+      -Dshared-llvm=disabled \
+      -Dplatforms=x11 \
+      -Dgallium-drivers= \
+      -Dxmlconfig=disabled \
+      -Dvulkan-drivers=wrapper
+fi
+
+ninja -C "${BUILD_DIR}" src/vulkan/wrapper/libvulkan_wrapper.so
+
+cp "${BUILD_DIR}/src/vulkan/wrapper/libvulkan_wrapper.so" "${BUILD_DIR}/libvulkan_wrapper.so.unstripped"
+
+NDK_DIR=$(find /home/builder/lib -maxdepth 2 -name "android-ndk*" 2>/dev/null | head -n 1)
+STRIP="${NDK_DIR}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip"
+$STRIP --strip-unneeded -o "${BUILD_DIR}/libvulkan_wrapper.so" "${BUILD_DIR}/libvulkan_wrapper.so.unstripped"
+
+echo "Build successful:"
+echo " - libvulkan_wrapper.so"
+echo " - libvulkan_wrapper.so.unstripped"
+EOF
+RUN chmod +x /root/build.sh
+
 WORKDIR /workspace
-RUN git clone --depth 1 https://github.com .
-
-# Copiar tus archivos de configuración cruzada locales
-COPY android-32.toml android-64.toml ./
-
-# ==========================================
-# STAGE 2: Compilación de 32 Bits (Mali-G52 MP2)
-# ==========================================
-FROM builder AS build-32
-RUN meson setup build-32 \
-    --cross-file android-32.toml \
-    --buildtype=release \
-    -Dplatforms=android \
-    -Dgallium-drivers=zink,swrast \
-    -Dvulkan-drivers=panfrost \
-    && ninja -C build-32/
-
-# ==========================================
-# STAGE 3: Compilación de 64 Bits (Mali-G52 MP2)
-# ==========================================
-FROM builder AS build-64
-RUN meson setup build-64 \
-    --cross-file android-64.toml \
-    --buildtype=release \
-    -Dplatforms=android \
-    -Dgallium-drivers=zink,swrast \
-    -Dvulkan-drivers=panfrost \
-    && ninja -C build-64/
-
-# ==========================================
-# STAGE 4: Empaquetado Monolítico con Enrutador Dinámico
-# ==========================================
-FROM builder AS final
-WORKDIR /dist
-
-# Crear estructura plana de salida para Bannerlator
-RUN mkdir -p panvk-package/lib
-
-# 1. Copiar los binarios reales renombrados para evitar colisiones
-COPY --from=build-32 /workspace/build-32/src/panfrost/vulkan/libvulkan_panfrost.so ./panvk-package/lib/libvulkan_panfrost_32.so
-COPY --from=build-64 /workspace/build-64/src/panfrost/vulkan/libvulkan_panfrost.so ./panvk-package/lib/libvulkan_panfrost_64.so
-
-# 2. Generar el código del enrutador dinámico (wrapper puente) que lee el entorno en runtime
-RUN echo '#define _GNU_SOURCE\n\
-#include <stdio.h>\n\
-#include <dlfcn.h>\n\
-#include <vulkan/vulkan.h>\n\
-\n\
-static void* handle = NULL;\n\
-\n\
-__attribute__((constructor)) void init_wrapper() {\n\
-    // Detectar si el proceso actual es de 32 o 64 bits para cargar el driver correcto\n\
-    if (sizeof(void*) == 8) {\n\
-        handle = dlopen("/usr/lib/libvulkan_panfrost_64.so", RTLD_NOW | RTLD_GLOBAL);\n\
-        if (!handle) handle = dlopen("./libvulkan_panfrost_64.so", RTLD_NOW | RTLD_GLOBAL);\n\
-    } else {\n\
-        handle = dlopen("/usr/lib/libvulkan_panfrost_32.so", RTLD_NOW | RTLD_GLOBAL);\n\
-        if (!handle) handle = dlopen("./libvulkan_panfrost_32.so", RTLD_NOW | RTLD_GLOBAL);\n\
-    }\n\
-}\n\
-\n\
-// Interceptor universal de entrada ICD de Vulkan que redirige las llamadas de la App hacia Mesa\n\
-PFN_vkVoidFunction vk_icdGetInstanceProcAddr(VkInstance instance, const char* pName) {\n\
-    if (!handle) return NULL;\n\
-    typedef PFN_vkVoidFunction (*PFN_icdGet)(VkInstance, const char*);\n\
-    PFN_icdGet real_icd = (PFN_icdGet)dlsym(handle, "vk_icdGetInstanceProcAddr");\n\
-    return real_icd ? real_icd(instance, pName) : NULL;\n\
-}' > wrapper.c
-
-# 3. Compilar el enrutador puente como el archivo "libvulkan_wrapper.so" plano de 64 bits solicitado
-RUN gcc -shared -fPIC -o ./panvk-package/lib/libvulkan_wrapper.so wrapper.c -ldl -I/workspace/include
-
-# Escribir el manifiesto wrappers.json específico para Unisoc Tiger T618
-RUN echo '[{\
-  "id": "panvk-unisoc-t618-fat",\
-  "name": "Unisoc T618 Mali-G52 PanVK Bridge",\
-  "description": "Driver Vulkan PanVK monolítico unificado de 32/64 bits para Unisoc Tiger T618. Gestiona la carga dinámica mediante un enrutador inteligente.",\
-  "author": "funnymdzz / Over-cmd",\
-  "version": "25.0.0-t618-bridge",\
-  "gpuTargets": ["mali"],\
-  "features": ["panvk_android", "vulkan_1_1"],\
-  "type": "icd_wrapper"\
-}]' > ./panvk-package/wrappers.json
-
-# Comprimir la carpeta en el formato .tar.xz plano que lee Bannerlator
-RUN cd panvk-package && tar -cJf ../panvk-mali-bannerlator.tar.xz lib/ wrappers.json
-
-# Exponer el árbol para la exportación directa de GitHub Actions sin comandos duplicados
-RUN cp -r panvk-package ../ && cp ../panvk-mali-bannerlator.tar.xz /
+ENTRYPOINT ["/root/build.sh"]
