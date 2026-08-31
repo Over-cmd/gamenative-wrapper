@@ -31,7 +31,6 @@ jobs:
           echo "-> Inicializando submodulos de libadrenotools de forma recursiva..."
           git submodule update --init --recursive
 
-      # 🟢 PASO QUIRÚRGICO ABSOLUTO: Trituramos de forma exacta el código de libadrenotools y de linkernsbypass
       - name: Inject Hardware Patches for Mali-G52
         run: |
           echo "-> Aplicando parches de hardware en los archivos de utilidades..."
@@ -39,17 +38,13 @@ jobs:
           find main-repo/ -name "pan_device.c" -exec sed -i 's/pan_query_core_count(&dev->kmod.dev->props, &dev->core_id_range);/dev->core_id_range = pan_query_core_count(\&dev->kmod.dev->props);/g' {} + 2>/dev/null || true
           find main-repo/ -name "pan_device.c" -exec sed -i 's/\\&/\&/g' {} + 2>/dev/null || true
           
-          echo "-> 🟢 PARCHE CRÍTICO: Sobrescribiendo cpp.find_library y c.find_library en libadrenotools..."
+          echo "-> Neutralizando búsquedas rígidas sin borrar declaraciones de variables..."
           TARGET_BUILD="main-repo/subprojects/libadrenotools/meson.build"
           if [ -f "$TARGET_BUILD" ]; then
-            # Reemplazamos exactamente las llamadas rígidas por stubs vacíos manteniendo vivas las variables
             sed -i "s|libandroid_dep = .*|libandroid_dep = dependency('', required : false)|g" "$TARGET_BUILD"
             sed -i "s|liblog_dep = .*|liblog_dep = dependency('', required : false)|g" "$TARGET_BUILD"
-            echo "=== Verificando estructura parchada ==="
-            cat "$TARGET_BUILD" | head -n 20
           fi
           
-          echo "-> Purgando validaciones rigidas de libdl en linkernsbypass de forma recursiva..."
           find main-repo/subprojects/libadrenotools/ -name "meson.build" -exec sed -i "s|.*find_library.*dl.*|libdl_dep = dependency('', required : false)|g" {} + 2>/dev/null || true
           find main-repo/subprojects/libadrenotools/ -name "meson.build" -exec sed -i "s/cc.find_library('dl'/dependency('', required : false) #/g" {} + 2>/dev/null || true
           
@@ -78,6 +73,7 @@ jobs:
             if [ -d "$path/toolchains/llvm/prebuilt/linux-x86_64/bin" ]; then echo "REAL_NDK_HOME=$path" >> $GITHUB_ENV; break; fi
           done
 
+      # 🟢 PASO MAESTRO REPARADO: Removemos '-lhardware' para romper la paradoja recursiva en el objeto 63
       - name: Generate Indestructible Meson Cross-File
         run: |
           cd main-repo
@@ -116,8 +112,8 @@ jobs:
           [built-in options]
           c_args = ['--sysroot=' + ndk_sysroot, '-fno-emulated-tls', '-I' + shims_path / 'include', '-isystem' + ndk_sysroot / 'usr/include', '-DHAVE_STRUCT_TIMESPEC', '-DHAVE_DLFCN_H', '-UHAVE_SECURE_GETENV', '-UHAVE_QSORT_S', '-include', 'fcntl.h', '-include', 'time.h', '-Wl,-llog', '-Wl,-lsync', '-fvisibility=default']
           cpp_args = ['--sysroot=' + ndk_sysroot, '-fno-emulated-tls', '-I' + shims_path / 'include', '-isystem' + ndk_sysroot / 'usr/include', '-DHAVE_STRUCT_TIMESPEC', '-DHAVE_DLFCN_H', '-UHAVE_SECURE_GETENV', '-UHAVE_QSORT_S', '-include', 'fcntl.h', '-include', 'time.h', '-include', 'dlfcn.h', '-Wl,-llog', '-Wl,-lsync', '-fvisibility=default', '-D_LIBCPP_ABI_NAMESPACE=__1']
-          c_link_args = ['-landroid', '-llog', '-lsync', '-lhardware', '-L' + ndk_sysroot_lib, '-L' + shims_path, '--sysroot=' + ndk_sysroot, '-Wl,--allow-shlib-undefined', '-llog', '-lsync']
-          cpp_link_args = ['-landroid', '-llog', '-lsync', '-lhardware', '-L' + ndk_sysroot_lib, '-L' + shims_path, '--sysroot=' + ndk_sysroot, '-Wl,--allow-shlib-undefined', '-llog', '-lsync']
+          c_link_args = ['-Wl,--allow-shlib-undefined', '-landroid', '-llog', '-lsync', '-L' + ndk_sysroot_lib, '-L' + shims_path, '--sysroot=' + ndk_sysroot, '-llog', '-lsync']
+          cpp_link_args = ['-Wl,--allow-shlib-undefined', '-landroid', '-llog', '-lsync', '-L' + ndk_sysroot_lib, '-L' + shims_path, '--sysroot=' + ndk_sysroot, '-llog', '-lsync']
           EOF
 
       - name: Configure GameNative Meson Setup
