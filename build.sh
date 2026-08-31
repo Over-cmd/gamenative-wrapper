@@ -10,7 +10,7 @@ echo "-> 1. Ordenando al Contenedor de Docker compilar el Interceptor oficial...
 docker run --rm -v "$(pwd):/workspace" ghcr.io/leegao/mesa-wrapper-ci/wrapper-compiler:latest compilacion
 
 echo "-> 2. 🟢 JUGADA MAESTRA: Forzamos al Docker a compilar el driver físico de Panfrost..."
-# Aprovechamos el entorno interno del Docker (con libdrm de Termux y -U__ANDROID__ listo) para compilar Mesa 25 nativo
+# 🟢 RUTA CORREGIDA: Apuntamos al target legítimo indexado por Meson para compilar el motor de Panfrost
 docker run --rm -v "$(pwd):/workspace" --entrypoint /usr/bin/ninja ghcr.io/leegao/mesa-wrapper-ci/wrapper-compiler:latest -C compilacion src/panfrost/vulkan/libvulkan_panfrost.so
 
 echo "-> 3. Estructurando maquetado ICD plano reglamentario para Bannerlator..."
