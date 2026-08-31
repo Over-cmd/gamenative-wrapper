@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 INICIANDO ENLAZADOR HÍBRIDO FAT INDESTRUCTIBLE API 26"
+echo "🚀 INICIANDO ENLAZADOR HÍBRIDO FAT BASADO EN TOML OFICIAL"
 echo "=========================================================="
 
 echo "-> 1. Submódulos de Pipetto..."
@@ -38,7 +38,7 @@ export ANDROID_NDK_HOME="/usr/local/lib/android/sdk/ndk/28.2.13676358"
 export NDK_BIN="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin"
 export NDK_SYSROOT="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
 
-# Escribimos el micro-fuente C de trazas que ld.lld exige resolver
+# Escribimos el micro-fuente C de trazas que ld.lld exige resolver de Pipetto
 cat << 'EOF' > stub_logs.c
 int get_wrapper_log_level(const char *option) { (void)option; return 0; }
 void write_to_logfile(const char *fmt, const char *level, ...) { (void)fmt; (void)level; }
@@ -86,7 +86,8 @@ cpp_link_args = ['-landroid', '-llog', '-lsync', '-lvulkan_wrapper', '-L${NDK_SY
 EOF
 
 echo "-> 9a. Lanzando Setup y Compilación de Mesa de 32 bits..."
-meson setup build-32 --cross-file cross_32.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dandroid-stub=true -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=panfrost,wrapper
+# 🟢 APAGADO ESTRATÉGICO: Quitamos el modulo wrapper de la llamada de 32 bits para evitar que compile linkernsbypass.cpp incompatible
+meson setup build-32 --cross-file cross_32.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dandroid-stub=true -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=panfrost
 meson compile -C build-32
 
 # ==========================================
@@ -174,7 +175,7 @@ EOF
 $NDK_BIN/aarch64-linux-android26-clang -shared -fPIC -o libvulkan_wrapper.so wrapper.c -ldl --sysroot="$NDK_SYSROOT"
 
 # ==========================================
-# 🟢 FASE D: MAQUETADO ICD PLANO DEFINITIVO REORDENADO
+# 🟢 FASE D: MAQUETADO ICD PLANO DEFINITIVO
 # ==========================================
 echo "-> 10. Estructurando carpetas finales..."
 rm -rf pkg && mkdir -p pkg/usr/lib pkg/usr/share/vulkan/icd.d
@@ -182,11 +183,13 @@ rm -rf pkg && mkdir -p pkg/usr/lib pkg/usr/share/vulkan/icd.d
 echo "-> [A] Copiando el Enrutador Fat unificado como entrada principal..."
 cp -v libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
 
-echo "-> [B] 🟢 ARREGLO SUPREMO: Copiando los drivers físicos reales de Panfrost a las rutas de dlopen..."
+echo "-> [B] Copiando el driver físico real de 64 bits generado en la fase B..."
 cp -v build-64/src/panfrost/vulkan/libvulkan_panfrost.so pkg/usr/lib/libvulkan_panfrost_64.so
+
+echo "-> [C] Copiando el driver físico real de 32 bits generado en la fase A..."
 cp -v build-32/src/panfrost/vulkan/libvulkan_panfrost.so pkg/usr/lib/libvulkan_panfrost_32.so
 
-echo "-> [D] Estampando identidades internal SONAME y limpiando binarios..."
+echo "-> [D] Estampando identidades internal SONAME y aplicando strip..."
 patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
 patchelf --set-soname libvulkan_panfrost_64.so pkg/usr/lib/libvulkan_panfrost_64.so
 patchelf --set-soname libvulkan_panfrost_32.so pkg/usr/lib/libvulkan_panfrost_32.so
@@ -200,5 +203,5 @@ echo "msf:315508" > pkg/version.txt && chmod -R 755 pkg/
 cd pkg && tar -I "zstd -19 -T0" -cf "$GITHUB_WORKSPACE/wrapper.tzst" usr version.txt
 
 echo "=========================================================="
-echo "🟢 ¡FAT BINARY MULTI-ARQUITECTURA SELLADO Y REORDENADO CON ÉXITO!"
+echo "🟢 ¡FAT BINARY MULTI-ARQUITECTURA COMPILADO EN VERDE ABSOLUTO!"
 echo "=========================================================="
