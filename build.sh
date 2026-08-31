@@ -2,18 +2,17 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 INICIANDO ENLAZADOR HÍBRIDO MESA 25 CON CIRUGÍA ATÓMICA"
+echo "🚀 INICIANDO ENLAZADOR HÍBRIDO MESA 25 REAL COMPLETO"
 echo "=========================================================="
 
-echo "-> 1. Ordenando al Contenedor de Docker compilar el Interceptor oficial..."
+echo "-> 1. Compilando el Interceptor oficial en Docker..."
 docker run --rm -v "$(pwd):/workspace" ghcr.io/leegao/mesa-wrapper-ci/wrapper-compiler:latest compilacion
 
-echo "-> 2. Configurando entorno de compilación cruzada NDK en el Host..."
+echo "-> 2. Configurando entorno de compilación cruzada NDK..."
 export ANDROID_NDK_HOME="/usr/local/lib/android/sdk/ndk/28.2.13676358"
 export NDK_BIN="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin"
 export NDK_SYSROOT="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
 
-# Micro-fuente C de trazas y funciones biónicas que ld.lld exige resolver
 cat << 'EOF' > stub_logs.c
 int get_wrapper_log_level(const char *option) { (void)option; return 0; }
 void write_to_logfile(const char *fmt, const char *level, ...) { (void)fmt; (void)level; }
@@ -25,73 +24,43 @@ mkdir -p "$(pwd)/shims_64"
 $NDK_BIN/aarch64-linux-android26-clang -c stub_logs.c -o stub_logs_64.o
 $NDK_BIN/llvm-ar rcs "$(pwd)/shims_64/libvulkan_wrapper.a" stub_logs_64.o
 
-echo "-> 2b. Ejecutando cirugía atómica con Python en archivos DRM..."
+echo "-> 2b. Ejecutando cirugías atómicas en caliente..."
 echo " " > src/vulkan/runtime/vk_drm_syncobj.c
 mkdir -p src/util
 echo " " > src/util/libdrm.h
 
-# 🟢 CIRUGÍA 1: Extirpar e inmunizar vk_instance.c contra el escáner de escritorio
+# 🟢 CIRUGÍA 1: Python extirpa la enumeración DRM de vk_instance.c
 python3 -c '
-with open("src/vulkan/runtime/vk_instance.c", "r") as f:
-    code = f.read()
+p="src/vulkan/runtime/vk_instance.c"; f=open(p,"r"); c=f.read(); f.close()
+t="enumerate_drm_physical_devices_locked(struct vk_instance *instance)\n{"
+c=c.replace(t, t+"\n   return VK_SUCCESS;")
+f=open(p,"w"); f.write(code if "code" in locals() else c); f.close()
+print("-> vk_instance.c Inyectado")'
 
-start_pattern = "enumerate_drm_physical_devices_locked(struct vk_instance *instance)"
-end_pattern = "enumerate_physical_devices_locked(struct vk_instance *instance)"
-
-if start_pattern in code and end_pattern in code:
-    parts_start = code.split(start_pattern)
-    before_func = parts_start[0]
-    rest_of_code = parts_start[1]
-    
-    parts_end = rest_of_code.split(end_pattern)
-    after_func = parts_end[1]
-    
-    before_func = before_func.rsplit("static VkResult", 1)[0]
-    
-    code = before_func + "static VkResult\nenumerate_drm_physical_devices_locked(struct vk_instance *instance)\n{\n   return VK_SUCCESS;\n}\n\nstatic VkResult\n" + end_pattern + after_func
-    print("-> Python: ¡vk_instance.c parchado con éxito!")
-else:
-    code = code.replace("drmDevicePtr devices;", "return VK_SUCCESS; //")
-    print("-> Python: Fallback aplicado en vk_instance.c")
-
-with open("src/vulkan/runtime/vk_instance.c", "w") as f:
-    f.write(code)
-'
-
-# 🟢 CIRUGÍA 2: Neutralizar wsi_common_drm.c manteniendo firmas vivas para el Linker
+# 🟢 CIRUGÍA 2: Python parcha wsi_common_drm.c con las firmas EXACTAS de Mesa 25
 python3 -c '
-with open("src/vulkan/wsi/wsi_common_drm.c", "r") as f:
-    code = f.read()
-
-# Envolvemos el cuerpo completo del archivo en un macro de apagado #if 0 para Clang
-patched_code = "#if 0\n" + code + "\n#endif\n"
-
-# Le reinyectamos los cascarones vacíos reglamentarios para que el Linker no tire referencias huerfanas
+p="src/vulkan/wsi/wsi_common_drm.c"; f=open(p,"r"); c=f.read(); f.close()
+patched = "#if 0\n" + c + "\n#endif\n"
 stubs = """
 #include <stdint.h>
 #include "vk_device.h"
 #include "wsi_common_private.h"
-
-VkResult wsi_drm_configure_image(const struct wsi_swapchain *chain, const void *pCreateInfo, const void *params, void *info) { return 0; }
-int wsi_prepare_signal_dma_buf_from_semaphore(struct wsi_swapchain *chain, const void *image) { return 0; }
-int wsi_signal_dma_buf_from_semaphore(const struct wsi_swapchain *chain, const void *image) { return 0; }
-int wsi_create_sync_for_dma_buf_wait(const struct wsi_swapchain *chain, const void *image, uint32_t req_features, void **sync_out) { return 0; }
-int wsi_create_image_explicit_sync_drm(const struct wsi_swapchain *chain, void *image) { return 0; }
-void wsi_destroy_image_explicit_sync_drm(const struct wsi_swapchain *chain, void *image) {}
-int wsi_create_sync_for_image_syncobj(const struct wsi_swapchain *chain, const void *image, uint32_t req_features, void **sync_out) { return 0; }
-_Bool wsi_common_drm_devices_equal(int fd_a, int fd_b) { return 0; }
-_Bool wsi_device_matches_drm_fd(void *physicalDevice, int drm_fd) { return 0; }
-_Bool wsi_drm_image_needs_buffer_blit(const void *wsi, const void *params) { return 0; }
+VkResult wsi_drm_configure_image(const struct wsi_swapchain *c, const VkSwapchainCreateInfoKHR *p, const struct wsi_drm_image_params *pa, struct wsi_image_info *i) { return 0; }
+VkResult wsi_prepare_signal_dma_buf_from_semaphore(struct wsi_swapchain *c, const struct wsi_image *i) { return 0; }
+VkResult wsi_signal_dma_buf_from_semaphore(const struct wsi_swapchain *c, const struct wsi_image *i) { return 0; }
+VkResult wsi_create_sync_for_dma_buf_wait(const struct wsi_swapchain *c, const struct wsi_image *i, enum vk_sync_features f, struct vk_sync **s) { return 0; }
+VkResult wsi_create_image_explicit_sync_drm(const struct wsi_swapchain *c, struct wsi_image *i) { return 0; }
+void wsi_destroy_image_explicit_sync_drm(const struct wsi_swapchain *c, struct wsi_image *i) {}
+VkResult wsi_create_sync_for_image_syncobj(const struct wsi_swapchain *c, const struct wsi_image *i, enum vk_sync_features f, struct vk_sync **s) { return 0; }
+_Bool wsi_common_drm_devices_equal(int a, int b) { return 0; }
+_Bool wsi_device_matches_drm_fd(VkPhysicalDevice p, int d) { return 0; }
+_Bool wsi_drm_image_needs_buffer_blit(const struct wsi_device *w, const struct wsi_drm_image_params *p) { return 0; }
 """
-
-with open("src/vulkan/wsi/wsi_common_drm.c", "w") as f:
-    f.write(patched_code + stubs)
-print("-> Python: ¡wsi_common_drm.c neutralizado quirúrgicamente!")
-'
+f=open(p,"w"); f.write(patched + stubs); f.close()
+print("-> wsi_common_drm.c Inyectado con firmas oficiales")'
 
 NDK_SYSROOT_LIB_64="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/26"
 
-# Fabricamos el .pc ficticio local purificado libre de prefijos corruptos de Google
 cat << EOF > $(pwd)/shims_64/libdrm.pc
 Name: libdrm
 Description: Userspace interface to kernel DRM services
@@ -100,7 +69,7 @@ Libs: -L$(pwd)/shims_64 -lvulkan_wrapper
 Cflags: -I.
 EOF
 
-echo "-> 3. Generando cross_64.txt purificado con flags limpios..."
+echo "-> 3. Generando cross_64.txt..."
 cat << EOF > cross_64.txt
 [constants]
 ndk_path = '${ANDROID_NDK_HOME}'
@@ -135,17 +104,14 @@ sed -i "s/cc.find_library('rt'/dependency('', required : false) #/g" meson.build
 sed -i "s/dependency('libclc')/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/dep_libclc = .*/dep_libclc = dependency('', required : false)/g" meson.build 2>/dev/null || true
 
-echo "-> 4. Compilando el driver físico de Panfrost con el Wrapper de Adrenotools..."
+echo "-> 4. Compilando Panfrost con el Wrapper de Adrenotools..."
 meson setup build-64 --cross-file cross_64.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dandroid-stub=true -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=panfrost,wrapper
 meson compile -C build-64
 
-echo "-> 5. Maquetando empaque compatible ICD plano multi-directorio..."
+echo "-> 5. Maquetando empaque multi-directorio..."
 rm -rf pkg
-mkdir -p pkg/usr/lib/aarch64-linux-android
-mkdir -p pkg/usr/lib/arm-linux-androideabi
-mkdir -p pkg/usr/share/vulkan/icd.d
+mkdir -p pkg/usr/lib/aarch64-linux-android pkg/usr/lib/arm-linux-androideabi pkg/usr/share/vulkan/icd.d
 
-# Colocamos los binarios finales unificados bajo las identidades correspondientes en sus subcarpetas de forma idéntica
 cp -v compilacion/libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
 cp -v build-64/src/panfrost/vulkan/libvulkan_panfrost.so pkg/usr/lib/aarch64-linux-android/libvulkan_wrapper.so
 cp -v compilacion/libvulkan_wrapper.so pkg/usr/lib/arm-linux-androideabi/libvulkan_wrapper.so
@@ -158,7 +124,6 @@ $NDK_BIN/llvm-strip --strip-unneeded pkg/usr/lib/libvulkan_wrapper.so 2>/dev/nul
 $NDK_BIN/llvm-strip --strip-unneeded pkg/usr/lib/aarch64-linux-android/*.so 2>/dev/null || true
 $NDK_BIN/llvm-strip --strip-unneeded pkg/usr/lib/arm-linux-androideabi/*.so 2>/dev/null || true
 
-echo "-> [E] Escribiendo manifiestos ICD limpios..."
 echo '{"ICD": {"api_version": "1.3.289", "library_path": "libvulkan_wrapper.so"}, "file_format_version": "1.0.0"}' > pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
 echo '{"ICD": {"api_version": "1.3.289", "library_path": "libvulkan_wrapper.so"}, "file_format_version": "1.0.0"}' > pkg/usr/share/vulkan/icd.d/wrapper_icd.arm.json
 
@@ -166,5 +131,5 @@ echo "msf:315508" > pkg/version.txt && chmod -R 755 pkg/
 cd pkg && tar -I "zstd -19 -T0" -cf "../wrapper.tzst" usr version.txt
 
 echo "=========================================================="
-echo "🟢 BYPASS, PURGAS COMPLETAS Y SONAMES UNIFICADOS EN VERDE"
+echo "🟢 ¡SCRIPT TERMINADO POR COMPLETO Y BLINDADO EN VERDE!"
 echo "=========================================================="
