@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 INICIANDO ENLAZADOR HÍBRIDO FAT BASADO EN TOML OFICIAL"
+echo "🚀 INICIANDO ENLAZADOR HÍBRIDO FAT EQUILIBRADO MULTI-API"
 echo "=========================================================="
 
 echo "-> 1. Submódulos de Pipetto..."
@@ -52,7 +52,7 @@ mkdir -p "$GITHUB_WORKSPACE/shims_32"
 $NDK_BIN/armv7a-linux-androideabi26-clang -c stub_logs.c -o stub_logs_32.o
 $NDK_BIN/llvm-ar rcs "$GITHUB_WORKSPACE/shims_32/libvulkan_wrapper.a" stub_logs_32.o
 
-echo "-> 8a. Generando cross_32.txt limpio sin duplicaciones..."
+echo "-> 8a. Generando cross_32.txt limpio..."
 NDK_SYSROOT_LIB_32="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/arm-linux-androideabi/26"
 cat << EOF > cross_32.txt
 [constants]
@@ -86,25 +86,24 @@ cpp_link_args = ['-landroid', '-llog', '-lsync', '-lvulkan_wrapper', '-L${NDK_SY
 EOF
 
 echo "-> 9a. Lanzando Setup y Compilación de Mesa de 32 bits..."
-# 🟢 APAGADO ESTRATÉGICO: Quitamos el modulo wrapper de la llamada de 32 bits para evitar que compile linkernsbypass.cpp incompatible
 meson setup build-32 --cross-file cross_32.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dandroid-stub=true -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=panfrost
 meson compile -C build-32
 
 # ==========================================
-# 🟢 FASE B: COMPILACIÓN DE 64 BITS (ARM64 API 26)
+# 🟢 FASE B: COMPILACIÓN DE 64 BITS (ARM64 SUBIDO A LA API 30)
 # ==========================================
 echo "-> 7b. Fabricando librería estática inyectable para ld.lld de 64 bits..."
 mkdir -p "$GITHUB_WORKSPACE/shims_64"
-$NDK_BIN/aarch64-linux-android26-clang -c stub_logs.c -o stub_logs_64.o
+$NDK_BIN/aarch64-linux-android30-clang -c stub_logs.c -o stub_logs_64.o
 $NDK_BIN/llvm-ar rcs "$GITHUB_WORKSPACE/shims_64/libvulkan_wrapper.a" stub_logs_64.o
 
-echo "-> 8b. Generando cross_64.txt limpio sin duplicaciones..."
-NDK_SYSROOT_LIB_64="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/26"
+echo "-> 8b. Generando cross_64.txt (API 30 con pkgconfig false)..."
+NDK_SYSROOT_LIB_64="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/30"
 cat << EOF > cross_64.txt
 [constants]
 ndk_path = '${ANDROID_NDK_HOME}'
 toolchain = ndk_path + '/toolchains/llvm/prebuilt/linux-x86_64/bin'
-api = '26'
+api = '30'
 
 [binaries]
 c       = toolchain + '/aarch64-linux-android' + api + '-clang'
@@ -172,7 +171,7 @@ void* vk_icdGetInstanceProcAddr(void* instance, const char* pName) {
 }
 EOF
 
-$NDK_BIN/aarch64-linux-android26-clang -shared -fPIC -o libvulkan_wrapper.so wrapper.c -ldl --sysroot="$NDK_SYSROOT"
+$NDK_BIN/aarch64-linux-android30-clang -shared -fPIC -o libvulkan_wrapper.so wrapper.c -ldl --sysroot="$NDK_SYSROOT"
 
 # ==========================================
 # 🟢 FASE D: MAQUETADO ICD PLANO DEFINITIVO
@@ -189,7 +188,7 @@ cp -v build-64/src/panfrost/vulkan/libvulkan_panfrost.so pkg/usr/lib/libvulkan_p
 echo "-> [C] Copiando el driver físico real de 32 bits generado en la fase A..."
 cp -v build-32/src/panfrost/vulkan/libvulkan_panfrost.so pkg/usr/lib/libvulkan_panfrost_32.so
 
-echo "-> [D] Estampando identidades internal SONAME y aplicando strip..."
+echo "-> [D] Estampando identidades SONAME y aplicando strip..."
 patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
 patchelf --set-soname libvulkan_panfrost_64.so pkg/usr/lib/libvulkan_panfrost_64.so
 patchelf --set-soname libvulkan_panfrost_32.so pkg/usr/lib/libvulkan_panfrost_32.so
@@ -203,5 +202,5 @@ echo "msf:315508" > pkg/version.txt && chmod -R 755 pkg/
 cd pkg && tar -I "zstd -19 -T0" -cf "$GITHUB_WORKSPACE/wrapper.tzst" usr version.txt
 
 echo "=========================================================="
-echo "🟢 ¡FAT BINARY MULTI-ARQUITECTURA COMPILADO EN VERDE ABSOLUTO!"
+echo "🟢 ¡FAT BINARY HÍBRIDO COMPILADO AL 100% EN VERDE!"
 echo "=========================================================="
