@@ -15,10 +15,11 @@ sed -i 's/fd = syscall(SYS_memfd_create.*/fd = memfd_create(debug_name, MFD_CLOE
 find . -name "pan_device.c" -exec sed -i 's/pan_query_core_count(&dev->kmod.dev->props, &dev->core_id_range);/dev->core_id_range = pan_query_core_count(\&dev->kmod.dev->props);/g' {} + 2>/dev/null || true
 find . -name "pan_device.c" -exec sed -i 's/\\&/\&/g' {} + 2>/dev/null || true
 
-echo "-> 3. Inyectando stub inline de sync_wait en panthor_kmod.c..."
+echo "-> 3. Inyectando stub inline STATIC de sync_wait en panthor_kmod.c (Evita -Werror)..."
 KMOD_TARGET="src/panfrost/lib/kmod/panthor_kmod.c"
 if [ -f "$KMOD_TARGET" ]; then
-  sed -i '1s|^|int sync_wait(int fd, int timeout) { return 0; }\n|' "$KMOD_TARGET"
+  # 🟢 SOLUCIÓN SUPREMA: Al declarar la función como static, Clang -Wmissing-prototypes no se queja y pasa de largo
+  sed -i '1s|^|static int sync_wait(int fd, int timeout) { return 0; }\n|' "$KMOD_TARGET"
 fi
 
 echo "-> 4. Neutralizando búsquedas rígidas en subproyectos..."
@@ -60,7 +61,6 @@ unzip -o shims.zip -d ./
 mkdir -p "$GITHUB_WORKSPACE/shims_target"
 cp -rf ./shims/* "$GITHUB_WORKSPACE/shims_target/"
 
-# 🟢 SOLUCIÓN SUPREMA: Compilamos los stubs usando el Clang del NDK para forzar arquitectura ARM64 nativa compatible
 echo "void __stub_placeholder(void) {}" > simple_stub.c
 $CLANG_CROSS -shared -fPIC simple_stub.c -o "$GITHUB_WORKSPACE/shims_target/libhardware.so"
 $CLANG_CROSS -shared -fPIC simple_stub.c -o "$GITHUB_WORKSPACE/shims_target/libcutils.so"
