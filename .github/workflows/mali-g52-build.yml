@@ -26,7 +26,8 @@ jobs:
       - name: Install Zstd and Patchelf Packager
         run: |
           sudo apt-get update
-          sudo apt-get install -y zstd patchelf
+          sudo apt-get install -y zstd patchelf python3 python3-pip python3-setuptools ninja-build
+          pip3 install mako PyYAML 'meson>=1.4.0' packaging
 
       - name: Surgical Silicon Modification (Anti-Overflow MALI Hybrid Injection)
         run: |
@@ -37,7 +38,8 @@ jobs:
             echo "-> Aplicando parches de alineación de memoria de 32 bits en: $WRAPPER_DEVICE"
             sed -i 's/\r$//' "$WRAPPER_DEVICE"
             sed -i '1i#include <stdint.h>' "$WRAPPER_DEVICE"
-            sed -i '1iextern int param, int value);' "$WRAPPER_DEVICE"
+            # 🟢 CORRECCIÓN SUPREMA DE SINTAXIS: Escribimos el prototipo formal completo de mallopt para Clang
+            sed -i '1iextern int mallopt(int param, int value);' "$WRAPPER_DEVICE"
             sed -i '1iextern int setenv(const char *name, const char *value, int overwrite);' "$WRAPPER_DEVICE"
             
             sed -i '/vk_icdGetInstanceProcAddr/!b;n;i\\ extern int mallopt(int p, int v);\\n extern int setenv(const char *n, const char *v, int o);\\n mallopt(-1002, 0);\\n setenv("MESA_VK_WSI_PRESENT_MODE", "mailbox", 1);\\n setenv("vblank_mode", "0", 1);\\n if (sizeof(void*) == 4) {\\n   setenv("MESA_VK_WSI_QUEUE_SIZE", "1", 1);\\n }' "$WRAPPER_DEVICE"
