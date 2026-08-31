@@ -39,6 +39,16 @@ EOF
   echo "-> Parche físico de gralloc con prototipo inyectado con éxito."
 fi
 
+# 🟢 JUGADA MAESTRA SUPREMA: Inyectamos el enlace del Wrapper de forma estrictamente local en el meson.build de Panfrost
+# Esto evita que los stubs iniciales (objeto 62) lean el flag y exploten, resolviendo la paradoja circular
+echo "-> 3c. Parcheando enlazado local tardío en el meson.build de Panfrost..."
+PAN_MESON="src/panfrost/vulkan/meson.build"
+if [ -f "$PAN_MESON" ]; then
+  # Forzamos la inyección de los argumentos del linker dentro del array de ejecución del driver físico de Panfrost
+  sed -i "s|link_args : panvk_vulkan_link_args,|link_args : panvk_vulkan_link_args + ['-Lsrc/vulkan/wrapper', '-lvulkan_wrapper'],|g" "$PAN_MESON"
+  echo "-> Enlace local del Wrapper inyectado en Panfrost."
+fi
+
 echo "-> 4. Neutralizando búsquedas rígidas en subproyectos..."
 TARGET_BUILD="subprojects/libadrenotools/meson.build"
 if [ -f "$TARGET_BUILD" ]; then
@@ -91,12 +101,9 @@ sed -i "s|pkg_config_libdir = .*|pkg_config_libdir = '$PKG_CONFIG_PATH'|g" cross
 sed -i "s|pkg_config_path = .*|pkg_config_path = '$PKG_CONFIG_PATH'|g" cross.txt
 sed -i "s|libdrm_path = .*|libdrm_path = '$GITHUB_WORKSPACE/main-repo/subprojects/libdrm'|g" cross.txt
 
-# 🟢 JUGADA MAESTRA EXTRAORDINARIA: Pasamos la ruta de salida del Wrapper binario generado por Ninja (-L ... /build/src/vulkan/wrapper)
-# Esto amarra por fin los símbolos de log modificados (get_wrapper_log_level) de Panfrost en la línea final 778
-WRAPPER_OUT_DIR="$GITHUB_WORKSPACE/main-repo/build/src/vulkan/wrapper"
-
-sed -i "s|c_link_args = \[|c_link_args = ['-landroid', '-llog', '-lsync', '-lhardware', '-lvulkan_wrapper', '-L${WRAPPER_OUT_DIR}', '-L${NDK_SYSROOT_LIB}', '-L$PKG_CONFIG_PATH', |g" cross.txt
-sed -i "s|cpp_link_args = \[|cpp_link_args = ['-landroid', '-llog', '-lsync', '-lhardware', '-lvulkan_wrapper', '-L${WRAPPER_OUT_DIR}', '-L${NDK_SYSROOT_LIB}', '-L$PKG_CONFIG_PATH', |g" cross.txt
+# 🟢 LIMPIEZA TOTAL DEL LINKER GLOBAL: Mantenemos los flags limpios básicos para que el objeto 62 pase volando sin buscar el Wrapper
+sed -i "s|c_link_args = \[|c_link_args = ['-landroid', '-llog', '-lsync', '-lhardware', '-L${NDK_SYSROOT_LIB}', '-L$PKG_CONFIG_PATH', |g" cross.txt
+sed -i "s|cpp_link_args = \[|cpp_link_args = ['-landroid', '-llog', '-lsync', '-lhardware', '-L${NDK_SYSROOT_LIB}', '-L$PKG_CONFIG_PATH', |g" cross.txt
 
 echo "-> 10. Lanzando inicialización de Meson Setup..."
 meson setup build --reconfigure --cross-file cross.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dandroid-stub=true -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dopengl=false -Dgles1=disabled -Dgles2=disabled -Dllvm=disabled -Dvalgrind=disabled -Dzstd=disabled -Dvulkan-drivers=panfrost,wrapper -Dgallium-drivers=[]
