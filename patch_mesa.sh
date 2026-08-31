@@ -46,14 +46,18 @@ cat << 'EOF' > src/panfrost/lib/kmod/panthor_kmod.c
 const struct pan_kmod_ops panthor_kmod_ops = {0};
 EOF
 
-echo "-> [Cirugía] Escribiendo xf86drm.h simulado con topología de dispositivo biónico..."
+echo "-> [Cirugía] Escribiendo xf86drm.h simulado con topología de nodo biónico..."
 cat << 'EOF' > $(pwd)/shims_64/xf86drm.h
 #ifndef xf86drm_h
 #define xf86drm_h
 #include <stdint.h>
 
-/* Macros de sincronización y control requeridos por el pipeline de Mesa */
 #define DRM_SYNCOBJ_CREATE_SIGNALED (1 << 0)
+
+/* 🟢 REPARACIÓN CRÍTICA PASO 773: Inyectamos el nodo primario de libdrm ausente para panvk_physical_device.c */
+#ifndef DRM_NODE_PRIMARY
+#define DRM_NODE_PRIMARY 0
+#endif
 
 #ifndef DRM_NODE_RENDER
 #define DRM_NODE_RENDER 2
@@ -63,7 +67,6 @@ cat << 'EOF' > $(pwd)/shims_64/xf86drm.h
 #define DRM_BUS_PLATFORM 3
 #endif
 
-/* 🟢 REPARACIÓN SUPREMA PASO 762: Damos cuerpo real a la estructura que inspecciona panvk_instance.c */
 struct _drmDevice {
     char **nodes;
     int available_nodes;
