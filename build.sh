@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 INICIANDO ENLAZADOR HÍBRIDO MESA 25 CON PROTOTIPOS CORREGIDOS"
+echo "🚀 INICIANDO ENLAZADOR HÍBRIDO MESA 25 CON PROTOTIPOS FIJOS TOTAL"
 echo "=========================================================="
 
 echo "-> 1. Compilando el Interceptor oficial en Docker..."
@@ -41,12 +41,15 @@ EOF
 mkdir -p include
 cp -fv $(pwd)/shims_64/xf86drm.h include/xf86drm.h
 
-# 🟢 JUGADA MAESTRA DEFINTIVA: Incluimos la cabecera privada para validar prototipos y quitamos el 'static' de los stubs
+# 🟢 JUGADA MAESTRA ABSOLUTA: Inyectamos el prototipo explícito de wsi_common_drm_devices_equal para cerrar el error -Wmissing-prototypes
 cat << 'EOF' > src/vulkan/wsi/wsi_common_drm.c
 #include <stdint.h>
 #include <stdbool.h>
 #include "vk_device.h"
 #include "wsi_common_private.h"
+
+/* Prototipo local explícito exigido por Clang */
+_Bool wsi_common_drm_devices_equal(int a, int b);
 
 VkResult wsi_drm_configure_image(const struct wsi_swapchain *c, const VkSwapchainCreateInfoKHR *p, const struct wsi_drm_image_params *pa, struct wsi_image_info *i) { return 0; }
 VkResult wsi_prepare_signal_dma_buf_from_semaphore(struct wsi_swapchain *c, const struct wsi_image *i) { return 0; }
