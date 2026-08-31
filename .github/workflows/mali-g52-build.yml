@@ -73,7 +73,7 @@ jobs:
             if [ -d "$path/toolchains/llvm/prebuilt/linux-x86_64/bin" ]; then echo "REAL_NDK_HOME=$path" >> $GITHUB_ENV; break; fi
           done
 
-      # 🟢 PASO MAESTRO REPARADO: Removemos '-lhardware' para romper la paradoja recursiva en el objeto 63
+      # 🟢 PASO MAESTRO REPARADO: Cruzamos los linkers agregando el directorio de salida del wrapper (-Lsrc/vulkan/wrapper y -lvulkan_wrapper)
       - name: Generate Indestructible Meson Cross-File
         run: |
           cd main-repo
@@ -112,8 +112,8 @@ jobs:
           [built-in options]
           c_args = ['--sysroot=' + ndk_sysroot, '-fno-emulated-tls', '-I' + shims_path / 'include', '-isystem' + ndk_sysroot / 'usr/include', '-DHAVE_STRUCT_TIMESPEC', '-DHAVE_DLFCN_H', '-UHAVE_SECURE_GETENV', '-UHAVE_QSORT_S', '-include', 'fcntl.h', '-include', 'time.h', '-Wl,-llog', '-Wl,-lsync', '-fvisibility=default']
           cpp_args = ['--sysroot=' + ndk_sysroot, '-fno-emulated-tls', '-I' + shims_path / 'include', '-isystem' + ndk_sysroot / 'usr/include', '-DHAVE_STRUCT_TIMESPEC', '-DHAVE_DLFCN_H', '-UHAVE_SECURE_GETENV', '-UHAVE_QSORT_S', '-include', 'fcntl.h', '-include', 'time.h', '-include', 'dlfcn.h', '-Wl,-llog', '-Wl,-lsync', '-fvisibility=default', '-D_LIBCPP_ABI_NAMESPACE=__1']
-          c_link_args = ['-Wl,--allow-shlib-undefined', '-landroid', '-llog', '-lsync', '-L' + ndk_sysroot_lib, '-L' + shims_path, '--sysroot=' + ndk_sysroot, '-llog', '-lsync']
-          cpp_link_args = ['-Wl,--allow-shlib-undefined', '-landroid', '-llog', '-lsync', '-L' + ndk_sysroot_lib, '-L' + shims_path, '--sysroot=' + ndk_sysroot, '-llog', '-lsync']
+          c_link_args = ['-Wl,--allow-shlib-undefined', '-landroid', '-llog', '-lsync', '-lhardware', '-L' + ndk_sysroot_lib, '-L' + shims_path, '-L' + working_dir / 'build/src/vulkan/wrapper', '-lvulkan_wrapper', '--sysroot=' + ndk_sysroot, '-llog', '-lsync']
+          cpp_link_args = ['-Wl,--allow-shlib-undefined', '-landroid', '-llog', '-lsync', '-lhardware', '-L' + ndk_sysroot_lib, '-L' + shims_path, '-L' + working_dir / 'build/src/vulkan/wrapper', '-lvulkan_wrapper', '--sysroot=' + ndk_sysroot, '-llog', '-lsync']
           EOF
 
       - name: Configure GameNative Meson Setup
