@@ -73,7 +73,7 @@ pkg_config_path = '$GITHUB_WORKSPACE/shims_target'
 pkg_config_libdir = '$GITHUB_WORKSPACE/shims_target'
 [built-in options]
 c_args = ['--sysroot=' + ndk_sysroot, '-I$GITHUB_WORKSPACE/shims_target/include', '-Wl,-llog', '-Wl,-lsync']
-cpp = ['--sysroot=' + ndk_sysroot, '-I$GITHUB_WORKSPACE/shims_target/include', '-Wl,-llog', '-Wl,-lsync']
+cpp_args = ['--sysroot=' + ndk_sysroot, '-I$GITHUB_WORKSPACE/shims_target/include', '-Wl,-llog', '-Wl,-lsync']
 c_link_args = ['-landroid', '-llog', '-lsync', '-lhardware', '-lvulkan_wrapper', '-L${NDK_SYSROOT_LIB}', '-L$GITHUB_WORKSPACE/shims_target']
 cpp_link_args = ['-landroid', '-llog', '-lsync', '-lhardware', '-lvulkan_wrapper', '-L${NDK_SYSROOT_LIB}', '-L$GITHUB_WORKSPACE/shims_target']
 EOF
@@ -81,18 +81,16 @@ EOF
 echo "-> 9. Lanzando inicialización de Meson Setup..."
 meson setup build --cross-file cross.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dandroid-stub=true -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=panfrost,wrapper
 
-echo "-> 10. Compilando el motor gráfico unificado final con Ninja..."
+echo "-> 10. Compilando el motor gráfico completo con Ninja..."
 meson compile -C build
 
 echo "-> 12. Estructurando empaque compatible ICD nativo puro..."
-# Purgamos la carpeta share/settings.d por completo de la ruta
 rm -rf pkg && mkdir -p pkg/usr/lib pkg/usr/share/vulkan/icd.d
 
-echo "-> 🟢 ENCENDIDO BINARIO MONOLÍTICO: Combinando Panfrost dentro del Wrapper Real..."
-# Pescamos el Wrapper legítimo biónico generado por Meson (el que tiene la lógica de adrenotools y linkernsbypass lista)
+# Copiamos el Wrapper legítimo biónico generado por Meson (con adrenotools listo en sus tripas)
 cp -v build/src/vulkan/wrapper/libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
 
-# Inyectamos el driver físico real de Panfrost de 64 bits dentro de la misma carpeta
+# Inyectamos el driver físico real de Panfrost de 64 bits en su ruta dlopen estricta
 cp -v build/src/panfrost/vulkan/libvulkan_panfrost.so pkg/usr/lib/libvulkan_panfrost_64.so
 cp -v "$GITHUB_WORKSPACE/shims_target/libvulkan_wrapper.so" pkg/usr/lib/libvulkan_panfrost_32.so
 
