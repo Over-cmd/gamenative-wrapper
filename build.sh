@@ -2,7 +2,7 @@
 set -e # Aborta el script inmediatamente si algún comando crítico falla
 
 echo "=========================================================="
-echo "🚀 INICIANDO ENLAZADOR HÍBRIDO DEFINITIVO UNISOC T618"
+echo "🚀 INICIANDO ENLAZADOR MONOLÍTICO REAL ARM64 (64-BITS)"
 echo "=========================================================="
 
 echo "-> 1. Inicializando submodulos de libadrenotools de forma recursiva..."
@@ -37,6 +37,16 @@ int hw_get_module(const char *id, const struct hw_module_t **module) {
 }
 EOF
   echo "-> Parche físico de gralloc con prototipo inyectado con éxito."
+fi
+
+# 🟢 JUGADA MAESTRA SUPREMA: Renombramos la librería compartida de Panfrost a 'vulkan_wrapper' dentro de Meson
+# Además le inyectamos localmente el enlace forzado de adrenotools y linkernsbypass para fusionar ambos mundos
+echo "-> 3c. Parcheando el nombre nativo y dependencias en el meson.build de Panfrost..."
+PAN_MESON="src/panfrost/vulkan/meson.build"
+if [ -f "$PAN_MESON" ]; then
+  sed -i "s|shared_library('vulkan_panfrost'|shared_library('vulkan_wrapper'|g" "$PAN_MESON"
+  sed -i "s|link_args : panvk_vulkan_link_args,|link_args : panvk_vulkan_link_args + ['-Lsubprojects/libadrenotools/src', '-ladrenotools', '-Lsubprojects/libadrenotools/lib/linkernsbypass', '-llinkernsbypass', '-lsync', '-lhardware'],|g" "$PAN_MESON"
+  echo "-> Fusión estructural inyectada en Panfrost."
 fi
 
 echo "-> 4. Neutralizando búsquedas rígidas en subproyectos..."
@@ -85,49 +95,64 @@ $CLANG_CROSS -shared -fPIC simple_stub.c -o "$GITHUB_WORKSPACE/shims_target/libn
 $CLANG_CROSS -shared -fPIC simple_stub.c -o "$GITHUB_WORKSPACE/shims_target/libsync.so"
 $CLANG_CROSS -shared -fPIC simple_stub.c -o "$GITHUB_WORKSPACE/shims_target/libvulkan_wrapper.so"
 
-echo "-> 9. Generando el archivo TOML de compilación cruzada cross.txt..."
-if [ -f "android-64.toml" ]; then envsubst < android-64.toml > cross.txt; else envsubst < android.toml > cross.txt; fi
+echo "-> 9. Escribiendo el archivo de configuración cruzada cross.txt nativo de 64-Bits..."
+cat << EOF > cross.txt
+[constants]
+ndk_home = '${TRUE_NDK}'
+working_dir = '$GITHUB_WORKSPACE/main-repo'
+ndk_bin = ndk_home / 'toolchains/llvm/prebuilt/linux-x86_64/bin'
+ndk_sysroot = ndk_home / 'toolchains/llvm/prebuilt/linux-x86_64/sysroot'
+ndk_sysroot_lib = '${NDK_SYSROOT_LIB}'
+shims_path = '$GITHUB_WORKSPACE/shims_target'
 
-sed -i "s|pkg_config_libdir = .*|pkg_config_libdir = '$PKG_CONFIG_PATH'|g" cross.txt
-sed -i "s|pkg_config_path = .*|pkg_config_path = '$PKG_CONFIG_PATH'|g" cross.txt
-sed -i "s|libdrm_path = .*|libdrm_path = '$GITHUB_WORKSPACE/main-repo/subprojects/libdrm'|g" cross.txt
+[binaries]
+c = [ndk_bin / 'clang', '-target', 'aarch64-linux-android30', '-D__TERMUX__']
+cpp = [ndk_bin / 'clang++', '-target', 'aarch64-linux-android30', '-fno-exceptions', '--start-no-unused-arguments', '--end-no-unused-arguments', '-D__TERMUX__']
+ar = ndk_bin / 'llvm-ar'
+strip = ndk_bin / 'llvm-strip'
+pkg-config = '/usr/bin/pkg-config'
 
-sed -i "s|c_link_args = \[|c_link_args = ['-landroid', '-llog', '-lsync', '-lhardware', '-lvulkan_wrapper', '-L${NDK_SYSROOT_LIB}', '-L$PKG_CONFIG_PATH', |g" cross.txt
-sed -i "s|cpp_link_args = \[|cpp_link_args = ['-landroid', '-llog', '-lsync', '-lhardware', '-lvulkan_wrapper', '-L${NDK_SYSROOT_LIB}', '-L$PKG_CONFIG_PATH', |g" cross.txt
+[host_machine]
+system = 'android'
+cpu_family = 'aarch64'
+cpu = 'aarch64'
+endian = 'little'
+
+[properties]
+sys_root = ndk_sysroot
+libdir = ndk_sysroot_lib
+needs_exe_wrapper = true
+pkg_config_path = shims_path
+pkg_config_libdir = shims_path
+libdrm_path = '$GITHUB_WORKSPACE/main-repo/subprojects/libdrm'
+
+[built-in options]
+c_args = ['--sysroot=' + ndk_sysroot, '-fno-emulated-tls', '-I' + shims_path / 'include', '-isystem' + ndk_sysroot / 'usr/include', '-DHAVE_STRUCT_TIMESPEC', '-DHAVE_DLFCN_H', '-UHAVE_SECURE_GETENV', '-UHAVE_QSORT_S', '-include', 'fcntl.h', '-include', 'time.h', '-Wl,-llog', '-Wl,-lsync', '-fvisibility=default']
+cpp_args = ['--sysroot=' + ndk_sysroot, '-fno-emulated-tls', '-I' + shims_path / 'include', '-isystem' + ndk_sysroot / 'usr/include', '-DHAVE_STRUCT_TIMESPEC', '-DHAVE_DLFCN_H', '-UHAVE_SECURE_GETENV', '-UHAVE_QSORT_S', '-include', 'fcntl.h', '-include', 'time.h', '-include', 'dlfcn.h', '-Wl,-llog', '-Wl,-lsync', '-fvisibility=default', '-D_LIBCPP_ABI_NAMESPACE=__1']
+c_link_args = ['-landroid', '-llog', '-lsync', '-lhardware', '-L' + ndk_sysroot_lib, '-L' + shims_path, '--sysroot=' + ndk_sysroot, '-llog', '-lsync']
+cpp_link_args = ['-landroid', '-llog', '-lsync', '-lhardware', '-L' + ndk_sysroot_lib, '-L' + shims_path, '--sysroot=' + ndk_sysroot, '-llog', '-lsync']
+EOF
 
 echo "-> 10. Lanzando inicialización de Meson Setup..."
 meson setup build --reconfigure --cross-file cross.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dandroid-stub=true -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dopengl=false -Dgles1=disabled -Dgles2=disabled -Dllvm=disabled -Dvalgrind=disabled -Dzstd=disabled -Dvulkan-drivers=panfrost,wrapper -Dgallium-drivers=[]
 
-echo "-> 11a. Compilando prioritariamente el Wrapper auxiliar intermedio con Ninja..."
-/home/runner/.local/bin/ninja -C build src/vulkan/wrapper/libvulkan_wrapper.so
-
-echo "-> 11b. Pisando el stub intermedio con el binario REAL generado..."
-cp -fv build/src/vulkan/wrapper/libvulkan_wrapper.so "$GITHUB_WORKSPACE/shims_target/libvulkan_wrapper.so"
-
-echo "-> 11c. Compilando el driver unificado final..."
+echo "-> 11. Compilando el motor gráfico unificado final..."
 meson compile -C build
 
 # ==========================================
-# 🟢 12. ESTRUCTURA ICD PLANA PERFECTA PARA BANNERLATOR
+# 🟢 12. EMPAQUETADO COMPATIBLE DIRECTO ARM64
 # ==========================================
 echo "-> Estructurando empaque compatible ICD para Bannerlator..."
 rm -rf pkg && mkdir -p pkg/usr/lib pkg/usr/share/vulkan/icd.d pkg/usr/share/vulkan/settings.d
 
-echo "-> [A] Colocando el Wrapper principal en la entrada que leerá Bannerlator..."
-cp -v build/src/vulkan/wrapper/libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
+echo "-> Pescando el binario real nacido legítimamente con el nombre inyectado y fusionado..."
+cp -v build/src/panfrost/vulkan/libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
 
-echo "-> [B] Colocando el driver físico real de Panfrost mapeado según las rutas de tu dlopen()..."
-cp -v build/src/panfrost/vulkan/libvulkan_panfrost.so pkg/usr/lib/libvulkan_panfrost_64.so
-
-echo "-> [C] Colocando el stub de contingencia para que las apps de 32 bits no congelen el cargador..."
-cp -v "$GITHUB_WORKSPACE/shims_target/libvulkan_wrapper.so" pkg/usr/lib/libvulkan_panfrost_32.so
-
-echo "-> [D] Estampando SONAMES limpios y removiendo basura de compilación..."
+echo "-> Estampando SONAME oficial y aplicando strip..."
 patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so 2>/dev/null || true
-patchelf --set-soname libvulkan_panfrost_64.so pkg/usr/lib/libvulkan_panfrost_64.so 2>/dev/null || true
 llvm-strip --strip-unneeded pkg/usr/lib/*.so 2>/dev/null || true
 
-# Los manifiestos oficiales le dicen a Bannerlator que cargue libvulkan_wrapper.so para inicializar la GPU
+# El manifiesto le dice a Bannerlator que cargue la librería unificada directa
 echo '{"ICD": {"api_version": "1.4.352", "library_path": "libvulkan_wrapper.so"}, "file_format_version": "1.0.0"}' > pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
 echo '{"ICD": {"api_version": "1.4.352", "library_path": "libvulkan_wrapper.so"}, "file_format_version": "1.0.0"}' > pkg/usr/share/vulkan/icd.d/wrapper_icd.arm.json
 echo '{"env":{"PAN_I_WANT_A_BROKEN_VULKAN_DRIVER":"1","MESA_VK_IGNORE_CONFORMANCE_WARNING":"1","PANVK_DEBUG":"sync,nir","MESA_VK_FORCE_BLIT":"1","MESA_LOADER_DRIVER_OVERRIDE":"panfrost","GALLIUM_DRIVER":"panfrost","vblank_mode":"0","MESA_GLSL_CACHE_DISABLE":"1","MESA_SHADER_CACHE_DISABLE":"true","NIR_DEBUG":"tgsi","MESA_VK_WSI_PRESENT_MODE":"immediate","MESA_VK_WSI_DEBUG":"always_async"}}' > pkg/usr/share/vulkan/settings.d/wrapper_settings.json
@@ -138,5 +163,5 @@ cd pkg
 tar -I 'zstd -19 -T0' -cf "$GITHUB_WORKSPACE/wrapper.tzst" usr version.txt
 
 echo "=========================================================="
-echo "🟢 ECOSYSTEMA COMPLETADO, PROCESADO Y CERTIFICADO"
+echo "🟢 COMPILACIÓN MONOLÍTICA COMPLETADA Y CERTIFICADA EN ARM64"
 echo "=========================================================="
