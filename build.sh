@@ -20,6 +20,8 @@ $NDK_BIN/aarch64-linux-android26-clang -c stub_logs.c -o stub_logs_64.o
 $NDK_BIN/llvm-ar rcs "$(pwd)/shims_64/libvulkan_wrapper.a" stub_logs_64.o
 
 NDK_SYSROOT_LIB_64="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/26"
+
+echo "-> 2. Generando cross_64.txt con Pkg-Config activo para resolver libdrm..."
 cat << EOF > cross_64.txt
 [constants]
 ndk_path = '${ANDROID_NDK_HOME}'
@@ -31,7 +33,7 @@ c       = toolchain + '/aarch64-linux-android' + api + '-clang'
 cpp     = toolchain + '/aarch64-linux-android' + api + '-clang++'
 ar      = toolchain + '/llvm-ar'
 strip   = toolchain + '/llvm-strip'
-pkgconfig = 'false'
+pkg-config = '/usr/bin/pkg-config'
 
 [host_machine]
 system = 'android'
@@ -43,6 +45,7 @@ endian = 'little'
 needs_exe_wrapper = true
 sys_root = '${NDK_SYSROOT}'
 libdir = '${NDK_SYSROOT_LIB_64}'
+libdrm_path = '$(pwd)/subprojects/libdrm'
 
 [built-in options]
 c_args = ['--sysroot=' + '${NDK_SYSROOT}', '-D__TERMUX__']
@@ -51,7 +54,7 @@ c_link_args = ['-landroid', '-llog', '-lsync', '-lvulkan_wrapper', '-L${NDK_SYSR
 cpp_link_args = ['-landroid', '-llog', '-lsync', '-lvulkan_wrapper', '-L${NDK_SYSROOT_LIB_64}', '-L$(pwd)/shims_64']
 EOF
 
-# Limpieza rápida de validaciones obsoletas de PC
+# Limpieza rápida de validaciones obsoletas de PC de escritorio
 sed -i "s/cc.find_library('dl'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/cc.find_library('rt'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/dependency('libclc')/dependency('', required : false) #/g" meson.build 2>/dev/null || true
@@ -60,7 +63,7 @@ sed -i "s/dep_libclc = .*/dep_libclc = dependency('', required : false)/g" meson
 meson setup build-64 --cross-file cross_64.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dandroid-stub=true -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=panfrost
 meson compile -C build-64
 
-echo "-> 2. Maquetando empaque compatible ICD plano para Bannerlator..."
+echo "-> 3. Maquetando empaque compatible ICD plano para Bannerlator..."
 rm -rf pkg && mkdir -p pkg/usr/lib pkg/usr/share/vulkan/icd.d
 
 # Mover el binario oficial nacido del Docker con el parche de memoria biónico inyectado (mallopt)
