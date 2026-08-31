@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 INICIANDO ENLAZADOR HÍBRIDO FAT TERMUX-BLINDADO SEPARADO"
+echo "🚀 INICIANDO ENLAZADOR MONOLÍTICO MONO-ARCHIVO REORDENADO"
 echo "=========================================================="
 
 echo "-> 1. Submódulos de Pipetto..."
@@ -133,60 +133,20 @@ meson setup build-64 --cross-file cross_64.txt --wrap-mode=nodownload -Dbuildtyp
 meson compile -C build-64
 
 # ==========================================
-# 🟢 FASE C: CONSTRUCCIÓN DEL PUENTE INTERCEPTOR FAT EN C
-# ==========================================
-echo "-> 9. Escribiendo el enrutador puente dinámico del Dockerfile..."
-cat << 'EOF' > wrapper.c
-#define _GNU_SOURCE
-#include <stdio.h>
-#include <stdlib.h>
-#include <dlfcn.h>
-
-static void* handle = NULL;
-
-__attribute__((constructor)) void init_wrapper() {
-    setenv("PAN_I_WANT_A_BROKEN_VULKAN_DRIVER", "1", 1);
-    setenv("MESA_VK_IGNORE_CONFORMANCE_WARNING", "1", 1);
-    setenv("PANVK_DEBUG", "sync,nir", 1);
-    setenv("MESA_VK_FORCE_BLIT", "1", 1);
-    setenv("MESA_LOADER_DRIVER_OVERRIDE", "panfrost", 1);
-    setenv("GALLIUM_DRIVER", "panfrost", 1);
-
-    if (sizeof(void*) == 8) {
-        handle = dlopen("/usr/lib/libvulkan_panfrost_64.so", RTLD_NOW | RTLD_GLOBAL);
-        if (!handle) handle = dlopen("./libvulkan_panfrost_64.so", RTLD_NOW | RTLD_GLOBAL);
-    } else {
-        handle = dlopen("/usr/lib/libvulkan_panfrost_32.so", RTLD_NOW | RTLD_GLOBAL);
-        if (!handle) handle = dlopen("./libvulkan_panfrost_32.so", RTLD_NOW | RTLD_GLOBAL);
-    }
-}
-
-void* vk_icdGetInstanceProcAddr(void* instance, const char* pName) {
-    if (!handle) return NULL;
-    typedef void* (*PFN_icdGet)(void*, const char*);
-    PFN_icdGet real_icd = (PFN_icdGet)dlsym(handle, "vk_icdGetInstanceProcAddr");
-    return real_icd ? real_icd(instance, pName) : NULL;
-}
-EOF
-
-$NDK_BIN/aarch64-linux-android26-clang -shared -fPIC -o libvulkan_wrapper.so wrapper.c -ldl --sysroot="$NDK_SYSROOT"
-
-# ==========================================
-# 🟢 FASE D: MAQUETADO ICD PLANO DEFINITIVO
+# 🟢 FASE D: MAQUETADO ICD PLANO DEFINITIVO CORREGIDO
 # ==========================================
 echo "-> 10. Estructurando carpetas finales..."
 rm -rf pkg && mkdir -p pkg/usr/lib pkg/usr/share/vulkan/icd.d
 
-echo "-> [A] Copiando el Enrutador Fat unificado como entrada principal..."
-cp -v libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
+echo "-> [A] 🟢 JUGADA CLAVE: Copiando el driver real físico de Panfrost directo como libvulkan_wrapper.so..."
+# Forzamos que la librería de 64 bits tome el relevo principal de entrada requerido por Bannerlator
+cp -v build-64/src/panfrost/vulkan/libvulkan_panfrost.so pkg/usr/lib/libvulkan_wrapper.so
 
-echo "-> [B] Copiando el driver físico real de 64 bits generado en la fase B..."
+# Acomodamos los retrocesos secundarios limpios requeridos para el entorno híbrido
 cp -v build-64/src/panfrost/vulkan/libvulkan_panfrost.so pkg/usr/lib/libvulkan_panfrost_64.so
-
-echo "-> [C] Copiando el driver físico real de 32 bits generado en la fase A..."
 cp -v build-32/src/panfrost/vulkan/libvulkan_panfrost.so pkg/usr/lib/libvulkan_panfrost_32.so
 
-echo "-> [D] Estampando identidades internal SONAME y aplicando strip..."
+echo "-> Estampando firmas quirúrgicas de SONAME para aniquilar errores de lectura del linker de Android..."
 patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
 patchelf --set-soname libvulkan_panfrost_64.so pkg/usr/lib/libvulkan_panfrost_64.so
 patchelf --set-soname libvulkan_panfrost_32.so pkg/usr/lib/libvulkan_panfrost_32.so
@@ -200,5 +160,5 @@ echo "msf:315508" > pkg/version.txt && chmod -R 755 pkg/
 cd pkg && tar -I "zstd -19 -T0" -cf "$GITHUB_WORKSPACE/wrapper.tzst" usr version.txt
 
 echo "=========================================================="
-echo "🟢 ¡FAT BINARY HÍBRIDO COMPILADO AL 100% EN VERDE ABSOLUTO!"
+echo "🟢 ¡LIBVULKAN_WRAPPER REAL INTEGRADO DE FORMA CORRECTA!"
 echo "=========================================================="
