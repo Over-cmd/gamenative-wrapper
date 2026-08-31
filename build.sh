@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 INICIANDO ENLAZADOR HÍBRIDO FAT INTEGRAL DEFINITIVO"
+echo "🚀 INICIANDO ENLAZADOR HÍBRIDO FAT TERMUX-BLINDADO"
 echo "=========================================================="
 
 echo "-> 1. Submódulos de Pipetto..."
@@ -12,10 +12,6 @@ echo "-> 2. Parches de hardware Mali-G52 y Sincronización POSIX..."
 sed -i 's/fd = syscall(SYS_memfd_create.*/fd = syscall(356, debug_name, 0x0001 \| 0x0002);/g' src/util/anon_file.c 2>/dev/null || true
 sed -i '1s|^|static int sync_wait(int fd, int timeout) { return 0; }\n|' src/panfrost/lib/kmod/panthor_kmod.c
 sed -i '1s|^|#include <fcntl.h>\n|' src/vulkan/wrapper/wrapper_log.c
-
-# 🟢 JAQUE MATE A WSI ANDROID: Forzamos las definiciones biónicas ausentes al principio del archivo para aniquilar los 10 errores de Clang
-echo "-> 2b. Parcheando definiciones estructurales de AHardwareBuffer en WSI..."
-sed -i '1s|^|#define VK_USE_PLATFORM_ANDROID_KHR 1\n#include <android/hardware_buffer.h>\n|' src/vulkan/wsi/wsi_common_android.c
 
 echo "-> 3. Inyectando bypass de asignación de memoria hw_get_module..."
 cat << 'EOF' >> src/vulkan/wrapper/wrapper_device.c
@@ -42,7 +38,7 @@ export ANDROID_NDK_HOME="/usr/local/lib/android/sdk/ndk/28.2.13676358"
 export NDK_BIN="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin"
 export NDK_SYSROOT="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
 
-# Escribimos el micro-fuente C de trazas que ld.lld exige resolver de Pipetto
+# Escribimos el micro-fuente C de trazas que ld.lld exige resolver
 cat << 'EOF' > stub_logs.c
 int get_wrapper_log_level(const char *option) { (void)option; return 0; }
 void write_to_logfile(const char *fmt, const char *level, ...) { (void)fmt; (void)level; }
@@ -63,28 +59,24 @@ cat << EOF > cross_32.txt
 ndk_path = '${ANDROID_NDK_HOME}'
 toolchain = ndk_path + '/toolchains/llvm/prebuilt/linux-x86_64/bin'
 api = '26'
-
 [binaries]
 c       = toolchain + '/armv7a-linux-androideabi' + api + '-clang'
 cpp     = toolchain + '/armv7a-linux-androideabi' + api + '-clang++'
 ar      = toolchain + '/llvm-ar'
 strip   = toolchain + '/llvm-strip'
 pkgconfig = 'false'
-
 [host_machine]
 system = 'android'
 cpu_family = 'arm'
 cpu = 'armv7a'
 endian = 'little'
-
 [properties]
 needs_exe_wrapper = true
 sys_root = '${NDK_SYSROOT}'
 libdir = '${NDK_SYSROOT_LIB_32}'
-
 [built-in options]
-c_args = ['--sysroot=' + '${NDK_SYSROOT}']
-cpp_args = ['--sysroot=' + '${NDK_SYSROOT}']
+c_args = ['--sysroot=' + '${NDK_SYSROOT}', '-D__TERMUX__']
+cpp_args = ['--sysroot=' + '${NDK_SYSROOT}', '-D__TERMUX__']
 c_link_args = ['-landroid', '-llog', '-lsync', '-lvulkan_wrapper', '-L${NDK_SYSROOT_LIB_32}', '-L$GITHUB_WORKSPACE/shims_32']
 cpp_link_args = ['-landroid', '-llog', '-lsync', '-lvulkan_wrapper', '-L${NDK_SYSROOT_LIB_32}', '-L$GITHUB_WORKSPACE/shims_32']
 EOF
@@ -94,42 +86,38 @@ meson setup build-32 --cross-file cross_32.txt --wrap-mode=nodownload -Dbuildtyp
 meson compile -C build-32
 
 # ==========================================
-# 🟢 FASE B: COMPILACIÓN DE 64 BITS (ARM64 API 26)
+# 🟢 FASE B: COMPILACIÓN DE 64 BITS (ARM64 API 26 CON CORRECCIÓN TERMUX)
 # ==========================================
 echo "-> 7b. Fabricando librería estática inyectable para ld.lld de 64 bits..."
 mkdir -p "$GITHUB_WORKSPACE/shims_64"
 $NDK_BIN/aarch64-linux-android26-clang -c stub_logs.c -o stub_logs_64.o
 $NDK_BIN/llvm-ar rcs "$GITHUB_WORKSPACE/shims_64/libvulkan_wrapper.a" stub_logs_64.o
 
-echo "-> 8b. Generando cross_64.txt..."
+echo "-> 8b. Generando cross_64.txt (Inyectando bandera global __TERMUX__)..."
 NDK_SYSROOT_LIB_64="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/26"
 cat << EOF > cross_64.txt
 [constants]
 ndk_path = '${ANDROID_NDK_HOME}'
 toolchain = ndk_path + '/toolchains/llvm/prebuilt/linux-x86_64/bin'
 api = '26'
-
 [binaries]
 c       = toolchain + '/aarch64-linux-android' + api + '-clang'
 cpp     = toolchain + '/aarch64-linux-android' + api + '-clang++'
 ar      = toolchain + '/llvm-ar'
 strip   = toolchain + '/llvm-strip'
 pkgconfig = 'false'
-
 [host_machine]
 system = 'android'
 cpu_family = 'aarch64'
 cpu = 'aarch64'
 endian = 'little'
-
 [properties]
 needs_exe_wrapper = true
 sys_root = '${NDK_SYSROOT}'
 libdir = '${NDK_SYSROOT_LIB_64}'
-
 [built-in options]
-c_args = ['--sysroot=' + '${NDK_SYSROOT}']
-cpp_args = ['--sysroot=' + '${NDK_SYSROOT}']
+c_args = ['--sysroot=' + '${NDK_SYSROOT}', '-D__TERMUX__']
+cpp_args = ['--sysroot=' + '${NDK_SYSROOT}', '-D__TERMUX__']
 c_link_args = ['-landroid', '-llog', '-lsync', '-lvulkan_wrapper', '-L${NDK_SYSROOT_LIB_64}', '-L$GITHUB_WORKSPACE/shims_64']
 cpp_link_args = ['-landroid', '-llog', '-lsync', '-lvulkan_wrapper', '-L${NDK_SYSROOT_LIB_64}', '-L$GITHUB_WORKSPACE/shims_64']
 EOF
@@ -192,7 +180,7 @@ cp -v build-64/src/panfrost/vulkan/libvulkan_panfrost.so pkg/usr/lib/libvulkan_p
 echo "-> [C] Copiando el driver físico real de 32 bits generado en la fase A..."
 cp -v build-32/src/panfrost/vulkan/libvulkan_panfrost.so pkg/usr/lib/libvulkan_panfrost_32.so
 
-echo "-> [D] Estampando identidades SONAME y aplicando strip..."
+echo "-> [D] Estampando identidades internal SONAME y aplicando strip..."
 patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
 patchelf --set-soname libvulkan_panfrost_64.so pkg/usr/lib/libvulkan_panfrost_64.so
 patchelf --set-soname libvulkan_panfrost_32.so pkg/usr/lib/libvulkan_panfrost_32.so
@@ -206,5 +194,5 @@ echo "msf:315508" > pkg/version.txt && chmod -R 755 pkg/
 cd pkg && tar -I "zstd -19 -T0" -cf "$GITHUB_WORKSPACE/wrapper.tzst" usr version.txt
 
 echo "=========================================================="
-echo "🟢 ¡FAT BINARY MULTI-ARQUITECTURA COMPLETADO EN VERDE ABSOLUTO!"
+echo "🟢 ¡FAT BINARY TERMUX-BEYOND COMPLETADO CON ÉXITO EN VERDE!"
 echo "=========================================================="
