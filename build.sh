@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 INICIANDO ENLAZADOR HÍBRIDO CON PUENTE DE CABECERAS NATIVO"
+echo "🚀 INICIANDO ENLAZADOR HÍBRIDO CON ANCLAJE FÍSICO DE CABECERAS"
 echo "=========================================================="
 
 echo "-> 1. Ordenando al Contenedor de Docker compilar el Interceptor oficial..."
@@ -23,23 +23,22 @@ mkdir -p "$(pwd)/shims_64"
 $NDK_BIN/aarch64-linux-android26-clang -c stub_logs.c -o stub_logs_64.o
 $NDK_BIN/llvm-ar rcs "$(pwd)/shims_64/libvulkan_wrapper.a" stub_logs_64.o
 
-# 🟢 INYECCIÓN COLOZAL INDESTRUCTIBLE: Copiamos las cabeceras directamente en las carpetas sagradas de Mesa que Meson lee de forma relativa
-echo "-> 2b. Inyectando físicamente cabeceras xf86drm.h en las carpetas raíz de inclusión de Mesa..."
-mkdir -p include/drm src/include
-cp -fv subprojects/libdrm/*.h include/ 2>/dev/null || true
-cp -fv subprojects/libdrm/include/drm/*.h include/drm/ 2>/dev/null || true
-cp -fv subprojects/libdrm/*.h src/include/ 2>/dev/null || true
-cp -fv subprojects/libdrm/include/drm/*.h src/include/ 2>/dev/null || true
+# 🟢 JUGADA MAESTRA EXTRAORDINARIA ANULADORA: Copiamos las cabeceras directamente en el núcleo de compilación del objeto conflictivo
+echo "-> 2b. Inyectando físicamente xf86drm.h dentro de la carpeta local de runtime de Vulkan..."
+cp -fv subprojects/libdrm/*.h src/vulkan/runtime/ 2>/dev/null || true
+cp -fv subprojects/libdrm/include/drm/*.h src/vulkan/runtime/ 2>/dev/null || true
+cp -fv subprojects/libdrm/*.h src/vulkan/util/ 2>/dev/null || true
+cp -fv subprojects/libdrm/include/drm/*.h src/vulkan/util/ 2>/dev/null || true
 
 NDK_SYSROOT_LIB_64="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/26"
 
-# Fabricamos el .pc ficticio local para superar la línea 1677
+# Fabricamos el .pc ficticio purificado (Limpiamos las Cflags para que Meson no intente inventarse rutas con el Sysroot)
 cat << EOF > $(pwd)/shims_64/libdrm.pc
 Name: libdrm
 Description: Userspace interface to kernel DRM services
 Version: 2.4.120
 Libs: -L$(pwd)/shims_64 -lvulkan_wrapper
-Cflags: -I$(pwd)/include
+Cflags: -I.
 EOF
 
 echo "-> 3. Generando cross_64.txt purificado..."
@@ -66,7 +65,6 @@ libdir = '${NDK_SYSROOT_LIB_64}'
 pkg_config_path = '$(pwd)/shims_64'
 pkg_config_libdir = '$(pwd)/shims_64'
 [built-in options]
-# Dejamos las directivas limpias; Clang leerá los archivos de forma interna desde el árbol local
 c_args = ['--sysroot=' + '${NDK_SYSROOT}', '-D__TERMUX__']
 cpp_args = ['--sysroot=' + '${NDK_SYSROOT}', '-D__TERMUX__']
 c_link_args = ['-landroid', '-llog', '-lsync', '-lvulkan_wrapper', '-L${NDK_SYSROOT_LIB_64}', '-L$(pwd)/shims_64']
@@ -109,5 +107,5 @@ echo "msf:315508" > pkg/version.txt && chmod -R 755 pkg/
 cd pkg && tar -I "zstd -19 -T0" -cf "../wrapper.tzst" usr version.txt
 
 echo "=========================================================="
-echo "🟢 BYPASS Y CABECERAS INTEGRADAS DE FORMA INDESTRUCTIBLE"
+echo "🟢 BYPASS Y CABECERAS ACOPLADAS DE FORMA INDESTRUCTIBLE"
 echo "=========================================================="
