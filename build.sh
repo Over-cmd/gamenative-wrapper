@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 INICIANDO ENLAZADOR HÍBRIDO CON ANCLAJE FÍSICO DE CABECERAS"
+echo "🚀 INICIANDO ENLAZADOR HÍBRIDO CON PUENTE DE CABECERAS ABSOLUTO"
 echo "=========================================================="
 
 echo "-> 1. Ordenando al Contenedor de Docker compilar el Interceptor oficial..."
@@ -21,18 +21,20 @@ int wsi_configure_android_image(void* a, void* b) { (void)a; (void)b; return 0; 
 EOF
 mkdir -p "$(pwd)/shims_64"
 $NDK_BIN/aarch64-linux-android26-clang -c stub_logs.c -o stub_logs_64.o
-$NDK_BIN/llvm-ar rcs "$(pwd)/shims_64/libvulkan_wrapper.a" stub_logs_64.o
+$NDK_BIN/llvm-ar rcs "$WORKSPACE/shims_64/libvulkan_wrapper.a" stub_logs_64.o || llvm-ar rcs "$(pwd)/shims_64/libvulkan_wrapper.a" stub_logs_64.o
 
-# 🟢 JUGADA MAESTRA EXTRAORDINARIA ANULADORA: Copiamos las cabeceras directamente en el núcleo de compilación del objeto conflictivo
-echo "-> 2b. Inyectando físicamente xf86drm.h dentro de la carpeta local de runtime de Vulkan..."
-cp -fv subprojects/libdrm/*.h src/vulkan/runtime/ 2>/dev/null || true
-cp -fv subprojects/libdrm/include/drm/*.h src/vulkan/runtime/ 2>/dev/null || true
-cp -fv subprojects/libdrm/*.h src/vulkan/util/ 2>/dev/null || true
-cp -fv subprojects/libdrm/include/drm/*.h src/vulkan/util/ 2>/dev/null || true
+# 🟢 JUGADA MAESTRA EXTRAORDINARIA ANULADORA: Copiamos las cabeceras en todas las raíces que leen las banderas de Clang (-Iinclude e -I.)
+echo "-> 2b. Inyectando físicamente xf86drm.h en la matriz global de inclusiones de Mesa..."
+mkdir -p include/drm src/include
+cp -fv subprojects/libdrm/*.h include/ 2>/dev/null || true
+cp -fv subprojects/libdrm/include/drm/*.h include/ 2>/dev/null || true
+cp -fv subprojects/libdrm/include/drm/*.h include/drm/ 2>/dev/null || true
+cp -fv subprojects/libdrm/*.h ./ 2>/dev/null || true
+cp -fv subprojects/libdrm/include/drm/*.h ./ 2>/dev/null || true
 
 NDK_SYSROOT_LIB_64="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/26"
 
-# Fabricamos el .pc ficticio purificado (Limpiamos las Cflags para que Meson no intente inventarse rutas con el Sysroot)
+# Fabricamos el .pc ficticio purificado (Limpiamos las Cflags para evitar concatenaciones del sysroot de Google)
 cat << EOF > $(pwd)/shims_64/libdrm.pc
 Name: libdrm
 Description: Userspace interface to kernel DRM services
