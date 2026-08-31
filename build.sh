@@ -38,7 +38,7 @@ export ANDROID_NDK_HOME="/usr/local/lib/android/sdk/ndk/28.2.13676358"
 export NDK_BIN="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin"
 export NDK_SYSROOT="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
 
-# 🟢 REPLICADOR DE LOGS: Escribimos el micro-fuente C de trazas que ld.lld exige resolver
+# Escribimos el micro-fuente C de trazas que ld.lld exige resolver
 cat << 'EOF' > stub_logs.c
 int get_wrapper_log_level(const char *option) { (void)option; return 0; }
 void write_to_logfile(const char *fmt, const char *level, ...) { (void)fmt; (void)level; }
@@ -52,7 +52,7 @@ mkdir -p "$GITHUB_WORKSPACE/shims_32"
 $NDK_BIN/armv7a-linux-androideabi26-clang -c stub_logs.c -o stub_logs_32.o
 $NDK_BIN/llvm-ar rcs "$GITHUB_WORKSPACE/shims_32/libvulkan_wrapper.a" stub_logs_32.o
 
-echo "-> 8a. Generando cross_32.txt..."
+echo "-> 8a. Generando cross_32.txt limpio sin duplicaciones..."
 NDK_SYSROOT_LIB_32="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/arm-linux-androideabi/26"
 cat << EOF > cross_32.txt
 [constants]
@@ -67,20 +67,20 @@ ar      = toolchain + '/llvm-ar'
 strip   = toolchain + '/llvm-strip'
 pkgconfig = 'false'
 
-[properties]
-needs_exe_wrapper = true
-
 [host_machine]
 system = 'android'
 cpu_family = 'arm'
 cpu = 'armv7a'
 endian = 'little'
+
 [properties]
-sys_root = ndk_sysroot
+needs_exe_wrapper = true
+sys_root = '${NDK_SYSROOT}'
 libdir = '${NDK_SYSROOT_LIB_32}'
+
 [built-in options]
-c_args = ['--sysroot=' + ndk_sysroot]
-cpp_args = ['--sysroot=' + ndk_sysroot]
+c_args = ['--sysroot=' + '${NDK_SYSROOT}']
+cpp_args = ['--sysroot=' + '${NDK_SYSROOT}']
 c_link_args = ['-landroid', '-llog', '-lsync', '-lvulkan_wrapper', '-L${NDK_SYSROOT_LIB_32}', '-L$GITHUB_WORKSPACE/shims_32']
 cpp_link_args = ['-landroid', '-llog', '-lsync', '-lvulkan_wrapper', '-L${NDK_SYSROOT_LIB_32}', '-L$GITHUB_WORKSPACE/shims_32']
 EOF
@@ -97,7 +97,7 @@ mkdir -p "$GITHUB_WORKSPACE/shims_64"
 $NDK_BIN/aarch64-linux-android26-clang -c stub_logs.c -o stub_logs_64.o
 $NDK_BIN/llvm-ar rcs "$GITHUB_WORKSPACE/shims_64/libvulkan_wrapper.a" stub_logs_64.o
 
-echo "-> 8b. Generando cross_64.txt..."
+echo "-> 8b. Generando cross_64.txt limpio sin duplicaciones..."
 NDK_SYSROOT_LIB_64="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/26"
 cat << EOF > cross_64.txt
 [constants]
@@ -112,20 +112,20 @@ ar      = toolchain + '/llvm-ar'
 strip   = toolchain + '/llvm-strip'
 pkgconfig = 'false'
 
-[properties]
-needs_exe_wrapper = true
-
 [host_machine]
 system = 'android'
 cpu_family = 'aarch64'
 cpu = 'aarch64'
 endian = 'little'
+
 [properties]
-sys_root = ndk_sysroot
+needs_exe_wrapper = true
+sys_root = '${NDK_SYSROOT}'
 libdir = '${NDK_SYSROOT_LIB_64}'
+
 [built-in options]
-c_args = ['--sysroot=' + ndk_sysroot]
-cpp_args = ['--sysroot=' + ndk_sysroot]
+c_args = ['--sysroot=' + '${NDK_SYSROOT}']
+cpp_args = ['--sysroot=' + '${NDK_SYSROOT}']
 c_link_args = ['-landroid', '-llog', '-lsync', '-lvulkan_wrapper', '-L${NDK_SYSROOT_LIB_64}', '-L$GITHUB_WORKSPACE/shims_64']
 cpp_link_args = ['-landroid', '-llog', '-lsync', '-lvulkan_wrapper', '-L${NDK_SYSROOT_LIB_64}', '-L$GITHUB_WORKSPACE/shims_64']
 EOF
@@ -188,7 +188,7 @@ cp -v build-64/src/panfrost/vulkan/libvulkan_panfrost.so pkg/usr/lib/libvulkan_p
 echo "-> [C] Copiando el driver físico real de 32 bits generado en la fase A..."
 cp -v build-32/src/panfrost/vulkan/libvulkan_panfrost.so pkg/usr/lib/libvulkan_panfrost_32.so
 
-echo "-> [D] Estampando identidades SONAME y aplicando strip..."
+echo "-> [D] Estampando identidades SONAME and applying strip..."
 patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
 patchelf --set-soname libvulkan_panfrost_64.so pkg/usr/lib/libvulkan_panfrost_64.so
 patchelf --set-soname libvulkan_panfrost_32.so pkg/usr/lib/libvulkan_panfrost_32.so
