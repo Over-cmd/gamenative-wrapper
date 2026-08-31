@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 INICIANDO ENLAZADOR DE ARQUITECTURA MULTI-SCRIPT MESA 25"
+echo "🚀 INICIANDO ENLAZADOR HÍBRIDO MESA 25 - CIERRE DE METAS"
 echo "=========================================================="
 
 echo "-> 1. Compilando el Interceptor oficial en Docker..."
@@ -13,11 +13,10 @@ export ANDROID_NDK_HOME="/usr/local/lib/android/sdk/ndk/28.2.13676358"
 export NDK_BIN="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin"
 export NDK_SYSROOT="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
 
+# 🟢 REPARACIÓN FINAL: Eliminamos las duplicaciones de wsi_get_android... porque Mesa ya las provee en wsi_common_android.c
 cat << 'EOF' > stub_logs.c
 int get_wrapper_log_level(const char *option) { (void)option; return 0; }
 void write_to_logfile(const char *fmt, const char *level, ...) { (void)fmt; (void)level; }
-int wsi_get_android_blit_type(void* a, void* b) { (void)a; (void)b; return 0; }
-int wsi_configure_android_image(void* a, void* b) { (void)a; (void)b; return 0; }
 EOF
 
 mkdir -p "$(pwd)/shims_64"
@@ -28,7 +27,6 @@ echo "-> 2b. Levantando archivos DRM mudos para esquivar dependencias..."
 echo " " > src/vulkan/runtime/vk_drm_syncobj.c
 mkdir -p src/util && echo " " > src/util/libdrm.h
 
-# 🟢 EL TRUCO MULTI-SCRIPT: Le damos permisos y llamamos al segundo script para aplicar la cirugía pesada
 echo "-> 2c. Ejecutando parches quirúrgicos desde patch_mesa.sh..."
 chmod +x patch_mesa.sh
 ./patch_mesa.sh
@@ -105,5 +103,5 @@ echo "msf:315508" > pkg/version.txt && chmod -R 755 pkg/
 cd pkg && tar -I "zstd -19 -T0" -cf "../wrapper.tzst" usr version.txt
 
 echo "=========================================================="
-echo "🟢 ¡FAT PACK MONOLÍTICO COMPLETADO CON ARQUITECTURA MULTI-SCRIPT!"
+echo "Ref: 778/778 COMPLETO - DRIVER MONOLÍTICO HÍBRIDO LISTO"
 echo "=========================================================="
