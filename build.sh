@@ -73,7 +73,7 @@ pkg_config_path = '$GITHUB_WORKSPACE/shims_target'
 pkg_config_libdir = '$GITHUB_WORKSPACE/shims_target'
 [built-in options]
 c_args = ['--sysroot=' + ndk_sysroot, '-I$GITHUB_WORKSPACE/shims_target/include', '-Wl,-llog', '-Wl,-lsync']
-cpp_args = ['--sysroot=' + ndk_sysroot, '-I$GITHUB_WORKSPACE/shims_target/include', '-Wl,-llog', '-Wl,-lsync']
+cpp = ['--sysroot=' + ndk_sysroot, '-I$GITHUB_WORKSPACE/shims_target/include', '-Wl,-llog', '-Wl,-lsync']
 c_link_args = ['-landroid', '-llog', '-lsync', '-lhardware', '-lvulkan_wrapper', '-L${NDK_SYSROOT_LIB}', '-L$GITHUB_WORKSPACE/shims_target']
 cpp_link_args = ['-landroid', '-llog', '-lsync', '-lhardware', '-lvulkan_wrapper', '-L${NDK_SYSROOT_LIB}', '-L$GITHUB_WORKSPACE/shims_target']
 EOF
@@ -81,77 +81,32 @@ EOF
 echo "-> 9. Lanzando inicialización de Meson Setup..."
 meson setup build --cross-file cross.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dandroid-stub=true -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=panfrost,wrapper
 
-echo "-> 10. Compilando el motor gráfico completo con Ninja..."
+echo "-> 10. Compilando el motor gráfico unificado final con Ninja..."
 meson compile -C build
 
-# ==========================================
-# 🟢 11. CONSTRUCCIÓN DEL ENRUTADOR PUENTE MULTI-ARQUITECTURA
-# ==========================================
-echo "-> 11. Fabricando el código fuente del enrutador monolítico fat..."
-cat << 'EOF' > wrapper.c
-#define _GNU_SOURCE
-#include <stdio.h>
-#include <stdlib.h>
-#include <dlfcn.h>
-
-static void* handle = NULL;
-
-__attribute__((constructor)) void init_wrapper() {
-    setenv("PAN_I_WANT_A_BROKEN_VULKAN_DRIVER", "1", 1);
-    setenv("MESA_VK_IGNORE_CONFORMANCE_WARNING", "1", 1);
-    setenv("PANVK_DEBUG", "sync,nir", 1);
-    setenv("MESA_VK_FORCE_BLIT", "1", 1);
-    setenv("MESA_LOADER_DRIVER_OVERRIDE", "panfrost", 1);
-    setenv("GALLIUM_DRIVER", "panfrost", 1);
-
-    if (sizeof(void*) == 8) {
-        handle = dlopen("/usr/lib/libvulkan_panfrost_64.so", RTLD_NOW | RTLD_GLOBAL);
-        if (!handle) handle = dlopen("./libvulkan_panfrost_64.so", RTLD_NOW | RTLD_GLOBAL);
-    } else {
-        handle = dlopen("/usr/lib/libvulkan_panfrost_32.so", RTLD_NOW | RTLD_GLOBAL);
-        if (!handle) handle = dlopen("./libvulkan_panfrost_32.so", RTLD_NOW | RTLD_GLOBAL);
-    }
-}
-
-void* vk_icdGetInstanceProcAddr(void* instance, const char* pName) {
-    if (!handle) return NULL;
-    typedef void* (*PFN_icdGet)(void*, const char*);
-    PFN_icdGet real_icd = (PFN_icdGet)dlsym(handle, "vk_icdGetInstanceProcAddr");
-    return real_icd ? real_icd(instance, pName) : NULL;
-}
-EOF
-
-# Compilamos el puente oficial unificado que unirá los dos mundos bajo el nombre libvulkan_wrapper.so
-$CLANG_CROSS -shared -fPIC -o libvulkan_wrapper.so wrapper.c -ldl --sysroot="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
-
-# ==========================================
-# 🟢 12. ESTRUCTURA COMPATIBLE PURIFICADA PARA BANNERLATOR
-# ==========================================
-echo "-> 12. Estructurando empaque compatible ICD nativo..."
-# 🟢 CAMBIO CRÍTICO: Eliminamos la creación de la carpeta settings.d para purgar el share por completo
+echo "-> 12. Estructurando empaque compatible ICD nativo puro..."
+# Purgamos la carpeta share/settings.d por completo de la ruta
 rm -rf pkg && mkdir -p pkg/usr/lib pkg/usr/share/vulkan/icd.d
 
-echo "-> [A] Colocando el Enrutador Fat unificado como entrada principal requerida..."
-cp -v libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
+echo "-> 🟢 ENCENDIDO BINARIO MONOLÍTICO: Combinando Panfrost dentro del Wrapper Real..."
+# Pescamos el Wrapper legítimo biónico generado por Meson (el que tiene la lógica de adrenotools y linkernsbypass lista)
+cp -v build/src/vulkan/wrapper/libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
 
-echo "-> [B] Guardando la librería física real de Panfrost de 64 bits compilada..."
+# Inyectamos el driver físico real de Panfrost de 64 bits dentro de la misma carpeta
 cp -v build/src/panfrost/vulkan/libvulkan_panfrost.so pkg/usr/lib/libvulkan_panfrost_64.so
+cp -v "$GITHUB_WORKSPACE/shims_target/libvulkan_wrapper.so" pkg/usr/lib/libvulkan_panfrost_32.so
 
-echo "-> [C] Guardando la librería secundaria mapeada para 32 bits..."
-cp -v build/src/vulkan/wrapper/libvulkan_wrapper.so pkg/usr/lib/libvulkan_panfrost_32.so
-
-echo "-> [D] Estampando firmas de SONAMES nativas en los binarios..."
+echo "-> Sellando SONAMES para asegurar que el enlazador dinámico no de error de lectura..."
 patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
-patchelf --set-soname libvulkan_panfrost_64.so pkg/usr/lib/libvulkan_panfrost_64.so
-patchelf --set-soname libvulkan_panfrost_32.so pkg/usr/lib/libvulkan_panfrost_32.so
+patchelf --set-soname libvulkan_panfrost_64.so pkg/usr/lib/libvulkan_panfrost_64.so 2>/dev/null || true
 llvm-strip --strip-unneeded pkg/usr/lib/*.so 2>/dev/null || true
 
-# Escribimos los manifiestos oficiales de Mesa en el icd.d plano sin carpetas share duplicadas
+# El manifiesto le dice a Bannerlator que encienda desde libvulkan_wrapper.so para activar adrenotools de Pipetto
 echo '{"ICD": {"api_version": "1.4.352", "library_path": "libvulkan_wrapper.so"}, "file_format_version": "1.0.0"}' > pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
 echo '{"ICD": {"api_version": "1.4.352", "library_path": "libvulkan_wrapper.so"}, "file_format_version": "1.0.0"}' > pkg/usr/share/vulkan/icd.d/wrapper_icd.arm.json
 
 echo "msf:315508" > pkg/version.txt && chmod -R 755 pkg/
 cd pkg && tar -I "zstd -19 -T0" -cf "$GITHUB_WORKSPACE/wrapper.tzst" usr version.txt
 echo "=========================================================="
-echo "🟢 ENRUTADOR MONOLÍTICO FAT FUSIONADO CON ÉXITO"
+echo "🟢 ECOSYSTEMA CONEXIÓN TOTAL ARM64 GENERADO CON ÉXITO"
 echo "=========================================================="
