@@ -86,7 +86,7 @@ cpp_link_args = ['-landroid', '-llog', '-lsync', '-lvulkan_wrapper', '-L${NDK_SY
 EOF
 
 echo "-> 9a. Lanzando Setup y Compilación de Mesa de 32 bits..."
-meson setup build-32 --cross-file cross_32.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dandroid-stub=true -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=panfrost
+meson setup build-32 --cross-file cross_32.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dandroid-stub=true -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=panfrost,wrapper
 meson compile -C build-32
 
 # ==========================================
@@ -131,7 +131,7 @@ cpp_link_args = ['-landroid', '-llog', '-lsync', '-lvulkan_wrapper', '-L${NDK_SY
 EOF
 
 echo "-> 8b. Lanzando Setup y Compilación de Mesa de 64 bits..."
-meson setup build-64 --cross-file cross_64.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dandroid-stub=true -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=panfrost
+meson setup build-64 --cross-file cross_64.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dandroid-stub=true -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=panfrost,wrapper
 meson compile -C build-64
 
 # ==========================================
@@ -174,7 +174,7 @@ EOF
 $NDK_BIN/aarch64-linux-android26-clang -shared -fPIC -o libvulkan_wrapper.so wrapper.c -ldl --sysroot="$NDK_SYSROOT"
 
 # ==========================================
-# 🟢 FASE D: MAQUETADO ICD PLANO DEFINITIVO
+# 🟢 FASE D: MAQUETADO ICD PLANO DEFINITIVO REORDENADO
 # ==========================================
 echo "-> 10. Estructurando carpetas finales..."
 rm -rf pkg && mkdir -p pkg/usr/lib pkg/usr/share/vulkan/icd.d
@@ -182,13 +182,11 @@ rm -rf pkg && mkdir -p pkg/usr/lib pkg/usr/share/vulkan/icd.d
 echo "-> [A] Copiando el Enrutador Fat unificado como entrada principal..."
 cp -v libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
 
-echo "-> [B] Copiando el driver físico real de 64 bits generado en la fase B..."
+echo "-> [B] 🟢 ARREGLO SUPREMO: Copiando los drivers físicos reales de Panfrost a las rutas de dlopen..."
 cp -v build-64/src/panfrost/vulkan/libvulkan_panfrost.so pkg/usr/lib/libvulkan_panfrost_64.so
-
-echo "-> [C] Copiando el driver físico real de 32 bits generado en la fase A..."
 cp -v build-32/src/panfrost/vulkan/libvulkan_panfrost.so pkg/usr/lib/libvulkan_panfrost_32.so
 
-echo "-> [D] Estampando identidades SONAME and applying strip..."
+echo "-> [D] Estampando identidades internal SONAME y limpiando binarios..."
 patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
 patchelf --set-soname libvulkan_panfrost_64.so pkg/usr/lib/libvulkan_panfrost_64.so
 patchelf --set-soname libvulkan_panfrost_32.so pkg/usr/lib/libvulkan_panfrost_32.so
@@ -202,5 +200,5 @@ echo "msf:315508" > pkg/version.txt && chmod -R 755 pkg/
 cd pkg && tar -I "zstd -19 -T0" -cf "$GITHUB_WORKSPACE/wrapper.tzst" usr version.txt
 
 echo "=========================================================="
-echo "🟢 ¡FAT BINARY HÍBRIDO COMPILADO AL 100% EN VERDE!"
+echo "🟢 ¡FAT BINARY MULTI-ARQUITECTURA SELLADO Y REORDENADO CON ÉXITO!"
 echo "=========================================================="
