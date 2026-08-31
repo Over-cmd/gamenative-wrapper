@@ -8,8 +8,23 @@ echo "-> 2. Parches de hardware Mali-G52..."
 sed -i 's/fd = syscall(SYS_memfd_create.*/fd = memfd_create(debug_name, MFD_CLOEXEC \| MFD_ALLOW_SEALING);/g' src/util/anon_file.c 2>/dev/null || true
 sed -i '1s|^|static int sync_wait(int fd, int timeout) { return 0; }\n|' src/panfrost/lib/kmod/panthor_kmod.c
 
-echo "-> 2b. 🟢 REPARACIÓN DE LECTURA DE LOGS: Inyectando cabecera fcntl.h en el wrapper_log de Pipetto..."
+echo "-> 2b. Reparación de dependencias de cabeceras en logs..."
 sed -i '1s|^|#include <fcntl.h>\n|' src/vulkan/wrapper/wrapper_log.c
+
+# 🟢 JUGADA MAESTRA: Inyectamos hw_get_module directamente en el núcleo del Wrapper con prototipo formal para reventar el error de ld.lld
+echo "-> 2c. Inyectando función física hw_get_module en el núcleo del Wrapper..."
+cat << 'EOF' >> src/vulkan/wrapper/wrapper_device.c
+
+/* bypass global para resolver la dependencia de asignación de memoria de android (u_gralloc) */
+struct hw_module_t;
+int hw_get_module(const char *id, const struct hw_module_t **module);
+
+int hw_get_module(const char *id, const struct hw_module_t **module) {
+    (void)id;
+    (void)module;
+    return -1;
+}
+EOF
 
 echo "-> 3. Prototipos Públicos en Panfrost (Evita -Werror)..."
 cat << 'EOF' >> src/panfrost/vulkan/panvk_android.c
