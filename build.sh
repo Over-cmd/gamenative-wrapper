@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 INICIANDO ENLAZADOR HÍBRIDO CON VOLCADO INTEGRAL DE CABECERAS"
+echo "🚀 INICIANDO ENLAZADOR HÍBRIDO CON VOLCADO GLOBAL DE CABECERAS"
 echo "=========================================================="
 
 echo "-> 1. Ordenando al Contenedor de Docker compilar el Interceptor oficial..."
@@ -24,28 +24,37 @@ mkdir -p "$(pwd)/shims_64"
 $NDK_BIN/aarch64-linux-android26-clang -c stub_logs.c -o stub_logs_64.o
 $NDK_BIN/llvm-ar rcs "$(pwd)/shims_64/libvulkan_wrapper.a" stub_logs_64.o
 
-# 🟢 JUGADA MAESTRA INDESTRUCTIBLE: Volcamos los archivos estructurados en la única ruta que Meson lee de forma obligatoria y absoluta en todos los objetos
-echo "-> 2b. Inyectando físicamente xf86drm.h en la estructura interna reglamentaria de Mesa..."
-mkdir -p include/drm
+# 🟢 INYECCIÓN COLOZAL TOTAL: Volcamos los archivos .h en absolutamente todas las subcarpetas del código fuente que hereda Clang
+echo "-> 2b. Inyectando físicamente xf86drm.h en la matriz global de directorios de Mesa..."
+mkdir -p include/drm src/drm src/vulkan/runtime/
+
+# Copias masivas de contingencia en las zonas sagradas del compilador
+cp -fv subprojects/libdrm/*.h ./ 2>/dev/null || true
+cp -fv subprojects/libdrm/include/drm/*.h ./ 2>/dev/null || true
 cp -fv subprojects/libdrm/*.h include/ 2>/dev/null || true
 cp -fv subprojects/libdrm/include/drm/*.h include/ 2>/dev/null || true
 cp -fv subprojects/libdrm/include/drm/*.h include/drm/ 2>/dev/null || true
+cp -fv subprojects/libdrm/*.h src/ 2>/dev/null || true
+cp -fv subprojects/libdrm/include/drm/*.h src/ 2>/dev/null || true
+cp -fv subprojects/libdrm/include/drm/*.h src/drm/ 2>/dev/null || true
+cp -fv subprojects/libdrm/*.h src/vulkan/runtime/ 2>/dev/null || true
+cp -fv subprojects/libdrm/include/drm/*.h src/vulkan/runtime/ 2>/dev/null || true
 
-# Parcheamos el archivo conflictivo en caliente para que busque en local relativo como contingencia total
+# Forzamos compatibilidad dual de llamadas locales en el archivo conflictivo
 sed -i 's/#include <xf86drm.h>/#include "xf86drm.h"/g' src/vulkan/runtime/vk_drm_syncobj.c 2>/dev/null || true
 
 NDK_SYSROOT_LIB_64="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/26"
 
-# Fabricamos el .pc ficticio purificado para superar la línea de validación 1677
+# Fabricamos el .pc ficticio purificado libre de prefijos corruptos de Google
 cat << EOF > $(pwd)/shims_64/libdrm.pc
 Name: libdrm
 Description: Userspace interface to kernel DRM services
 Version: 2.4.120
 Libs: -L$(pwd)/shims_64 -lvulkan_wrapper
-Cflags: -I$(pwd)/include
+Cflags: -I$(pwd)/src -I$(pwd)/include
 EOF
 
-echo "-> 3. Generando cross_64.txt purificado..."
+echo "-> 3. Generando cross_64.txt purificado con flags limpios..."
 cat << EOF > cross_64.txt
 [constants]
 ndk_path = '${ANDROID_NDK_HOME}'
