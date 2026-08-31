@@ -39,14 +39,26 @@ EOF
   echo "-> Parche físico de gralloc con prototipo inyectado con éxito."
 fi
 
-# 🟢 JUGADA MAESTRA SUPREMA: Renombramos la librería compartida de Panfrost a 'vulkan_wrapper' dentro de Meson
-# Además le inyectamos localmente el enlace forzado de adrenotools y linkernsbypass para fusionar ambos mundos
-echo "-> 3c. Parcheando el nombre nativo y dependencias en el meson.build de Panfrost..."
-PAN_MESON="src/panfrost/vulkan/meson.build"
-if [ -f "$PAN_MESON" ]; then
-  sed -i "s|shared_library('vulkan_panfrost'|shared_library('vulkan_wrapper'|g" "$PAN_MESON"
-  sed -i "s|link_args : panvk_vulkan_link_args,|link_args : panvk_vulkan_link_args + ['-Lsubprojects/libadrenotools/src', '-ladrenotools', '-Lsubprojects/libadrenotools/lib/linkernsbypass', '-llinkernsbypass', '-lsync', '-lhardware'],|g" "$PAN_MESON"
-  echo "-> Fusión estructural inyectada en Panfrost."
+# 🟢 INYECCIÓN MAESTRA REAL: Sincronizamos las firmas de log exactas de Pipetto dentro de Panfrost para cerrar ld.lld
+echo "-> 3c. Inyectando réplicas de firmas de trazas idénticas en panvk_android.c..."
+ANDROID_TARGET="src/panfrost/vulkan/panvk_android.c"
+if [ -f "$ANDROID_TARGET" ]; then
+  cat << 'EOF' >> "$ANDROID_TARGET"
+
+#include <stdarg.h>
+
+/* Firmas reales clonadas del wrapper_log de Pipetto-Crypto para dar paso en verde a ld.lld */
+int get_wrapper_log_level(const char *option) {
+    (void)option;
+    return 0;
+}
+
+void write_to_logfile(const char *fmt, const char *level, ...) {
+    (void)fmt;
+    (void)level;
+}
+EOF
+  echo "-> Parche de firmas de trazas de 64 bits inyectado con éxito."
 fi
 
 echo "-> 4. Neutralizando búsquedas rígidas en subproyectos..."
@@ -95,7 +107,7 @@ $CLANG_CROSS -shared -fPIC simple_stub.c -o "$GITHUB_WORKSPACE/shims_target/libn
 $CLANG_CROSS -shared -fPIC simple_stub.c -o "$GITHUB_WORKSPACE/shims_target/libsync.so"
 $CLANG_CROSS -shared -fPIC simple_stub.c -o "$GITHUB_WORKSPACE/shims_target/libvulkan_wrapper.so"
 
-echo "-> 9. Escribiendo el archivo de configuración cruzada cross.txt nativo de 64-Bits..."
+echo "-> 9. Generando el archivo TOML de compilación cruzada cross.txt..."
 cat << EOF > cross.txt
 [constants]
 ndk_home = '${TRUE_NDK}'
@@ -129,30 +141,32 @@ libdrm_path = '$GITHUB_WORKSPACE/main-repo/subprojects/libdrm'
 [built-in options]
 c_args = ['--sysroot=' + ndk_sysroot, '-fno-emulated-tls', '-I' + shims_path / 'include', '-isystem' + ndk_sysroot / 'usr/include', '-DHAVE_STRUCT_TIMESPEC', '-DHAVE_DLFCN_H', '-UHAVE_SECURE_GETENV', '-UHAVE_QSORT_S', '-include', 'fcntl.h', '-include', 'time.h', '-Wl,-llog', '-Wl,-lsync', '-fvisibility=default']
 cpp_args = ['--sysroot=' + ndk_sysroot, '-fno-emulated-tls', '-I' + shims_path / 'include', '-isystem' + ndk_sysroot / 'usr/include', '-DHAVE_STRUCT_TIMESPEC', '-DHAVE_DLFCN_H', '-UHAVE_SECURE_GETENV', '-UHAVE_QSORT_S', '-include', 'fcntl.h', '-include', 'time.h', '-include', 'dlfcn.h', '-Wl,-llog', '-Wl,-lsync', '-fvisibility=default', '-D_LIBCPP_ABI_NAMESPACE=__1']
-c_link_args = ['-landroid', '-llog', '-lsync', '-lhardware', '-L' + ndk_sysroot_lib, '-L' + shims_path, '--sysroot=' + ndk_sysroot, '-llog', '-lsync']
-cpp_link_args = ['-landroid', '-llog', '-lsync', '-lhardware', '-L' + ndk_sysroot_lib, '-L' + shims_path, '--sysroot=' + ndk_sysroot, '-llog', '-lsync']
+c_link_args = ['-landroid', '-llog', '-lsync', '-lhardware', '-lvulkan_wrapper', '-L' + ndk_sysroot_lib, '-L' + shims_path, '--sysroot=' + ndk_sysroot, '-llog', '-lsync']
+cpp_link_args = ['-landroid', '-llog', '-lsync', '-lhardware', '-lvulkan_wrapper', '-L' + ndk_sysroot_lib, '-L' + shims_path, '--sysroot=' + ndk_sysroot, '-llog', '-lsync']
 EOF
 
 echo "-> 10. Lanzando inicialización de Meson Setup..."
 meson setup build --reconfigure --cross-file cross.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dandroid-stub=true -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dopengl=false -Dgles1=disabled -Dgles2=disabled -Dllvm=disabled -Dvalgrind=disabled -Dzstd=disabled -Dvulkan-drivers=panfrost,wrapper -Dgallium-drivers=[]
 
-echo "-> 11. Compilando el motor gráfico unificado final..."
+echo "-> 11a. Compilando prioritariamente el Wrapper auxiliar intermedio con Ninja..."
+/home/runner/.local/bin/ninja -C build src/vulkan/wrapper/libvulkan_wrapper.so
+
+echo "-> 11b. Pisando el stub intermedio con el binario REAL generado..."
+cp -fv build/src/vulkan/wrapper/libvulkan_wrapper.so "$GITHUB_WORKSPACE/shims_target/libvulkan_wrapper.so"
+
+echo "-> 11c. Compilando el driver unificado final..."
 meson compile -C build
 
-# ==========================================
-# 🟢 12. EMPAQUETADO COMPATIBLE DIRECTO ARM64
-# ==========================================
-echo "-> Estructurando empaque compatible ICD para Bannerlator..."
+echo "-> 12. Estructurando empaque compatible ICD 1.0.0..."
 rm -rf pkg && mkdir -p pkg/usr/lib pkg/usr/share/vulkan/icd.d pkg/usr/share/vulkan/settings.d
 
-echo "-> Pescando el binario real nacido legítimamente con el nombre inyectado y fusionado..."
-cp -v build/src/panfrost/vulkan/libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
+# Pescamos el binario físico de Panfrost real compilado al 100% por Ninja
+cp -v build/src/panfrost/vulkan/libvulkan_panfrost.so pkg/usr/lib/libvulkan_wrapper.so
 
-echo "-> Estampando SONAME oficial y aplicando strip..."
-patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so 2>/dev/null || true
+echo "-> Cambiando quirúrgicamente el SONAME interno para forzar la entrada al contenedor..."
+patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
 llvm-strip --strip-unneeded pkg/usr/lib/*.so 2>/dev/null || true
 
-# El manifiesto le dice a Bannerlator que cargue la librería unificada directa
 echo '{"ICD": {"api_version": "1.4.352", "library_path": "libvulkan_wrapper.so"}, "file_format_version": "1.0.0"}' > pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
 echo '{"ICD": {"api_version": "1.4.352", "library_path": "libvulkan_wrapper.so"}, "file_format_version": "1.0.0"}' > pkg/usr/share/vulkan/icd.d/wrapper_icd.arm.json
 echo '{"env":{"PAN_I_WANT_A_BROKEN_VULKAN_DRIVER":"1","MESA_VK_IGNORE_CONFORMANCE_WARNING":"1","PANVK_DEBUG":"sync,nir","MESA_VK_FORCE_BLIT":"1","MESA_LOADER_DRIVER_OVERRIDE":"panfrost","GALLIUM_DRIVER":"panfrost","vblank_mode":"0","MESA_GLSL_CACHE_DISABLE":"1","MESA_SHADER_CACHE_DISABLE":"true","NIR_DEBUG":"tgsi","MESA_VK_WSI_PRESENT_MODE":"immediate","MESA_VK_WSI_DEBUG":"always_async"}}' > pkg/usr/share/vulkan/settings.d/wrapper_settings.json
