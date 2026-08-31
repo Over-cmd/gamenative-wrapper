@@ -15,18 +15,10 @@ sed -i 's/fd = syscall(SYS_memfd_create.*/fd = memfd_create(debug_name, MFD_CLOE
 find . -name "pan_device.c" -exec sed -i 's/pan_query_core_count(&dev->kmod.dev->props, &dev->core_id_range);/dev->core_id_range = pan_query_core_count(\&dev->kmod.dev->props);/g' {} + 2>/dev/null || true
 find . -name "pan_device.c" -exec sed -i 's/\\&/\&/g' {} + 2>/dev/null || true
 
-echo "-> 3. Inyectando stub inline STATIC de sync_wait en panthor_kmod.c (Evita -Werror)..."
+echo "-> 3. Inyectando stub inline STATIC de sync_wait en panthor_kmod.c..."
 KMOD_TARGET="src/panfrost/lib/kmod/panthor_kmod.c"
 if [ -f "$KMOD_TARGET" ]; then
   sed -i '1s|^|static int sync_wait(int fd, int timeout) { return 0; }\n|' "$KMOD_TARGET"
-fi
-
-# 🟢 JUGADA MAESTRA FINAL: Inyectamos el stub de hw_get_module de forma estática local para reventar el error de u_gralloc en el objeto 775
-echo "-> 3b. Inyectando stub estático de hw_get_module en u_gralloc.c para ld.lld..."
-GRALLOC_TARGET="src/util/u_gralloc/u_gralloc.c"
-if [ -f "$GRALLOC_TARGET" ]; then
-  sed -i '1s|^|struct hw_module_t; static int hw_get_module(const char *id, const struct hw_module_t **module) { return -1; }\n|' "$GRALLOC_TARGET"
-  echo "-> Parche de gralloc inyectado con éxito."
 fi
 
 echo "-> 4. Neutralizando búsquedas rígidas en subproyectos..."
@@ -61,9 +53,9 @@ export MESON_WORKING_DIR="$GITHUB_WORKSPACE/main-repo"
 export PKG_CONFIG_PATH="$GITHUB_WORKSPACE/shims_target"
 export PKG_CONFIG_LIBDIR="$GITHUB_WORKSPACE/shims_target"
 NDK_SYSROOT_LIB="$TRUE_NDK/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/30"
-CLANG_CROSS="${TRUE_NDK}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android30-clang"
+export CLANG_CROSS="${TRUE_NDK}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android30-clang"
 
-echo "-> 8. Descomprimiendo shims locales e inyectando stubs binarios cruzados ARM64 legítimos..."
+echo "-> 8. Descomprimiendo shims locales e inyectando stubs binarios cruzados ARM64..."
 unzip -o shims.zip -d ./
 mkdir -p "$GITHUB_WORKSPACE/shims_target"
 cp -rf ./shims/* "$GITHUB_WORKSPACE/shims_target/"
@@ -80,6 +72,13 @@ if [ -f "android-64.toml" ]; then envsubst < android-64.toml > cross.txt; else e
 sed -i "s|pkg_config_libdir = .*|pkg_config_libdir = '$PKG_CONFIG_PATH'|g" cross.txt
 sed -i "s|pkg_config_path = .*|pkg_config_path = '$PKG_CONFIG_PATH'|g" cross.txt
 sed -i "s|libdrm_path = .*|libdrm_path = '$GITHUB_WORKSPACE/main-repo/subprojects/libdrm'|g" cross.txt
+
+# 🟢 INYECCIÓN MAESTRA DEFINITIVA: Inyectamos la macro inline de hw_get_module de forma global en c_args y cpp_args
+# Esto define la función de forma automática en cada .c procesado por Clang, esquivando el error del enlazador LLD
+GLOBAL_STUB="-Dhw_get_module(id,mod)=({-1;})"
+
+sed -i "s|c_args = \[|c_args = ['${GLOBAL_STUB}', |g" cross.txt
+sed -i "s|cpp_args = \[|cpp_args = ['${GLOBAL_STUB}', |g" cross.txt
 sed -i "s|c_link_args = \[|c_link_args = ['-landroid', '-llog', '-lsync', '-lhardware', '-L${NDK_SYSROOT_LIB}', '-L$PKG_CONFIG_PATH', |g" cross.txt
 sed -i "s|cpp_link_args = \[|cpp_link_args = ['-landroid', '-llog', '-lsync', '-lhardware', '-L${NDK_SYSROOT_LIB}', '-L$PKG_CONFIG_PATH', |g" cross.txt
 
