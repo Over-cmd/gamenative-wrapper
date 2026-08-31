@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 INICIANDO ENLAZADOR HÍBRIDO MESA 25 MASTER-BLINDADO"
+echo "🚀 INICIANDO ENLAZADOR HÍBRIDO MESA 25 INTEGRAL DEFINITIVO"
 echo "=========================================================="
 
 echo "-> 1. Compilando el Interceptor oficial en Docker..."
@@ -13,7 +13,6 @@ export ANDROID_NDK_HOME="/usr/local/lib/android/sdk/ndk/28.2.13676358"
 export NDK_BIN="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin"
 export NDK_SYSROOT="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
 
-# Micro-fuente C de trazas y funciones biónicas que ld.lld exige resolver
 cat << 'EOF' > stub_logs.c
 int get_wrapper_log_level(const char *option) { (void)option; return 0; }
 void write_to_logfile(const char *fmt, const char *level, ...) { (void)fmt; (void)level; }
@@ -29,31 +28,34 @@ echo "-> 2b. Neutralizando dependencias DRM residuales mediante stubs simulados.
 echo " " > src/vulkan/runtime/vk_drm_syncobj.c
 mkdir -p src/util && echo " " > src/util/libdrm.h
 
-# 🟢 RESTAURACIÓN DE CÓDIGO FUENTE LEGÍTIMO: Recuperamos los archivos originales limpios para evitar conflictos de firmas en Mesa 25
+# 🟢 RESTAURACIÓN DE CÓDIGO FUENTE LEGÍTIMO: Traemos de vuelta los archivos limpios del repositorio para aplicar los parches sobre seguro
+git checkout src/vulkan/runtime/vk_instance.c 2>/dev/null || true
+git checkout src/vulkan/wsi/wsi_common_drm.c 2>/dev/null || true
+git checkout src/panfrost/lib/kmod/pan_kmod.h 2>/dev/null || true
 git checkout src/panfrost/lib/kmod/pan_kmod.c 2>/dev/null || true
 git checkout src/panfrost/lib/kmod/panfrost_kmod.c 2>/dev/null || true
 git checkout src/panfrost/lib/kmod/panthor_kmod.c 2>/dev/null || true
 
-# 🟢 CABECERA CONTROLADORA DEFINITIVA: Inyectamos todas las firmas, macros e ioctls que exigen pan_kmod.h y vk_instance.c de golpe
+# 🟢 CIRUGÍA 1: Cambiamos las inclusiones estrictas con corchetes <xf86drm.h> a comillas locales "xf86drm.h" para burlar el Sysroot del NDK
+sed -i 's/#include <xf86drm.h>/#include "xf86drm.h"/g' src/vulkan/runtime/vk_instance.c 2>/dev/null || true
+sed -i 's/#include <xf86drm.h>/#include "xf86drm.h"/g' src/panfrost/lib/kmod/pan_kmod.c 2>/dev/null || true
+sed -i 's/#include <xf86drm.h>/#include "xf86drm.h"/g' src/panfrost/lib/kmod/panfrost_kmod.c 2>/dev/null || true
+sed -i 's/#include <xf86drm.h>/#include "xf86drm.h"/g' src/panfrost/lib/kmod/panthor_kmod.c 2>/dev/null || true
+
+# 🟢 CABECERA CONTROLADORA DEFINITIVA: Fabricamos un xf86drm.h local falso impecable con TODOS los ioctls y macros que exigen pan_kmod, vk_instance y panthor_kmod
 cat << 'EOF' > $(pwd)/shims_64/xf86drm.h
 #ifndef xf86drm_h
 #define xf86drm_h
 #include <stdint.h>
-
-/* Macro nativo exigido por pan_kmod.h en la línea 568 */
 #define DRM_CLOEXEC 0x140000
-
 typedef struct _drmDevice { char **nodes; } *drmDevicePtr;
 typedef struct _drmVersion { int version_major; int version_minor; int version_patchlevel; char *name; char *date; char *desc; } *drmVersionPtr;
-
 static inline drmVersionPtr drmGetVersion(int fd) { (void)fd; return 0; }
 static inline void drmFreeVersion(drmVersionPtr v) { (void)v; }
 static inline int drmCloseBufferHandle(int fd, uint32_t handle) { (void)fd; (void)handle; return 0; }
 static inline int drmPrimeFDToHandle(int fd, int prime_fd, uint32_t *handle) { (void)fd; (void)prime_fd; (void)handle; return 0; }
 static inline int drmGetDevices2(uint32_t flags, drmDevicePtr devices[], int max_devices) { (void)flags; (void)devices; (void)max_devices; return -1; }
 static inline void drmFreeDevices(drmDevicePtr devices[], int count) { (void)devices; (void)count; }
-
-/* Inyecciones biónicas que resuelven las llamadas del núcleo de Panfrost de Mesa 25 */
 static inline int drmPrimeHandleToFD(int fd, uint32_t handle, uint32_t flags, int *prime_fd) { (void)fd; (void)handle; (void)flags; if(prime_fd) *prime_fd = -1; return 0; }
 static inline int drmIoctl(int fd, unsigned long request, void *arg) { (void)fd; (void)request; (void)arg; return 0; }
 static inline int drmCommandWriteRead(int fd, unsigned long cmd, void *data, unsigned long size) { (void)fd; (void)cmd; (void)data; (void)size; return 0; }
@@ -63,8 +65,9 @@ static inline int drmCommandRead(int fd, unsigned long cmd, void *data, unsigned
 EOF
 
 mkdir -p include && cp -fv $(pwd)/shims_64/xf86drm.h include/xf86drm.h
+mkdir -p src/panfrost/lib/kmod && cp -fv $(pwd)/shims_64/xf86drm.h src/panfrost/lib/kmod/xf86drm.h
 
-# STUBS DE WSI DRM COMPLETOS
+# 🟢 STUBS DE WSI DRM COMPLETOS CON SUS FIRMAS EXPLICITAS ASOCIADAS
 cat << 'EOF' > src/vulkan/wsi/wsi_common_drm.c
 #include <stdint.h>
 #include <stdbool.h>
@@ -99,31 +102,26 @@ cat << EOF > cross_64.txt
 ndk_path = '${ANDROID_NDK_HOME}'
 toolchain = ndk_path + '/toolchains/llvm/prebuilt/linux-x86_64/bin'
 api = '26'
-
 [binaries]
 c       = toolchain + '/aarch64-linux-android' + api + '-clang'
 cpp     = toolchain + '/aarch64-linux-android' + api + '-clang++'
 ar      = toolchain + '/llvm-ar'
 strip   = toolchain + '/llvm-strip'
 pkg-config = '/usr/bin/pkg-config'
-
 [host_machine]
 system = 'android'
 cpu_family = 'aarch64'
 cpu = 'aarch64'
 endian = 'little'
-
 [properties]
 needs_exe_wrapper = true
 sys_root = '${NDK_SYSROOT}'
 libdir = '${NDK_SYSROOT_LIB_64}'
 pkg_config_path = '$(pwd)/shims_64'
 pkg_config_libdir = '$(pwd)/shims_64'
-
 [built-in options]
-# Forzamos el flag global de inyección invisible; Clang inyectará de forma invisible los ioctls resueltos en toda la pila de Panfrost
-c_args = ['--sysroot=' + '${NDK_SYSROOT}', '-D__TERMUX__', '-I$(pwd)/shims_64', '-include', 'xf86drm.h']
-cpp_args = ['--sysroot=' + '${NDK_SYSROOT}', '-D__TERMUX__', '-I$(pwd)/shims_64', '-include', 'xf86drm.h']
+c_args = ['--sysroot=' + '${NDK_SYSROOT}', '-D__TERMUX__', '-I$(pwd)/shims_64']
+cpp_args = ['--sysroot=' + '${NDK_SYSROOT}', '-D__TERMUX__', '-I$(pwd)/shims_64']
 c_link_args = ['-landroid', '-llog', '-lsync', '-lvulkan_wrapper', '-L${NDK_SYSROOT_LIB_64}', '-L$(pwd)/shims_64']
 cpp_link_args = ['-landroid', '-llog', '-lsync', '-lvulkan_wrapper', '-L${NDK_SYSROOT_LIB_64}', '-L$(pwd)/shims_64']
 EOF
@@ -160,5 +158,5 @@ echo "msf:315508" > pkg/version.txt && chmod -R 755 pkg/
 cd pkg && tar -I "zstd -19 -T0" -cf "../wrapper.tzst" usr version.txt
 
 echo "=========================================================="
-echo "🟢 ¡FAT PACK INTEGRAL COMPLETADO EN VERDE COMPLETO!"
+echo "🟢 ¡FAT PACK MONOLÍTICO SEPARADO COMPLETADO EN VERDE TOTAL!"
 echo "=========================================================="
