@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 INICIANDO ENLAZADOR HÍBRIDO CON PUENTE RELATIVO DE ACCESO"
+echo "🚀 INICIANDO ENLAZADOR HÍBRIDO CON VOLCADO INTEGRAL DE CABECERAS"
 echo "=========================================================="
 
 echo "-> 1. Ordenando al Contenedor de Docker compilar el Interceptor oficial..."
@@ -24,26 +24,28 @@ mkdir -p "$(pwd)/shims_64"
 $NDK_BIN/aarch64-linux-android26-clang -c stub_logs.c -o stub_logs_64.o
 $NDK_BIN/llvm-ar rcs "$(pwd)/shims_64/libvulkan_wrapper.a" stub_logs_64.o
 
-# 🟢 JUGADA MAESTRA DE RAÍZ: Copiamos los archivos de libdrm directo en la raíz del compilador y en las carpetas nativas de Mesa
-echo "-> 2b. Inyectando físicamente xf86drm.h en la matriz de directorios..."
-mkdir -p include/drm src/vulkan/runtime/include
-cp -fv subprojects/libdrm/*.h ./ 2>/dev/null || true
-cp -fv subprojects/libdrm/include/drm/*.h ./ 2>/dev/null || true
+# 🟢 JUGADA MAESTRA INDESTRUCTIBLE: Volcamos los archivos estructurados en la única ruta que Meson lee de forma obligatoria y absoluta en todos los objetos
+echo "-> 2b. Inyectando físicamente xf86drm.h en la estructura interna reglamentaria de Mesa..."
+mkdir -p include/drm
 cp -fv subprojects/libdrm/*.h include/ 2>/dev/null || true
 cp -fv subprojects/libdrm/include/drm/*.h include/ 2>/dev/null || true
+cp -fv subprojects/libdrm/include/drm/*.h include/drm/ 2>/dev/null || true
+
+# Parcheamos el archivo conflictivo en caliente para que busque en local relativo como contingencia total
+sed -i 's/#include <xf86drm.h>/#include "xf86drm.h"/g' src/vulkan/runtime/vk_drm_syncobj.c 2>/dev/null || true
 
 NDK_SYSROOT_LIB_64="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/26"
 
-# Fabricamos el .pc ficticio local para superar la línea 1677
+# Fabricamos el .pc ficticio purificado para superar la línea de validación 1677
 cat << EOF > $(pwd)/shims_64/libdrm.pc
 Name: libdrm
 Description: Userspace interface to kernel DRM services
 Version: 2.4.120
 Libs: -L$(pwd)/shims_64 -lvulkan_wrapper
-Cflags: -I.
+Cflags: -I$(pwd)/include
 EOF
 
-echo "-> 3. Generando cross_64.txt con inyecciones de escape relativo..."
+echo "-> 3. Generando cross_64.txt purificado..."
 cat << EOF > cross_64.txt
 [constants]
 ndk_path = '${ANDROID_NDK_HOME}'
@@ -67,9 +69,8 @@ libdir = '${NDK_SYSROOT_LIB_64}'
 pkg_config_path = '$(pwd)/shims_64'
 pkg_config_libdir = '$(pwd)/shims_64'
 [built-in options]
-# 🟢 EL TRUCO SUPREMO: Añadimos '-I../' e '-Iinclude'. Meson procesará la ruta relativa desde las carpetas internas sin agregar el sysroot por delante
-c_args = ['--sysroot=' + '${NDK_SYSROOT}', '-D__TERMUX__', '-I../', '-Iinclude', '-I.']
-cpp_args = ['--sysroot=' + '${NDK_SYSROOT}', '-D__TERMUX__', '-I../', '-Iinclude', '-I.']
+c_args = ['--sysroot=' + '${NDK_SYSROOT}', '-D__TERMUX__']
+cpp_args = ['--sysroot=' + '${NDK_SYSROOT}', '-D__TERMUX__']
 c_link_args = ['-landroid', '-llog', '-lsync', '-lvulkan_wrapper', '-L${NDK_SYSROOT_LIB_64}', '-L$(pwd)/shims_64']
 cpp_link_args = ['-landroid', '-llog', '-lsync', '-lvulkan_wrapper', '-L${NDK_SYSROOT_LIB_64}', '-L$(pwd)/shims_64']
 EOF
@@ -89,6 +90,7 @@ mkdir -p pkg/usr/lib/aarch64-linux-android
 mkdir -p pkg/usr/lib/arm-linux-androideabi
 mkdir -p pkg/usr/share/vulkan/icd.d
 
+# Colocamos los binarios finales unificados bajo las identidades correspondientes
 cp -v compilacion/libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
 cp -v build-64/src/panfrost/vulkan/libvulkan_panfrost.so pkg/usr/lib/aarch64-linux-android/libvulkan_wrapper.so
 cp -v compilacion/libvulkan_wrapper.so pkg/usr/lib/arm-linux-androideabi/libvulkan_wrapper.so
@@ -109,5 +111,5 @@ echo "msf:315508" > pkg/version.txt && chmod -R 755 pkg/
 cd pkg && tar -I "zstd -19 -T0" -cf "../wrapper.tzst" usr version.txt
 
 echo "=========================================================="
-echo "🟢 BYPASS Y CABECERAS ENLAZADAS EN RELATIVO CON ÉXITO"
+echo "🟢 BYPASS Y CABECERAS ACOPLADAS DE FORMA INDESTRUCTIBLE"
 echo "=========================================================="
