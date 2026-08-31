@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 INICIANDO ENLAZADOR HÍBRIDO CON ANULACIÓN DE FUNCIÓN VÍA MACRO"
+echo "🚀 INICIANDO ENLAZADOR HÍBRIDO CON ANULATION POR MACRO #IF 0"
 echo "=========================================================="
 
 echo "-> 1. Ordenando al Contenedor de Docker compilar el Interceptor oficial..."
@@ -29,33 +29,32 @@ echo " " > src/vulkan/runtime/vk_drm_syncobj.c
 mkdir -p src/util
 echo " " > src/util/libdrm.h
 
-# 🟢 JAQUE MATE AL PASO 442: Reemplazamos la función real por un cascarón vacío y desactivamos el bloque problemático usando #if 0
+# 🟢 JAQUE MATE AL PASO 442/443: Usamos Python para envolver la función conflictiva en un bloque #if 0 inviolable para Clang
 python3 -c '
 with open("src/vulkan/runtime/vk_instance.c", "r") as f:
     code = f.read()
 
-# Definimos la versión limpia y vacía de la función que no busca tarjetas de PC
+# Definimos la versión limpia de reemplazo rápido que inyecta la macro de apagado total
 clean_function = """
 static VkResult
 enumerate_drm_physical_devices_locked(struct vk_instance *instance)
 {
    return VK_SUCCESS;
 }
-/*
+#if 0
 """
 
-# Reemplazamos el inicio de la función original para abrir un comentario masivo
 target = "enumerate_drm_physical_devices_locked(struct vk_instance *instance)\n{"
 if target in code:
     code = code.replace(target, clean_function)
-    print("-> Python: ¡Estructura DRM anulada de forma limpia!")
+    print("-> Python: ¡Macro #if 0 inyectada de forma reglamentaria!")
 else:
     target_alt = "enumerate_drm_physical_devices_locked(struct vk_instance *instance) {"
     code = code.replace(target_alt, clean_function)
-    print("-> Python: ¡Estructura DRM alternativa anulada!")
+    print("-> Python: ¡Macro #if 0 alternativa inyectada!")
 
-# Cerramos el comentario masivo justo antes de que empiece la siguiente función del archivo de Mesa
-code = code.replace("enumerate_physical_devices_locked(struct vk_instance *instance)", "*/\nstatic VkResult\nenumerate_physical_devices_locked(struct vk_instance *instance)")
+# Cerramos la macro #endif justo antes de que empiece el siguiente bloque legítimo del archivo de Mesa
+code = code.replace("enumerate_physical_devices_locked(struct vk_instance *instance)", "#endif\nstatic VkResult\nenumerate_physical_devices_locked(struct vk_instance *instance)")
 
 with open("src/vulkan/runtime/vk_instance.c", "w") as f:
     f.write(code)
@@ -138,5 +137,5 @@ echo "msf:315508" > pkg/version.txt && chmod -R 755 pkg/
 cd pkg && tar -I "zstd -19 -T0" -cf "../wrapper.tzst" usr version.txt
 
 echo "=========================================================="
-echo "🟢 BYPASS Y PURGA COMPLETADOS EXITOSAMENTE CON PYTHON"
+echo "🟢 BYPASS Y PURGA COMPLETADOS EXITOSAMENTE CON PREPROCESADOR"
 echo "=========================================================="
