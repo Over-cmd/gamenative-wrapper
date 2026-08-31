@@ -21,7 +21,6 @@ if [ -f "$KMOD_TARGET" ]; then
   sed -i '1s|^|static int sync_wait(int fd, int timeout) { return 0; }\n|' "$KMOD_TARGET"
 fi
 
-# 🟢 CORRECCIÓN SUPREMA: Añadimos el prototipo explícito de la función para bofetear el flag -Wmissing-prototypes de Mesa
 echo "-> 3b. Inyectando función física real con prototipo al final de u_gralloc.c..."
 GRALLOC_TARGET="src/util/u_gralloc/u_gralloc.c"
 if [ -f "$GRALLOC_TARGET" ]; then
@@ -92,8 +91,12 @@ sed -i "s|pkg_config_libdir = .*|pkg_config_libdir = '$PKG_CONFIG_PATH'|g" cross
 sed -i "s|pkg_config_path = .*|pkg_config_path = '$PKG_CONFIG_PATH'|g" cross.txt
 sed -i "s|libdrm_path = .*|libdrm_path = '$GITHUB_WORKSPACE/main-repo/subprojects/libdrm'|g" cross.txt
 
-sed -i "s|c_link_args = \[|c_link_args = ['-landroid', '-llog', '-lsync', '-lhardware', '-L${NDK_SYSROOT_LIB}', '-L$PKG_CONFIG_PATH', |g" cross.txt
-sed -i "s|cpp_link_args = \[|cpp_link_args = ['-landroid', '-llog', '-lsync', '-lhardware', '-L${NDK_SYSROOT_LIB}', '-L$PKG_CONFIG_PATH', |g" cross.txt
+# 🟢 JUGADA MAESTRA EXTRAORDINARIA: Pasamos la ruta de salida del Wrapper binario generado por Ninja (-L ... /build/src/vulkan/wrapper)
+# Esto amarra por fin los símbolos de log modificados (get_wrapper_log_level) de Panfrost en la línea final 778
+WRAPPER_OUT_DIR="$GITHUB_WORKSPACE/main-repo/build/src/vulkan/wrapper"
+
+sed -i "s|c_link_args = \[|c_link_args = ['-landroid', '-llog', '-lsync', '-lhardware', '-lvulkan_wrapper', '-L${WRAPPER_OUT_DIR}', '-L${NDK_SYSROOT_LIB}', '-L$PKG_CONFIG_PATH', |g" cross.txt
+sed -i "s|cpp_link_args = \[|cpp_link_args = ['-landroid', '-llog', '-lsync', '-lhardware', '-lvulkan_wrapper', '-L${WRAPPER_OUT_DIR}', '-L${NDK_SYSROOT_LIB}', '-L$PKG_CONFIG_PATH', |g" cross.txt
 
 echo "-> 10. Lanzando inicialización de Meson Setup..."
 meson setup build --reconfigure --cross-file cross.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dandroid-stub=true -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dopengl=false -Dgles1=disabled -Dgles2=disabled -Dllvm=disabled -Dvalgrind=disabled -Dzstd=disabled -Dvulkan-drivers=panfrost,wrapper -Dgallium-drivers=[]
