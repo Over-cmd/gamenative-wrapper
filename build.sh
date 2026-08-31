@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 INICIANDO ENLAZADOR HÍBRIDO FAT CON INTERCEPTOR DE WRAP"
+echo "🚀 INICIANDO ENLAZADOR HÍBRIDO CON BYPASS LIBADRENOTOOLS"
 echo "=========================================================="
 
 echo "-> 1. Ordenando al Contenedor de Docker compilar el Interceptor oficial..."
@@ -50,7 +50,7 @@ c_link_args = ['-landroid', '-llog', '-lsync', '-lvulkan_wrapper', '-L${NDK_SYSR
 cpp_link_args = ['-landroid', '-llog', '-lsync', '-lvulkan_wrapper', '-L${NDK_SYSROOT_LIB_64}', '-L$(pwd)/shims_64']
 EOF
 
-# 🟢 JUGADA MAESTRA DE ANULACIÓN: Forzamos un .wrap falso local para que Meson asuma que libdrm ya está resuelta internamente
+# Inyectamos el .wrap local para evitar el error de libdrm 1677 de Meson Setup
 mkdir -p subprojects
 cat << 'EOF' > subprojects/libdrm.wrap
 [wrap-file]
@@ -59,15 +59,14 @@ directory = libdrm
 libdrm = dep_libdrm
 EOF
 
-# Purga de validaciones secundarias que rompen el setup cruzado
 sed -i "s/cc.find_library('dl'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/cc.find_library('rt'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/dependency('libclc')/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/dep_libclc = .*/dep_libclc = dependency('', required : false)/g" meson.build 2>/dev/null || true
 
-echo "-> 4. Compilando el driver físico real de Panfrost de 64 bits..."
-# Usamos --wrap-mode=nodownload para forzar a Meson a tragarse nuestro override de subproyecto sin buscar en internet
-meson setup build-64 --cross-file cross_64.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dandroid-stub=true -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=panfrost
+echo "-> 4. Compilando Panfrost activando el submódulo Wrapper con el Bypass de adrenotools..."
+# 🟢 CAMBIO CRÍTICO: Agregamos 'wrapper' a la cadena para inyectar libadrenotools de forma obligatoria en la compilación
+meson setup build-64 --cross-file cross_64.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dandroid-stub=true -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=panfrost,wrapper
 meson compile -C build-64
 
 echo "-> 5. Maquetando empaque compatible ICD plano multi-directorio..."
@@ -76,16 +75,11 @@ mkdir -p pkg/usr/lib/aarch64-linux-android
 mkdir -p pkg/usr/lib/arm-linux-androideabi
 mkdir -p pkg/usr/share/vulkan/icd.d
 
-echo "-> [A] Guardando Interceptor base en la raíz de librerías..."
+# Mover los archivos acoplados con identidades cruzadas limpias
 cp -v compilacion/libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
-
-echo "-> [B] Guardando Panfrost de 64 bits en su subcarpeta dedicada bajo el nombre puro..."
 cp -v build-64/src/panfrost/vulkan/libvulkan_panfrost.so pkg/usr/lib/aarch64-linux-android/libvulkan_wrapper.so
-
-echo "-> [C] Guardando clon de contingencia de 32 bits..."
 cp -v compilacion/libvulkan_wrapper.so pkg/usr/lib/arm-linux-androideabi/libvulkan_wrapper.so
 
-echo "-> [D] Grabando el identificador interno SONAME libvulkan_wrapper.so en toda la pila..."
 patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
 patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/aarch64-linux-android/libvulkan_wrapper.so
 patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/arm-linux-androideabi/libvulkan_wrapper.so
@@ -100,7 +94,6 @@ echo '{"ICD": {"api_version": "1.3.289", "library_path": "libvulkan_wrapper.so"}
 
 echo "msf:315508" > pkg/version.txt && chmod -R 755 pkg/
 cd pkg && tar -I "zstd -19 -T0" -cf "../wrapper.tzst" usr version.txt
-
 echo "=========================================================="
-echo "🟢 ¡FAT PACK MONOLÍTICO SEPARADO COMPLETADO EN VERDE TOTAL!"
+echo "🟢 BYPASS DE ADRENOTOOLS INTEGRADO EXITOSAMENTE"
 echo "=========================================================="
