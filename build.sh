@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 INICIANDO ENLAZADOR HÍBRIDO CON PURGA CONTROLADA POR PYTHON"
+echo "🚀 INICIANDO ENLAZADOR HÍBRIDO CON ANULACIÓN DE FUNCIÓN VÍA MACRO"
 echo "=========================================================="
 
 echo "-> 1. Ordenando al Contenedor de Docker compilar el Interceptor oficial..."
@@ -29,22 +29,33 @@ echo " " > src/vulkan/runtime/vk_drm_syncobj.c
 mkdir -p src/util
 echo " " > src/util/libdrm.h
 
-# 🟢 JUGADA MAESTRA INDESTRUCTIBLE: Usamos Python para clavar el return VK_SUCCESS justo debajo de la apertura de la función
+# 🟢 JAQUE MATE AL PASO 442: Reemplazamos la función real por un cascarón vacío y desactivamos el bloque problemático usando #if 0
 python3 -c '
 with open("src/vulkan/runtime/vk_instance.c", "r") as f:
     code = f.read()
 
-target = "enumerate_drm_physical_devices_locked(struct vk_instance *instance)\n{"
-replacement = target + "\n   return VK_SUCCESS;"
+# Definimos la versión limpia y vacía de la función que no busca tarjetas de PC
+clean_function = """
+static VkResult
+enumerate_drm_physical_devices_locked(struct vk_instance *instance)
+{
+   return VK_SUCCESS;
+}
+/*
+"""
 
+# Reemplazamos el inicio de la función original para abrir un comentario masivo
+target = "enumerate_drm_physical_devices_locked(struct vk_instance *instance)\n{"
 if target in code:
-    code = code.replace(target, replacement)
-    print("-> Python: ¡Bypass de instanciación DRM inyectado con éxito!")
+    code = code.replace(target, clean_function)
+    print("-> Python: ¡Estructura DRM anulada de forma limpia!")
 else:
-    # Fallback por si hay variaciones de espacios en el código fuente de Mesa
     target_alt = "enumerate_drm_physical_devices_locked(struct vk_instance *instance) {"
-    code = code.replace(target_alt, target_alt + "\n   return VK_SUCCESS;")
-    print("-> Python: ¡Bypass alternativo inyectado!")
+    code = code.replace(target_alt, clean_function)
+    print("-> Python: ¡Estructura DRM alternativa anulada!")
+
+# Cerramos el comentario masivo justo antes de que empiece la siguiente función del archivo de Mesa
+code = code.replace("enumerate_physical_devices_locked(struct vk_instance *instance)", "*/\nstatic VkResult\nenumerate_physical_devices_locked(struct vk_instance *instance)")
 
 with open("src/vulkan/runtime/vk_instance.c", "w") as f:
     f.write(code)
