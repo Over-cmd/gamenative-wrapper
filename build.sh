@@ -5,10 +5,7 @@ echo "=========================================================="
 echo "🚀 INICIANDO ENLAZADOR COMPLEMENTARIO PANFROST DE 64 BITS"
 echo "=========================================================="
 
-echo "-> 1. Sincronizando submódulos gráficos..."
-cd subprojects/libadrenotools && git submodule update --init --recursive && cd ../..
-
-echo "-> 2. Configurando entorno de compilación cruzada NDK..."
+echo "-> 1. Configurando entorno de compilación cruzada NDK..."
 export ANDROID_NDK_HOME="/usr/local/lib/android/sdk/ndk/28.2.13676358"
 export NDK_BIN="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin"
 export NDK_SYSROOT="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
@@ -54,7 +51,7 @@ c_link_args = ['-landroid', '-llog', '-lsync', '-lvulkan_wrapper', '-L${NDK_SYSR
 cpp_link_args = ['-landroid', '-llog', '-lsync', '-lvulkan_wrapper', '-L${NDK_SYSROOT_LIB_64}', '-L$(pwd)/shims_64']
 EOF
 
-# Limpieza rápida de validaciones de PC
+# Limpieza rápida de validaciones obsoletas de PC
 sed -i "s/cc.find_library('dl'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/cc.find_library('rt'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/dependency('libclc')/dependency('', required : false) #/g" meson.build 2>/dev/null || true
@@ -63,7 +60,7 @@ sed -i "s/dep_libclc = .*/dep_libclc = dependency('', required : false)/g" meson
 meson setup build-64 --cross-file cross_64.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dandroid-stub=true -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=panfrost
 meson compile -C build-64
 
-echo "-> 3. Maquetando empaque compatible ICD plano para Bannerlator..."
+echo "-> 2. Maquetando empaque compatible ICD plano para Bannerlator..."
 rm -rf pkg && mkdir -p pkg/usr/lib pkg/usr/share/vulkan/icd.d
 
 # Mover el binario oficial nacido del Docker con el parche de memoria biónico inyectado (mallopt)
