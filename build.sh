@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 INICIANDO ENLAZADOR HÍBRIDO MESA 25 CON INYECCIÓN DE CABECERAS"
+echo "🚀 INICIANDO ENLAZADOR HÍBRIDO MESA 25 CON EXPANSIÓN DE STUBS"
 echo "=========================================================="
 
 echo "-> 1. Compilando el Interceptor oficial en Docker..."
@@ -29,26 +29,33 @@ echo "-> 2b. Neutralizando dependencias DRM residuales mediante stubs simulados.
 echo " " > src/vulkan/runtime/vk_drm_syncobj.c
 mkdir -p src/util && echo " " > src/util/libdrm.h
 
-# 🟢 CABECERA CONTROLADORA COMPLETA: Agregamos todas las estructuras que buscan tanto vk_instance como pan_kmod de golpe
+# 🟢 CABECERA BLINDADA: Agregamos drmPrimeHandleToFD y flags de control nativos para pan_kmod
 cat << 'EOF' > $(pwd)/shims_64/xf86drm.h
 #ifndef xf86drm_h
 #define xf86drm_h
 #include <stdint.h>
+
+#define DRM_CLOEXEC 0x140000
+
 typedef struct _drmDevice { char **nodes; } *drmDevicePtr;
 typedef struct _drmVersion { int version_major; int version_minor; int version_patchlevel; char *name; char *date; char *desc; } *drmVersionPtr;
+
 static inline drmVersionPtr drmGetVersion(int fd) { (void)fd; return 0; }
 static inline void drmFreeVersion(drmVersionPtr v) { (void)v; }
 static inline int drmCloseBufferHandle(int fd, uint32_t handle) { (void)fd; (void)handle; return 0; }
 static inline int drmPrimeFDToHandle(int fd, int prime_fd, uint32_t *handle) { (void)fd; (void)prime_fd; (void)handle; return 0; }
 static inline int drmGetDevices2(uint32_t flags, drmDevicePtr devices[], int max_devices) { (void)flags; (void)devices; (void)max_devices; return -1; }
 static inline void drmFreeDevices(drmDevicePtr devices[], int count) { (void)devices; (void)count; }
+
+/* 🟢 CORRECCIÓN SUPREMA: Inyectamos la firma e implementación que exige pan_kmod.h */
+static inline int drmPrimeHandleToFD(int fd, uint32_t handle, uint32_t flags, int *prime_fd) { (void)fd; (void)handle; (void)flags; if(prime_fd) *prime_fd = -1; return 0; }
 #endif
 EOF
 
 mkdir -p include && cp -fv $(pwd)/shims_64/xf86drm.h include/xf86drm.h
 mkdir -p src/panfrost/lib/kmod && cp -fv $(pwd)/shims_64/xf86drm.h src/panfrost/lib/kmod/xf86drm.h
 
-# 🟢 STUBS DE WSI DRM COMPLETOS
+# STUBS DE WSI DRM COMPLETOS
 cat << 'EOF' > src/vulkan/wsi/wsi_common_drm.c
 #include <stdint.h>
 #include <stdbool.h>
@@ -105,7 +112,6 @@ pkg_config_path = '$(pwd)/shims_64'
 pkg_config_libdir = '$(pwd)/shims_64'
 
 [built-in options]
-# 🟢 JAQUE MATE: Forzamos el flag '-include xf86drm.h' e inyectamos la ruta de shims para obligar a Clang a leerlo en toda la pila
 c_args = ['--sysroot=' + '${NDK_SYSROOT}', '-D__TERMUX__', '-I$(pwd)/shims_64', '-include', 'xf86drm.h']
 cpp_args = ['--sysroot=' + '${NDK_SYSROOT}', '-D__TERMUX__', '-I$(pwd)/shims_64', '-include', 'xf86drm.h']
 c_link_args = ['-landroid', '-llog', '-lsync', '-lvulkan_wrapper', '-L${NDK_SYSROOT_LIB_64}', '-L$(pwd)/shims_64']
