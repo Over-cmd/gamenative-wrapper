@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 INICIANDO ENLAZADOR HÍBRIDO MESA 25 MASTER-BLINDADO v6"
+echo "🚀 INICIANDO ENLAZADOR HÍBRIDO MESA 25 MASTER-BLINDADO v7"
 echo "=========================================================="
 
 echo "-> 1. Compilando el Interceptor oficial en Docker..."
@@ -28,7 +28,7 @@ echo "-> 2b. Neutralizando dependencias DRM residuales en caliente..."
 echo " " > src/vulkan/runtime/vk_drm_syncobj.c
 mkdir -p src/util && echo " " > src/util/libdrm.h
 
-# Restauramos los archivos base del repositorio para aplicar parches sobre limpio
+# Restauramos los archivos base para aplicar parches sobre limpio
 git checkout src/vulkan/runtime/vk_instance.c 2>/dev/null || true
 git checkout src/vulkan/wsi/wsi_common_drm.c 2>/dev/null || true
 git checkout src/panfrost/lib/kmod/pan_kmod.c 2>/dev/null || true
@@ -46,20 +46,18 @@ f=open(p,"w"); f.write(c); f.close()
 sed -i 's/#include <xf86drm.h>/#include "xf86drm.h"/g' src/panfrost/lib/kmod/pan_kmod.c 2>/dev/null || true
 sed -i 's/#include <xf86drm.h>/#include "xf86drm.h"/g' src/panfrost/lib/kmod/panfrost_kmod.c 2>/dev/null || true
 
-# 🟢 JAQUE MATE FINAL A PANTHOR: Sustituimos el archivo de escritorio por un cascarón vacío legítimo para el Linker
+# 🟢 JAQUE MATE REAL A PANTHOR: Quitamos el include priv para eliminar el error fatal de ruta
 cat << 'EOF' > src/panfrost/lib/kmod/panthor_kmod.c
 #include <stddef.h>
 #include "pan_kmod.h"
-#include "pan_kmod_priv.h"
 const struct pan_kmod_ops panthor_kmod_ops = {0};
 EOF
 
-# 🟢 CABECERA CONTROLADORA PERFECCIONADA: Corregimos los flags (void) para eliminar warnings de Clang
+# 🟢 CABECERA CONTROLADORA PERFECCIONADA: Limpiamos DRM_CLOEXEC para evitar la advertencia de redefinición de macro
 cat << 'EOF' > $(pwd)/shims_64/xf86drm.h
 #ifndef xf86drm_h
 #define xf86drm_h
 #include <stdint.h>
-#define DRM_CLOEXEC 0x140000
 typedef struct _drmDevice { char **nodes; } *drmDevicePtr;
 typedef struct _drmVersion { int version_major; int version_minor; int version_patchlevel; char *name; char *date; char *desc; } *drmVersionPtr;
 static inline drmVersionPtr drmGetVersion(int fd) { (void)fd; return 0; }
