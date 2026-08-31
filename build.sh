@@ -38,10 +38,21 @@ export ANDROID_NDK_HOME="/usr/local/lib/android/sdk/ndk/28.2.13676358"
 export NDK_BIN="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin"
 export NDK_SYSROOT="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
 
+# 🟢 REPLICADOR DE LOGS: Escribimos el micro-fuente C de trazas que ld.lld exige resolver
+cat << 'EOF' > stub_logs.c
+int get_wrapper_log_level(const char *option) { (void)option; return 0; }
+void write_to_logfile(const char *fmt, const char *level, ...) { (void)fmt; (void)level; }
+EOF
+
 # ==========================================
-# 🟢 FASE A: COMPILACIÓN DE 32 BITS (Subido a la API 26 para sync_merge)
+# 🟢 FASE A: COMPILACIÓN DE 32 BITS (ARMv7 API 26)
 # ==========================================
-echo "-> 7a. Generando cross_32.txt..."
+echo "-> 7a. Fabricando librería estática inyectable para ld.lld de 32 bits..."
+mkdir -p "$GITHUB_WORKSPACE/shims_32"
+$NDK_BIN/armv7a-linux-androideabi26-clang -c stub_logs.c -o stub_logs_32.o
+$NDK_BIN/llvm-ar rcs "$GITHUB_WORKSPACE/shims_32/libvulkan_wrapper.a" stub_logs_32.o
+
+echo "-> 8a. Generando cross_32.txt..."
 NDK_SYSROOT_LIB_32="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/arm-linux-androideabi/26"
 cat << EOF > cross_32.txt
 [constants]
@@ -64,16 +75,29 @@ system = 'android'
 cpu_family = 'arm'
 cpu = 'armv7a'
 endian = 'little'
+[properties]
+sys_root = ndk_sysroot
+libdir = '${NDK_SYSROOT_LIB_32}'
+[built-in options]
+c_args = ['--sysroot=' + ndk_sysroot]
+cpp_args = ['--sysroot=' + ndk_sysroot]
+c_link_args = ['-landroid', '-llog', '-lsync', '-lvulkan_wrapper', '-L${NDK_SYSROOT_LIB_32}', '-L$GITHUB_WORKSPACE/shims_32']
+cpp_link_args = ['-landroid', '-llog', '-lsync', '-lvulkan_wrapper', '-L${NDK_SYSROOT_LIB_32}', '-L$GITHUB_WORKSPACE/shims_32']
 EOF
 
-echo "-> 8a. Lanzando Setup y Compilación de Mesa de 32 bits..."
+echo "-> 9a. Lanzando Setup y Compilación de Mesa de 32 bits..."
 meson setup build-32 --cross-file cross_32.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dandroid-stub=true -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=panfrost
 meson compile -C build-32
 
 # ==========================================
 # 🟢 FASE B: COMPILACIÓN DE 64 BITS (ARM64 API 26)
 # ==========================================
-echo "-> 7b. Generando cross_64.txt..."
+echo "-> 7b. Fabricando librería estática inyectable para ld.lld de 64 bits..."
+mkdir -p "$GITHUB_WORKSPACE/shims_64"
+$NDK_BIN/aarch64-linux-android26-clang -c stub_logs.c -o stub_logs_64.o
+$NDK_BIN/llvm-ar rcs "$GITHUB_WORKSPACE/shims_64/libvulkan_wrapper.a" stub_logs_64.o
+
+echo "-> 8b. Generando cross_64.txt..."
 NDK_SYSROOT_LIB_64="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/26"
 cat << EOF > cross_64.txt
 [constants]
@@ -96,6 +120,14 @@ system = 'android'
 cpu_family = 'aarch64'
 cpu = 'aarch64'
 endian = 'little'
+[properties]
+sys_root = ndk_sysroot
+libdir = '${NDK_SYSROOT_LIB_64}'
+[built-in options]
+c_args = ['--sysroot=' + ndk_sysroot]
+cpp_args = ['--sysroot=' + ndk_sysroot]
+c_link_args = ['-landroid', '-llog', '-lsync', '-lvulkan_wrapper', '-L${NDK_SYSROOT_LIB_64}', '-L$GITHUB_WORKSPACE/shims_64']
+cpp_link_args = ['-landroid', '-llog', '-lsync', '-lvulkan_wrapper', '-L${NDK_SYSROOT_LIB_64}', '-L$GITHUB_WORKSPACE/shims_64']
 EOF
 
 echo "-> 8b. Lanzando Setup y Compilación de Mesa de 64 bits..."
@@ -139,7 +171,6 @@ void* vk_icdGetInstanceProcAddr(void* instance, const char* pName) {
 }
 EOF
 
-# Compilamos el puente en base a la API 26 del sistema cruzado
 $NDK_BIN/aarch64-linux-android26-clang -shared -fPIC -o libvulkan_wrapper.so wrapper.c -ldl --sysroot="$NDK_SYSROOT"
 
 # ==========================================
@@ -171,5 +202,5 @@ echo "msf:315508" > pkg/version.txt && chmod -R 755 pkg/
 cd pkg && tar -I "zstd -19 -T0" -cf "$GITHUB_WORKSPACE/wrapper.tzst" usr version.txt
 
 echo "=========================================================="
-echo "🟢 ¡FAT BINARY HÍBRIDO CONEXIÓN TOTAL EN API 26 COMPLETADO!"
+echo "🟢 ¡FAT BINARY HÍBRIDO COMPILADO AL 100% EN VERDE!"
 echo "=========================================================="
