@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 INICIANDO ENLAZADOR HÍBRIDO MESA 25 CON STUBS COMPLETOS"
+echo "🚀 INICIANDO ENLAZADOR HÍBRIDO MESA 25 CON PROTOTIPOS ESTÁTICOS"
 echo "=========================================================="
 
 echo "-> 1. Compilando el Interceptor oficial en Docker..."
@@ -28,7 +28,7 @@ $NDK_BIN/llvm-ar rcs "$(pwd)/shims_64/libvulkan_wrapper.a" stub_logs_64.o
 echo "-> 2b. Neutralizando dependencias DRM residuales mediante stubs simulados..."
 echo " " > src/vulkan/runtime/vk_drm_syncobj.c
 
-# 🟢 JUGADA MAESTRA SUPREMA: Escribimos un xf86drm.h falso impecable para que vk_instance.c lea las firmas sin macros globales rotas
+# Escribimos el xf86drm.h falso para resolver vk_instance.c de forma limpia
 cat << 'EOF' > $(pwd)/shims_64/xf86drm.h
 #ifndef xf86drm_h
 #define xf86drm_h
@@ -38,25 +38,25 @@ static inline void drmFreeDevices(drmDevicePtr devices[], int count) {}
 #endif
 EOF
 
-# Lo enlazamos en las carpetas nativas de Mesa para garantizar que Clang lo absorba con corchetes <xf86drm.h>
 mkdir -p include
 cp -fv $(pwd)/shims_64/xf86drm.h include/xf86drm.h
 
-# 🟢 COMPILACIÓN LIMPIA DE wsi_common_drm.c: Cascarones vacíos para el linker
+# 🟢 JUGADA MAESTRA INDESTRUCTIBLE: Convertimos todas las funciones en 'static' para aniquilar los errores de prototipos en Mesa 25
 cat << 'EOF' > src/vulkan/wsi/wsi_common_drm.c
 #include <stdint.h>
 #include "vk_device.h"
 #include "wsi_common_private.h"
-VkResult wsi_drm_configure_image(const struct wsi_swapchain *c, const VkSwapchainCreateInfoKHR *p, const struct wsi_drm_image_params *pa, struct wsi_image_info *i) { return 0; }
-VkResult wsi_prepare_signal_dma_buf_from_semaphore(struct wsi_swapchain *c, const struct wsi_image *i) { return 0; }
-VkResult wsi_signal_dma_buf_from_semaphore(const struct wsi_swapchain *c, const struct wsi_image *i) { return 0; }
-VkResult wsi_create_sync_for_dma_buf_wait(const struct wsi_swapchain *c, const struct wsi_image *i, enum vk_sync_features f, struct vk_sync **s) { return 0; }
-VkResult wsi_create_image_explicit_sync_drm(const struct wsi_swapchain *c, struct wsi_image *i) { return 0; }
-void wsi_destroy_image_explicit_sync_drm(const struct wsi_swapchain *c, struct wsi_image *i) {}
-VkResult wsi_create_sync_for_image_syncobj(const struct wsi_swapchain *c, const struct wsi_image *i, enum vk_sync_features f, struct vk_sync **s) { return 0; }
-_Bool wsi_common_drm_devices_equal(int a, int b) { return 0; }
-_Bool wsi_device_matches_drm_fd(VkPhysicalDevice p, int d) { return 0; }
-_Bool wsi_drm_image_needs_buffer_blit(const struct wsi_device *w, const struct wsi_drm_image_params *p) { return 0; }
+
+static VkResult wsi_drm_configure_image(const struct wsi_swapchain *c, const VkSwapchainCreateInfoKHR *p, const struct wsi_drm_image_params *pa, struct wsi_image_info *i) { return 0; }
+static VkResult wsi_prepare_signal_dma_buf_from_semaphore(struct wsi_swapchain *c, const struct wsi_image *i) { return 0; }
+static VkResult wsi_signal_dma_buf_from_semaphore(const struct wsi_swapchain *c, const struct wsi_image *i) { return 0; }
+static VkResult wsi_create_sync_for_dma_buf_wait(const struct wsi_swapchain *c, const struct wsi_image *i, enum vk_sync_features f, struct vk_sync **s) { return 0; }
+static VkResult wsi_create_image_explicit_sync_drm(const struct wsi_swapchain *c, struct wsi_image *i) { return 0; }
+static void wsi_destroy_image_explicit_sync_drm(const struct wsi_swapchain *c, struct wsi_image *i) {}
+static VkResult wsi_create_sync_for_image_syncobj(const struct wsi_swapchain *c, const struct wsi_image *i, enum vk_sync_features f, struct vk_sync **s) { return 0; }
+static _Bool wsi_common_drm_devices_equal(int a, int b) { return 0; }
+static _Bool wsi_device_matches_drm_fd(VkPhysicalDevice p, int d) { return 0; }
+static _Bool wsi_drm_image_needs_buffer_blit(const struct wsi_device *w, const struct wsi_drm_image_params *p) { return 0; }
 EOF
 
 NDK_SYSROOT_LIB_64="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/26"
@@ -69,7 +69,7 @@ Libs: -L$(pwd)/shims_64 -lvulkan_wrapper
 Cflags: -I$(pwd)/shims_64 -I$(pwd)/include
 EOF
 
-echo "-> 3. Generando cross_64.txt libre de macros ARRAY_SIZE..."
+echo "-> 3. Generando cross_64.txt..."
 cat << EOF > cross_64.txt
 [constants]
 ndk_path = '${ANDROID_NDK_HOME}'
@@ -97,7 +97,6 @@ pkg_config_path = '$(pwd)/shims_64'
 pkg_config_libdir = '$(pwd)/shims_64'
 
 [built-in options]
-# 🟢 FLAGS PURIFICADOS: Dejamos los argumentos limpios de macros que rompan aserciones internas
 c_args = ['--sysroot=' + '${NDK_SYSROOT}', '-D__TERMUX__']
 cpp_args = ['--sysroot=' + '${NDK_SYSROOT}', '-D__TERMUX__']
 c_link_args = ['-landroid', '-llog', '-lsync', '-lvulkan_wrapper', '-L${NDK_SYSROOT_LIB_64}', '-L$(pwd)/shims_64']
