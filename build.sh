@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 INICIANDO ENLAZADOR HÍBRIDO CON VOLCADO GLOBAL DE CABECERAS"
+echo "🚀 INICIANDO ENLAZADOR HÍBRIDO FAT TERMUX-BLINDADO DEFINITIVO"
 echo "=========================================================="
 
 echo "-> 1. Ordenando al Contenedor de Docker compilar el Interceptor oficial..."
@@ -19,42 +19,37 @@ void write_to_logfile(const char *fmt, const char *level, ...) { (void)fmt; (voi
 int wsi_get_android_blit_type(void* a, void* b) { (void)a; (void)b; return 0; }
 int wsi_configure_android_image(void* a, void* b) { (void)a; (void)b; return 0; }
 EOF
-
 mkdir -p "$(pwd)/shims_64"
 $NDK_BIN/aarch64-linux-android26-clang -c stub_logs.c -o stub_logs_64.o
 $NDK_BIN/llvm-ar rcs "$(pwd)/shims_64/libvulkan_wrapper.a" stub_logs_64.o
 
-# 🟢 INYECCIÓN COLOZAL TOTAL: Volcamos los archivos .h en absolutamente todas las subcarpetas del código fuente que hereda Clang
-echo "-> 2b. Inyectando físicamente xf86drm.h en la matriz global de directorios de Mesa..."
-mkdir -p include/drm src/drm src/vulkan/runtime/
-
-# Copias masivas de contingencia en las zonas sagradas del compilador
-cp -fv subprojects/libdrm/*.h ./ 2>/dev/null || true
-cp -fv subprojects/libdrm/include/drm/*.h ./ 2>/dev/null || true
+# 🟢 INYECCIÓN ABSOLUTA: Creamos enlaces de cabeceras en todas las carpetas raíz nativas del código de Mesa
+echo "-> 2b. Inyectando físicamente xf86drm.h en la estructura de directorios de Mesa..."
+mkdir -p include/drm src/vulkan/runtime/include
 cp -fv subprojects/libdrm/*.h include/ 2>/dev/null || true
 cp -fv subprojects/libdrm/include/drm/*.h include/ 2>/dev/null || true
 cp -fv subprojects/libdrm/include/drm/*.h include/drm/ 2>/dev/null || true
-cp -fv subprojects/libdrm/*.h src/ 2>/dev/null || true
-cp -fv subprojects/libdrm/include/drm/*.h src/ 2>/dev/null || true
-cp -fv subprojects/libdrm/include/drm/*.h src/drm/ 2>/dev/null || true
+
+# Copiamos directamente en el subdirectorio de compilación de las unidades del runtime
 cp -fv subprojects/libdrm/*.h src/vulkan/runtime/ 2>/dev/null || true
 cp -fv subprojects/libdrm/include/drm/*.h src/vulkan/runtime/ 2>/dev/null || true
 
-# Forzamos compatibilidad dual de llamadas locales en el archivo conflictivo
+# 🟢 JAQUE MATE AL PREPROCESADOR: Corregimos las cabeceras conflictivas de Vulkan para asegurar lectura local relativas
 sed -i 's/#include <xf86drm.h>/#include "xf86drm.h"/g' src/vulkan/runtime/vk_drm_syncobj.c 2>/dev/null || true
+sed -i 's/#include <xf86drm.h>/#include "xf86drm.h"/g' src/util/libdrm.h 2>/dev/null || true
 
 NDK_SYSROOT_LIB_64="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/26"
 
-# Fabricamos el .pc ficticio purificado libre de prefijos corruptos de Google
+# Fabricamos el .pc ficticio purificado (Cflags planas para evitar que Meson invente sysroots corruptos)
 cat << EOF > $(pwd)/shims_64/libdrm.pc
 Name: libdrm
 Description: Userspace interface to kernel DRM services
 Version: 2.4.120
 Libs: -L$(pwd)/shims_64 -lvulkan_wrapper
-Cflags: -I$(pwd)/src -I$(pwd)/include
+Cflags: -I.
 EOF
 
-echo "-> 3. Generando cross_64.txt purificado con flags limpios..."
+echo "-> 3. Generando cross_64.txt purificado..."
 cat << EOF > cross_64.txt
 [constants]
 ndk_path = '${ANDROID_NDK_HOME}'
@@ -99,7 +94,7 @@ mkdir -p pkg/usr/lib/aarch64-linux-android
 mkdir -p pkg/usr/lib/arm-linux-androideabi
 mkdir -p pkg/usr/share/vulkan/icd.d
 
-# Colocamos los binarios finales unificados bajo las identidades correspondientes
+# Colocamos los binarios finales unificados bajo las identidades correspondientes de forma idéntica
 cp -v compilacion/libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
 cp -v build-64/src/panfrost/vulkan/libvulkan_panfrost.so pkg/usr/lib/aarch64-linux-android/libvulkan_wrapper.so
 cp -v compilacion/libvulkan_wrapper.so pkg/usr/lib/arm-linux-androideabi/libvulkan_wrapper.so
@@ -120,5 +115,4 @@ echo "msf:315508" > pkg/version.txt && chmod -R 755 pkg/
 cd pkg && tar -I "zstd -19 -T0" -cf "../wrapper.tzst" usr version.txt
 
 echo "=========================================================="
-echo "🟢 BYPASS Y CABECERAS ACOPLADAS DE FORMA INDESTRUCTIBLE"
 echo "=========================================================="
