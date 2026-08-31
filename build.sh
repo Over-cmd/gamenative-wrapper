@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 INICIANDO ENLAZADOR HÍBRIDO FAT CON INTERCEPTOR DE WRAP GIT"
+echo "🚀 INICIANDO ENLAZADOR HÍBRIDO CON ENGANCHE PC INDESTRUCTIBLE"
 echo "=========================================================="
 
 echo "-> 1. Ordenando al Contenedor de Docker compilar el Interceptor oficial..."
@@ -25,7 +25,22 @@ $NDK_BIN/llvm-ar rcs "$(pwd)/shims_64/libvulkan_wrapper.a" stub_logs_64.o
 
 NDK_SYSROOT_LIB_64="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/26"
 
-echo "-> 3. Generando cross_64.txt con inyección nativa de cabeceras DRM locales..."
+# 🟢 JUGADA MAESTRA SUPREMA: Creamos un archivo .pc falso para que Meson asuma que libdrm está resuelta en los shims
+echo "-> 2b. Inyectando manifiesto Pkg-Config local para libdrm..."
+cat << EOF > $(pwd)/shims_64/libdrm.pc
+prefix=$(pwd)/subprojects/libdrm
+exec_prefix=\${prefix}
+libdir=$(pwd)/shims_64
+includedir=$(pwd)/subprojects/libdrm
+
+Name: libdrm
+Description: Userspace interface to kernel DRM services (Stub Local Mesa 25)
+Version: 2.4.120
+Libs: -L\${libdir} -lvulkan_wrapper
+Cflags: -I\${includedir} -I\${includedir}/include/drm
+EOF
+
+echo "-> 3. Generando cross_64.txt con Pkg-Config local activo..."
 cat << EOF > cross_64.txt
 [constants]
 ndk_path = '${ANDROID_NDK_HOME}'
@@ -36,6 +51,7 @@ c       = toolchain + '/aarch64-linux-android' + api + '-clang'
 cpp     = toolchain + '/aarch64-linux-android' + api + '-clang++'
 ar      = toolchain + '/llvm-ar'
 strip   = toolchain + '/llvm-strip'
+pkg-config = '/usr/bin/pkg-config'
 [host_machine]
 system = 'android'
 cpu_family = 'aarch64'
@@ -45,31 +61,24 @@ endian = 'little'
 needs_exe_wrapper = true
 sys_root = '${NDK_SYSROOT}'
 libdir = '${NDK_SYSROOT_LIB_64}'
+pkg_config_path = '$(pwd)/shims_64'
+pkg_config_libdir = '$(pwd)/shims_64'
 [built-in options]
-c_args = ['--sysroot=' + '${NDK_SYSROOT}', '-D__TERMUX__', '-I' + '$(pwd)/subprojects/libdrm', '-I' + '$(pwd)/subprojects/libdrm/include/drm']
-cpp_args = ['--sysroot=' + '${NDK_SYSROOT}', '-D__TERMUX__', '-I' + '$(pwd)/subprojects/libdrm', '-I' + '$(pwd)/subprojects/libdrm/include/drm']
+c_args = ['--sysroot=' + '${NDK_SYSROOT}', '-D__TERMUX__']
+cpp_args = ['--sysroot=' + '${NDK_SYSROOT}', '-D__TERMUX__']
 c_link_args = ['-landroid', '-llog', '-lsync', '-lvulkan_wrapper', '-L${NDK_SYSROOT_LIB_64}', '-L$(pwd)/shims_64']
 cpp_link_args = ['-landroid', '-llog', '-lsync', '-lvulkan_wrapper', '-L${NDK_SYSROOT_LIB_64}', '-L$(pwd)/shims_64']
 EOF
 
-# 🟢 REPARACIÓN DEFINITIVA DEL WRAP: Formateamos el archivo como wrap-git local legítimo para engañar a Meson
-mkdir -p subprojects
-cat << 'EOF' > subprojects/libdrm.wrap
-[wrap-git]
-directory = libdrm
-url = https://freedesktop.org
-revision = head
-[provide]
-libdrm = dep_libdrm
-EOF
+# Limpiamos rastros de wraps experimentales que puedan causar interferencia
+rm -f subprojects/libdrm.wrap
 
-# Purga de validaciones secundarias que rompen el setup cruzado
 sed -i "s/cc.find_library('dl'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/cc.find_library('rt'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/dependency('libclc')/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/dep_libclc = .*/dep_libclc = dependency('', required : false)/g" meson.build 2>/dev/null || true
 
-echo "-> 4. Compilando el driver físico real de Panfrost de 64 bits acoplado al Wrapper..."
+echo "-> 4. Compilando el driver físico de Panfrost con el Wrapper de Adrenotools..."
 meson setup build-64 --cross-file cross_64.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dandroid-stub=true -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=panfrost,wrapper
 meson compile -C build-64
 
@@ -79,16 +88,11 @@ mkdir -p pkg/usr/lib/aarch64-linux-android
 mkdir -p pkg/usr/lib/arm-linux-androideabi
 mkdir -p pkg/usr/share/vulkan/icd.d
 
-echo "-> [A] Guardando Interceptor base en la raíz de librerías..."
+# Colocamos los binarios finales unificados bajo las identidades correspondientes
 cp -v compilacion/libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
-
-echo "-> [B] Guardando Panfrost de 64 bits en su subcarpeta dedicada bajo el nombre puro..."
 cp -v build-64/src/panfrost/vulkan/libvulkan_panfrost.so pkg/usr/lib/aarch64-linux-android/libvulkan_wrapper.so
-
-echo "-> [C] Guardando clon de contingencia de 32 bits..."
 cp -v compilacion/libvulkan_wrapper.so pkg/usr/lib/arm-linux-androideabi/libvulkan_wrapper.so
 
-echo "-> [D] Grabando el identificador interno SONAME libvulkan_wrapper.so en toda la pila..."
 patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
 patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/aarch64-linux-android/libvulkan_wrapper.so
 patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/arm-linux-androideabi/libvulkan_wrapper.so
@@ -105,5 +109,5 @@ echo "msf:315508" > pkg/version.txt && chmod -R 755 pkg/
 cd pkg && tar -I "zstd -19 -T0" -cf "../wrapper.tzst" usr version.txt
 
 echo "=========================================================="
-echo "🟢 ¡FAT PACK MONOLÍTICO COMPLETADO EN VERDE TOTAL CON ADRENOTOOLS!"
+echo "🟢 ¡FAT PACK MONOLÍTICO TRIPLE CON BYPASS COMPLETADO CON ÉXITO!"
 echo "=========================================================="
