@@ -24,6 +24,9 @@ echo "-> 4. Bypass de validaciones de Meson..."
 sed -i "s|libandroid_dep = .*|libandroid_dep = dependency('', required : false)|g" subprojects/libadrenotools/meson.build
 sed -i "s|liblog_dep = .*|liblog_dep = dependency('', required : false)|g" subprojects/libadrenotools/meson.build
 find subprojects/libadrenotools/ -name "meson.build" -exec sed -i "s/cc.find_library('dl'/dependency('', required : false) #/g" {} + 2>/dev/null || true
+
+# 🟢 REPARACIÓN DE ENLAZADO DE 32 BITS: Machacamos la búsqueda rígida de libdl global para evitar el fallo de Setup
+sed -i "s/cc.find_library('dl'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/cc.find_library('atomic'/dependency('', required : false) #/g" meson.build
 sed -i "s/dependency('libclc')/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/dep_libclc = .*/dep_libclc = dependency('', required : false)/g" meson.build 2>/dev/null || true
@@ -45,7 +48,6 @@ void write_to_logfile(const char *fmt, const char *level, ...) { (void)fmt; (voi
 void __stub_placeholder(void) {}
 EOF
 
-# Compilamos stubs base para calentar el setup inicial
 $NDK_BIN/aarch64-linux-android30-clang -shared -fPIC stub_logs.c -o "$GITHUB_WORKSPACE/shims_target/libhardware.so"
 $NDK_BIN/aarch64-linux-android30-clang -shared -fPIC stub_logs.c -o "$GITHUB_WORKSPACE/shims_target/libvulkan_wrapper.so"
 
@@ -158,7 +160,6 @@ void* vk_icdGetInstanceProcAddr(void* instance, const char* pName) {
 }
 EOF
 
-# Compilamos el enrutador puente como la librería unificada libvulkan_wrapper.so de 64 bits nativa
 $NDK_BIN/aarch64-linux-android30-clang -shared -fPIC -o libvulkan_wrapper.so wrapper.c -ldl --sysroot="$NDK_SYSROOT"
 
 # ==========================================
