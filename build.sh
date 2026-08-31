@@ -83,7 +83,6 @@ $CLANG_CROSS -shared -fPIC simple_stub.c -o "$GITHUB_WORKSPACE/shims_target/libh
 $CLANG_CROSS -shared -fPIC simple_stub.c -o "$GITHUB_WORKSPACE/shims_target/libcutils.so"
 $CLANG_CROSS -shared -fPIC simple_stub.c -o "$GITHUB_WORKSPACE/shims_target/libnativewindow.so"
 $CLANG_CROSS -shared -fPIC simple_stub.c -o "$GITHUB_WORKSPACE/shims_target/libsync.so"
-# 🟢 CLAVE: Creamos un stub inicial del wrapper para que el objeto 62 no de error de "library not found"
 $CLANG_CROSS -shared -fPIC simple_stub.c -o "$GITHUB_WORKSPACE/shims_target/libvulkan_wrapper.so"
 
 echo "-> 9. Generando el archivo TOML de compilación cruzada cross.txt..."
@@ -93,7 +92,6 @@ sed -i "s|pkg_config_libdir = .*|pkg_config_libdir = '$PKG_CONFIG_PATH'|g" cross
 sed -i "s|pkg_config_path = .*|pkg_config_path = '$PKG_CONFIG_PATH'|g" cross.txt
 sed -i "s|libdrm_path = .*|libdrm_path = '$GITHUB_WORKSPACE/main-repo/subprojects/libdrm'|g" cross.txt
 
-# 🟢 CONFIGURACIÓN MAESTRA DE ENLAZADO GLOBAL: Dejamos el flag activo apuntando de forma fija a la carpeta de shims
 sed -i "s|c_link_args = \[|c_link_args = ['-landroid', '-llog', '-lsync', '-lhardware', '-lvulkan_wrapper', '-L${NDK_SYSROOT_LIB}', '-L$PKG_CONFIG_PATH', |g" cross.txt
 sed -i "s|cpp_link_args = \[|cpp_link_args = ['-landroid', '-llog', '-lsync', '-lhardware', '-lvulkan_wrapper', '-L${NDK_SYSROOT_LIB}', '-L$PKG_CONFIG_PATH', |g" cross.txt
 
@@ -103,12 +101,13 @@ meson setup build --reconfigure --cross-file cross.txt --wrap-mode=nodownload -D
 echo "-> 11a. Compilando prioritariamente el Wrapper intermedio con Ninja..."
 /home/runner/.local/bin/ninja -C build src/vulkan/wrapper/libvulkan_wrapper.so
 
-echo "-> 11b. 🟢 JUGADA MAESTRA EXTRAORDINARIA: Pisando el stub intermedio con el binario REAL generado..."
+echo "-> 11b. Pisando el stub intermedio con el binario REAL generado..."
 cp -fv build/src/vulkan/wrapper/libvulkan_wrapper.so "$GITHUB_WORKSPACE/shims_target/libvulkan_wrapper.so"
 
 echo "-> 11c. Compilando el resto de los objetos graficos y el driver de Panfrost..."
 meson compile -C build
 
+# 🟢 PASO DE EMPAQUETADO BLINDADO Y CORREGIDO: Empaquetamos apuntando de forma estricta a la subcarpeta pkg sin perder las variables
 echo "-> 12. Estructurando empaque compatible ICD 1.0.0..."
 rm -rf pkg && mkdir -p pkg/usr/lib pkg/usr/share/vulkan/icd.d pkg/usr/share/vulkan/settings.d
 cp -v build/src/vulkan/wrapper/libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so 2>/dev/null || true
@@ -122,7 +121,10 @@ echo '{"ICD": {"api_version": "1.4.352", "library_path": "libvulkan_wrapper.so"}
 echo '{"env":{"PAN_I_WANT_A_BROKEN_VULKAN_DRIVER":"1","MESA_VK_IGNORE_CONFORMANCE_WARNING":"1","PANVK_DEBUG":"sync,nir","MESA_VK_FORCE_BLIT":"1","MESA_LOADER_DRIVER_OVERRIDE":"panfrost","GALLIUM_DRIVER":"panfrost","vblank_mode":"0","MESA_GLSL_CACHE_DISABLE":"1","MESA_SHADER_CACHE_DISABLE":"true","NIR_DEBUG":"tgsi","MESA_VK_WSI_PRESENT_MODE":"immediate","MESA_VK_WSI_DEBUG":"always_async"}}' > pkg/usr/share/vulkan/settings.d/wrapper_settings.json
 
 echo "msf:315508" > pkg/version.txt && chmod -R 755 pkg/
-tar -I 'zstd -19 -T0' -cf ../wrapper.tzst usr/ version.txt
+
+# 🟢 AJUSTE DE RUTA: Comprimimos directamente dentro del subdirectorio y guardamos el archivo .tzst en el area de trabajo global
+cd pkg
+tar -I 'zstd -19 -T0' -cf "$GITHUB_WORKSPACE/wrapper.tzst" usr version.txt
 
 echo "=========================================================="
 echo "🟢 COMPILACIÓN MEDALLA DE ORO TERMINADA CON ÉXITO"
