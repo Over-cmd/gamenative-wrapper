@@ -37,13 +37,12 @@ cat << 'EOF' > src/panfrost/lib/kmod/panthor_kmod.c
 const struct pan_kmod_ops panthor_kmod_ops = {0};
 EOF
 
-echo "-> [Cirugía] Escribiendo xf86drm.h simulado con soporte total de Syncobj..."
+echo "-> [Cirugía] Escribiendo xf86drm.h simulado con soporte total de Syncobj y Timeline..."
 cat << 'EOF' > $(pwd)/shims_64/xf86drm.h
 #ifndef xf86drm_h
 #define xf86drm_h
 #include <stdint.h>
 
-/* Macros de sincronización requeridos por las colas Bifrost de panvk */
 #define DRM_SYNCOBJ_CREATE_SIGNALED (1 << 0)
 
 typedef struct _drmDevice { char **nodes; } *drmDevicePtr;
@@ -61,10 +60,16 @@ static inline int drmCommandWriteRead(int fd, unsigned long cmd, void *data, uns
 static inline int drmCommandWrite(int fd, unsigned long cmd, void *data, unsigned long size) { (void)fd; (void)cmd; (void)data; (void)size; return 0; }
 static inline int drmCommandRead(int fd, unsigned long cmd, void *data, unsigned long size) { (void)fd; (void)cmd; (void)data; (void)size; return 0; }
 
-/* 🟢 SIMULADORES BIÓNICOS EXIGIDOS EN EL PASO 638 */
+/* Simuladores biónicos exigidos por las colas de Bifrost y Valhall */
 static inline int drmSyncobjDestroy(int fd, uint32_t handle) { (void)fd; (void)handle; return 0; }
 static inline int drmSyncobjCreate(int fd, uint32_t flags, uint32_t *handle) { (void)fd; (void)flags; if(handle) *handle = 1; return 0; }
 static inline int drmSyncobjWait(int fd, uint32_t *handles, uint32_t count, int64_t timeout_ns, uint32_t flags, uint32_t *first_signaled) { (void)fd; (void)handles; (void)count; (void)timeout_ns; (void)flags; (void)first_signaled; return 0; }
+
+/* 🟢 CORRECCIÓN SUPREMA PASO 681: Stubs de línea de tiempo exigidos por la arquitectura CSF v10 */
+static inline int drmSyncobjTimelineWait(int fd, uint32_t *handles, uint64_t *points, uint32_t count, int64_t timeout_ns, uint32_t flags, uint32_t *first_signaled) { (void)fd; (void)handles; (void)points; (void)count; (void)timeout_ns; (void)flags; (void)first_signaled; return 0; }
+static inline int drmSyncobjTransfer(int fd, uint32_t dst_handle, uint64_t dst_point, uint32_t src_handle, uint64_t src_point, uint32_t flags) { (void)fd; (void)dst_handle; (void)dst_point; (void)src_handle; (void)src_point; (void)flags; return 0; }
+static inline int drmSyncobjResult(int fd, void *arg) { (void)fd; (void)arg; return 0; }
+static inline int drmSyncobjReset(int fd, uint32_t *handles, uint32_t count) { (void)fd; (void)handles; (void)count; return 0; }
 #endif
 EOF
 
@@ -73,6 +78,9 @@ mkdir -p include && cp -fv $(pwd)/shims_64/xf86drm.h include/xf86drm.h
 mkdir -p src/vulkan/runtime && cp -fv $(pwd)/shims_64/xf86drm.h src/vulkan/runtime/xf86drm.h
 mkdir -p src/panfrost/lib/kmod && cp -fv $(pwd)/shims_64/xf86drm.h src/panfrost/lib/kmod/xf86drm.h
 mkdir -p src/panfrost/vulkan/jm && cp -fv $(pwd)/shims_64/xf86drm.h src/panfrost/vulkan/jm/xf86drm.h
+
+# 🟢 ADICIÓN EXTRA DE CONTINGENCIA: Volcamos el xf86drm.h falso en la carpeta de Valhall/CSF para que la unidad 681 lo tenga local
+mkdir -p src/panfrost/vulkan/csf && cp -fv $(pwd)/shims_64/xf86drm.h src/panfrost/vulkan/csf/xf86drm.h
 
 echo "-> [Cirugía] Escribiendo stubs de intercambio de imagen para WSI DRM..."
 cat << 'EOF' > src/vulkan/wsi/wsi_common_drm.c
