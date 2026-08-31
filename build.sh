@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 INICIANDO ENLAZADOR HÍBRIDO MESA 25 MASTER-BLINDADO v7"
+echo "🚀 INICIANDO ENLAZADOR DE ARQUITECTURA MULTI-SCRIPT MESA 25"
 echo "=========================================================="
 
 echo "-> 1. Compilando el Interceptor oficial en Docker..."
@@ -24,79 +24,14 @@ mkdir -p "$(pwd)/shims_64"
 $NDK_BIN/aarch64-linux-android26-clang -c stub_logs.c -o stub_logs_64.o
 $NDK_BIN/llvm-ar rcs "$(pwd)/shims_64/libvulkan_wrapper.a" stub_logs_64.o
 
-echo "-> 2b. Neutralizando dependencias DRM residuales en caliente..."
+echo "-> 2b. Levantando archivos DRM mudos para esquivar dependencias..."
 echo " " > src/vulkan/runtime/vk_drm_syncobj.c
 mkdir -p src/util && echo " " > src/util/libdrm.h
 
-# Restauramos los archivos base para aplicar parches sobre limpio
-git checkout src/vulkan/runtime/vk_instance.c 2>/dev/null || true
-git checkout src/vulkan/wsi/wsi_common_drm.c 2>/dev/null || true
-git checkout src/panfrost/lib/kmod/pan_kmod.c 2>/dev/null || true
-git checkout src/panfrost/lib/kmod/panfrost_kmod.c 2>/dev/null || true
-
-# 🟢 INYECCIÓN INDESTRUCTIBLE EN INSTANCE: Inclusión forzada relativa de xf86drm.h
-python3 -c '
-p="src/vulkan/runtime/vk_instance.c"
-f=open(p,"r"); c=f.read(); f.close()
-c = "#include \"xf86drm.h\"\n" + c
-f=open(p,"w"); f.write(c); f.close()
-'
-
-# 🟢 CIRUGÍA KMOD: Redireccionamos los includes para pan_kmod y panfrost_kmod
-sed -i 's/#include <xf86drm.h>/#include "xf86drm.h"/g' src/panfrost/lib/kmod/pan_kmod.c 2>/dev/null || true
-sed -i 's/#include <xf86drm.h>/#include "xf86drm.h"/g' src/panfrost/lib/kmod/panfrost_kmod.c 2>/dev/null || true
-
-# 🟢 JAQUE MATE REAL A PANTHOR: Quitamos el include priv para eliminar el error fatal de ruta
-cat << 'EOF' > src/panfrost/lib/kmod/panthor_kmod.c
-#include <stddef.h>
-#include "pan_kmod.h"
-const struct pan_kmod_ops panthor_kmod_ops = {0};
-EOF
-
-# 🟢 CABECERA CONTROLADORA PERFECCIONADA: Limpiamos DRM_CLOEXEC para evitar la advertencia de redefinición de macro
-cat << 'EOF' > $(pwd)/shims_64/xf86drm.h
-#ifndef xf86drm_h
-#define xf86drm_h
-#include <stdint.h>
-typedef struct _drmDevice { char **nodes; } *drmDevicePtr;
-typedef struct _drmVersion { int version_major; int version_minor; int version_patchlevel; char *name; char *date; char *desc; } *drmVersionPtr;
-static inline drmVersionPtr drmGetVersion(int fd) { (void)fd; return 0; }
-static inline void drmFreeVersion(drmVersionPtr v) { (void)v; }
-static inline int drmCloseBufferHandle(int fd, uint32_t handle) { (void)fd; (void)handle; return 0; }
-static inline int drmPrimeFDToHandle(int fd, int prime_fd, uint32_t *handle) { (void)fd; (void)prime_fd; (void)handle; return 0; }
-static inline int drmGetDevices2(uint32_t flags, drmDevicePtr devices[], int max_devices) { (void)flags; (void)devices; (void)max_devices; return -1; }
-static inline void drmFreeDevices(drmDevicePtr devices[], int count) { (void)devices; (void)count; }
-static inline int drmPrimeHandleToFD(int fd, uint32_t handle, uint32_t flags, int *prime_fd) { (void)fd; (void)handle; (void)flags; if(prime_fd) *prime_fd = -1; return 0; }
-static inline int drmIoctl(int fd, unsigned long request, void *arg) { (void)fd; (void)request; (void)arg; return 0; }
-static inline int drmCommandWriteRead(int fd, unsigned long cmd, void *data, unsigned long size) { (void)fd; (void)cmd; (void)data; (void)size; return 0; }
-static inline int drmCommandWrite(int fd, unsigned long cmd, void *data, unsigned long size) { (void)fd; (void)cmd; (void)data; (void)size; return 0; }
-static inline int drmCommandRead(int fd, unsigned long cmd, void *data, unsigned long size) { (void)fd; (void)cmd; (void)data; (void)size; return 0; }
-#endif
-EOF
-
-# Volcamos de forma física en las rutas de inclusión nativas de Mesa
-mkdir -p include && cp -fv $(pwd)/shims_64/xf86drm.h include/xf86drm.h
-mkdir -p src/vulkan/runtime && cp -fv $(pwd)/shims_64/xf86drm.h src/vulkan/runtime/xf86drm.h
-mkdir -p src/panfrost/lib/kmod && cp -fv $(pwd)/shims_64/xf86drm.h src/panfrost/lib/kmod/xf86drm.h
-
-# STUBS DE WSI DRM COMPLETOS
-cat << 'EOF' > src/vulkan/wsi/wsi_common_drm.c
-#include <stdint.h>
-#include <stdbool.h>
-#include "vk_device.h"
-#include "wsi_common_private.h"
-_Bool wsi_common_drm_devices_equal(int a, int b);
-VkResult wsi_drm_configure_image(const struct wsi_swapchain *c, const VkSwapchainCreateInfoKHR *p, const struct wsi_drm_image_params *pa, struct wsi_image_info *i) { return 0; }
-VkResult wsi_prepare_signal_dma_buf_from_semaphore(struct wsi_swapchain *c, const struct wsi_image *i) { return 0; }
-VkResult wsi_signal_dma_buf_from_semaphore(const struct wsi_swapchain *c, const struct wsi_image *i) { return 0; }
-VkResult wsi_create_sync_for_dma_buf_wait(const struct wsi_swapchain *c, const struct wsi_image *i, enum vk_sync_features f, struct vk_sync **s) { return 0; }
-VkResult wsi_create_image_explicit_sync_drm(const struct wsi_swapchain *c, struct wsi_image *i) { return 0; }
-void wsi_destroy_image_explicit_sync_drm(const struct wsi_swapchain *c, struct wsi_image *i) {}
-VkResult wsi_create_sync_for_image_syncobj(const struct wsi_swapchain *c, const struct wsi_image *i, enum vk_sync_features f, struct vk_sync **s) { return 0; }
-_Bool wsi_common_drm_devices_equal(int a, int b) { return 0; }
-_Bool wsi_device_matches_drm_fd(VkPhysicalDevice p, int d) { return 0; }
-_Bool wsi_drm_image_needs_buffer_blit(const struct wsi_device *w, const struct wsi_drm_image_params *p) { return 0; }
-EOF
+# 🟢 EL TRUCO MULTI-SCRIPT: Le damos permisos y llamamos al segundo script para aplicar la cirugía pesada
+echo "-> 2c. Ejecutando parches quirúrgicos desde patch_mesa.sh..."
+chmod +x patch_mesa.sh
+./patch_mesa.sh
 
 NDK_SYSROOT_LIB_64="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/26"
 
@@ -170,4 +105,5 @@ echo "msf:315508" > pkg/version.txt && chmod -R 755 pkg/
 cd pkg && tar -I "zstd -19 -T0" -cf "../wrapper.tzst" usr version.txt
 
 echo "=========================================================="
+echo "🟢 ¡FAT PACK MONOLÍTICO COMPLETADO CON ARQUITECTURA MULTI-SCRIPT!"
 echo "=========================================================="
