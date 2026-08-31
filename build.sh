@@ -2,7 +2,7 @@
 set -e # Aborta el script inmediatamente si algún comando crítico falla
 
 echo "=========================================================="
-echo "🚀 INICIANDO ENLAZADOR MONOLÍTICO REAL ARM64 (64-BITS)"
+echo "🚀 INICIANDO ENLAZADOR MONOLÍTICO PÚBLICO ARM64 (64-BITS)"
 echo "=========================================================="
 
 echo "-> 1. Inicializando submodulos de libadrenotools de forma recursiva..."
@@ -39,26 +39,30 @@ EOF
   echo "-> Parche físico de gralloc con prototipo inyectado con éxito."
 fi
 
-# 🟢 CORRECCIÓN SUPREMA DE LOGS: Convertimos las inyecciones de trazas a 'static' para aniquilar el error de -Wmissing-prototypes
-echo "-> 3c. Inyectando réplicas de firmas de trazas STATIC en panvk_android.c..."
+# 🟢 INYECCIÓN MAESTRA DEFINITIVA: Declaramos los prototipos como públicos y forzamos su visibilidad externa mediante atributos de Clang
+echo "-> 3c. Inyectando réplicas de firmas de trazas PÚBLICAS en panvk_android.c..."
 ANDROID_TARGET="src/panfrost/vulkan/panvk_android.c"
 if [ -f "$ANDROID_TARGET" ]; then
   cat << 'EOF' >> "$ANDROID_TARGET"
 
 #include <stdarg.h>
 
-/* Al ser declaradas como static, Clang silencia el flag -Werror de inmediato y pasa de largo */
-static int get_wrapper_log_level(const char *option) {
+/* Prototipos formales previos para silenciar -Wmissing-prototypes */
+__attribute__((visibility("default"))) int get_wrapper_log_level(const char *option);
+__attribute__((visibility("default"))) void write_to_logfile(const char *fmt, const char *level, ...);
+
+/* Funciones de exportacion publicas accesibles via dlopen para que el contenedor inicialice la GPU */
+__attribute__((visibility("default"))) int get_wrapper_log_level(const char *option) {
     (void)option;
     return 0;
 }
 
-static void write_to_logfile(const char *fmt, const char *level, ...) {
+__attribute__((visibility("default"))) void write_to_logfile(const char *fmt, const char *level, ...) {
     (void)fmt;
     (void)level;
 }
 EOF
-  echo "-> Parche de firmas de trazas locales static inyectado con éxito."
+  echo "-> Parche de visibilidad pública biónica inyectado con éxito."
 fi
 
 echo "-> 4. Neutralizando búsquedas rígidas en subproyectos..."
@@ -160,22 +164,14 @@ meson compile -C build
 echo "-> 12. Estructurando empaque compatible ICD 1.0.0..."
 rm -rf pkg && mkdir -p pkg/usr/lib pkg/usr/share/vulkan/icd.d pkg/usr/share/vulkan/settings.d
 
-# Pescamos el binario real nacido de Panfrost de 64 bits de forma legítima
+# Pescamos el binario real nacido de Panfrost de 64 bits con visibilidad default pública
 cp -v build/src/panfrost/vulkan/libvulkan_panfrost.so pkg/usr/lib/libvulkan_wrapper.so
 
-echo "-> Cambiando quirúrgicamente el SONAME interno para forzar la entrada al contenedor..."
+echo "-> Sifonando la identidad final del archivo..."
 patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
 llvm-strip --strip-unneeded pkg/usr/lib/*.so 2>/dev/null || true
 
 echo '{"ICD": {"api_version": "1.4.352", "library_path": "libvulkan_wrapper.so"}, "file_format_version": "1.0.0"}' > pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
 echo '{"ICD": {"api_version": "1.4.352", "library_path": "libvulkan_wrapper.so"}, "file_format_version": "1.0.0"}' > pkg/usr/share/vulkan/icd.d/wrapper_icd.arm.json
 echo '{"env":{"PAN_I_WANT_A_BROKEN_VULKAN_DRIVER":"1","MESA_VK_IGNORE_CONFORMANCE_WARNING":"1","PANVK_DEBUG":"sync,nir","MESA_VK_FORCE_BLIT":"1","MESA_LOADER_DRIVER_OVERRIDE":"panfrost","GALLIUM_DRIVER":"panfrost","vblank_mode":"0","MESA_GLSL_CACHE_DISABLE":"1","MESA_SHADER_CACHE_DISABLE":"true","NIR_DEBUG":"tgsi","MESA_VK_WSI_PRESENT_MODE":"immediate","MESA_VK_WSI_DEBUG":"always_async"}}' > pkg/usr/share/vulkan/settings.d/wrapper_settings.json
-
-echo "msf:315508" > pkg/version.txt && chmod -R 755 pkg/
-
-cd pkg
-tar -I 'zstd -19 -T0' -cf "$GITHUB_WORKSPACE/wrapper.tzst" usr version.txt
-
-echo "=========================================================="
-echo "🟢 COMPILACIÓN MONOLÍTICA COMPLETADA Y CERTIFICADA EN ARM64"
-echo "=========================================================="
+echo "msf:315508" > pkg/version.txt && chmod -R 755 pkg/cd pkgtar -I 'zstd -19 -T0' -cf "$GITHUB_WORKSPACE/wrapper.tzst" usr version.txtecho "=========================================================="echo "🟢 COMPILACIÓN PÚBLICA COMPLETADA Y EXPORTADA EN ARM64"echo "=========================================================="
