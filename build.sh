@@ -22,8 +22,6 @@ sed -i "s|libandroid_dep = .*|libandroid_dep = dependency('', required : false)|
 sed -i "s|liblog_dep = .*|liblog_dep = dependency('', required : false)|g" subprojects/libadrenotools/meson.build
 find subprojects/libadrenotools/ -name "meson.build" -exec sed -i "s/cc.find_library('dl'/dependency('', required : false) #/g" {} + 2>/dev/null || true
 sed -i "s/cc.find_library('atomic'/dependency('', required : false) #/g" meson.build
-
-# 🟢 TRITURADOR DE COMPROBACIÓN DE LIBCLC: Machacamos la búsqueda rígida tanto por string como por variable
 sed -i "s/dependency('libclc')/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/dep_libclc = .*/dep_libclc = dependency('', required : false)/g" meson.build 2>/dev/null || true
 
@@ -70,8 +68,8 @@ cpp_link_args = ['-landroid', '-llog', '-lsync', '-lhardware', '-lvulkan_wrapper
 EOF
 
 echo "-> 9. Compilación en dos fases (Bypass circular)..."
-# 🟢 REMOVEMOS EL FLAG INVÁLIDO: Dejamos la llamada de Meson limpia para que no proteste por opciones desconocidas
-meson setup build --cross-file cross.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dandroid-stub=true -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dvulkan-drivers=panfrost,wrapper
+# 🟢 JAQUE MATE A LLVM: Desactivamos la opción explícitamente (-Dllvm=disabled) para que no busque el subproyecto inválido
+meson setup build --cross-file cross.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dandroid-stub=true -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dvulkan-drivers=panfrost,wrapper
 ninja -C build src/vulkan/wrapper/libvulkan_wrapper.so
 cp -fv build/src/vulkan/wrapper/libvulkan_wrapper.so "$GITHUB_WORKSPACE/shims_target/libvulkan_wrapper.so"
 meson compile -C build
