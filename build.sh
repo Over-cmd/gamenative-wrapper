@@ -2,104 +2,40 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 INICIANDO ENLAZADOR MONOLÍTICO MONO-ARCHIVO REORDENADO"
+echo "🚀 INICIANDO ACOPLADOR DOCKER + PANFROST MULTI-ARQUITECTURA"
 echo "=========================================================="
 
-echo "-> 1. Submódulos de Pipetto..."
+echo "-> 1. Sincronizando submódulos gráficos..."
 cd subprojects/libadrenotools && git submodule update --init --recursive && cd ../..
 
-echo "-> 2. Parches de hardware Mali-G52 y Sincronización POSIX..."
-sed -i 's/fd = syscall(SYS_memfd_create.*/fd = syscall(356, debug_name, 0x0001 \| 0x0002);/g' src/util/anon_file.c 2>/dev/null || true
-sed -i '1s|^|static int sync_wait(int fd, int timeout) { return 0; }\n|' src/panfrost/lib/kmod/panthor_kmod.c
-sed -i '1s|^|#include <fcntl.h>\n|' src/vulkan/wrapper/wrapper_log.c
+echo "-> 2. Inyectando parches biónicos de alineación de memoria (Mali Hybrid)..."
+WRAPPER_DEVICE=$(find src/ -name "wrapper_device.c" | head -n 1)
+if [ -n "$WRAPPER_DEVICE" ] && [ -f "$WRAPPER_DEVICE" ]; then
+  sed -i 's/\r$//' "$WRAPPER_DEVICE"
+  sed -i '1i#include <stdint.h>' "$WRAPPER_DEVICE"
+  sed -i '1iextern int mallopt(int param, int value);' "$WRAPPER_DEVICE"
+  sed -i '1iextern int setenv(const char *name, const char *value, int overwrite);' "$WRAPPER_DEVICE"
+  sed -i '/vk_icdGetInstanceProcAddr/!b;n;i\\ extern int mallopt(int p, int v);\\n extern int setenv(const char *n, const char *v, int o);\\n mallopt(-1002, 0);\\n setenv("MESA_VK_WSI_PRESENT_MODE", "mailbox", 1);\\n setenv("vblank_mode", "0", 1);\\n if (sizeof(void*) == 4) {\\n   setenv("MESA_VK_WSI_QUEUE_SIZE", "1", 1);\\n }' "$WRAPPER_DEVICE"
+fi
 
-echo "-> 3. Inyectando bypass de asignación de memoria hw_get_module..."
-cat << 'EOF' >> src/vulkan/wrapper/wrapper_device.c
-struct hw_module_t;
-int hw_get_module(const char *id, const struct hw_module_t **module);
-int hw_get_module(const char *id, const struct hw_module_t **module) { (void)id; (void)module; return -1; }
-EOF
+echo "-> 3. Lanzando el compilador atómico de Docker (ghcr.io/leegao)..."
+# Esto generará el archivo Fat unificado 'libvulkan_wrapper.so' con el parche de mallopt integrado
+docker run --rm -v "${{ github.workspace }}:/workspace" ghcr.io/leegao/mesa-wrapper-ci/wrapper-compiler:latest compilacion
 
-echo "-> 4. Bypass de validaciones de Meson..."
-sed -i "s|libandroid_dep = .*|libandroid_dep = dependency('', required : false)|g" subprojects/libadrenotools/meson.build
-sed -i "s|liblog_dep = .*|liblog_dep = dependency('', required : false)|g" subprojects/libadrenotools/meson.build
-find subprojects/libadrenotools/ -name "meson.build" -exec sed -i "s/cc.find_library('dl'/dependency('', required : false) #/g" {} + 2>/dev/null || true
-sed -i "s/cc.find_library('dl'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
-sed -i "s/cc.find_library('rt'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
-sed -i "s/cc.find_library('atomic'/dependency('', required : false) #/g" meson.build
-sed -i "s/dependency('libclc')/dependency('', required : false) #/g" meson.build 2>/dev/null || true
-sed -i "s/dep_libclc = .*/dep_libclc = dependency('', required : false)/g" meson.build 2>/dev/null || true
-
-echo "-> 5. Pip e instalables..."
-python -m pip install --upgrade pip && pip install mako PyYAML 'meson>=1.4.0' ninja packaging
-
-echo "-> 6. Detectando NDK oficial..."
+echo "-> 4. Compilando el driver físico real de Panfrost de 64 bits de respaldo..."
 export ANDROID_NDK_HOME="/usr/local/lib/android/sdk/ndk/28.2.13676358"
 export NDK_BIN="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin"
 export NDK_SYSROOT="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
 
-# ==========================================
-# 🟢 FASE A: COMPILACIÓN DE 32 BITS (ARMv7 API 26)
-# ==========================================
-echo "-> 7a. Fabricando librería estática inyectable para ld.lld de 32 bits..."
-cat << 'EOF' > stub_32.c
-int get_wrapper_log_level(const char *option) { (void)option; return 0; }
-void write_to_logfile(const char *fmt, const char *level, ...) { (void)fmt; (void)level; }
-int wsi_get_android_blit_type(void* a, void* b) { (void)a; (void)b; return 0; }
-int wsi_configure_android_image(void* a, void* b) { (void)a; (void)b; return 0; }
-EOF
-
-mkdir -p "$GITHUB_WORKSPACE/shims_32"
-$NDK_BIN/armv7a-linux-androideabi26-clang -c stub_32.c -o stub_32.o
-$NDK_BIN/llvm-ar rcs "$GITHUB_WORKSPACE/shims_32/libvulkan_wrapper.a" stub_32.o
-
-echo "-> 8a. Generando cross_32.txt..."
-NDK_SYSROOT_LIB_32="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/arm-linux-androideabi/26"
-cat << EOF > cross_32.txt
-[constants]
-ndk_path = '${ANDROID_NDK_HOME}'
-toolchain = ndk_path + '/toolchains/llvm/prebuilt/linux-x86_64/bin'
-api = '26'
-[binaries]
-c       = toolchain + '/armv7a-linux-androideabi' + api + '-clang'
-cpp     = toolchain + '/armv7a-linux-androideabi' + api + '-clang++'
-ar      = toolchain + '/llvm-ar'
-strip   = toolchain + '/llvm-strip'
-pkgconfig = 'false'
-[host_machine]
-system = 'android'
-cpu_family = 'arm'
-cpu = 'armv7a'
-endian = 'little'
-[properties]
-needs_exe_wrapper = true
-sys_root = '${NDK_SYSROOT}'
-libdir = '${NDK_SYSROOT_LIB_32}'
-[built-in options]
-c_args = ['--sysroot=' + '${NDK_SYSROOT}', '-D__TERMUX__']
-cpp_args = ['--sysroot=' + '${NDK_SYSROOT}', '-D__TERMUX__']
-c_link_args = ['-landroid', '-llog', '-lsync', '-lvulkan_wrapper', '-L${NDK_SYSROOT_LIB_32}', '-L$GITHUB_WORKSPACE/shims_32']
-cpp_link_args = ['-landroid', '-llog', '-lsync', '-lvulkan_wrapper', '-L${NDK_SYSROOT_LIB_32}', '-L$GITHUB_WORKSPACE/shims_32']
-EOF
-
-echo "-> 9a. Lanzando Setup y Compilación de Mesa de 32 bits..."
-meson setup build-32 --cross-file cross_32.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dandroid-stub=true -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=panfrost
-meson compile -C build-32
-
-# ==========================================
-# 🟢 FASE B: COMPILACIÓN DE 64 BITS (ARM64 API 26)
-# ==========================================
-echo "-> 7b. Fabricando librería estática inyectable limpia para ld.lld de 64 bits..."
-cat << 'EOF' > stub_64.c
+# Creamos stubs estáticos rápidos para alimentar el linker de Panfrost suelto
+cat << 'EOF' > stub_logs.c
 int get_wrapper_log_level(const char *option) { (void)option; return 0; }
 void write_to_logfile(const char *fmt, const char *level, ...) { (void)fmt; (void)level; }
 EOF
-
 mkdir -p "$GITHUB_WORKSPACE/shims_64"
-$NDK_BIN/aarch64-linux-android26-clang -c stub_64.c -o stub_64.o
-$NDK_BIN/llvm-ar rcs "$GITHUB_WORKSPACE/shims_64/libvulkan_wrapper.a" stub_64.o
+$NDK_BIN/aarch64-linux-android26-clang -c stub_logs.c -o stub_logs_64.o
+$NDK_BIN/llvm-ar rcs "$GITHUB_WORKSPACE/shims_64/libvulkan_wrapper.a" stub_logs_64.o
 
-echo "-> 8b. Generando cross_64.txt..."
 NDK_SYSROOT_LIB_64="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/26"
 cat << EOF > cross_64.txt
 [constants]
@@ -128,37 +64,41 @@ c_link_args = ['-landroid', '-llog', '-lsync', '-lvulkan_wrapper', '-L${NDK_SYSR
 cpp_link_args = ['-landroid', '-llog', '-lsync', '-lvulkan_wrapper', '-L${NDK_SYSROOT_LIB_64}', '-L$GITHUB_WORKSPACE/shims_64']
 EOF
 
-echo "-> 8b. Lanzando Setup y Compilación de Mesa de 64 bits..."
-meson setup build-64 --cross-file cross_64.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dandroid-stub=true -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=panfrost,wrapper
+# Purgamos validaciones rígidas y compilamos Panfrost en 64 bits pura
+sed -i "s/cc.find_library('dl'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
+sed -i "s/cc.find_library('rt'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
+sed -i "s/dependency('libclc')/dependency('', required : false) #/g" meson.build 2>/dev/null || true
+meson setup build-64 --cross-file cross_64.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dandroid-stub=true -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=panfrost
 meson compile -C build-64
 
 # ==========================================
-# 🟢 FASE D: MAQUETADO ICD PLANO DEFINITIVO CORREGIDO
+# 🟢 FASE DE MAQUETADO DEFINITIVA DE ÉXITO
 # ==========================================
-echo "-> 10. Estructurando carpetas finales..."
+echo "-> 5. Estructurando empaque plano reglamentario para Bannerlator..."
 rm -rf pkg && mkdir -p pkg/usr/lib pkg/usr/share/vulkan/icd.d
 
-echo "-> [A] 🟢 JUGADA CLAVE: Copiando el driver real físico de Panfrost directo como libvulkan_wrapper.so..."
-# Forzamos que la librería de 64 bits tome el relevo principal de entrada requerido por Bannerlator
-cp -v build-64/src/panfrost/vulkan/libvulkan_panfrost.so pkg/usr/lib/libvulkan_wrapper.so
+echo "-> [A] Copiando el Wrapper legítimo protector de Docker como la puerta principal..."
+cp -v compilacion/libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
 
-# Acomodamos los retrocesos secundarios limpios requeridos para el entorno híbrido
+echo "-> [B] Copiando el motor físico real de Panfrost de 64 bits para alimentar el renderizado..."
 cp -v build-64/src/panfrost/vulkan/libvulkan_panfrost.so pkg/usr/lib/libvulkan_panfrost_64.so
-cp -v build-32/src/panfrost/vulkan/libvulkan_panfrost.so pkg/usr/lib/libvulkan_panfrost_32.so
 
-echo "-> Estampando firmas quirúrgicas de SONAME para aniquilar errores de lectura del linker de Android..."
+# Ranura de 32 bits de contingencia usando el propio Wrapper híbrido
+cp -v compilacion/libvulkan_wrapper.so pkg/usr/lib/libvulkan_panfrost_32.so
+
+echo "-> Estampando identidades de SONAME y limpiando binarios..."
 patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
 patchelf --set-soname libvulkan_panfrost_64.so pkg/usr/lib/libvulkan_panfrost_64.so
-patchelf --set-soname libvulkan_panfrost_32.so pkg/usr/lib/libvulkan_panfrost_32.so
+patchelf --set-soname libvulkan_panfrost_32.so pkg/usr/lib/libvulkan_panfrost_32.so 2>/dev/null || true
 $NDK_BIN/llvm-strip --strip-unneeded pkg/usr/lib/*.so 2>/dev/null || true
 
-echo "-> [E] Escribiendo manifiestos ICD limpios..."
-echo '{"ICD": {"api_version": "1.4.352", "library_path": "libvulkan_wrapper.so"}, "file_format_version": "1.0.0"}' > pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
-echo '{"ICD": {"api_version": "1.4.352", "library_path": "libvulkan_wrapper.so"}, "file_format_version": "1.0.0"}' > pkg/usr/share/vulkan/icd.d/wrapper_icd.arm.json
+echo "-> [C] Escribiendo manifiestos ICD duales limpios para Box86/Box64..."
+echo '{"ICD": {"api_version": "1.3.289", "library_path": "libvulkan_wrapper.so"}, "file_format_version": "1.0.0"}' > pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
+echo '{"ICD": {"api_version": "1.3.289", "library_path": "libvulkan_wrapper.so"}, "file_format_version": "1.0.0"}' > pkg/usr/share/vulkan/icd.d/wrapper_icd.arm.json
 
 echo "msf:315508" > pkg/version.txt && chmod -R 755 pkg/
 cd pkg && tar -I "zstd -19 -T0" -cf "$GITHUB_WORKSPACE/wrapper.tzst" usr version.txt
 
 echo "=========================================================="
-echo "🟢 ¡LIBVULKAN_WRAPPER REAL INTEGRADO DE FORMA CORRECTA!"
+echo "🟢 ¡PACK COMPLETO DOCKER + PANFROST COMPLETADO CON ÉXITO!"
 echo "=========================================================="
