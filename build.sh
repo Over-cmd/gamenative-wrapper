@@ -38,10 +38,12 @@ export ANDROID_NDK_HOME="/usr/local/lib/android/sdk/ndk/28.2.13676358"
 export NDK_BIN="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin"
 export NDK_SYSROOT="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
 
-# Escribimos el micro-fuente C de trazas que ld.lld exige resolver
+# 🟢 INYECCIÓN SUPREMA DE SÍMBOLOS ANDROID: Colocamos los stubs de log y los ganchos perdidos de wsi_common para cerrar ld.lld de golpe
 cat << 'EOF' > stub_logs.c
 int get_wrapper_log_level(const char *option) { (void)option; return 0; }
 void write_to_logfile(const char *fmt, const char *level, ...) { (void)fmt; (void)level; }
+int wsi_get_android_blit_type(void* a, void* b) { (void)a; (void)b; return 0; }
+int wsi_configure_android_image(void* a, void* b) { (void)a; (void)b; return 0; }
 EOF
 
 # ==========================================
@@ -93,7 +95,7 @@ mkdir -p "$GITHUB_WORKSPACE/shims_64"
 $NDK_BIN/aarch64-linux-android26-clang -c stub_logs.c -o stub_logs_64.o
 $NDK_BIN/llvm-ar rcs "$GITHUB_WORKSPACE/shims_64/libvulkan_wrapper.a" stub_logs_64.o
 
-echo "-> 8b. Generando cross_64.txt (Inyectando bandera global __TERMUX__)..."
+echo "-> 8b. Generando cross_64.txt..."
 NDK_SYSROOT_LIB_64="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/26"
 cat << EOF > cross_64.txt
 [constants]
