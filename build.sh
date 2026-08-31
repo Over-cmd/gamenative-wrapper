@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 INICIANDO ENLAZADOR HÍBRIDO FAT EQUILIBRADO MULTI-API"
+echo "🚀 INICIANDO ENLAZADOR HÍBRIDO FAT INTEGRAL DEFINITIVO"
 echo "=========================================================="
 
 echo "-> 1. Submódulos de Pipetto..."
@@ -12,6 +12,10 @@ echo "-> 2. Parches de hardware Mali-G52 y Sincronización POSIX..."
 sed -i 's/fd = syscall(SYS_memfd_create.*/fd = syscall(356, debug_name, 0x0001 \| 0x0002);/g' src/util/anon_file.c 2>/dev/null || true
 sed -i '1s|^|static int sync_wait(int fd, int timeout) { return 0; }\n|' src/panfrost/lib/kmod/panthor_kmod.c
 sed -i '1s|^|#include <fcntl.h>\n|' src/vulkan/wrapper/wrapper_log.c
+
+# 🟢 JAQUE MATE A WSI ANDROID: Forzamos las definiciones biónicas ausentes al principio del archivo para aniquilar los 10 errores de Clang
+echo "-> 2b. Parcheando definiciones estructurales de AHardwareBuffer en WSI..."
+sed -i '1s|^|#define VK_USE_PLATFORM_ANDROID_KHR 1\n#include <android/hardware_buffer.h>\n|' src/vulkan/wsi/wsi_common_android.c
 
 echo "-> 3. Inyectando bypass de asignación de memoria hw_get_module..."
 cat << 'EOF' >> src/vulkan/wrapper/wrapper_device.c
@@ -52,7 +56,7 @@ mkdir -p "$GITHUB_WORKSPACE/shims_32"
 $NDK_BIN/armv7a-linux-androideabi26-clang -c stub_logs.c -o stub_logs_32.o
 $NDK_BIN/llvm-ar rcs "$GITHUB_WORKSPACE/shims_32/libvulkan_wrapper.a" stub_logs_32.o
 
-echo "-> 8a. Generando cross_32.txt limpio..."
+echo "-> 8a. Generando cross_32.txt..."
 NDK_SYSROOT_LIB_32="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/arm-linux-androideabi/26"
 cat << EOF > cross_32.txt
 [constants]
@@ -90,20 +94,20 @@ meson setup build-32 --cross-file cross_32.txt --wrap-mode=nodownload -Dbuildtyp
 meson compile -C build-32
 
 # ==========================================
-# 🟢 FASE B: COMPILACIÓN DE 64 BITS (ARM64 SUBIDO A LA API 30)
+# 🟢 FASE B: COMPILACIÓN DE 64 BITS (ARM64 API 26)
 # ==========================================
 echo "-> 7b. Fabricando librería estática inyectable para ld.lld de 64 bits..."
 mkdir -p "$GITHUB_WORKSPACE/shims_64"
-$NDK_BIN/aarch64-linux-android30-clang -c stub_logs.c -o stub_logs_64.o
+$NDK_BIN/aarch64-linux-android26-clang -c stub_logs.c -o stub_logs_64.o
 $NDK_BIN/llvm-ar rcs "$GITHUB_WORKSPACE/shims_64/libvulkan_wrapper.a" stub_logs_64.o
 
-echo "-> 8b. Generando cross_64.txt (API 30 con pkgconfig false)..."
-NDK_SYSROOT_LIB_64="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/30"
+echo "-> 8b. Generando cross_64.txt..."
+NDK_SYSROOT_LIB_64="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/26"
 cat << EOF > cross_64.txt
 [constants]
 ndk_path = '${ANDROID_NDK_HOME}'
 toolchain = ndk_path + '/toolchains/llvm/prebuilt/linux-x86_64/bin'
-api = '30'
+api = '26'
 
 [binaries]
 c       = toolchain + '/aarch64-linux-android' + api + '-clang'
@@ -171,7 +175,7 @@ void* vk_icdGetInstanceProcAddr(void* instance, const char* pName) {
 }
 EOF
 
-$NDK_BIN/aarch64-linux-android30-clang -shared -fPIC -o libvulkan_wrapper.so wrapper.c -ldl --sysroot="$NDK_SYSROOT"
+$NDK_BIN/aarch64-linux-android26-clang -shared -fPIC -o libvulkan_wrapper.so wrapper.c -ldl --sysroot="$NDK_SYSROOT"
 
 # ==========================================
 # 🟢 FASE D: MAQUETADO ICD PLANO DEFINITIVO
@@ -202,5 +206,5 @@ echo "msf:315508" > pkg/version.txt && chmod -R 755 pkg/
 cd pkg && tar -I "zstd -19 -T0" -cf "$GITHUB_WORKSPACE/wrapper.tzst" usr version.txt
 
 echo "=========================================================="
-echo "🟢 ¡FAT BINARY HÍBRIDO COMPILADO AL 100% EN VERDE!"
+echo "🟢 ¡FAT BINARY MULTI-ARQUITECTURA COMPLETADO EN VERDE ABSOLUTO!"
 echo "=========================================================="
