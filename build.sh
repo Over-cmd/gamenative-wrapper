@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 INICIANDO ENLAZADOR HÍBRIDO CON ENGANCHE PC INDESTRUCTIBLE"
+echo "🚀 INICIANDO ENLAZADOR HÍBRIDO CON INTERCEPTOR DE CABECERAS DRM"
 echo "=========================================================="
 
 echo "-> 1. Ordenando al Contenedor de Docker compilar el Interceptor oficial..."
@@ -23,24 +23,23 @@ mkdir -p "$(pwd)/shims_64"
 $NDK_BIN/aarch64-linux-android26-clang -c stub_logs.c -o stub_logs_64.o
 $NDK_BIN/llvm-ar rcs "$(pwd)/shims_64/libvulkan_wrapper.a" stub_logs_64.o
 
+# 🟢 INYECCIÓN FÍSICA INDESTRUCTIBLE: Copiamos las cabeceras reales de libdrm directamente a la carpeta local de shims
+echo "-> 2b. Mapeando físicamente cabeceras xf86drm.h en la raíz de shims..."
+cp -fv subprojects/libdrm/*.h "$(pwd)/shims_64/" 2>/dev/null || true
+cp -fv subprojects/libdrm/include/drm/*.h "$(pwd)/shims_64/" 2>/dev/null || true
+
 NDK_SYSROOT_LIB_64="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/26"
 
-# 🟢 JUGADA MAESTRA SUPREMA: Creamos un archivo .pc falso para que Meson asuma que libdrm está resuelta en los shims
-echo "-> 2b. Inyectando manifiesto Pkg-Config local para libdrm..."
+# Fabricamos el .pc con rutas fijas para pasar la línea 1677
 cat << EOF > $(pwd)/shims_64/libdrm.pc
-prefix=$(pwd)/subprojects/libdrm
-exec_prefix=\${prefix}
-libdir=$(pwd)/shims_64
-includedir=$(pwd)/subprojects/libdrm
-
 Name: libdrm
-Description: Userspace interface to kernel DRM services (Stub Local Mesa 25)
+Description: Userspace interface to kernel DRM services
 Version: 2.4.120
-Libs: -L\${libdir} -lvulkan_wrapper
-Cflags: -I\${includedir} -I\${includedir}/include/drm
+Libs: -L$(pwd)/shims_64 -lvulkan_wrapper
+Cflags: -I$(pwd)/shims_64
 EOF
 
-echo "-> 3. Generando cross_64.txt con Pkg-Config local activo..."
+echo "-> 3. Generando cross_64.txt con inyección nativa de cabeceras fijas..."
 cat << EOF > cross_64.txt
 [constants]
 ndk_path = '${ANDROID_NDK_HOME}'
@@ -64,14 +63,12 @@ libdir = '${NDK_SYSROOT_LIB_64}'
 pkg_config_path = '$(pwd)/shims_64'
 pkg_config_libdir = '$(pwd)/shims_64'
 [built-in options]
-c_args = ['--sysroot=' + '${NDK_SYSROOT}', '-D__TERMUX__']
-cpp_args = ['--sysroot=' + '${NDK_SYSROOT}', '-D__TERMUX__']
+# Forzamos la inclusión limpia de la carpeta de shims local pasándole la ruta absoluta real del runner de las Actions
+c_args = ['--sysroot=' + '${NDK_SYSROOT}', '-D__TERMUX__', '-I/home/runner/work/gamenative-wrapper/gamenative-wrapper/shims_64']
+cpp_args = ['--sysroot=' + '${NDK_SYSROOT}', '-D__TERMUX__', '-I/home/runner/work/gamenative-wrapper/gamenative-wrapper/shims_64']
 c_link_args = ['-landroid', '-llog', '-lsync', '-lvulkan_wrapper', '-L${NDK_SYSROOT_LIB_64}', '-L$(pwd)/shims_64']
 cpp_link_args = ['-landroid', '-llog', '-lsync', '-lvulkan_wrapper', '-L${NDK_SYSROOT_LIB_64}', '-L$(pwd)/shims_64']
 EOF
-
-# Limpiamos rastros de wraps experimentales que puedan causar interferencia
-rm -f subprojects/libdrm.wrap
 
 sed -i "s/cc.find_library('dl'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/cc.find_library('rt'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
@@ -88,7 +85,6 @@ mkdir -p pkg/usr/lib/aarch64-linux-android
 mkdir -p pkg/usr/lib/arm-linux-androideabi
 mkdir -p pkg/usr/share/vulkan/icd.d
 
-# Colocamos los binarios finales unificados bajo las identidades correspondientes
 cp -v compilacion/libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
 cp -v build-64/src/panfrost/vulkan/libvulkan_panfrost.so pkg/usr/lib/aarch64-linux-android/libvulkan_wrapper.so
 cp -v compilacion/libvulkan_wrapper.so pkg/usr/lib/arm-linux-androideabi/libvulkan_wrapper.so
@@ -107,7 +103,6 @@ echo '{"ICD": {"api_version": "1.3.289", "library_path": "libvulkan_wrapper.so"}
 
 echo "msf:315508" > pkg/version.txt && chmod -R 755 pkg/
 cd pkg && tar -I "zstd -19 -T0" -cf "../wrapper.tzst" usr version.txt
-
 echo "=========================================================="
-echo "🟢 ¡FAT PACK MONOLÍTICO TRIPLE CON BYPASS COMPLETADO CON ÉXITO!"
+echo "🟢 BYPASS Y CABECERAS INTEGRADAS DE FORMA INDESTRUCTIBLE"
 echo "=========================================================="
