@@ -39,14 +39,6 @@ EOF
   echo "-> Parche físico de gralloc con prototipo inyectado con éxito."
 fi
 
-# Forzamos a Meson a que el nombre del binario físico de Panfrost sea 'vulkan_wrapper'
-echo "-> 3c. Parcheando el nombre nativo del binario en el meson.build de Panfrost..."
-PAN_MESON="src/panfrost/vulkan/meson.build"
-if [ -f "$PAN_MESON" ]; then
-  sed -i "s|shared_library('vulkan_panfrost'|shared_library('vulkan_wrapper'|g" "$PAN_MESON"
-  echo "-> Nombre interno mutado a vulkan_wrapper de forma nativa."
-fi
-
 echo "-> 4. Neutralizando búsquedas rígidas en subproyectos..."
 TARGET_BUILD="subprojects/libadrenotools/meson.build"
 if [ -f "$TARGET_BUILD" ]; then
@@ -93,7 +85,7 @@ $CLANG_CROSS -shared -fPIC simple_stub.c -o "$GITHUB_WORKSPACE/shims_target/libn
 $CLANG_CROSS -shared -fPIC simple_stub.c -o "$GITHUB_WORKSPACE/shims_target/libsync.so"
 $CLANG_CROSS -shared -fPIC simple_stub.c -o "$GITHUB_WORKSPACE/shims_target/libvulkan_wrapper.so"
 
-echo "-> 9. Generating Meson machine cross-file cross.txt..."
+echo "-> 9. Generando el archivo TOML de compilación cruzada cross.txt..."
 if [ -f "android-64.toml" ]; then envsubst < android-64.toml > cross.txt; else envsubst < android.toml > cross.txt; fi
 
 sed -i "s|pkg_config_libdir = .*|pkg_config_libdir = '$PKG_CONFIG_PATH'|g" cross.txt
@@ -118,10 +110,12 @@ meson compile -C build
 echo "-> 12. Estructurando empaque compatible ICD 1.0.0..."
 rm -rf pkg && mkdir -p pkg/usr/lib pkg/usr/share/vulkan/icd.d pkg/usr/share/vulkan/settings.d
 
-# Pescamos el binario real nacido legítimamente con el nombre de la inyección nativa del paso 3c
-cp -v build/src/panfrost/vulkan/libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
+# 🟢 REESCRITURA DE SONAME EN CALIENTE: 
+# Pescamos el binario real compilado exitosamente por Ninja y lo renombramos a libvulkan_wrapper.so
+cp -v build/src/panfrost/vulkan/libvulkan_panfrost.so pkg/usr/lib/libvulkan_wrapper.so
 
-patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so 2>/dev/null || true
+echo "-> Modificando de forma quirurgica el SONAME interno para forzar la entrada al contenedor..."
+patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
 llvm-strip --strip-unneeded pkg/usr/lib/*.so 2>/dev/null || true
 
 echo '{"ICD": {"api_version": "1.4.352", "library_path": "libvulkan_wrapper.so"}, "file_format_version": "1.0.0"}' > pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
