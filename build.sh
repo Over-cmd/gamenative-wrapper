@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 INICIANDO ENLAZADOR HÍBRIDO CON PURGA DE SYNCOBJ DE ESCRITORIO"
+echo "🚀 INICIANDO ENLAZADOR HÍBRIDO CON BYPASS DE INSTANCE"
 echo "=========================================================="
 
 echo "-> 1. Ordenando al Contenedor de Docker compilar el Interceptor oficial..."
@@ -24,13 +24,13 @@ mkdir -p "$(pwd)/shims_64"
 $NDK_BIN/aarch64-linux-android26-clang -c stub_logs.c -o stub_logs_64.o
 $NDK_BIN/llvm-ar rcs "$(pwd)/shims_64/libvulkan_wrapper.a" stub_logs_64.o
 
-# 🟢 JAQUE MATE AL PASO 442: Vaciamos por completo el archivo problemático para aniquilar el error de xf86drm.h
-echo "-> 2b. Purgando y neutralizando vk_drm_syncobj.c de forma física..."
+echo "-> 2b. Neutralizando dependencias DRM residuales en caliente..."
 echo " " > src/vulkan/runtime/vk_drm_syncobj.c
-
-# También vaciamos libdrm.h por si acaso otra unidad lo invoca de forma indirecta en el árbol de dependencias
 mkdir -p src/util
 echo " " > src/util/libdrm.h
+
+# 🟢 JAQUE MATE AL PASO 443: Inyectamos un return inmediato en la línea 614 de vk_instance.c para saltar el escaneo DRM de escritorio
+sed -i '614i\   return VK_SUCCESS;' src/vulkan/runtime/vk_instance.c
 
 NDK_SYSROOT_LIB_64="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/26"
 
@@ -43,7 +43,7 @@ Libs: -L$(pwd)/shims_64 -lvulkan_wrapper
 Cflags: -I.
 EOF
 
-echo "-> 3. Generating cross_64.txt purificado con flags limpios..."
+echo "-> 3. Generando cross_64.txt purificado con flags limpios..."
 cat << EOF > cross_64.txt
 [constants]
 ndk_path = '${ANDROID_NDK_HOME}'
