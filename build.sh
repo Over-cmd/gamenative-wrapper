@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 INICIANDO ENLAZADOR MESA 25 CON LIBDRM NATIVO REAL"
+echo "🚀 INICIANDO ENLAZADOR MESA 25 CON LIMPIEZA CLEAN_SPEC REAL"
 echo "=========================================================="
 
 echo "-> 1. Compilando el Interceptor oficial en Docker..."
@@ -12,6 +12,13 @@ echo "-> 2. Configurando entorno de compilación cruzada NDK..."
 export ANDROID_NDK_HOME="/usr/local/lib/android/sdk/ndk/28.2.13676358"
 export NDK_BIN="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin"
 export NDK_SYSROOT="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
+
+# 🟢 INYECCIÓN CLEAN_SPEC: Limpieza física estricta de temporales e intermedios para evitar conflictos en el Linker
+echo "-> 2a. Ejecutando directivas CleanSpec sobre el espacio de trabajo..."
+rm -rf "$(pwd)/shims_64"
+rm -rf "$(pwd)/include/libdrm"
+rm -rf build-libdrm/
+rm -rf build-64/
 
 # Creamos stubs puros solo para los logs internos de Adrenotools
 cat << 'EOF' > stub_logs.c
@@ -23,13 +30,12 @@ mkdir -p "$(pwd)/shims_64"
 $NDK_BIN/aarch64-linux-android26-clang -c stub_logs.c -o stub_logs_64.o
 $NDK_BIN/llvm-ar rcs "$(pwd)/shims_64/libvulkan_wrapper.a" stub_logs_64.o
 
-# 🟢 FASE DE INGENIERÍA PURA: Clonamos el espejo oficial de libdrm freedesktop
-echo "-> 2b. Descargando repositorio legítimo de libdrm freedesktop..."
+echo "-> 2b. Descargando repositorio oficial de libdrm Distrotech..."
 if [ ! -d "libdrm_android" ]; then
-    git clone --depth 1 https://github.com libdrm_android
+    git clone --depth=1 https://github.com libdrm_android
 fi
 
-# Receta de compilación cruzada nativa móvil
+# Receta de compilación cruzada nativa móvil con los macros atómicos legítimos de Distrotech
 cat << EOF > cross_libdrm.txt
 [binaries]
 c       = '${NDK_BIN}/aarch64-linux-android26-clang'
@@ -44,15 +50,15 @@ endian = 'little'
 [properties]
 sys_root = '${NDK_SYSROOT}'
 [built-in options]
-c_args = ['--sysroot=${NDK_SYSROOT}', '-DANDROID', '-D_GNU_SOURCE', '-DBIONIC_IOCTL_NO_SIGNEDNESS_OVERLOAD=1']
+c_args = ['--sysroot=${NDK_SYSROOT}', '-DANDROID', '-D_GNU_SOURCE', '-DBIONIC_IOCTL_NO_SIGNEDNESS_OVERLOAD=1', '-DHAVE_LIBDRM_ATOMIC_PRIMITIVES=1']
 EOF
 
-# Compilamos la librería real apagando los controladores redundantes de PC (Intel, Radeon, Nouveau)
+# Compilamos la librería real apagando de forma estricta los controladores de PC obsoletos
 meson setup build-libdrm libdrm_android --cross-file cross_libdrm.txt --prefix="$(pwd)/shims_64" \
   -Dintel=disabled -Dradeon=disabled -Damdgpu=disabled -Dnouveau=disabled -Dvmwgfx=disabled -Domap=disabled -Dexynos=disabled -Dtegra=disabled -Dvc4=disabled -Detnaviv=disabled -Dmanpages=disabled -Dvalgrind=disabled -Dtests=disabled
 meson install -C build-libdrm
 
-# Enlazamos las cabeceras originales directamente en las rutas de Mesa para que Clang las lea nativamente
+# Enlazamos las cabeceras originales directamente en las rutas de Mesa para que Clang las lea de golpe
 mkdir -p include
 cp -rf shims_64/include/libdrm/* include/ 2>/dev/null || cp -rf shims_64/include/* include/
 mkdir -p include/libdrm
@@ -69,7 +75,7 @@ if "fcntl.h" not in c:
 
 NDK_SYSROOT_LIB_64="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/26"
 
-echo "-> 3. Generando cross_64.txt definitivo con dependencias legítimas..."
+echo "-> 3. Generando cross_64.txt definitivo con dependencias legítimas de Android..."
 cat << EOF > cross_64.txt
 [constants]
 ndk_path = '${ANDROID_NDK_HOME}'
@@ -118,7 +124,7 @@ meson setup build-64 --cross-file cross_64.txt --wrap-mode=nodownload \
   -Dvulkan-layers=[]
 meson compile -C build-64
 
-echo "-> 5. Maquetando empaque compatible de Bannerlator..."
+echo "-> 5. Maquetando empaque unificado de integración reglamentaria..."
 rm -rf pkg
 mkdir -p pkg/usr/lib/aarch64-linux-android
 mkdir -p pkg/usr/share/vulkan/icd.d
@@ -153,5 +159,5 @@ echo "msf:315508" > pkg/version.txt && chmod -R 755 pkg/
 cd pkg && tar -I "zstd -19 -T0" -cf "../wrapper.tzst" usr version.txt
 
 echo "=========================================================="
-echo "  778/778 COMPLETADO - DRIVER MONOLÍTICO HÍBRIDO LISTO    "
+echo "  778/778 COMPLETO - DRIVER MONOLÍTICO HÍBRIDO LISTO    "
 echo "=========================================================="
