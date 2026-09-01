@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 INICIANDO ENLAZADOR MESA 25 CON RECIETA CROSS PURIFICADA"
+echo "🚀 INICIANDO ENLAZADOR MESA 25 CON BOOLEANOS ESTRICTOS"
 echo "=========================================================="
 
 echo "-> 1. Compilando el Interceptor oficial en Docker..."
@@ -36,7 +36,7 @@ unzip -q libdrm.zip
 mv -v drm-main libdrm_android
 rm -f libdrm.zip
 
-# 🟢 CORRECCIÓN SUPREMA: Removida la opción inválida config_h de built-in options aplicando tu diseño exacto
+# Receta de compilación cruzada nativa móvil con los macros atómicos legítimos
 cat << EOF > cross_libdrm.txt
 [binaries]
 c       = '${NDK_BIN}/aarch64-linux-android26-clang'
@@ -54,9 +54,9 @@ sys_root = '${NDK_SYSROOT}'
 c_args = ['--sysroot=${NDK_SYSROOT}', '-DANDROID', '-D_GNU_SOURCE', '-DBIONIC_IOCTL_NO_SIGNEDNESS_OVERLOAD=1', '-DHAVE_LIBDRM_ATOMIC_PRIMITIVES=1']
 EOF
 
-# Compilamos la librería real apagando de forma estricta los controladores de PC obsoletos
+# 🟢 CORRECCIÓN SUPREMA BOOLEANOS: Cambiado disabled por false en tests y valgrind conforme exige el core moderno
 meson setup build-libdrm libdrm_android --cross-file cross_libdrm.txt --prefix="$(pwd)/shims_64" \
-  -Dintel=disabled -Dradeon=disabled -Damdgpu=disabled -Dnouveau=disabled -Dvmwgfx=disabled -Domap=disabled -Dexynos=disabled -Dtegra=disabled -Dvc4=disabled -Detnaviv=disabled -Dman-pages=disabled -Dvalgrind=disabled -Dtests=disabled
+  -Dintel=disabled -Dradeon=disabled -Damdgpu=disabled -Dnouveau=disabled -Dvmwgfx=disabled -Domap=disabled -Dexynos=disabled -Dtegra=disabled -Dvc4=disabled -Detnaviv=disabled -Dman-pages=disabled -Dvalgrind=false -Dtests=false
 meson install -C build-libdrm
 
 # Enlazamos las cabeceras originales directamente en las rutas de Mesa para que Clang las lea de golpe
