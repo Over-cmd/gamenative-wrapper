@@ -22,7 +22,6 @@ set -e
 
 echo "-> [Docker Internal] Preparando directorios para stubs primarios..."
 mkdir -p shims_64/lib
-mkdir -p drm_shims_inc/include/libdrm
 
 echo "-> [Docker Internal] Purgando directorios previos de construcción..."
 rm -rf build-libdrm/ build-64/
@@ -60,12 +59,12 @@ if [ -n "$NDK_LLVM_LIB" ] && [ -d "$NDK_LLVM_LIB" ]; then
     cp -fv shims_64/lib/libdl.a "$NDK_LLVM_LIB/libdl.a"
 fi
 
+# Compilación real e instalación de libdrm en su prefijo aislado
 python3 meson_src/meson.py setup build-libdrm libdrm_android --cross-file /workspace/cross_libdrm.txt --prefix="/workspace/shims_64" \
   -Dintel=disabled -Dradeon=disabled -Damdgpu=disabled -Dnouveau=disabled -Dman-pages=disabled -Dvalgrind=disabled -Dtests=false
 python3 meson_src/meson.py install -C build-libdrm
 
-cp -rf shims_64/include/libdrm/* drm_shims_inc/include/libdrm/ 2>/dev/null || cp -rf shims_64/include/* drm_shims_inc/include/libdrm/ 2>/dev/null || true
-
+# 🟢 REPARACIÓN TRITURADORA: Eliminamos por completo los comandos cp que tiraban copias sueltas en la raíz de Mesa, protegiendo el árbol de fuentes nativo
 python3 -c '
 p="src/vulkan/wrapper/wrapper_log.c"
 import os
@@ -81,6 +80,7 @@ sed -i "s/cc.find_library('rt'/dependency('', required : false) #/g" meson.build
 sed -i "s/cc.find_library('atomic'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/dependency('libclc')/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 
+# Meson Setup lee cross_64 con el árbol de Mesa limpio de forma indestructible
 python3 meson_src/meson.py setup build-64 --cross-file /workspace/cross_64.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=panfrost,wrapper
 python3 meson_src/meson.py compile -C build-64
 EOF
@@ -144,7 +144,6 @@ cd "${WORKSPACE}"
 
 echo "-> 6. Purgando artefactos efímeros con privilegios de administración..."
 sudo rm -f docker_run_inside.sh cross_libdrm.txt cross_64.txt stub_logs.c stub_c.o stub_cpp.o generate_cross.sh
-sudo rm -rf drm_shims_inc/
 sudo rm -rf meson_src/
 sudo rm -rf shims_64/
 sudo rm -rf build-64/
