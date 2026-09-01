@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 INICIANDO ENLAZADOR MESA 25 - CONSTANTES PURAS DE MESON"
+echo "🚀 INICIANDO ENLAZADOR MESA 25 - PARCHEO EN DOS TIEMPOS OK"
 echo "=========================================================="
 
 # Fijamos la ruta absoluta calculada al inicio para blindar cambios accidentales de directorio
@@ -79,7 +79,6 @@ if "fcntl.h" not in c:
 
 NDK_SYSROOT_LIB_64="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/26"
 
-# 🟢 REPARACIÓN CRÍTICA SUPREMA: Aplicamos tu diseño exacto de constantes puras sin interpolaciones de Bash rotas
 echo "-> 3. Generando cross_64.txt definitivo con tu arquitectura de constantes..."
 cat << EOF > cross_64.txt
 [constants]
@@ -116,18 +115,14 @@ c_link_args = ['-landroid', '-llog', '-lsync', '-lvulkan_wrapper', '-L${NDK_SYSR
 cpp_link_args = ['-landroid', '-llog', '-lsync', '-lvulkan_wrapper', '-L${NDK_SYSROOT_LIB_64}', '-L' + shims_path + '/lib', '-latomic']
 EOF
 
-# Reparación de librerías del sistema ausentes en el Host
+# Reparación preliminar de librerías del core de Mesa
 sed -i "s/cc.find_library('dl'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/cc.find_library('rt'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/cc.find_library('atomic'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/dependency('libclc')/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/dep_libclc = .*/dep_libclc = dependency('', required : false)/g" meson.build 2>/dev/null || true
 
-# Reparación crítica libadrenotools
-sed -i "s/cc.find_library('android'/dependency('', required : false) #/g" subprojects/libadrenotools/meson.build 2>/dev/null || true
-
-# Compilando la pila oficial de Panfrost
-echo "-> 4. Compilando Panfrost Mesa 25 amarrado a libdrm real..."
+echo "-> 4. Inicializando entorno de Meson (Mesa 25 Setup)..."
 meson setup build-64 --cross-file cross_64.txt --wrap-mode=nodownload \
   -Dbuildtype=release \
   -Dplatforms=android \
@@ -138,6 +133,16 @@ meson setup build-64 --cross-file cross_64.txt --wrap-mode=nodownload \
   -Dgallium-drivers=[] \
   -Dvulkan-drivers=panfrost,wrapper \
   -Dvulkan-layers=[]
+
+# 🟢 REPARACIÓN CRÍTICA EN DOS TIEMPOS: Modificamos Adrenotools en caliente DESPUÉS del setup, cuando el archivo ya existe en disco
+echo "-> 4b. Aplicando cirugía en caliente sobre los fuentes extraídos de Adrenotools..."
+if [ -f subprojects/libadrenotools/meson.build ]; then
+    sed -i "s/cc.find_library('android'/dependency('', required : false) #/g" subprojects/libadrenotools/meson.build
+    sed -i "s/cc.find_library('log'/dependency('', required : false) #/g" subprojects/libadrenotools/meson.build
+    echo "-> ¡libadrenotools parchado con éxito rotundo!"
+fi
+
+echo "-> 4c. Lanzando compilación masiva con Ninja..."
 meson compile -C build-64
 
 echo "-> 5. Maquetando empaque unificado de integración reglamentaria..."
