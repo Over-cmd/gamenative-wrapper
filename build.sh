@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO PERFECCIONADO CON RUTA RELATIVA"
+echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO PERFECCIONADO E IDEMPOTENTE"
 echo "=========================================================="
 
 WORKSPACE="$(pwd)"
@@ -19,6 +19,10 @@ set -e
 echo "-> [Docker Internal] Preparando directorios para stubs primarios..."
 mkdir -p shims_64/lib
 mkdir -p drm_shims_inc/include/libdrm
+
+# 🟢 CORRECCIÓN SUPREMA IDEMPOTENCIA: Purgamos carpetas viejas de compilación dentro del contenedor antes de reconfigurar
+echo "-> [Docker Internal] Purgando directorios previos de construcción..."
+rm -rf build-libdrm/ build-64/
 
 echo "-> [Docker Internal] Instalando dependencias de Python complementarias..."
 pip3 install --no-cache-dir --break-system-packages mako packaging || pip3 install --no-cache-dir mako packaging || true
@@ -72,7 +76,6 @@ sys_root = '${NDK_SYSROOT}'
 c_args = ['--sysroot=${NDK_SYSROOT}', '-DANDROID', '-D_GNU_SOURCE']
 EOF
 
-# 🟢 REPARACIÓN DE RUTA DEFINITIVA: Invocamos Meson usando su puntero relativo local puro eliminando el prefijo duro /workspace/
 python3 meson_src/meson.py setup build-libdrm libdrm_android --cross-file cross_libdrm.txt --prefix="/workspace/shims_64" \
   -Dintel=disabled -Dradeon=disabled -Damdgpu=disabled -Dnouveau=disabled -Dman-pages=disabled -Dvalgrind=disabled -Dtests=false
 python3 meson_src/meson.py install -C build-libdrm
@@ -124,7 +127,6 @@ sed -i "s/cc.find_library('rt'/dependency('', required : false) #/g" meson.build
 sed -i "s/cc.find_library('atomic'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/dependency('libclc')/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 
-# 🟢 REPARACIÓN DE RUTA DEFINITIVA: Invocamos Meson usando su puntero relativo local puro para Mesa 25
 python3 meson_src/meson.py setup build-64 --cross-file cross_64.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=panfrost,wrapper
 python3 meson_src/meson.py compile -C build-64
 EOF
@@ -155,8 +157,8 @@ patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
 patchelf --set-soname libvulkan_panfrost.so pkg/usr/lib/aarch64-linux-android/libvulkan_panfrost.so
 patchelf --set-soname libdrm.so pkg/usr/lib/libdrm.so 2>/dev/null || true
 
-patchelf --add-needed libdrm.so pkg/usr/lib/libvulkan_panfrost.so 2>/dev/null || true
-patchelf --set-rpath '$ORIGIN' pkg/usr/lib/libvulkan_panfrost.so 2>/dev/null || true
+patchelf --add-needed libdrm.so pkg/usr/lib/aarch64-linux-android/libvulkan_panfrost.so 2>/dev/null || true
+patchelf --set-rpath '$ORIGIN' pkg/usr/lib/aarch64-linux-android/libvulkan_panfrost.so 2>/dev/null || true
 patchelf --add-needed libdrm.so pkg/usr/lib/libvulkan_wrapper.so 2>/dev/null || true
 patchelf --set-rpath '$ORIGIN' pkg/usr/lib/libvulkan_wrapper.so 2>/dev/null || true
 
