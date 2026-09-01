@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 INICIANDO ENLAZADOR MESA 25 CON DRIVER DE SAILFISHOS"
+echo "🚀 INICIANDO ENLAZADOR MESA 25 CON ZIPBALL INDESTRUCTIBLE"
 echo "=========================================================="
 
 echo "-> 1. Compilando el Interceptor oficial en Docker..."
@@ -30,9 +30,12 @@ mkdir -p "$(pwd)/shims_64"
 $NDK_BIN/aarch64-linux-android26-clang -c stub_logs.c -o stub_logs_64.o
 $NDK_BIN/llvm-ar rcs "$(pwd)/shims_64/libvulkan_wrapper.a" stub_logs_64.o
 
-# 🟢 JUGADA MAESTRA INDESTRUCTIBLE: Clonamos el repositorio limpio del mirror de SailfishOS en una sola línea
-echo "-> 2b. Descargando repositorio legítimo de libdrm desde el Mirror oficial..."
-git clone --depth=1 https://github.com libdrm_android
+# 🟢 JAQUE MATE AL GIT CLONE: Descargamos el código fuente legítimo del mirror vía Curl + Unzip nativo
+echo "-> 2b. Descargando código real de libdrm SailfishOS vía Zipball..."
+curl -L https://github.com -o libdrm.zip
+unzip -q libdrm.zip
+mv -v drm-main libdrm_android
+rm -f libdrm.zip
 
 # Receta de compilación cruzada nativa móvil con los macros atómicos legítimos
 cat << EOF > cross_libdrm.txt
