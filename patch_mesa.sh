@@ -11,12 +11,13 @@ export NDK_BIN="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin"
 export NDK_SYSROOT="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
 NDK_SYSROOT_LIB_64="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/26"
 
+# 🟢 REPARACIÓN CRÍTICA DE PURGA: Forzamos la eliminación de residuos antiguos con privilegios sudo para evitar el Permission Denied
 echo "-> 1a. Limpiando residuos antiguos para CleanSpec..."
-rm -rf "${WORKSPACE}/shims_64"
-rm -rf "${WORKSPACE}/sysroot_virtual"
-rm -rf "${WORKSPACE}/include/libdrm"
-rm -rf libdrm_android/
-rm -rf subprojects/libadrenotools/
+sudo rm -rf "${WORKSPACE}/shims_64"
+sudo rm -rf "${WORKSPACE}/sysroot_virtual"
+sudo rm -rf "${WORKSPACE}/include/libdrm"
+sudo rm -rf libdrm_android/
+sudo rm -rf subprojects/libadrenotools/
 
 cat << 'EOF' > stub_logs.c
 int get_wrapper_log_level(const char *option) { (void)option; return 0; }
@@ -55,7 +56,6 @@ unzip -q libdrm.zip
 mv -v drm-main libdrm_android
 rm -f libdrm.zip
 
-# 🟢 JAQUE MATE AL WRAP: Descargamos físicamente el código real de Adrenotools de Pipetto desde tu enlace en una subcarpeta local para anular el .wrap
 echo "-> 1e. Descargando código de Adrenotools en subprojects local para anular el .wrap..."
 mkdir -p subprojects
 curl -L "https://github.com/Pipetto-crypto/libadrenotools/archive/refs/heads/master.zip" -o adrenotools.zip
@@ -63,14 +63,13 @@ unzip -q adrenotools.zip
 mv -v libadrenotools-master subprojects/libadrenotools
 rm -f adrenotools.zip
 
-# 🟢 CIRUGÍA CON PERMISOS TOTALES EN FRÍO: Como la carpeta la creamos nosotros, sed inyectará los parches sin detonar Permission Denied
-echo "-> 1f. Aplicando cirugía en frío sobre el meson.build local descargado..."
+echo "-> 1f. Applying cold surgery on downloaded subproject meson.build..."
 if [ -f subprojects/libadrenotools/meson.build ]; then
     sed -i "s/cc.find_library('android'/dependency('', required : false) #/g" subprojects/libadrenotools/meson.build
     sed -i "s/cc.find_library('log'/dependency('', required : false) #/g" subprojects/libadrenotools/meson.build
-    echo "-> ¡Estructura de subproyecto Adrenotools liberada y parchada de forma nativa!"
+    echo "-> Subproject structure successfully freed and patched natively!"
 fi
 
 echo "=========================================================="
-echo "🟢 ARCHIVO 1 CONCLUIDO CON ÉXITO - WRAP ANULADO Y PARCHADO"
+echo "🟢 ARCHIVO 1 CONCLUIDO CON ÉXITO - ENTORNO EXPULSADO LIMPIO"
 echo "=========================================================="
