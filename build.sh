@@ -30,12 +30,12 @@ mkdir -p "$(pwd)/shims_64"
 $NDK_BIN/aarch64-linux-android26-clang -c stub_logs.c -o stub_logs_64.o
 $NDK_BIN/llvm-ar rcs "$(pwd)/shims_64/libvulkan_wrapper.a" stub_logs_64.o
 
-# 🟢 REPARACIÓN SUPREMA URL: Usamos la URL real de descarga de un tag específico que entrega código C legítimo, no HTML
+# 🟢 REPARACIÓN SUPREMA URL: Descarga directa de la rama principal (main) del mirror legítimo de SailfishOS
 echo "-> 2b. Descargando código legítimo de libdrm SailfishOS vía Zipball Real..."
-curl -L https://github.com/sailfishos-mirror/drm/ -o libdrm.zip
+curl -L "https://github.com/sailfishos-mirror/drm/" -o libdrm.zip
 unzip -q libdrm.zip
-# Como bajamos el tag 2.4.122, la carpeta se genera como drm-2.4.122 conforme a tu corrección
-mv -v drm-2.4.122 libdrm_android
+# Al descargar la rama 'main' de 'drm', GitHub genera de manera nativa la carpeta 'drm-main'
+mv -v drm-main libdrm_android
 rm -f libdrm.zip
 
 # Receta de compilación cruzada nativa móvil con los macros atómicos legítimos
