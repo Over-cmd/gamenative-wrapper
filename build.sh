@@ -7,7 +7,7 @@ echo "=========================================================="
 
 WORKSPACE="$(pwd)"
 
-# 1. Ejecutamos el preparador local de fuentes fuera de Docker
+# 1. Ejecutamos el preparador local de fuentes y herramientas (Módulo 1)
 chmod +x patch_mesa.sh
 ./patch_mesa.sh
 
@@ -132,7 +132,7 @@ EOF
 
 chmod +x docker_run_inside.sh
 
-# Invocación atómica directa al contenedor sin escapes traicioneros
+# 2. Invocación atómica directa al contenedor de LeeGao con puente de NDK mapeado por hardware
 echo "-> 2. Lanzando entorno biónico aislado en Docker..."
 docker run --rm --entrypoint /bin/bash \
   -v "${WORKSPACE}:/workspace" \
@@ -172,13 +172,13 @@ cat << 'EOF' > pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
 }
 EOF
 
-# 🟢 SANEAMIENTO DE EMPAQUE REAL: Cerramos limpiamente el tarball zstd de alta compresión
+# 4. Sellamos limpiamente el tarball zstd de alta compresión
 echo "-> 4. Sellando empaque reglamentario de alta compresión..."
 echo "msf:315508" > pkg/version.txt && chmod -R 755 pkg/
 cd pkg && tar -I "zstd -19 -T0" -cf "../wrapper.tzst" usr version.txt
 cd "${WORKSPACE}"
 
-# 🟢 PURGA ADMINISTRATIVA MAESTRA: Sudo rm elimina los candados de UID 0 de Docker del volumen y deja el repositorio virgen
+# 5. Purga administrativa de residuos para garantizar la idempotencia real del espacio de trabajo
 echo "-> 5. Purgando artefactos efímeros con privilegios de administración..."
 sudo rm -f docker_run_inside.sh cross_libdrm.txt cross_64.txt stub_logs.c stub_c.o stub_cpp.o
 sudo rm -rf drm_shims_inc/
