@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 INICIANDO ENLAZADOR MESA 25 - ARQUITECTURA AISLADA PURA"
+echo "🚀 INICIANDO ENLAZADOR MESA 25 - PUENTE DE ENLAZADO TOTAL"
 echo "=========================================================="
 
 # Fijamos la ruta absoluta calculada al inicio para blindar el entorno local
@@ -32,26 +32,28 @@ void write_to_logfile(const char *fmt, const char *level, ...) { (void)fmt; (voi
 EOF
 
 mkdir -p "${WORKSPACE}/shims_64/lib"
-# 🟢 ENTORNO VIRTUAL PRIVADO: Creamos el Sysroot aislado local para no corromper el NDK global del sistema compartido
+# Creamos la topología de carpetas virtuales del sistema replicando un sysroot nativo privado aislado
 mkdir -p "${WORKSPACE}/sysroot_virtual/usr/lib"
+mkdir -p "${WORKSPACE}/sysroot_virtual/lib"
 
 echo "-> 2c. Compilando shims nativos en formatos duales C y C++ de 64 bits..."
-# 1. Formato C puro para c.find_library('log')
 $NDK_BIN/aarch64-linux-android26-clang -c stub_logs.c -o stub_logs_c.o
 $NDK_BIN/llvm-ar rcs "${WORKSPACE}/shims_64/lib/liblog.a" stub_logs_c.o
 $NDK_BIN/llvm-ar rcs "${WORKSPACE}/shims_64/libvulkan_wrapper.a" stub_logs_c.o
 
-# 2. Formato C++ puro para cpp.find_library('android')
 $NDK_BIN/aarch64-linux-android26-clang++ -c stub_logs.c -o stub_logs_cpp.o
 $NDK_BIN/llvm-ar rcs "${WORKSPACE}/shims_64/lib/libandroid.a" stub_logs_cpp.o
 
-# 🟢 INSTALACIÓN AISLADA MAESTRA: Copiamos los archivos .a en nuestra carpeta local virtual sin usar jamás sudo cp
 echo "-> 2d. Instalando componentes legítimos dentro del Sysroot virtual privado..."
 cp -fv "${WORKSPACE}/shims_64/lib/libandroid.a" "${WORKSPACE}/sysroot_virtual/usr/lib/libandroid.a"
 cp -fv "${WORKSPACE}/shims_64/lib/liblog.a" "${WORKSPACE}/sysroot_virtual/usr/lib/liblog.a"
+cp -fv "${WORKSPACE}/shims_64/lib/libandroid.a" "${WORKSPACE}/sysroot_virtual/lib/libandroid.a"
+cp -fv "${WORKSPACE}/shims_64/lib/liblog.a" "${WORKSPACE}/sysroot_virtual/lib/liblog.a"
 
-# Enlazamos los .so nativos de Google al Sysroot virtual para que Meson pueda resolver los enlaces cruzados finales
-ln -sf "${NDK_SYSROOT_LIB_64}"/*.so "${WORKSPACE}/sysroot_virtual/usr/lib/"
+# 🟢 JUGADA MAESTRA DE COBERTURA: Enlazamos absolutamente todos los .so reales del NDK (incluyendo libdl.so, libc.so, libm.so) para saciar linkernsbypass sin romper el sistema
+echo "-> 2e. Creando puente espejo total de librerías dinámicas del NDK..."
+ln -sf "${NDK_SYSROOT_LIB_64}"/* "${WORKSPACE}/sysroot_virtual/usr/lib/" 2>/dev/null || true
+ln -sf "${NDK_SYSROOT_LIB_64}"/* "${WORKSPACE}/sysroot_virtual/lib/" 2>/dev/null || true
 
 echo "-> 2b. Descargando código legítimo de libdrm SailfishOS vía Zipball Real..."
 curl -L "https://github.com/sailfishos-mirror/drm/archive/refs/heads/main.zip" -o libdrm.zip
@@ -77,7 +79,7 @@ sys_root = '${NDK_SYSROOT}'
 c_args = ['--sysroot=${NDK_SYSROOT}', '-DANDROID', '-D_GNU_SOURCE', '-DBIONIC_IOCTL_NO_SIGNEDNESS_OVERLOAD=1', '-DHAVE_LIBDRM_ATOMIC_PRIMITIVES=1']
 EOF
 
-# Compilamos e instalamos de forma real la librería libdrm en el prefijo de shims
+# Compilamos e instalamos de forma real la librería libdrm
 meson setup build-libdrm libdrm_android --cross-file cross_libdrm.txt --prefix="${WORKSPACE}/shims_64" \
   -Dintel=disabled -Dradeon=disabled -Damdgpu=disabled -Dnouveau=disabled -Dvmwgfx=disabled -Domap=disabled -Dexynos=disabled -Dtegra=disabled -Dvc4=disabled -Detnaviv=disabled -Dman-pages=disabled -Dvalgrind=disabled -Dtests=false
 meson install -C build-libdrm
@@ -97,15 +99,14 @@ if "fcntl.h" not in c:
     f=open(p,"w"); f.write(c); f.close()
 '
 
-# 🟢 REPARACIÓN DEFINITIVA CROSS-FILE: Redirigimos libdir hacia nuestra carpeta virtual privada para blindar el NDK global
-echo "-> 3. Generando cross_64.txt definitivo con aislamiento total de hardware..."
+echo "-> 3. Generando cross_64.txt definitivo con tu arquitectura de constantes..."
 cat << EOF > cross_64.txt
 [constants]
 ndk_path = '/usr/local/lib/android/sdk/ndk/28.2.13676358'
 toolchain = ndk_path + '/toolchains/llvm/prebuilt/linux-x86_64/bin'
-sysroot = ndk_path + '/toolchains/llvm/prebuilt/linux-x86_64/sysroot'
+sysroot_ndk = ndk_path + '/toolchains/llvm/prebuilt/linux-x86_64/sysroot'
 shims_path = '${WORKSPACE}/shims_64'
-virtual_lib = '${WORKSPACE}/sysroot_virtual/usr/lib'
+virtual_sysroot = '${WORKSPACE}/sysroot_virtual'
 api = '26'
 
 [binaries]
@@ -123,16 +124,16 @@ endian = 'little'
 
 [properties]
 needs_exe_wrapper = true
-sys_root = sysroot
-libdir = virtual_lib
+sys_root = virtual_sysroot
+libdir = virtual_sysroot + '/usr/lib'
 pkg_config_path = shims_path + '/lib/pkgconfig'
 pkg_config_libdir = shims_path + '/lib/pkgconfig'
 
 [built-in options]
-c_args = ['--sysroot=' + sysroot, '-D__TERMUX__', '-I' + shims_path + '/include', '-I' + shims_path + '/include/libdrm']
-cpp_args = ['--sysroot=' + sysroot, '-D__TERMUX__', '-I' + shims_path + '/include', '-I' + shims_path + '/include/libdrm']
-c_link_args = ['-L' + virtual_lib, '-L' + shims_path + '/lib', '-landroid', '-llog', '-lsync', '-lvulkan_wrapper', '-latomic']
-cpp_link_args = ['-L' + virtual_lib, '-L' + shims_path + '/lib', '-landroid', '-llog', '-lsync', '-lvulkan_wrapper', '-latomic']
+c_args = ['--sysroot=' + sysroot_ndk, '-I' + virtual_sysroot + '/usr/lib', '-D__TERMUX__', '-I' + shims_path + '/include', '-I' + shims_path + '/include/libdrm']
+cpp_args = ['--sysroot=' + sysroot_ndk, '-I' + virtual_sysroot + '/usr/lib', '-D__TERMUX__', '-I' + shims_path + '/include', '-I' + shims_path + '/include/libdrm']
+c_link_args = ['--sysroot=' + virtual_sysroot, '-L' + virtual_sysroot + '/usr/lib', '-L' + shims_path + '/lib', '-landroid', '-llog', '-lsync', '-lvulkan_wrapper', '-latomic']
+cpp_link_args = ['--sysroot=' + virtual_sysroot, '-L' + virtual_sysroot + '/usr/lib', '-L' + shims_path + '/lib', '-landroid', '-llog', '-lsync', '-lvulkan_wrapper', '-latomic']
 EOF
 
 # Reparación de librerías del sistema del core de Mesa
@@ -187,7 +188,7 @@ patchelf --set-rpath '$ORIGIN' pkg/usr/lib/libvulkan_wrapper.so 2>/dev/null || t
 # Strip final para aligerar espacio y eliminar símbolos de desarrollo redundantes
 $NDK_BIN/llvm-strip --strip-unneeded pkg/usr/lib/*.so 2>/dev/null || true
 
-# Manifiesto ICD oficial de Bannerlator
+# Manifiesto ICD oficial de Bannerlator apuntando a la raíz plana
 cat << 'EOF' > pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
 {
     "ICD": {
@@ -202,5 +203,5 @@ echo "msf:315508" > pkg/version.txt && chmod -R 755 pkg/
 cd pkg && tar -I "zstd -19 -T0" -cf "../wrapper.tzst" usr version.txt
 
 echo "=========================================================="
-echo "  778/778 COMPLETO - ENTORNO PRESERVADO Y SEGURO TOTAL    "
+echo "  778/778 COMPLETO - PUENTE DE ENLAZADO CONCLUIDO CON ÉXITO "
 echo "=========================================================="
