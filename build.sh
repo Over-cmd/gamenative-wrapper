@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO CON RECETA PLANA DE DOCKER"
+echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO PERFECCIONADO CON TUS AJUSTES"
 echo "=========================================================="
 
 WORKSPACE="$(pwd)"
@@ -16,9 +16,16 @@ cat << 'EOF' > docker_run_inside.sh
 #!/bin/bash
 set -e
 
-# 🟢 REPARACIÓN CRÍTICA COMANDO AUSENTE: Forzamos la instalación real e inmediata de Meson y Ninja en el núcleo del contenedor
+# 🟢 CORRECCIÓN DE PRECISIÓN 1: Forzamos la creación del directorio antes de que llvm-ar intente escribir sus .a
+echo "-> [Docker Internal] Preparando directorios para stubs primarios..."
+mkdir -p shims_64/lib
+mkdir -p drm_shims_inc/include/libdrm
+
 echo "-> [Docker Internal] Instalando herramientas reglamentarias de compilación..."
 pip3 install --no-cache-dir --break-system-packages meson ninja mako packaging || pip3 install --no-cache-dir meson ninja mako packaging || true
+
+# 🟢 CORRECCIÓN DE PRECISIÓN 2: Blindamos el PATH inyectando las rutas de Pip para asegurar la ejecución de meson setup
+export PATH="/usr/local/bin:/root/.local/bin:${PATH}"
 
 export ANDROID_NDK_HOME="/usr/local/lib/android/sdk/ndk/28.2.13676358"
 export NDK_BIN="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin"
@@ -30,7 +37,7 @@ if [ ! -d "$NDK_LLVM_LIB" ]; then
     NDK_LLVM_LIB=$(find ${ANDROID_NDK_HOME} -name "aarch64" -type d | grep "lib/linux" | head -n 1 || echo "")
 fi
 
-echo "-> [Docker Internal] Compilando stubs duales legítimos..."
+echo "-> [Docker Internal] Compilando stubs duales legítivos..."
 $NDK_BIN/aarch64-linux-android26-clang -c stub_logs.c -o stub_c.o
 $NDK_BIN/llvm-ar rcs shims_64/lib/liblog.a stub_c.o
 $NDK_BIN/llvm-ar rcs shims_64/libvulkan_wrapper.a stub_c.o
@@ -68,11 +75,12 @@ sys_root = '${NDK_SYSROOT}'
 c_args = ['--sysroot=${NDK_SYSROOT}', '-DANDROID', '-D_GNU_SOURCE']
 EOF
 
-meson setup build-libdrm libdrm_android --cross-file cross_libdrm.txt --prefix="/workspace/shims_64" -Dintel=disabled -Dradeon=disabled -Damdgpu=disabled -Dnouveau=disabled -Dman-pages=disabled -Dvalgrind=disabled -Dtests=false
+meson setup build-libdrm libdrm_android --cross-file cross_libdrm.txt --prefix="/workspace/shims_64" \
+  -Dintel=disabled -Dradeon=disabled -Damdgpu=disabled -Dnouveau=disabled -Dman-pages=disabled -Dvalgrind=disabled -Dtests=false
 meson install -C build-libdrm
 
-mkdir -p /workspace/drm_shims_inc/libdrm
-cp -rf /workspace/shims_64/include/libdrm/* /workspace/drm_shims_inc/libdrm/ 2>/dev/null || cp -rf /workspace/shims_64/include/* /workspace/drm_shims_inc/libdrm/ 2>/dev/null || true
+# 🟢 CORRECCIÓN DE PRECISIÓN 3: Mapeamos el subdirectorio intermedio reglamentario /include/libdrm/ para saciar las dependencias cruzadas de Mesa 25
+cp -rf shims_64/include/libdrm/* drm_shims_inc/include/libdrm/ 2>/dev/null || cp -rf shims_64/include/* drm_shims_inc/include/libdrm/ 2>/dev/null || true
 
 python3 -c '
 p="src/vulkan/wrapper/wrapper_log.c"
@@ -107,8 +115,8 @@ libdir = '${NDK_SYSROOT_LIB_64}'
 pkg_config_path = shims_path + '/lib/pkgconfig'
 pkg_config_libdir = shims_path + '/lib/pkgconfig'
 [built-in options]
-c_args = ['--sysroot=${NDK_SYSROOT}', '-D__TERMUX__', '-I' + shims_path + '/include', '-I' + drm_inc]
-cpp_args = ['--sysroot=${NDK_SYSROOT}', '-D__TERMUX__', '-I' + shims_path + '/include', '-I' + drm_inc]
+c_args = ['--sysroot=${NDK_SYSROOT}', '-D__TERMUX__', '-I' + shims_path + '/include', '-I' + drm_inc + '/include']
+cpp_args = ['--sysroot=${NDK_SYSROOT}', '-D__TERMUX__', '-I' + shims_path + '/include', '-I' + drm_inc + '/include']
 c_link_args = ['-L' + shims_path + '/lib', '-L${NDK_SYSROOT_LIB_64}', '-landroid', '-llog', '-ldl', '-lsync', '-lvulkan_wrapper', '-latomic']
 cpp_link_args = ['-L' + shims_path + '/lib', '-L${NDK_SYSROOT_LIB_64}', '-landroid', '-llog', '-ldl', '-lsync', '-lvulkan_wrapper', '-latomic']
 EOF
@@ -166,7 +174,7 @@ EOF
 echo "msf:315508" > pkg/version.txt && chmod -R 755 pkg/
 cd pkg && tar -I "zstd -19 -T0" -cf "../wrapper.tzst" usr version.txt
 
-# Limpiamos el ejecutable temporal y la carpeta de shims aislada
+# Limpiamos los ejecutables temporales
 rm -f docker_run_inside.sh
 rm -rf drm_shims_inc/
 
