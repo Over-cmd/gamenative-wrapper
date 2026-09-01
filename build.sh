@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 INICIANDO ENLAZADOR HÍBRIDO MESA 25 - CIERRE DE METAS"
+echo "🚀 INICIANDO ENLAZADOR MESA 25 - ESTRUCTURA ICD PLANA"
 echo "=========================================================="
 
 echo "-> 1. Compilando el Interceptor oficial en Docker..."
@@ -13,13 +13,11 @@ export ANDROID_NDK_HOME="/usr/local/lib/android/sdk/ndk/28.2.13676358"
 export NDK_BIN="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin"
 export NDK_SYSROOT="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
 
-# 🟢 REPARACIÓN FINAL ABSOLUTA: Agregamos los tres símbolos huerfanos que pide el Linker ld.lld para panvk y csf
+# Se inyectan los símbolos del Linker ld.lld para panvk y csf
 cat << 'EOF' > stub_logs.c
 #include <stdint.h>
 int get_wrapper_log_level(const char *option) { (void)option; return 0; }
 void write_to_logfile(const char *fmt, const char *level, ...) { (void)fmt; (void)level; }
-
-/* Símbolos huérfanos inyectados para cerrar el enlazado de Mesa 25 */
 uint32_t panthor_kmod_get_flush_id(void *dev) { (void)dev; return 0; }
 void vk_drm_syncobj_finish(void *device) { (void)device; }
 void *vk_drm_syncobj_get_type(void) { return (void*)0; }
@@ -86,28 +84,35 @@ echo "-> 4. Compilando Panfrost con el Wrapper de Adrenotools..."
 meson setup build-64 --cross-file cross_64.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dandroid-stub=true -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=panfrost,wrapper
 meson compile -C build-64
 
-echo "-> 5. Maquetando empaque multi-directorio..."
+# 🟢 FASE 5: REESTRUCTURACIÓN COMPLETAMENTE PLANA (Sin subcarpetas arm ni aarch64)
+echo "-> 5. Maquetando empaque compatible ICD plano..."
 rm -rf pkg
-mkdir -p pkg/usr/lib/aarch64-linux-android pkg/usr/lib/arm-linux-androideabi pkg/usr/share/vulkan/icd.d
+mkdir -p pkg/usr/lib
+mkdir -p pkg/usr/share/vulkan/icd.d
 
-cp -v compilacion/libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
-cp -v build-64/src/panfrost/vulkan/libvulkan_panfrost.so pkg/usr/lib/aarch64-linux-android/libvulkan_wrapper.so
-cp -v compilacion/libvulkan_wrapper.so pkg/usr/lib/arm-linux-androideabi/libvulkan_wrapper.so
+# Copiamos el driver físico real compilado directo a la raíz de usr/lib suelto
+cp -v build-64/src/panfrost/vulkan/libvulkan_panfrost.so pkg/usr/lib/libvulkan_wrapper.so
 
+# Sello de firma SONAME interno plano
 patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
-patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/aarch64-linux-android/libvulkan_wrapper.so
-patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/arm-linux-androideabi/libvulkan_wrapper.so
 
+# Remoción de trazas de desarrollo pesadas para optimizar espacio
 $NDK_BIN/llvm-strip --strip-unneeded pkg/usr/lib/libvulkan_wrapper.so 2>/dev/null || true
-$NDK_BIN/llvm-strip --strip-unneeded pkg/usr/lib/aarch64-linux-android/*.so 2>/dev/null || true
-$NDK_BIN/llvm-strip --strip-unneeded pkg/usr/lib/arm-linux-androideabi/*.so 2>/dev/null || true
 
-echo '{"ICD": {"api_version": "1.3.289", "library_path": "libvulkan_wrapper.so"}, "file_format_version": "1.0.0"}' > pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
-echo '{"ICD": {"api_version": "1.3.289", "library_path": "libvulkan_wrapper.so"}, "file_format_version": "1.0.0"}' > pkg/usr/share/vulkan/icd.d/wrapper_icd.arm.json
+# Escribimos tu manifiesto ICD unificado exactamente con la sintaxis plana solicitada
+cat << 'EOF' > pkg/usr/share/vulkan/icd.d/wrapper_icd.json
+{
+    "ICD": {
+        "api_version": "1.3.289",
+        "library_path": "libvulkan_wrapper.so"
+    },
+    "file_format_version": "1.0.0"
+}
+EOF
 
 echo "msf:315508" > pkg/version.txt && chmod -R 755 pkg/
 cd pkg && tar -I "zstd -19 -T0" -cf "../wrapper.tzst" usr version.txt
 
 echo "=========================================================="
-echo "Ref: 778/778 COMPLETO - DRIVER MONOLÍTICO HÍBRIDO LISTO"
+echo "🟢 ESTRUCTURA PLANA REDUCIDA Y ARCHIVO .TZST COMPRIMIDO"
 echo "=========================================================="
