@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 INICIANDO ENLAZADOR MESA 25 - ESTRUCTURA ICD PLANA"
+echo "🚀 INICIANDO ENLAZADOR MESA 25 - MANIFIESTO AARCH64 PLANO"
 echo "=========================================================="
 
 echo "-> 1. Compilando el Interceptor oficial en Docker..."
@@ -84,7 +84,7 @@ echo "-> 4. Compilando Panfrost con el Wrapper de Adrenotools..."
 meson setup build-64 --cross-file cross_64.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dandroid-stub=true -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=panfrost,wrapper
 meson compile -C build-64
 
-# 🟢 FASE 5: REESTRUCTURACIÓN COMPLETAMENTE PLANA (Sin subcarpetas arm ni aarch64)
+# FASE 5: REESTRUCTURACIÓN COMPLETAMENTE PLANA CON MANIFIESTO NOMBRADO A ARCH64
 echo "-> 5. Maquetando empaque compatible ICD plano..."
 rm -rf pkg
 mkdir -p pkg/usr/lib
@@ -99,8 +99,8 @@ patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
 # Remoción de trazas de desarrollo pesadas para optimizar espacio
 $NDK_BIN/llvm-strip --strip-unneeded pkg/usr/lib/libvulkan_wrapper.so 2>/dev/null || true
 
-# Escribimos tu manifiesto ICD unificado exactamente con la sintaxis plana solicitada
-cat << 'EOF' > pkg/usr/share/vulkan/icd.d/wrapper_icd.json
+# 🟢 AJUSTE REQUERIDO: Escribimos el archivo con su nombre exacto wrapper_icd.aarch64.json
+cat << 'EOF' > pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
 {
     "ICD": {
         "api_version": "1.3.289",
@@ -114,5 +114,5 @@ echo "msf:315508" > pkg/version.txt && chmod -R 755 pkg/
 cd pkg && tar -I "zstd -19 -T0" -cf "../wrapper.tzst" usr version.txt
 
 echo "=========================================================="
-echo "🟢 ESTRUCTURA PLANA REDUCIDA Y ARCHIVO .TZST COMPRIMIDO"
+echo "Ref: 778/778 - MANIFIESTO EMBEBIDO COMO wrapper_icd.aarch64.json"
 echo "=========================================================="
