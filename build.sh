@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 INICIANDO ENLAZADOR MESA 25 CON DEB-SRC ACTIVADO"
+echo "🚀 INICIANDO ENLAZADOR MESA 25 CON ADAPTACIÓN DEB822 REAL"
 echo "=========================================================="
 
 echo "-> 1. Compilando el Interceptor oficial en Docker..."
@@ -30,9 +30,11 @@ mkdir -p "$(pwd)/shims_64"
 $NDK_BIN/aarch64-linux-android26-clang -c stub_logs.c -o stub_logs_64.o
 $NDK_BIN/llvm-ar rcs "$(pwd)/shims_64/libvulkan_wrapper.a" stub_logs_64.o
 
-# 🟢 JAQUE MATE AL REPOSITORIO VACÍO: Habilitamos las rutas deb-src de Ubuntu Noble usando sed nativo en caliente
-echo "-> 2b. Activando repositorios de código fuente deb-src en las Actions..."
-sudo sed -i 's/^#\s*deb-src/deb-src/g' /etc/apt/sources.list /etc/apt/sources.list.d/*.list 2>/dev/null || true
+# 🟢 JAQUE MATE AL REPOSITORIO DEB822: Habilitamos las fuentes nativas de Ubuntu 24.04 (Noble) modificando su estructura oficial
+echo "-> 2b. Activando repositorios de código fuente deb-src en formato deb822..."
+if [ -f /etc/apt/sources.list.d/ubuntu.sources ]; then
+    sudo sed -i 's/Types: deb/Types: deb deb-src/g' /etc/apt/sources.list.d/ubuntu.sources
+fi
 sudo apt-get update
 
 # Descargamos el código fuente legítimo de libdrm en un directorio limpio
