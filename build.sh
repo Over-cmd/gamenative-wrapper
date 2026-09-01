@@ -71,7 +71,7 @@ sys_root = '${NDK_SYSROOT}'
 c_args = ['--sysroot=${NDK_SYSROOT}', '-DANDROID', '-D_GNU_SOURCE']
 EOF
 
-# 🟢 REPARACIÓN CRÍTICA INTERPRÉTE: Invocamos Meson de forma nativa a través del motor puro de Python3 para ignorar el $PATH roto
+# Invocamos Meson de forma nativa a través del motor puro de Python3 para ignorar el $PATH roto
 python3 -m meson setup build-libdrm libdrm_android --cross-file cross_libdrm.txt --prefix="/workspace/shims_64" \
   -Dintel=disabled -Dradeon=disabled -Damdgpu=disabled -Dnouveau=disabled -Dman-pages=disabled -Dvalgrind=disabled -Dtests=false
 python3 -m meson install -C build-libdrm
@@ -122,7 +122,7 @@ sed -i "s/cc.find_library('rt'/dependency('', required : false) #/g" meson.build
 sed -i "s/cc.find_library('atomic'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/dependency('libclc')/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 
-# 🟢 REPARACIÓN CRÍTICA INTERPRÉTE: Inicialización y compilación masiva delegada a los módulos directos de Python
+# Inicialización y compilación masiva delegada a los módulos directos de Python
 python3 -m meson setup build-64 --cross-file cross_64.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=panfrost,wrapper
 python3 -m meson compile -C build-64
 EOF
@@ -149,17 +149,19 @@ cd pkg/usr/lib/aarch64-linux-android
 ln -sf ../libvulkan_panfrost.so libvulkan_wrapper.so
 cd "${WORKSPACE}"
 
+# 🟢 CORRECCIÓN SUPREMA DE RUTA: Apuntamos de forma reglamentaria al subdirectorio unificado donde reside físicamente el binario
 patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
-patchelf --set-soname libvulkan_panfrost.so pkg/usr/lib/libvulkan_panfrost.so
+patchelf --set-soname libvulkan_panfrost.so pkg/usr/lib/aarch64-linux-android/libvulkan_panfrost.so
 patchelf --set-soname libdrm.so pkg/usr/lib/libdrm.so 2>/dev/null || true
 
-patchelf --add-needed libdrm.so pkg/usr/lib/libvulkan_panfrost.so 2>/dev/null || true
-patchelf --set-rpath '$ORIGIN' pkg/usr/lib/libvulkan_panfrost.so 2>/dev/null || true
+patchelf --add-needed libdrm.so pkg/usr/lib/aarch64-linux-android/libvulkan_panfrost.so 2>/dev/null || true
+patchelf --set-rpath '$ORIGIN' pkg/usr/lib/aarch64-linux-android/libvulkan_panfrost.so 2>/dev/null || true
 patchelf --add-needed libdrm.so pkg/usr/lib/libvulkan_wrapper.so 2>/dev/null || true
 patchelf --set-rpath '$ORIGIN' pkg/usr/lib/libvulkan_wrapper.so 2>/dev/null || true
 
 STRIP_HOST="/usr/local/lib/android/sdk/ndk/28.2.13676358/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip"
 $STRIP_HOST --strip-unneeded pkg/usr/lib/*.so 2>/dev/null || true
+$STRIP_HOST --strip-unneeded pkg/usr/lib/aarch64-linux-android/*.so 2>/dev/null || true
 
 cat << 'EOF' > pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
 {
