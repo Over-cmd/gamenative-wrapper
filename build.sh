@@ -2,16 +2,20 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO PERFECCIONADO CON RUTAS LOCALES"
+echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO MODULAR ALIGERADO"
 echo "=========================================================="
 
 WORKSPACE="$(pwd)"
 
-# 1. Ejecutamos el preparador local de fuentes y herramientas (Módulo 1)
+# 1. Invocamos la fase de preparación de fuentes (Módulo 1)
 chmod +x patch_mesa.sh
 ./patch_mesa.sh
 
-# Escribimos la receta entera de Docker en un script plano e independiente
+# 2. Invocamos el generador de cross-files en el Host (Módulo Intermedio)
+chmod +x generate_cross.sh
+./generate_cross.sh
+
+# Escribimos la receta interna de Docker libre de volcados de texto masivos
 cat << 'EOF' > docker_run_inside.sh
 #!/bin/bash
 set -e
@@ -56,28 +60,7 @@ if [ -n "$NDK_LLVM_LIB" ] && [ -d "$NDK_LLVM_LIB" ]; then
     cp -fv shims_64/lib/libdl.a "$NDK_LLVM_LIB/libdl.a"
 fi
 
-# 🟢 REPARACIÓN CRÍTICA RUTA: Forzamos la escritura en el directorio local relativo actual con ./ para amarrar el volumen montado
-echo "-> [Docker Internal] Configurando receta para libdrm..."
-cat << EOF > ./cross_libdrm.txt
-[binaries]
-c = '${NDK_BIN}/aarch64-linux-android26-clang'
-cpp = '${NDK_BIN}/aarch64-linux-android26-clang++'
-ar = '${NDK_BIN}/llvm-ar'
-strip = '${NDK_BIN}/llvm-strip'
-ninja = '/usr/bin/ninja'
-[host_machine]
-system = 'android'
-cpu_family = 'aarch64'
-cpu = 'aarch64'
-endian = 'little'
-[properties]
-sys_root = '${NDK_SYSROOT}'
-[built-in options]
-c_args = ['--sysroot=${NDK_SYSROOT}', '-DANDROID', '-D_GNU_SOURCE']
-EOF
-
-# 🟢 REPARACIÓN CRÍTICA CONTROL CROSS: Llamamos a Meson usando la ruta relativa del directorio de trabajo ./cross_libdrm.txt
-python3 meson_src/meson.py setup build-libdrm libdrm_android --cross-file ./cross_libdrm.txt --prefix="/workspace/shims_64" \
+python3 meson_src/meson.py setup build-libdrm libdrm_android --cross-file /workspace/cross_libdrm.txt --prefix="/workspace/shims_64" \
   -Dintel=disabled -Dradeon=disabled -Damdgpu=disabled -Dnouveau=disabled -Dman-pages=disabled -Dvalgrind=disabled -Dtests=false
 python3 meson_src/meson.py install -C build-libdrm
 
@@ -93,58 +76,26 @@ if os.path.exists(p):
         f=open(p,"w"); f.write(c); f.close()
 '
 
-# 🟢 REPARACIÓN CRÍTICA RUTA: Forzamos la escritura de cross_64 en el directorio local relativo actual con ./
-echo "-> [Docker Internal] Generando cross_64.txt definitivo para Mesa 25..."
-cat << EOL > ./cross_64.txt
-[constants]
-shims_path = '/workspace/shims_64'
-drm_inc = '/workspace/drm_shims_inc'
-[binaries]
-c = '${NDK_BIN}/aarch64-linux-android26-clang'
-cpp = '${NDK_BIN}/aarch64-linux-android26-clang++'
-ar = '${NDK_BIN}/llvm-ar'
-strip = '${NDK_BIN}/llvm-strip'
-pkg-config = '/usr/bin/pkg-config'
-ninja = '/usr/bin/ninja'
-[host_machine]
-system = 'android'
-cpu_family = 'aarch64'
-cpu = 'aarch64'
-endian = 'little'
-[properties]
-needs_exe_wrapper = true
-sys_root = '${NDK_SYSROOT}'
-libdir = '${NDK_SYSROOT_LIB_64}'
-pkg_config_path = shims_path + '/lib/pkgconfig'
-pkg_config_libdir = shims_path + '/lib/pkgconfig'
-[built-in options]
-c_args = ['--sysroot=${NDK_SYSROOT}', '-D__TERMUX__', '-I' + shims_path + '/include', '-I' + drm_inc + '/include', '-I' + drm_inc + '/include/libdrm']
-cpp_args = ['--sysroot=${NDK_SYSROOT}', '-D__TERMUX__', '-I' + shims_path + '/include', '-I' + drm_inc + '/include', '-I' + drm_inc + '/include/libdrm']
-c_link_args = ['-L' + shims_path + '/lib', '-L${NDK_SYSROOT_LIB_64}', '-landroid', '-llog', '-ldl', '-lsync', '-lvulkan_wrapper', '-latomic']
-cpp_link_args = ['-L' + shims_path + '/lib', '-L${NDK_SYSROOT_LIB_64}', '-landroid', '-llog', '-ldl', '-lsync', '-lvulkan_wrapper', '-latomic']
-EOL
-
 sed -i "s/cc.find_library('dl'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/cc.find_library('rt'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/cc.find_library('atomic'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/dependency('libclc')/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 
-# 🟢 REPARACIÓN CRÍTICA CONTROL CROSS: Llamamos a Meson usando la ruta relativa del directorio de trabajo ./cross_64.txt para Mesa 25
-python3 meson_src/meson.py setup build-64 --cross-file ./cross_64.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=panfrost,wrapper
+python3 meson_src/meson.py setup build-64 --cross-file /workspace/cross_64.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=panfrost,wrapper
 python3 meson_src/meson.py compile -C build-64
 EOF
 
 chmod +x docker_run_inside.sh
 
 # Invocación atómica directa al contenedor de LeeGao mapeado por hardware
-echo "-> 2. Lanzando entorno biónico aislado en Docker..."
+echo "-> 3. Lanzando entorno biónico aislado en Docker..."
 docker run --rm --entrypoint /bin/bash \
   -v "${WORKSPACE}:/workspace" \
   -v "/usr/local/lib/android:/usr/local/lib/android" \
   -w /workspace ghcr.io/leegao/mesa-wrapper-ci/wrapper-compiler:latest ./docker_run_inside.sh
 
-# 3. Maquetando empaque de proximidad biónica unificado en el Host de Actions
-echo "-> 3. Maquetando empaque unificado de proximidad biónica..."
+# 4. Maquetando empaque de proximidad biónica unificado en el Host de Actions
+echo "-> 4. Maquetando empaque unificado de proximidad biónica..."
 mkdir -p pkg/usr/lib/aarch64-linux-android
 mkdir -p pkg/usr/share/vulkan/icd.d
 
@@ -156,7 +107,7 @@ cd pkg/usr/lib/aarch64-linux-android
 ln -sf ../libvulkan_panfrost.so libvulkan_wrapper.so
 cd "${WORKSPACE}"
 
-# Control defensivo contra archivos inexistentes para blindar set -e
+# Control defensivo de patchelf contra archivos inexistentes
 if [ -f "pkg/usr/lib/libvulkan_wrapper.so" ]; then
     patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so 2>/dev/null || true
     patchelf --add-needed libdrm.so pkg/usr/lib/libvulkan_wrapper.so 2>/dev/null || true
@@ -186,15 +137,13 @@ cat << 'EOF' > pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
 }
 EOF
 
-# 4. Sellamos el tarball zstd de alta compresión
-echo "-> 4. Sellando empaque reglamentario de alta compresión..."
+echo "-> 5. Sellando empaque reglamentario de alta compresión..."
 echo "msf:315508" > pkg/version.txt && chmod -R 755 pkg/
 cd pkg && tar -I "zstd -19 -T0" -cf "../wrapper.tzst" usr version.txt
 cd "${WORKSPACE}"
 
-# 5. Purga administrativa de residuos para garantizar la idempotencia real del espacio de trabajo
-echo "-> 5. Purgando artefactos efímeros con privilegios de administración..."
-sudo rm -f docker_run_inside.sh cross_libdrm.txt cross_64.txt stub_logs.c stub_c.o stub_cpp.o
+echo "-> 6. Purgando artefactos efímeros con privilegios de administración..."
+sudo rm -f docker_run_inside.sh cross_libdrm.txt cross_64.txt stub_logs.c stub_c.o stub_cpp.o generate_cross.sh
 sudo rm -rf drm_shims_inc/
 sudo rm -rf meson_src/
 sudo rm -rf shims_64/
