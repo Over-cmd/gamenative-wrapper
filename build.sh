@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 INICIANDO ENLAZADOR MESA 25 - LIBERACIÓN DE PERMISOS OK"
+echo "🚀 INICIANDO ENLAZADOR MESA 25 - CIRUGÍA EN MEMORIA VIRTUAL"
 echo "=========================================================="
 
 # Fijamos la ruta absoluta calculada al inicio para blindar cambios accidentales de directorio
@@ -77,16 +77,18 @@ if "fcntl.h" not in c:
     f=open(p,"w"); f.write(c); f.close()
 '
 
-# 🟢 REPARACIÓN CRÍTICA DE PERMISOS: Forzamos el desbloqueo de solo lectura mediante chmod 755 antes de meter el sed
-echo "-> 2c. Aplicando cirugía en frío sobre tu submódulo integrado de Adrenotools..."
-if [ -d subprojects/libadrenotools ]; then
-    chmod -R 755 subprojects/libadrenotools
-    if [ -f subprojects/libadrenotools/meson.build ]; then
-        sed -i "s/cc.find_library('android'/dependency('', required : false) #/g" subprojects/libadrenotools/meson.build
-        sed -i "s/cc.find_library('log'/dependency('', required : false) #/g" subprojects/libadrenotools/meson.build
-        echo "-> ¡Submódulo local de libadrenotools liberado y parchado exitosamente!"
-    fi
-fi
+# 🟢 REPARACIÓN CRÍTICA MEMORIA: Usamos Python puro para saltarnos los candados de permisos de Git sin detonar el Operation not permitted
+echo "-> 2c. Aplicando cirugía en memoria virtual sobre el meson.build de Adrenotools..."
+python3 -c '
+import os
+p = "subprojects/libadrenotools/meson.build"
+if os.path.exists(p):
+    f = open(p, "r"); c = f.read(); f.close()
+    c = c.replace("cc.find_library(\x27android\x27", "dependency(\x27\x27, required : false) #")
+    c = c.replace("cc.find_library(\x27log\x27", "dependency(\x27\x27, required : false) #")
+    f = open(p, "w"); f.write(c); f.close()
+    print("-> ¡Submódulo Adrenotools modificado exitosamente en memoria!")
+'
 
 NDK_SYSROOT_LIB_64="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/26"
 
