@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO CON RUTAS CROSS FIJAS"
+echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO PERFECCIONADO E IDEMPOTENTE"
 echo "=========================================================="
 
 WORKSPACE="$(pwd)"
@@ -75,7 +75,6 @@ sys_root = '${NDK_SYSROOT}'
 c_args = ['--sysroot=${NDK_SYSROOT}', '-DANDROID', '-D_GNU_SOURCE']
 EOF
 
-# 🟢 REPARACIÓN DE RUTA CROSS: Fijamos el path absoluto /workspace/ para que Meson localice cross_libdrm.txt de forma indestructible
 python3 meson_src/meson.py setup build-libdrm libdrm_android --cross-file /workspace/cross_libdrm.txt --prefix="/workspace/shims_64" \
   -Dintel=disabled -Dradeon=disabled -Damdgpu=disabled -Dnouveau=disabled -Dman-pages=disabled -Dvalgrind=disabled -Dtests=false
 python3 meson_src/meson.py install -C build-libdrm
@@ -127,7 +126,6 @@ sed -i "s/cc.find_library('rt'/dependency('', required : false) #/g" meson.build
 sed -i "s/cc.find_library('atomic'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/dependency('libclc')/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 
-# 🟢 REPARACIÓN DE RUTA CROSS: Fijamos el path absoluto /workspace/ para que Meson localice cross_64.txt de forma indestructible para Mesa 25
 python3 meson_src/meson.py setup build-64 --cross-file /workspace/cross_64.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=panfrost,wrapper
 python3 meson_src/meson.py compile -C build-64
 EOF
@@ -158,8 +156,8 @@ patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
 patchelf --set-soname libvulkan_panfrost.so pkg/usr/lib/aarch64-linux-android/libvulkan_panfrost.so
 patchelf --set-soname libdrm.so pkg/usr/lib/libdrm.so 2>/dev/null || true
 
-patchelf --add-needed libdrm.so pkg/usr/lib/libvulkan_panfrost.so 2>/dev/null || true
-patchelf --set-rpath '$ORIGIN' pkg/usr/lib/libvulkan_panfrost.so 2>/dev/null || true
+patchelf --add-needed libdrm.so pkg/usr/lib/aarch64-linux-android/libvulkan_panfrost.so 2>/dev/null || true
+patchelf --set-rpath '$ORIGIN' pkg/usr/lib/aarch64-linux-android/libvulkan_panfrost.so 2>/dev/null || true
 patchelf --add-needed libdrm.so pkg/usr/lib/libvulkan_wrapper.so 2>/dev/null || true
 patchelf --set-rpath '$ORIGIN' pkg/usr/lib/libvulkan_wrapper.so 2>/dev/null || true
 
@@ -174,14 +172,19 @@ cat << 'EOF' > pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
 }
 EOF
 
+# 🟢 SANEAMIENTO DE EMPAQUE REAL: Cerramos limpiamente el tarball zstd de alta compresión
+echo "-> 4. Sellando empaque reglamentario de alta compresión..."
 echo "msf:315508" > pkg/version.txt && chmod -R 755 pkg/
 cd pkg && tar -I "zstd -19 -T0" -cf "../wrapper.tzst" usr version.txt
+cd "${WORKSPACE}"
 
-# Purgando artefactos efímeros con privilegios de administración e incluyendo los archivos txt generados
-echo "-> 4. Purgando artefactos efímeros con privilegios de administración..."
+# 🟢 PURGA ADMINISTRATIVA MAESTRA: Sudo rm elimina los candados de UID 0 de Docker del volumen y deja el repositorio virgen
+echo "-> 5. Purgando artefactos efímeros con privilegios de administración..."
 sudo rm -f docker_run_inside.sh cross_libdrm.txt cross_64.txt stub_logs.c stub_c.o stub_cpp.o
 sudo rm -rf drm_shims_inc/
 sudo rm -rf meson_src/
+sudo rm -rf shims_64/
+sudo rm -rf build-64/
 
 echo "=========================================================="
 echo "🏆 ¡EMPAQUE MONOLÍTICO SEGURO REAL LOGRADO EN VERDE! 🏆"
