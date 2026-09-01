@@ -46,7 +46,7 @@ sys_root = '/usr/local/lib/android/sdk/ndk/28.2.13676358/toolchains/llvm/prebuil
 libdir = '/usr/local/lib/android/sdk/ndk/28.2.13676358/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/26'
 pkg_config_path = shims_path + '/lib/pkgconfig'
 pkg_config_libdir = shims_path + '/lib/pkgconfig'
-# 🟢 CORRECCIÓN SUPREMA INCLUDE DUAL: Redirigimos el preprocesador al prefijo aislado de shims de libdrm para evitar contaminar la raíz de Mesa
+# 🟢 CORRECCIÓN SUPREMA DE INCLUSIÓN DIRECTA: Apuntamos los flags directamente al prefijo de instalación real de shims_64 para triturar el error de xf86drm.h sin duplicar archivos
 [built-in options]
 c_args = ['--sysroot=/usr/local/lib/android/sdk/ndk/28.2.13676358/toolchains/llvm/prebuilt/linux-x86_64/sysroot', '-D__TERMUX__', '-I' + shims_path + '/include', '-I' + shims_path + '/include/libdrm']
 cpp_args = ['--sysroot=/usr/local/lib/android/sdk/ndk/28.2.13676358/toolchains/llvm/prebuilt/linux-x86_64/sysroot', '-D__TERMUX__', '-I' + shims_path + '/include', '-I' + shims_path + '/include/libdrm']
