@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 INICIANDO ENLAZADOR MESA 25 CON ARQUITECTURA SAILFISH"
+echo "🚀 INICIANDO ENLAZADOR MESA 25 CON RECIETA CROSS PURIFICADA"
 echo "=========================================================="
 
 echo "-> 1. Compilando el Interceptor oficial en Docker..."
@@ -36,7 +36,7 @@ unzip -q libdrm.zip
 mv -v drm-main libdrm_android
 rm -f libdrm.zip
 
-# Receta de compilación cruzada nativa móvil con los macros atómicos legítimos
+# 🟢 CORRECCIÓN SUPREMA: Removida la opción inválida config_h de built-in options aplicando tu diseño exacto
 cat << EOF > cross_libdrm.txt
 [binaries]
 c       = '${NDK_BIN}/aarch64-linux-android26-clang'
@@ -51,11 +51,10 @@ endian = 'little'
 [properties]
 sys_root = '${NDK_SYSROOT}'
 [built-in options]
-config_h = true
 c_args = ['--sysroot=${NDK_SYSROOT}', '-DANDROID', '-D_GNU_SOURCE', '-DBIONIC_IOCTL_NO_SIGNEDNESS_OVERLOAD=1', '-DHAVE_LIBDRM_ATOMIC_PRIMITIVES=1']
 EOF
 
-# 🟢 CORRECCIÓN SUPREMA FLAG: Cambiado -Dmanpages=disabled por -Dman-pages=disabled conforme exige el subproyecto de SailfishOS
+# Compilamos la librería real apagando de forma estricta los controladores de PC obsoletos
 meson setup build-libdrm libdrm_android --cross-file cross_libdrm.txt --prefix="$(pwd)/shims_64" \
   -Dintel=disabled -Dradeon=disabled -Damdgpu=disabled -Dnouveau=disabled -Dvmwgfx=disabled -Domap=disabled -Dexynos=disabled -Dtegra=disabled -Dvc4=disabled -Detnaviv=disabled -Dman-pages=disabled -Dvalgrind=disabled -Dtests=disabled
 meson install -C build-libdrm
