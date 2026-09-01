@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 INICIANDO ENLAZADOR MESA 25 - INYECCIÓN SYSROOT TOTAL"
+echo "🚀 INICIANDO ENLAZADOR MESA 25 - INTERCEPCIÓN PKG-CONFIG OK"
 echo "=========================================================="
 
 # Fijamos la ruta absoluta calculada al inicio para blindar el entorno
@@ -30,22 +30,36 @@ int get_wrapper_log_level(const char *option) { (void)option; return 0; }
 void write_to_logfile(const char *fmt, const char *level, ...) { (void)fmt; (void)level; }
 EOF
 
-mkdir -p "${WORKSPACE}/shims_64/lib"
+mkdir -p "${WORKSPACE}/shims_64/lib/pkgconfig"
 
 echo "-> 2c. Compilando shims nativos en formatos duales C y C++ de 64 bits..."
-# 1. Formato C puro para c.find_library('log')
 $NDK_BIN/aarch64-linux-android26-clang -c stub_logs.c -o stub_logs_c.o
 $NDK_BIN/llvm-ar rcs "${WORKSPACE}/shims_64/lib/liblog.a" stub_logs_c.o
 $NDK_BIN/llvm-ar rcs "${WORKSPACE}/shims_64/libvulkan_wrapper.a" stub_logs_c.o
 
-# 2. Formato C++ puro para cpp.find_library('android')
 $NDK_BIN/aarch64-linux-android26-clang++ -c stub_logs.c -o stub_logs_cpp.o
 $NDK_BIN/llvm-ar rcs "${WORKSPACE}/shims_64/lib/libandroid.a" stub_logs_cpp.o
 
-# 🟢 TRUCO MAESTRO INDESTRUCTIBLE: Copiamos físicamente tus .a dentro del directorio nativo de Google para forzar la detección de Meson
-echo "-> 2d. Inyectando shims estáticos reales en el Sysroot oficial del NDK..."
+# Copiamos de igual forma en el Sysroot oficial por seguridad
 sudo cp -v "${WORKSPACE}/shims_64/lib/libandroid.a" "${NDK_SYSROOT_LIB_64}/libandroid.a"
 sudo cp -v "${WORKSPACE}/shims_64/lib/liblog.a" "${NDK_SYSROOT_LIB_64}/liblog.a"
+
+# 🟢 TRUCO MAESTRO INDESTRUCTIBLE: Fabricamos archivos descriptores .pc para interceptar la búsqueda de find_library
+cat << EOF > "${WORKSPACE}/shims_64/lib/pkgconfig/android.pc
+Name: android
+Description: Android System Shim Dependency
+Version: 26
+Libs: -L${NDK_SYSROOT_LIB_64} -landroid
+Cflags: -I${NDK_SYSROOT}/usr/include
+EOF
+
+cat << EOF > "${WORKSPACE}/shims_64/lib/pkgconfig/log.pc
+Name: log
+Description: Android Logging Shim Dependency
+Version: 26
+Libs: -L${NDK_SYSROOT_LIB_64} -llog
+Cflags: -I${NDK_SYSROOT}/usr/include
+EOF
 
 echo "-> 2b. Descargando código legítimo de libdrm SailfishOS vía Zipball Real..."
 curl -L "https://github.com/sailfishos-mirror/drm/archive/refs/heads/main.zip" -o libdrm.zip
@@ -123,8 +137,8 @@ pkg_config_libdir = shims_path + '/lib/pkgconfig'
 [built-in options]
 c_args = ['--sysroot=' + sysroot, '-D__TERMUX__', '-I' + shims_path + '/include', '-I' + shims_path + '/include/libdrm']
 cpp_args = ['--sysroot=' + sysroot, '-D__TERMUX__', '-I' + shims_path + '/include', '-I' + shims_path + '/include/libdrm']
-c_link_args = ['-L${NDK_SYSROOT_LIB_64}', '-L' + shims_path + '/lib', '-landroid', '-llog', '-lsync', '-lvulkan_wrapper', '-latomic']
-cpp_link_args = ['-L${NDK_SYSROOT_LIB_64}', '-L' + shims_path + '/lib', '-landroid', '-llog', '-lsync', '-lvulkan_wrapper', '-latomic']
+c_link_args = ['-L' + shims_path + '/lib', '-L${NDK_SYSROOT_LIB_64}', '-landroid', '-llog', '-lsync', '-lvulkan_wrapper', '-latomic']
+cpp_link_args = ['-L' + shims_path + '/lib', '-L${NDK_SYSROOT_LIB_64}', '-landroid', '-llog', '-lsync', '-lvulkan_wrapper', '-latomic']
 EOF
 
 # Reparación de librerías del sistema del core de Mesa
