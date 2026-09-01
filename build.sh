@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 INICIANDO ENLAZADOR MESA 25 CON ENLACE ATÓMICO CORREGIDO"
+echo "🚀 INICIANDO ENLAZADOR MESA 25 - RECALIBRACIÓN BIONIC REAL"
 echo "=========================================================="
 
 echo "-> 1. Compilando el Interceptor oficial en Docker..."
@@ -106,18 +106,18 @@ c_link_args = ['-landroid', '-llog', '-lsync', '-lvulkan_wrapper', '-L${NDK_SYSR
 cpp_link_args = ['-landroid', '-llog', '-lsync', '-lvulkan_wrapper', '-L${NDK_SYSROOT_LIB_64}', '-L$(pwd)/shims_64/lib', '-latomic']
 EOF
 
-# 🟢 REPARACIÓN CRÍTICA PASO 1279: Desactivamos la búsqueda estricta de la librería externa 'atomic' porque el NDK la incluye nativamente
+# Reparación crítica paso 1279
 sed -i "s/cc.find_library('dl'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/cc.find_library('rt'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/cc.find_library('atomic'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/dependency('libclc')/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/dep_libclc = .*/dep_libclc = dependency('', required : false)/g" meson.build 2>/dev/null || true
 
+# 🟢 REPARACIÓN CRÍTICA MESA 25: Eliminado el flag extinto -Dandroid-stub=true conforme a tus especificaciones puras
 echo "-> 4. Compilando Panfrost Mesa 25 amarrado a libdrm real..."
 meson setup build-64 --cross-file cross_64.txt --wrap-mode=nodownload \
   -Dbuildtype=release \
   -Dplatforms=android \
-  -Dandroid-stub=true \
   -Dglx=disabled \
   -Dgbm=disabled \
   -Degl=disabled \
@@ -132,16 +132,19 @@ rm -rf pkg
 mkdir -p pkg/usr/lib/aarch64-linux-android
 mkdir -p pkg/usr/share/vulkan/icd.d
 
-# Copiamos el interceptor principal y el binario real de libdrm generado por la receta móvil
+# Copiamos el interceptor principal
 cp -v compilacion/libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
-cp -v shims_64/lib/libdrm.so pkg/usr/lib/libdrm.so.2 2>/dev/null || cp -v shims_64/lib/aarch64-linux-gnu/libdrm.so pkg/usr/lib/libdrm.so.2 2>/dev/null || true
+
+# 🟢 REPARACIÓN CRÍTICA BIONIC LINKER: Guardamos la librería real bajo el nombre plano libdrm.so para esquivar el rechazo de Android
+cp -v shims_64/lib/libdrm.so pkg/usr/lib/libdrm.so 2>/dev/null || cp -v shims_64/lib/aarch64-linux-gnu/libdrm.so pkg/usr/lib/libdrm.so 2>/dev/null || true
 
 # Colocamos el driver físico real de Panfrost Mesa 25 en su ranura reglamentaria
 cp -v build-64/src/panfrost/vulkan/libvulkan_panfrost.so pkg/usr/lib/aarch64-linux-android/libvulkan_wrapper.so
 
-# Firmamos las identidades dinámicas con patchelf para acoplar libadrenotools
+# Firmamos las identidades dinámicas con patchelf para acoplar libadrenotools y forzar la lectura del libdrm plano
 patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
 patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/aarch64-linux-android/libvulkan_wrapper.so
+patchelf --set-soname libdrm.so pkg/usr/lib/libdrm.so 2>/dev/null || true
 
 # Strip final para aligerar espacio y eliminar símbolos de desarrollo redundantes
 $NDK_BIN/llvm-strip --strip-unneeded pkg/usr/lib/*.so 2>/dev/null || true
