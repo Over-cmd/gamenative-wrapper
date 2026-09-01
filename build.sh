@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO PERFECCIONADO Y DEFENSIVO"
+echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO PERFECCIONADO CON RUTAS LOCALES"
 echo "=========================================================="
 
 WORKSPACE="$(pwd)"
@@ -56,8 +56,9 @@ if [ -n "$NDK_LLVM_LIB" ] && [ -d "$NDK_LLVM_LIB" ]; then
     cp -fv shims_64/lib/libdl.a "$NDK_LLVM_LIB/libdl.a"
 fi
 
+# 🟢 REPARACIÓN CRÍTICA RUTA: Forzamos la escritura en el directorio local relativo actual con ./ para amarrar el volumen montado
 echo "-> [Docker Internal] Configurando receta para libdrm..."
-cat << EOF > cross_libdrm.txt
+cat << EOF > ./cross_libdrm.txt
 [binaries]
 c = '${NDK_BIN}/aarch64-linux-android26-clang'
 cpp = '${NDK_BIN}/aarch64-linux-android26-clang++'
@@ -75,7 +76,8 @@ sys_root = '${NDK_SYSROOT}'
 c_args = ['--sysroot=${NDK_SYSROOT}', '-DANDROID', '-D_GNU_SOURCE']
 EOF
 
-python3 meson_src/meson.py setup build-libdrm libdrm_android --cross-file /workspace/cross_libdrm.txt --prefix="/workspace/shims_64" \
+# 🟢 REPARACIÓN CRÍTICA CONTROL CROSS: Llamamos a Meson usando la ruta relativa del directorio de trabajo ./cross_libdrm.txt
+python3 meson_src/meson.py setup build-libdrm libdrm_android --cross-file ./cross_libdrm.txt --prefix="/workspace/shims_64" \
   -Dintel=disabled -Dradeon=disabled -Damdgpu=disabled -Dnouveau=disabled -Dman-pages=disabled -Dvalgrind=disabled -Dtests=false
 python3 meson_src/meson.py install -C build-libdrm
 
@@ -91,8 +93,9 @@ if os.path.exists(p):
         f=open(p,"w"); f.write(c); f.close()
 '
 
+# 🟢 REPARACIÓN CRÍTICA RUTA: Forzamos la escritura de cross_64 en el directorio local relativo actual con ./
 echo "-> [Docker Internal] Generando cross_64.txt definitivo para Mesa 25..."
-cat << EOL > cross_64.txt
+cat << EOL > ./cross_64.txt
 [constants]
 shims_path = '/workspace/shims_64'
 drm_inc = '/workspace/drm_shims_inc'
@@ -119,20 +122,21 @@ c_args = ['--sysroot=${NDK_SYSROOT}', '-D__TERMUX__', '-I' + shims_path + '/incl
 cpp_args = ['--sysroot=${NDK_SYSROOT}', '-D__TERMUX__', '-I' + shims_path + '/include', '-I' + drm_inc + '/include', '-I' + drm_inc + '/include/libdrm']
 c_link_args = ['-L' + shims_path + '/lib', '-L${NDK_SYSROOT_LIB_64}', '-landroid', '-llog', '-ldl', '-lsync', '-lvulkan_wrapper', '-latomic']
 cpp_link_args = ['-L' + shims_path + '/lib', '-L${NDK_SYSROOT_LIB_64}', '-landroid', '-llog', '-ldl', '-lsync', '-lvulkan_wrapper', '-latomic']
-EOF
+EOL
 
 sed -i "s/cc.find_library('dl'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/cc.find_library('rt'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/cc.find_library('atomic'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/dependency('libclc')/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 
-python3 meson_src/meson.py setup build-64 --cross-file /workspace/cross_64.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=panfrost,wrapper
+# 🟢 REPARACIÓN CRÍTICA CONTROL CROSS: Llamamos a Meson usando la ruta relativa del directorio de trabajo ./cross_64.txt para Mesa 25
+python3 meson_src/meson.py setup build-64 --cross-file ./cross_64.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=panfrost,wrapper
 python3 meson_src/meson.py compile -C build-64
 EOF
 
 chmod +x docker_run_inside.sh
 
-# 2. Invocación atómica directa al contenedor de LeeGao mapeado por hardware
+# Invocación atómica directa al contenedor de LeeGao mapeado por hardware
 echo "-> 2. Lanzando entorno biónico aislado en Docker..."
 docker run --rm --entrypoint /bin/bash \
   -v "${WORKSPACE}:/workspace" \
@@ -152,7 +156,7 @@ cd pkg/usr/lib/aarch64-linux-android
 ln -sf ../libvulkan_panfrost.so libvulkan_wrapper.so
 cd "${WORKSPACE}"
 
-# 🟢 REPARACIÓN CRÍTICA CONTROL DE EXISTENCIA PREVENTIVO: Evaluamos físicamente cada archivo antes de patchelf y llvm-strip para blindar el set -e
+# Control defensivo contra archivos inexistentes para blindar set -e
 if [ -f "pkg/usr/lib/libvulkan_wrapper.so" ]; then
     patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so 2>/dev/null || true
     patchelf --add-needed libdrm.so pkg/usr/lib/libvulkan_wrapper.so 2>/dev/null || true
@@ -182,7 +186,7 @@ cat << 'EOF' > pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
 }
 EOF
 
-# 4. Sellamos limpiamente el tarball zstd de alta compresión
+# 4. Sellamos el tarball zstd de alta compresión
 echo "-> 4. Sellando empaque reglamentario de alta compresión..."
 echo "msf:315508" > pkg/version.txt && chmod -R 755 pkg/
 cd pkg && tar -I "zstd -19 -T0" -cf "../wrapper.tzst" usr version.txt
