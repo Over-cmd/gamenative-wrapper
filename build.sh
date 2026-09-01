@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 INICIANDO COMPILACIÓN NATIVA REGLAMENTARIA DE BANNERLATOR"
+echo "🚀 INICIANDO COMPILACIÓN REGLAMENTARIA MESA 25 SIN OVERLAY"
 echo "=========================================================="
 
 echo "-> 1. Compilando el Interceptor oficial en Docker..."
@@ -34,7 +34,7 @@ $NDK_BIN/llvm-ar rcs "$(pwd)/shims_64/libvulkan_wrapper.a" stub_logs_64.o
 
 NDK_SYSROOT_LIB_64="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/26"
 
-# 🟢 CONFIGURACIÓN REGLAMENTARIA: Inyectamos el pkg-config local apuntando a los recursos de adrenotools
+# Configuración del pkg-config local apuntando a los recursos de adrenotools
 cat << EOF > $(pwd)/shims_64/libdrm.pc
 Name: libdrm
 Description: Userspace interface to kernel DRM services
@@ -43,7 +43,7 @@ Libs: -L$(pwd)/shims_64 -lvulkan_wrapper
 Cflags: -I.
 EOF
 
-echo "-> 3. Generando cross_64.txt con flags de compatibilidad biónica..."
+echo "-> 3. Generando cross_64.txt..."
 cat << EOF > cross_64.txt
 [constants]
 ndk_path = '${ANDROID_NDK_HOME}'
@@ -79,7 +79,7 @@ sed -i "s/cc.find_library('rt'/dependency('', required : false) #/g" meson.build
 sed -i "s/dependency('libclc')/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/dep_libclc = .*/dep_libclc = dependency('', required : false)/g" meson.build 2>/dev/null || true
 
-# 🟢 COMPILACIÓN OFICIAL DE BANNERLATOR: Desactivamos módulos DRM obsoletos desde las flags de Meson
+# 🟢 CONFIGURACIÓN CORREGIDA: Removida la bandera extinta -Dgallium-vulkan-overlay de la receta de Mesa 25
 echo "-> 4. Compilando la pila oficial de Panfrost para Android..."
 meson setup build-64 --cross-file cross_64.txt --wrap-mode=nodownload \
   -Dbuildtype=release \
@@ -91,11 +91,10 @@ meson setup build-64 --cross-file cross_64.txt --wrap-mode=nodownload \
   -Dllvm=disabled \
   -Dgallium-drivers=[] \
   -Dvulkan-drivers=panfrost,wrapper \
-  -Dgallium-vulkan-overlay=disabled \
   -Dvulkan-layers=[]
 meson compile -C build-64
 
-# 🟢 MAQUETADO DE INTEGRACIÓN REGLAMENTARIA (Estructura de Carpetas Oficiales de Bannerlator)
+# Maquetado de integración oficial de Bannerlator
 echo "-> 5. Maquetando empaque unificado compatible con la app..."
 rm -rf pkg
 mkdir -p pkg/usr/lib/aarch64-linux-android
