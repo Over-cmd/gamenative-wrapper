@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 INICIANDO ENLAZADOR MESA 25 - HÍBRIDO PLANO DEFINITIVO"
+echo "🚀 INICIANDO ENLAZADOR MESA 25 - HÍBRIDO PLANO RECALIBRADO"
 echo "=========================================================="
 
 echo "-> 1. Compilando el Interceptor oficial en Docker..."
@@ -84,26 +84,34 @@ echo "-> 4. Compilando Panfrost con el Wrapper de Adrenotools..."
 meson setup build-64 --cross-file cross_64.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dandroid-stub=true -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=panfrost,wrapper
 meson compile -C build-64
 
-# 🟢 FASE 5: REESTRUCTURACIÓN PLANO-HÍBRIDA INDESTRUCTIBLE
+# 🟢 FASE 5: REESTRUCTURACIÓN CON ACCESOS DIRECTOS SIN PERDER TU VISTA PLANA
 echo "-> 5. Maquetando empaque compatible ICD plano..."
 rm -rf pkg
 mkdir -p pkg/usr/lib
 mkdir -p pkg/usr/share/vulkan/icd.d
 
-# Colocamos el Interceptor oficial (el escudo) en la raíz de usr/lib como la entrada principal obligatoria
+# 1. Colocamos los dos binarios sueltos directamente en la raíz de usr/lib
 cp -v compilacion/libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
-
-# Guardamos el driver real de Panfrost al lado con un nombre de enlace interno directo
 cp -v build-64/src/panfrost/vulkan/libvulkan_panfrost.so pkg/usr/lib/libvulkan_panfrost.so
 
-# Sello de firmas SONAME para emparejar identidades dinámicas locales
+# 2. Creamos las subcarpetas fantasmas que exige el interceptor oficial para no quedarse a ciegas
+mkdir -p pkg/usr/lib/aarch64-linux-android
+mkdir -p pkg/usr/lib/arm-linux-androideabi
+
+# 3. TRUCO MAESTRO: Creamos enlaces simbólicos relativos. Si el interceptor busca adentro, salta de inmediato al archivo plano suelto de afuera
+cd pkg/usr/lib/aarch64-linux-android && ln -sf ../libvulkan_panfrost.so libvulkan_wrapper.so
+cd ../arm-linux-androideabi && ln -sf ../libvulkan_wrapper.so libvulkan_wrapper.so
+cd ../../../..
+
+# Sello de firmas SONAME
 patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
 patchelf --set-soname libvulkan_panfrost.so pkg/usr/lib/libvulkan_panfrost.so
 
-# Limpieza de trazas de desarrollo pesadas para optimizar la velocidad de carga
-$NDK_BIN/llvm-strip --strip-unneeded pkg/usr/lib/*.so 2>/dev/null || true
+# Limpieza estricta de trazas pesadas
+$NDK_BIN/llvm-strip --strip-unneeded pkg/usr/lib/libvulkan_wrapper.so 2>/dev/null || true
+$NDK_BIN/llvm-strip --strip-unneeded pkg/usr/lib/libvulkan_panfrost.so 2>/dev/null || true
 
-# Escribimos el manifiesto ICD apuntando al escudo con la sintaxis plana solicitada
+# Escribimos tu manifiesto ICD exactamente con la sintaxis plana solicitada
 cat << 'EOF' > pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
 {
     "ICD": {
@@ -118,5 +126,5 @@ echo "msf:315508" > pkg/version.txt && chmod -R 755 pkg/
 cd pkg && tar -I "zstd -19 -T0" -cf "../wrapper.tzst" usr version.txt
 
 echo "=========================================================="
-echo "🟢 ACROPOLAMIENTO HÍBRIDO COMPLETADO - LISTO PARA ARRANCAR"
+echo "Ref: 778/778 - CONEXIÓN POR REDIRECCIÓN RELATIVA COMPLETADA"
 echo "=========================================================="
