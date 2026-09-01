@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 INICIANDO ENLAZADOR MESA 25 CON LIMPIEZA CLEAN_SPEC REAL"
+echo "🚀 INICIANDO ENLAZADOR MESA 25 CON CURL INDESTRUCTIBLE"
 echo "=========================================================="
 
 echo "-> 1. Compilando el Interceptor oficial en Docker..."
@@ -13,10 +13,10 @@ export ANDROID_NDK_HOME="/usr/local/lib/android/sdk/ndk/28.2.13676358"
 export NDK_BIN="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin"
 export NDK_SYSROOT="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
 
-# 🟢 INYECCIÓN CLEAN_SPEC: Limpieza física estricta de temporales e intermedios para evitar conflictos en el Linker
 echo "-> 2a. Ejecutando directivas CleanSpec sobre el espacio de trabajo..."
 rm -rf "$(pwd)/shims_64"
 rm -rf "$(pwd)/include/libdrm"
+rm -rf libdrm_android/
 rm -rf build-libdrm/
 rm -rf build-64/
 
@@ -30,10 +30,12 @@ mkdir -p "$(pwd)/shims_64"
 $NDK_BIN/aarch64-linux-android26-clang -c stub_logs.c -o stub_logs_64.o
 $NDK_BIN/llvm-ar rcs "$(pwd)/shims_64/libvulkan_wrapper.a" stub_logs_64.o
 
-echo "-> 2b. Descargando repositorio oficial de libdrm Distrotech..."
-if [ ! -d "libdrm_android" ]; then
-    git clone --depth=1 https://github.com libdrm_android
-fi
+# 🟢 JAQUE MATE AL GIT CLONE: Descargamos el código fuente real de Distrotech empaquetado mediante Curl nativo
+echo "-> 2b. Descargando código legítimo de libdrm Distrotech vía Tarball..."
+mkdir -p libdrm_android
+curl -L https://github.com -o libdrm.tar.gz
+tar -xzf libdrm.tar.gz -C libdrm_android --strip-components=1
+rm -f libdrm.tar.gz
 
 # Receta de compilación cruzada nativa móvil con los macros atómicos legítimos de Distrotech
 cat << EOF > cross_libdrm.txt
