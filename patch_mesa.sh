@@ -4,7 +4,7 @@ set -e
 echo "-> [Cirugía] Creando directorio include local..."
 mkdir -p include
 
-# 🟢 CABECERA CONTROLADORA ABSOLUTA: Agregamos todas las macros de capacidades y firmas avanzadas de Syncobj para vk_drm_syncobj.c
+# 🟢 CABECERA CONTROLADORA ABSOLUTA: Mantenemos todas las macros de capacidades y firmas avanzadas de Syncobj
 cat << 'EOF' > include/xf86drm.h
 #ifndef xf86drm_h
 #define xf86drm_h
@@ -52,7 +52,6 @@ static inline int drmSyncobjTransfer(int fd, uint32_t dst_handle, uint64_t dst_p
 static inline int drmSyncobjResult(int fd, void *arg) { (void)fd; (void)arg; return 0; }
 static inline int drmSyncobjReset(int fd, uint32_t *handles, uint32_t count) { (void)fd; (void)handles; (void)count; return 0; }
 
-/* 🟢 CORRECCIÓN SUPREMA PASO 444: Firmas inyectadas para amarrar vk_drm_syncobj.c */
 static inline int drmSyncobjTimelineSignal(int fd, uint32_t *handles, uint64_t *points, uint32_t count) { (void)fd; (void)handles; (void)points; (void)count; return 0; }
 static inline int drmSyncobjSignal(int fd, uint32_t *handles, uint32_t count) { (void)fd; (void)handles; (void)count; return 0; }
 static inline int drmSyncobjQuery(int fd, uint32_t *handles, uint64_t *points, uint32_t count) { (void)fd; (void)handles; (void)points; (void)count; return 0; }
@@ -64,8 +63,27 @@ static inline int drmGetCap(int fd, uint64_t capability, uint64_t *value) { (voi
 #endif
 EOF
 
-# Reparación nativa de trazas del subsistema wrapper
-echo "-> [Cirugía] Inyectando cabeceras de control de archivos en wrapper_log.c..."
+# 🟢 INYECCIÓN COLA DE BIFROST: Forzamos la inclusión biónica local de xf86drm.h dentro de panvk_queue.h para saltar el nudo 627
+python3 -c '
+p="src/panfrost/vulkan/jm/panvk_queue.h"
+f=open(p,"r"); c=f.read(); f.close()
+inj = "\n#include <stdint.h>\nint drmSyncobjDestroy(int fd, uint32_t handle);\n"
+c = c.replace("#include <stdint.h>", inj)
+f=open(p,"w"); f.write(c); f.close()
+print("-> panvk_queue.h parchado")
+'
+
+# 🟢 INYECCIÓN INDESTRUCTIBLE EN INSTANCE: Forzamos la inclusión local de xf86drm.h dentro de vk_instance.c usando Python de forma relativa
+python3 -c '
+p="src/vulkan/runtime/vk_instance.c"
+f=open(p,"r"); c=f.read(); f.close()
+if "xf86drm.h" not in c:
+    c = "#include \"xf86drm.h\"\n" + c
+    f=open(p,"w"); f.write(c); f.close()
+print("-> vk_instance.c parchado")
+'
+
+echo "-> [Cirugía] Inyectando cabeceras POSIX estándar en wrapper_log.c..."
 python3 -c '
 p="src/vulkan/wrapper/wrapper_log.c"
 f=open(p,"r"); c=f.read(); f.close()
@@ -74,6 +92,17 @@ if "fcntl.h" not in c:
     f=open(p,"w"); f.write(c); f.close()
 print("-> wrapper_log.c parchado")
 '
+
+echo "-> [Cirugía] Redireccionando inclusiones rígidas de KMOD hacia shims locales..."
+sed -i 's/#include <xf86drm.h>/#include "xf86drm.h"/g' src/panfrost/lib/kmod/pan_kmod.c 2>/dev/null || true
+sed -i 's/#include <xf86drm.h>/#include "xf86drm.h"/g' src/panfrost/lib/kmod/panfrost_kmod.c 2>/dev/null || true
+
+echo "-> [Cirugía] Neutralizando el módulo CSF de Panthor..."
+cat << 'EOF' > src/panfrost/lib/kmod/panthor_kmod.c
+#include <stddef.h>
+#include "pan_kmod.h"
+const struct pan_kmod_ops panthor_kmod_ops = {0};
+EOF
 
 # Duplicamos de forma física en las carpetas internas de Mesa para garantizar la inyección forzada del include relativo
 mkdir -p src/vulkan/runtime && cp -fv include/xf86drm.h src/vulkan/runtime/xf86drm.h
