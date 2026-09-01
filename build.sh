@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO PERFECCIONADO POR MÓDULOS"
+echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO PERFECCIONADO CON TARGET"
 echo "=========================================================="
 
 WORKSPACE="$(pwd)"
@@ -20,8 +20,9 @@ echo "-> [Docker Internal] Preparando directorios para stubs primarios..."
 mkdir -p shims_64/lib
 mkdir -p drm_shims_inc/include/libdrm
 
-echo "-> [Docker Internal] Instalando herramientas de compilación..."
-pip3 install --no-cache-dir --break-system-packages meson ninja mako packaging || pip3 install --no-cache-dir meson ninja mako packaging || true
+# 🟢 CORRECCIÓN SUPREMA PYTHON: Forzamos la instalación real de Meson directamente en la carpeta global de dist-packages de Ubuntu para que no se pierda el módulo
+echo "-> [Docker Internal] Instalando herramientas de compilación en el núcleo del sistema..."
+pip3 install --no-cache-dir --break-system-packages --target=/usr/lib/python3/dist-packages meson ninja mako packaging || pip3 install --no-cache-dir --target=/usr/lib/python3/dist-packages meson ninja mako packaging || true
 
 export ANDROID_NDK_HOME="/usr/local/lib/android/sdk/ndk/28.2.13676358"
 export NDK_BIN="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin"
@@ -71,7 +72,6 @@ sys_root = '${NDK_SYSROOT}'
 c_args = ['--sysroot=${NDK_SYSROOT}', '-DANDROID', '-D_GNU_SOURCE']
 EOF
 
-# Invocamos Meson de forma nativa a través del motor puro de Python3 para ignorar el $PATH roto
 python3 -m meson setup build-libdrm libdrm_android --cross-file cross_libdrm.txt --prefix="/workspace/shims_64" \
   -Dintel=disabled -Dradeon=disabled -Damdgpu=disabled -Dnouveau=disabled -Dman-pages=disabled -Dvalgrind=disabled -Dtests=false
 python3 -m meson install -C build-libdrm
@@ -122,7 +122,6 @@ sed -i "s/cc.find_library('rt'/dependency('', required : false) #/g" meson.build
 sed -i "s/cc.find_library('atomic'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/dependency('libclc')/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 
-# Inicialización y compilación masiva delegada a los módulos directos de Python
 python3 -m meson setup build-64 --cross-file cross_64.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=panfrost,wrapper
 python3 -m meson compile -C build-64
 EOF
@@ -149,7 +148,6 @@ cd pkg/usr/lib/aarch64-linux-android
 ln -sf ../libvulkan_panfrost.so libvulkan_wrapper.so
 cd "${WORKSPACE}"
 
-# 🟢 CORRECCIÓN SUPREMA DE RUTA: Apuntamos de forma reglamentaria al subdirectorio unificado donde reside físicamente el binario
 patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
 patchelf --set-soname libvulkan_panfrost.so pkg/usr/lib/aarch64-linux-android/libvulkan_panfrost.so
 patchelf --set-soname libdrm.so pkg/usr/lib/libdrm.so 2>/dev/null || true
