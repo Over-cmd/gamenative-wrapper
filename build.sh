@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO PERFECCIONADO Y SEGURO TOTAL"
+echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO PERFECCIONADO CON INCLUSIÓN DUAL"
 echo "=========================================================="
 
 WORKSPACE="$(pwd)"
@@ -23,7 +23,7 @@ mkdir -p drm_shims_inc/include/libdrm
 echo "-> [Docker Internal] Instalando herramientas de compilación..."
 pip3 install --no-cache-dir --break-system-packages meson ninja mako packaging || pip3 install --no-cache-dir meson ninja mako packaging || true
 
-# 🟢 CORRECCIÓN DE PRECISIÓN PATH: Capturamos la base de usuario real de Python de forma dinámica para blindar el entorno ante PEP 668
+# Capturamos la base de usuario real de Python de forma dinámica para blindar el entorno ante PEP 668
 PYTHON_USER_BASE=$(python3 -m site --user-base 2>/dev/null || echo "/root/.local")
 export PATH="${PYTHON_USER_BASE}/bin:/usr/local/bin:/usr/bin:${PATH}"
 
@@ -113,9 +113,10 @@ sys_root = '${NDK_SYSROOT}'
 libdir = '${NDK_SYSROOT_LIB_64}'
 pkg_config_path = shims_path + '/lib/pkgconfig'
 pkg_config_libdir = shims_path + '/lib/pkgconfig'
+# 🟢 CORRECCIÓN SUPREMA DE INCLUSIÓN DUAL: Inyectamos la raíz y la subcarpeta directa para saciar tanto llamadas planas como estructuradas
 [built-in options]
-c_args = ['--sysroot=${NDK_SYSROOT}', '-D__TERMUX__', '-I' + shims_path + '/include', '-I' + drm_inc + '/include']
-cpp_args = ['--sysroot=${NDK_SYSROOT}', '-D__TERMUX__', '-I' + shims_path + '/include', '-I' + drm_inc + '/include']
+c_args = ['--sysroot=${NDK_SYSROOT}', '-D__TERMUX__', '-I' + shims_path + '/include', '-I' + drm_inc + '/include', '-I' + drm_inc + '/include/libdrm']
+cpp_args = ['--sysroot=${NDK_SYSROOT}', '-D__TERMUX__', '-I' + shims_path + '/include', '-I' + drm_inc + '/include', '-I' + drm_inc + '/include/libdrm']
 c_link_args = ['-L' + shims_path + '/lib', '-L${NDK_SYSROOT_LIB_64}', '-landroid', '-llog', '-ldl', '-lsync', '-lvulkan_wrapper', '-latomic']
 cpp_link_args = ['-L' + shims_path + '/lib', '-L${NDK_SYSROOT_LIB_64}', '-landroid', '-llog', '-ldl', '-lsync', '-lvulkan_wrapper', '-latomic']
 EOF
@@ -173,7 +174,7 @@ EOF
 echo "msf:315508" > pkg/version.txt && chmod -R 755 pkg/
 cd pkg && tar -I "zstd -19 -T0" -cf "../wrapper.tzst" usr version.txt
 
-# 🟢 REPARACIÓN CRÍTICA PERMISOS HOST: Usamos sudo rm -rf para purgar los residuos creados por root dentro del volumen sin atascar el pipeline
+# Purgando artefactos efímeros con privilegios de administración
 echo "-> 4. Purgando artefactos efímeros con privilegios de administración..."
 sudo rm -f docker_run_inside.sh
 sudo rm -rf drm_shims_inc/
