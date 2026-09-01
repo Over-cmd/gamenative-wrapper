@@ -10,7 +10,7 @@ WORKSPACE="$(pwd)"
 echo "-> 1. Compilando el Interceptor oficial en Docker..."
 docker run --rm -v "${WORKSPACE}:/workspace" ghcr.io/leegao/mesa-wrapper-ci/wrapper-compiler:latest compilacion
 
-# 🟢 LLAMADA MAESTRA: Invocamos el primer script modular para poblar los Shims e instalar dependencias reales
+# Invocamos el primer script modular para poblar los Shims e instalar dependencias reales
 chmod +x patch_mesa.sh
 ./patch_mesa.sh
 
@@ -103,7 +103,11 @@ sed -i "s/cc.find_library('atomic'/dependency('', required : false) #/g" meson.b
 sed -i "s/dependency('libclc')/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/dep_libclc = .*/dep_libclc = dependency('', required : false)/g" meson.build 2>/dev/null || true
 
-echo "-> 4. Compilando Panfrost Mesa 25 con Adrenotools Limpio..."
+# 🟢 JUGADA MAESTRA INDESTRUCTIBLE: Exportamos LIBRARY_PATH para forzar a Clang a leer tus stubs estáticos en fases de static_library
+echo "-> 4. Inyectando variables de entorno de LLVM Clang..."
+export LIBRARY_PATH="${WORKSPACE}/sysroot_virtual/usr/lib:${WORKSPACE}/sysroot_virtual/lib"
+
+echo "-> 4b. Inicializando entorno de Meson (Mesa 25 Setup Aislado)..."
 meson setup build-64 --cross-file cross_64.txt --wrap-mode=nodownload \
   -Dbuildtype=release \
   -Dplatforms=android \
@@ -114,16 +118,18 @@ meson setup build-64 --cross-file cross_64.txt --wrap-mode=nodownload \
   -Dgallium-drivers=[] \
   -Dvulkan-drivers=panfrost,wrapper \
   -Dvulkan-layers=[]
+
+echo "-> 4c. Lanzando compilación masiva con Ninja..."
 meson compile -C build-64
 
-echo "-> 5. Maquetando empaque con arquitectura de proximidad unificada..."
+echo "-> 5. Maquetando empaque unificado de integración reglamentaria..."
 rm -rf pkg
 mkdir -p pkg/usr/lib/aarch64-linux-android
 mkdir -p pkg/usr/share/vulkan/icd.d
 
 cp -v compilacion/libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
 cp -v shims_64/lib/libdrm.so pkg/usr/lib/libdrm.so 2>/dev/null || cp -v shims_64/lib/aarch64-linux-gnu/libdrm.so pkg/usr/lib/libdrm.so 2>/dev/null || true
-cp -v build-64/src/panfrost/vulkan/libvulkan_panfrost.so pkg/usr/lib/libvulkan_panfrost.so
+cp -v build-64/src/panfrost/vulkan/libvulkan_panfrost.so pkg/usr/lib/aarch64-linux-android/libvulkan_panfrost.so
 
 cd pkg/usr/lib/aarch64-linux-android
 ln -sf ../libvulkan_panfrost.so libvulkan_wrapper.so
