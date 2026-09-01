@@ -16,6 +16,7 @@ rm -rf "${WORKSPACE}/shims_64"
 rm -rf "${WORKSPACE}/sysroot_virtual"
 rm -rf "${WORKSPACE}/include/libdrm"
 rm -rf libdrm_android/
+rm -rf subprojects/libadrenotools/
 
 cat << 'EOF' > stub_logs.c
 int get_wrapper_log_level(const char *option) { (void)option; return 0; }
@@ -48,13 +49,28 @@ cp -fv "${WORKSPACE}/shims_64/lib/libdl.a" "${WORKSPACE}/sysroot_virtual/lib/lib
 
 ln -sf "${NDK_SYSROOT_LIB_64}"/*.so "${WORKSPACE}/sysroot_virtual/usr/lib/" 2>/dev/null || true
 
-# 🟢 REPARACIÓN DE SINTAXIS: Limpiamos los comentarios con paréntesis conflictivos de la zona de descarga
 echo "-> 1d. Descargando repositorio de libdrm..."
 curl -L "https://github.com/sailfishos-mirror/drm/archive/refs/heads/main.zip" -o libdrm.zip
 unzip -q libdrm.zip
 mv -v drm-main libdrm_android
 rm -f libdrm.zip
 
+# 🟢 JAQUE MATE AL WRAP: Descargamos físicamente el código real de Adrenotools de Pipetto desde tu enlace en una subcarpeta local para anular el .wrap
+echo "-> 1e. Descargando código de Adrenotools en subprojects local para anular el .wrap..."
+mkdir -p subprojects
+curl -L "https://github.com/Pipetto-crypto/libadrenotools/archive/refs/heads/master.zip" -o adrenotools.zip
+unzip -q adrenotools.zip
+mv -v libadrenotools-master subprojects/libadrenotools
+rm -f adrenotools.zip
+
+# 🟢 CIRUGÍA CON PERMISOS TOTALES EN FRÍO: Como la carpeta la creamos nosotros, sed inyectará los parches sin detonar Permission Denied
+echo "-> 1f. Aplicando cirugía en frío sobre el meson.build local descargado..."
+if [ -f subprojects/libadrenotools/meson.build ]; then
+    sed -i "s/cc.find_library('android'/dependency('', required : false) #/g" subprojects/libadrenotools/meson.build
+    sed -i "s/cc.find_library('log'/dependency('', required : false) #/g" subprojects/libadrenotools/meson.build
+    echo "-> ¡Estructura de subproyecto Adrenotools liberada y parchada de forma nativa!"
+fi
+
 echo "=========================================================="
-echo "🟢 ARCHIVO 1 CONCLUIDO CON ÉXITO - ESPACIO DE TRABAJO LISTO"
+echo "🟢 ARCHIVO 1 CONCLUIDO CON ÉXITO - WRAP ANULADO Y PARCHADO"
 echo "=========================================================="
