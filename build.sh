@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 INICIANDO ENLAZADOR MESA 25 CON APT-SOURCE LEGÍTIMO"
+echo "🚀 INICIANDO ENLAZADOR MESA 25 CON DEB-SRC ACTIVADO"
 echo "=========================================================="
 
 echo "-> 1. Compilando el Interceptor oficial en Docker..."
@@ -30,13 +30,16 @@ mkdir -p "$(pwd)/shims_64"
 $NDK_BIN/aarch64-linux-android26-clang -c stub_logs.c -o stub_logs_64.o
 $NDK_BIN/llvm-ar rcs "$(pwd)/shims_64/libvulkan_wrapper.a" stub_logs_64.o
 
-# 🟢 JAQUE MATE SUPREMO A LOS ENLACES CORRUPTOS: Jalamos el código fuente legítimo desde los repositorios de Ubuntu
-echo "-> 2b. Descargando código fuente legítimo de libdrm vía APT nativo..."
-sudo apt-get update-minimal || sudo apt-get update
+# 🟢 JAQUE MATE AL REPOSITORIO VACÍO: Habilitamos las rutas deb-src de Ubuntu Noble usando sed nativo en caliente
+echo "-> 2b. Activando repositorios de código fuente deb-src en las Actions..."
+sudo sed -i 's/^#\s*deb-src/deb-src/g' /etc/apt/sources.list /etc/apt/sources.list.d/*.list 2>/dev/null || true
+sudo apt-get update
+
+# Descargamos el código fuente legítimo de libdrm en un directorio limpio
 mkdir -p libdrm_android
 cd libdrm_android
-apt-get source libdrm || apt-get source libdrm2
-# Entramos a la carpeta descomprimida automáticamente por APT y movemos el contenido al directorio raíz
+apt-get source libdrm
+# Movemos los archivos extraídos por la herramienta desde su subcarpeta hacia la raíz de compilación
 mv -v libdrm-*/* . 2>/dev/null || true
 cd ..
 
