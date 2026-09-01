@@ -7,39 +7,50 @@ echo "=========================================================="
 
 WORKSPACE="$(pwd)"
 
-# Ejecutamos el preparador local de fuentes
+# Ejecutamos el preparador local de fuentes fuera de Docker
 chmod +x patch_mesa.sh
 ./patch_mesa.sh
 
-# Inyectamos --entrypoint /bin/bash para saltarnos el comando rígido original de la imagen
+# 🟢 REPARACIÓN CRÍTICA COMANDOS GLOBAL: Usamos las herramientas globales inyectadas por la propia imagen en su PATH nativo
 docker run --rm '--entrypoint=/bin/bash' -v "${WORKSPACE}:/workspace" -w /workspace ghcr.io/leegao/mesa-wrapper-ci/wrapper-compiler:latest -c '
 set -e
 
-# Establecemos la ruta absoluta basada en el NDK oficial integrado en la imagen de LeeGao
-export ANDROID_NDK_HOME="${NDK:-/usr/local/lib/android/sdk/ndk/28.2.13676358}"
-export NDK_BIN="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin"
-export NDK_SYSROOT="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
+# Extraemos las rutas oficiales del NDK de la memoria del contenedor
+export ANDROID_NDK_HOME="${ANDROID_NDK_ROOT:-${NDK:-/usr/local/lib/android/sdk/ndk/28.2.13676358}}"
+NDK_SYSROOT="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
 NDK_SYSROOT_LIB_64="${NDK_SYSROOT}/usr/lib/aarch64-linux-android/26"
-NDK_LLVM_LIB="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/lib/clang/19/lib/linux/aarch64"
 
-# Fallback elástico de seguridad por si las subcarpetas de LLVM varían de versión
-if [ ! -d "$NDK_LLVM_LIB" ]; then
-    NDK_LLVM_LIB=$(find ${ANDROID_NDK_HOME} -name "aarch64" -type d | grep "lib/linux" | head -n 1 || echo "")
+# Si las subcarpetas cambian por versión de API, buscamos libandroid.so en las tripas privadas de la imagen
+if [ ! -d "$NDK_SYSROOT_LIB_64" ]; then
+    NDK_SYSROOT_LIB_64=$(find ${NDK_SYSROOT} -name "libandroid.so" 2>/dev/null | grep "usr/lib" | head -n 1 | xargs dirname 2>/dev/null || echo "")
 fi
 
-# Compilación dual biónica real para saciar a Adrenotools
-$NDK_BIN/aarch64-linux-android26-clang -c stub_logs.c -o stub_c.o
-$NDK_BIN/llvm-ar rcs shims_64/lib/liblog.a stub_c.o
-$NDK_BIN/llvm-ar rcs shims_64/libvulkan_wrapper.a stub_c.o
-$NDK_BIN/aarch64-linux-android26-clang++ -c stub_logs.c -o stub_cpp.o
-$NDK_BIN/llvm-ar rcs shims_64/lib/libandroid.a stub_cpp.o
-$NDK_BIN/llvm-ar rcs shims_64/lib/libdl.a stub_cpp.o
+# Buscamos la carpeta interna del núcleo estático de Clang de la imagen
+NDK_LLVM_LIB=$(find ${ANDROID_NDK_HOME} -name "aarch64" -type d 2>/dev/null | grep "lib/linux" | head -n 1 || echo "")
+
+echo "-> [Docker] Rutas de compilación biónicas mapeadas:"
+echo "   Sysroot Lib64: $NDK_SYSROOT_LIB_64"
+echo "   LLVM Core Lib: $NDK_LLVM_LIB"
+
+# Compilación dual biónica real para saciar a Adrenotools llamando a los binarios globales del PATH
+echo "-> [Docker] Generando fuentes de stubs atómicos para Adrenotools..."
+aarch64-linux-android26-clang -c stub_logs.c -o stub_c.o
+llvm-ar rcs shims_64/lib/liblog.a stub_c.o
+llvm-ar rcs shims_64/libvulkan_wrapper.a stub_c.o
+
+aarch64-linux-android26-clang++ -c stub_logs.c -o stub_cpp.o
+llvm-ar rcs shims_64/lib/libandroid.a stub_cpp.o
+llvm-ar rcs shims_64/lib/libdl.a stub_cpp.o
 
 # Instalación física real en el core del compilador del contenedor
-cp -fv shims_64/lib/libandroid.a "$NDK_SYSROOT_LIB_64/libandroid.a"
-cp -fv shims_64/lib/liblog.a "$NDK_SYSROOT_LIB_64/liblog.a"
-cp -fv shims_64/lib/libdl.a "$NDK_SYSROOT_LIB_64/libdl.a"
-if [ -n "$NDK_LLVM_LIB" ]; then
+echo "-> [Docker] INSTALACIÓN REAL: Colocando ficheros directamente en los Sysroots internos..."
+if [ -n "$NDK_SYSROOT_LIB_64" ] && [ -d "$NDK_SYSROOT_LIB_64" ]; then
+    cp -fv shims_64/lib/libandroid.a "$NDK_SYSROOT_LIB_64/libandroid.a"
+    cp -fv shims_64/lib/liblog.a "$NDK_SYSROOT_LIB_64/liblog.a"
+    cp -fv shims_64/lib/libdl.a "$NDK_SYSROOT_LIB_64/libdl.a"
+fi
+
+if [ -n "$NDK_LLVM_LIB" ] && [ -d "$NDK_LLVM_LIB" ]; then
     cp -fv shims_64/lib/libandroid.a "$NDK_LLVM_LIB/libandroid.a"
     cp -fv shims_64/lib/liblog.a "$NDK_LLVM_LIB/liblog.a"
     cp -fv shims_64/lib/libdl.a "$NDK_LLVM_LIB/libdl.a"
@@ -48,10 +59,10 @@ fi
 # Compilamos libdrm real móvil
 cat << EOF > cross_libdrm.txt
 [binaries]
-c = '\''${NDK_BIN}/aarch64-linux-android26-clang'\''
-cpp = '\''${NDK_BIN}/aarch64-linux-android26-clang++'\''
-ar = '\''${NDK_BIN}/llvm-ar'\''
-strip = '\''${NDK_BIN}/llvm-strip'\''
+c = '\''aarch64-linux-android26-clang'\''
+cpp = '\''aarch64-linux-android26-clang++'\''
+ar = '\''llvm-ar'\''
+strip = '\''llvm-strip'\''
 [host_machine]
 system = '\''android'\''
 cpu_family = '\''aarch64'\''
@@ -73,10 +84,10 @@ cat << EOF > cross_64.txt
 [constants]
 shims_path = '"'"'/workspace/shims_64'"'"'
 [binaries]
-c = '\''${NDK_BIN}/aarch64-linux-android26-clang'\''
-cpp = '\''${NDK_BIN}/aarch64-linux-android26-clang++'\''
-ar = '\''${NDK_BIN}/llvm-ar'\''
-strip = '\''${NDK_BIN}/llvm-strip'\''
+c = '\''aarch64-linux-android26-clang'\''
+cpp = '\''aarch64-linux-android26-clang++'\''
+ar = '\''llvm-ar'\''
+strip = '\''llvm-strip'\''
 pkg-config = '\''/usr/bin/pkg-config'\''
 [host_machine]
 system = '\''android'\''
@@ -112,7 +123,7 @@ mkdir -p pkg/usr/share/vulkan/icd.d
 
 cp -v compilacion/libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so 2>/dev/null || cp -v libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so 2>/dev/null || true
 cp -v shims_64/lib/libdrm.so pkg/usr/lib/libdrm.so 2>/dev/null || true
-cp -v build-64/src/panfrost/vulkan/libvulkan_panfrost.so pkg/usr/lib/aarch64-linux-android/libvulkan_panfrost.so
+cp -v build-64/src/panfrost/vulkan/libvulkan_panfrost.so pkg/usr/lib/libvulkan_panfrost.so
 
 cd pkg/usr/lib/aarch64-linux-android
 ln -sf ../libvulkan_panfrost.so libvulkan_wrapper.so
