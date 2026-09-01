@@ -2,7 +2,7 @@ name: Mesa Vulkan Wrapper Mali Packager (.tzst)
 
 on:
   push:
-    # Disparador activo escuchando tus commits reales en tu rama de desarrollo
+    # Gatillo de escucha activo en las ramas oficiales y tu entorno de desarrollo wrapper-25
     branches: [ "main", "master", "wrapper-25" ]
   workflow_dispatch:
 
@@ -51,8 +51,9 @@ jobs:
 
       - name: Run Modular Build Script (Docker Double-Pass and Packing)
         run: |
-          # 🟢 BLINDAJE DE EJECUCIÓN: Otorgamos permisos a ambos scripts y lanzamos el orquestador principal
+          # 🟢 BLINDAJE DE INFRAESTRUCTURA MODULAR: Otorgamos permisos reglamentarios a la triada de scripts y disparamos
           chmod +x patch_mesa.sh
+          chmod +x generate_cross.sh
           chmod +x build.sh
           ./build.sh
 
