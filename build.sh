@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO PERFECCIONADO CON TU DETECCIÓN"
+echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO PERFECCIONADO CON INVOCACIÓN PLANA"
 echo "=========================================================="
 
 WORKSPACE="$(pwd)"
@@ -22,9 +22,6 @@ mkdir -p drm_shims_inc/include/libdrm
 
 echo "-> [Docker Internal] Instalando dependencias de Python complementarias..."
 pip3 install --no-cache-dir --break-system-packages mako packaging || pip3 install --no-cache-dir mako packaging || true
-
-# 🟢 TU CORRECCIÓN MAGISTRAL APLICADA: Declaramos la ruta exacta con extensión .py que mapeaste del repositorio original de Meson
-MESON_EXEC="python3 /workspace/meson_src/meson.py"
 
 export ANDROID_NDK_HOME="/usr/local/lib/android/sdk/ndk/28.2.13676358"
 export NDK_BIN="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin"
@@ -75,10 +72,10 @@ sys_root = '${NDK_SYSROOT}'
 c_args = ['--sysroot=${NDK_SYSROOT}', '-DANDROID', '-D_GNU_SOURCE']
 EOF
 
-# Ejecución de libdrm llamando a tu puntero corregido
-$MESON_EXEC setup build-libdrm libdrm_android --cross-file cross_libdrm.txt --prefix="/workspace/shims_64" \
+# 🟢 REPARACIÓN DE SINTAXIS: Invocamos de forma plana el comando directo de Python sin variables intermediarias propensas a rotura de espacios
+python3 /workspace/meson_src/meson.py setup build-libdrm libdrm_android --cross-file cross_libdrm.txt --prefix="/workspace/shims_64" \
   -Dintel=disabled -Dradeon=disabled -Damdgpu=disabled -Dnouveau=disabled -Dman-pages=disabled -Dvalgrind=disabled -Dtests=false
-$MESON_EXEC install -C build-libdrm
+python3 /workspace/meson_src/meson.py install -C build-libdrm
 
 cp -rf shims_64/include/libdrm/* drm_shims_inc/include/libdrm/ 2>/dev/null || cp -rf shims_64/include/* drm_shims_inc/include/libdrm/ 2>/dev/null || true
 
@@ -127,9 +124,9 @@ sed -i "s/cc.find_library('rt'/dependency('', required : false) #/g" meson.build
 sed -i "s/cc.find_library('atomic'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/dependency('libclc')/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 
-# Ejecución de Mesa 25 llamando a tu puntero corregido
-$MESON_EXEC setup build-64 --cross-file cross_64.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=panfrost,wrapper
-$MESON_EXEC compile -C build-64
+# 🟢 REPARACIÓN DE SINTAXIS: Invocamos de forma plana el comando de setup y compile masivo para Mesa 25
+python3 /workspace/meson_src/meson.py setup build-64 --cross-file cross_64.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=panfrost,wrapper
+python3 /workspace/meson_src/meson.py compile -C build-64
 EOF
 
 chmod +x docker_run_inside.sh
