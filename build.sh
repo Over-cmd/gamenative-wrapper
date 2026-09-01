@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 INICIANDO ENLAZADOR MESA 25 - BLINDAJE DE ENLAZADO LOCAL"
+echo "🚀 INICIANDO ENLAZADOR MESA 25 - CORRECCIÓN SUPREMA BIONIC"
 echo "=========================================================="
 
 echo "-> 1. Compilando el Interceptor oficial en Docker..."
@@ -132,23 +132,23 @@ rm -rf pkg
 mkdir -p pkg/usr/lib/aarch64-linux-android
 mkdir -p pkg/usr/share/vulkan/icd.d
 
-# Copiamos el interceptor principal (el escudo de entrada suelto)
+# Copiamos el interceptor principal (el escudo de entrada suelto en la raíz de usr/lib)
 cp -v compilacion/libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
 
 # Guardamos la librería real bajo el nombre plano libdrm.so para Bionic
 cp -v shims_64/lib/libdrm.so pkg/usr/lib/libdrm.so 2>/dev/null || cp -v shims_64/lib/aarch64-linux-gnu/libdrm.so pkg/usr/lib/libdrm.so 2>/dev/null || true
 
-# Conservamos el nombre original libvulkan_wrapper.so exigido por Bannerlator para el archivo del driver físico
-cp -v build-64/src/panfrost/vulkan/libvulkan_panfrost.so pkg/usr/lib/aarch64-linux-android/libvulkan_wrapper.so
+# 🟢 CORRECCIÓN SUPREMA DE ARCHIVO: Conservamos el nombre legítimo y único en el disco para evitar colisiones fatales de archivos
+cp -v build-64/src/panfrost/vulkan/libvulkan_panfrost.so pkg/usr/lib/aarch64-linux-android/libvulkan_panfrost.so
 
-# Asignamos identidades de ADN internas independientes para que Bionic no asuma que son la misma librería
+# 🟢 CORRECCIÓN SUPREMA SONAME: Sellamos las firmas internas puras e independientes de cada componente
 patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
-patchelf --set-soname libvulkan_panfrost.so pkg/usr/lib/aarch64-linux-android/libvulkan_wrapper.so
+patchelf --set-soname libvulkan_panfrost.so pkg/usr/lib/aarch64-linux-android/libvulkan_panfrost.so
 patchelf --set-soname libdrm.so pkg/usr/lib/libdrm.so 2>/dev/null || true
 
-# 🟢 REPARACIÓN CRÍTICA EXCLUSIVA APLICANDO TU DISEÑO: Amarramos libdrm.so de forma local mediante RUNPATH con retroceso $ORIGIN
-patchelf --add-needed libdrm.so pkg/usr/lib/aarch64-linux-android/libvulkan_wrapper.so 2>/dev/null || true
-patchelf --set-rpath '\$ORIGIN/..' pkg/usr/lib/aarch64-linux-android/libvulkan_wrapper.so 2>/dev/null || true
+# 🟢 CORRECCIÓN SUPREMA RUNPATH: Añadimos la dependencia hacia libdrm usando comillas simples puras sin escapes corruptos
+patchelf --add-needed libdrm.so pkg/usr/lib/aarch64-linux-android/libvulkan_panfrost.so 2>/dev/null || true
+patchelf --set-rpath '$ORIGIN/..' pkg/usr/lib/aarch64-linux-android/libvulkan_panfrost.so 2>/dev/null || true
 
 # Strip final para aligerar espacio y eliminar símbolos de desarrollo redundantes
 $NDK_BIN/llvm-strip --strip-unneeded pkg/usr/lib/*.so 2>/dev/null || true
