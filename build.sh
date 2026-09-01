@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 INICIANDO ENLAZADOR MESA 25 - MANIFIESTO AARCH64 PLANO"
+echo "🚀 INICIANDO ENLAZADOR MESA 25 - HÍBRIDO PLANO DEFINITIVO"
 echo "=========================================================="
 
 echo "-> 1. Compilando el Interceptor oficial en Docker..."
@@ -84,22 +84,26 @@ echo "-> 4. Compilando Panfrost con el Wrapper de Adrenotools..."
 meson setup build-64 --cross-file cross_64.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dandroid-stub=true -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=panfrost,wrapper
 meson compile -C build-64
 
-# FASE 5: REESTRUCTURACIÓN COMPLETAMENTE PLANA CON MANIFIESTO NOMBRADO A ARCH64
+# 🟢 FASE 5: REESTRUCTURACIÓN PLANO-HÍBRIDA INDESTRUCTIBLE
 echo "-> 5. Maquetando empaque compatible ICD plano..."
 rm -rf pkg
 mkdir -p pkg/usr/lib
 mkdir -p pkg/usr/share/vulkan/icd.d
 
-# Copiamos el driver físico real compilado directo a la raíz de usr/lib suelto
-cp -v build-64/src/panfrost/vulkan/libvulkan_panfrost.so pkg/usr/lib/libvulkan_wrapper.so
+# Colocamos el Interceptor oficial (el escudo) en la raíz de usr/lib como la entrada principal obligatoria
+cp -v compilacion/libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
 
-# Sello de firma SONAME interno plano
+# Guardamos el driver real de Panfrost al lado con un nombre de enlace interno directo
+cp -v build-64/src/panfrost/vulkan/libvulkan_panfrost.so pkg/usr/lib/libvulkan_panfrost.so
+
+# Sello de firmas SONAME para emparejar identidades dinámicas locales
 patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
+patchelf --set-soname libvulkan_panfrost.so pkg/usr/lib/libvulkan_panfrost.so
 
-# Remoción de trazas de desarrollo pesadas para optimizar espacio
-$NDK_BIN/llvm-strip --strip-unneeded pkg/usr/lib/libvulkan_wrapper.so 2>/dev/null || true
+# Limpieza de trazas de desarrollo pesadas para optimizar la velocidad de carga
+$NDK_BIN/llvm-strip --strip-unneeded pkg/usr/lib/*.so 2>/dev/null || true
 
-# 🟢 AJUSTE REQUERIDO: Escribimos el archivo con su nombre exacto wrapper_icd.aarch64.json
+# Escribimos el manifiesto ICD apuntando al escudo con la sintaxis plana solicitada
 cat << 'EOF' > pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
 {
     "ICD": {
@@ -114,5 +118,5 @@ echo "msf:315508" > pkg/version.txt && chmod -R 755 pkg/
 cd pkg && tar -I "zstd -19 -T0" -cf "../wrapper.tzst" usr version.txt
 
 echo "=========================================================="
-echo "Ref: 778/778 - MANIFIESTO EMBEBIDO COMO wrapper_icd.aarch64.json"
+echo "🟢 ACROPOLAMIENTO HÍBRIDO COMPLETADO - LISTO PARA ARRANCAR"
 echo "=========================================================="
