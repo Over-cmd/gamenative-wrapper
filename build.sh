@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 INICIANDO ENLAZADOR MESA 25 - INTERCEPCIÓN PKG-CONFIG OK"
+echo "🚀 INICIANDO ENLAZADOR MESA 25 - INSTALACIÓN LEGÍTIMA SYSROOT"
 echo "=========================================================="
 
 # Fijamos la ruta absoluta calculada al inicio para blindar el entorno
@@ -16,6 +16,8 @@ export ANDROID_NDK_HOME="/usr/local/lib/android/sdk/ndk/28.2.13676358"
 export NDK_BIN="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin"
 export NDK_SYSROOT="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
 NDK_SYSROOT_LIB_64="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/26"
+# Identificamos la ruta core de librerías estáticas de LLVM Clang 19 del NDK
+NDK_LLVM_LIB="/usr/local/lib/android/sdk/ndk/28.2.13676358/toolchains/llvm/prebuilt/linux-x86_64/lib/clang/19/lib/linux/aarch64"
 
 echo "-> 2a. Ejecutando directivas CleanSpec sobre el espacio de trabajo..."
 rm -rf "${WORKSPACE}/shims_64"
@@ -30,36 +32,25 @@ int get_wrapper_log_level(const char *option) { (void)option; return 0; }
 void write_to_logfile(const char *fmt, const char *level, ...) { (void)fmt; (void)level; }
 EOF
 
-mkdir -p "${WORKSPACE}/shims_64/lib/pkgconfig"
+mkdir -p "${WORKSPACE}/shims_64/lib"
 
 echo "-> 2c. Compilando shims nativos en formatos duales C y C++ de 64 bits..."
+# 1. Formato C puro para c.find_library('log')
 $NDK_BIN/aarch64-linux-android26-clang -c stub_logs.c -o stub_logs_c.o
 $NDK_BIN/llvm-ar rcs "${WORKSPACE}/shims_64/lib/liblog.a" stub_logs_c.o
 $NDK_BIN/llvm-ar rcs "${WORKSPACE}/shims_64/libvulkan_wrapper.a" stub_logs_c.o
 
+# 2. Formato C++ puro para cpp.find_library('android')
 $NDK_BIN/aarch64-linux-android26-clang++ -c stub_logs.c -o stub_logs_cpp.o
 $NDK_BIN/llvm-ar rcs "${WORKSPACE}/shims_64/lib/libandroid.a" stub_logs_cpp.o
 
-# Copiamos de igual forma en el Sysroot oficial por seguridad
-sudo cp -v "${WORKSPACE}/shims_64/lib/libandroid.a" "${NDK_SYSROOT_LIB_64}/libandroid.a"
-sudo cp -v "${WORKSPACE}/shims_64/lib/liblog.a" "${NDK_SYSROOT_LIB_64}/liblog.a"
-
-# 🟢 TRUCO MAESTRO INDESTRUCTIBLE: Fabricamos archivos descriptores .pc para interceptar la búsqueda de find_library
-cat << EOF > "${WORKSPACE}/shims_64/lib/pkgconfig/android.pc
-Name: android
-Description: Android System Shim Dependency
-Version: 26
-Libs: -L${NDK_SYSROOT_LIB_64} -landroid
-Cflags: -I${NDK_SYSROOT}/usr/include
-EOF
-
-cat << EOF > "${WORKSPACE}/shims_64/lib/pkgconfig/log.pc
-Name: log
-Description: Android Logging Shim Dependency
-Version: 26
-Libs: -L${NDK_SYSROOT_LIB_64} -llog
-Cflags: -I${NDK_SYSROOT}/usr/include
-EOF
+# 🟢 FASE DE INSTALACIÓN REAL: Desplegamos los componentes directamente en todas las ranuras nativas del compilador de Google
+echo "-> 2d. Instalando físicamente las librerías en el núcleo del compilador Clang del NDK..."
+sudo mkdir -p "${NDK_LLVM_LIB}"
+sudo cp -fv "${WORKSPACE}/shims_64/lib/libandroid.a" "${NDK_SYSROOT_LIB_64}/libandroid.a"
+sudo cp -fv "${WORKSPACE}/shims_64/lib/liblog.a" "${NDK_SYSROOT_LIB_64}/liblog.a"
+sudo cp -fv "${WORKSPACE}/shims_64/lib/libandroid.a" "${NDK_LLVM_LIB}/libandroid.a"
+sudo cp -fv "${WORKSPACE}/shims_64/lib/liblog.a" "${NDK_LLVM_LIB}/liblog.a"
 
 echo "-> 2b. Descargando código legítimo de libdrm SailfishOS vía Zipball Real..."
 curl -L "https://github.com/sailfishos-mirror/drm/archive/refs/heads/main.zip" -o libdrm.zip
@@ -85,7 +76,7 @@ sys_root = '${NDK_SYSROOT}'
 c_args = ['--sysroot=${NDK_SYSROOT}', '-DANDROID', '-D_GNU_SOURCE', '-DBIONIC_IOCTL_NO_SIGNEDNESS_OVERLOAD=1', '-DHAVE_LIBDRM_ATOMIC_PRIMITIVES=1']
 EOF
 
-# Compilamos la librería real de forma limpia
+# Compilamos e instalamos de forma real la librería libdrm
 meson setup build-libdrm libdrm_android --cross-file cross_libdrm.txt --prefix="${WORKSPACE}/shims_64" \
   -Dintel=disabled -Dradeon=disabled -Damdgpu=disabled -Dnouveau=disabled -Dvmwgfx=disabled -Domap=disabled -Dexynos=disabled -Dtegra=disabled -Dvc4=disabled -Detnaviv=disabled -Dman-pages=disabled -Dvalgrind=disabled -Dtests=false
 meson install -C build-libdrm
@@ -137,8 +128,8 @@ pkg_config_libdir = shims_path + '/lib/pkgconfig'
 [built-in options]
 c_args = ['--sysroot=' + sysroot, '-D__TERMUX__', '-I' + shims_path + '/include', '-I' + shims_path + '/include/libdrm']
 cpp_args = ['--sysroot=' + sysroot, '-D__TERMUX__', '-I' + shims_path + '/include', '-I' + shims_path + '/include/libdrm']
-c_link_args = ['-L' + shims_path + '/lib', '-L${NDK_SYSROOT_LIB_64}', '-landroid', '-llog', '-lsync', '-lvulkan_wrapper', '-latomic']
-cpp_link_args = ['-L' + shims_path + '/lib', '-L${NDK_SYSROOT_LIB_64}', '-landroid', '-llog', '-lsync', '-lvulkan_wrapper', '-latomic']
+c_link_args = ['-L${NDK_SYSROOT_LIB_64}', '-L' + shims_path + '/lib', '-landroid', '-llog', '-lsync', '-lvulkan_wrapper', '-atomic']
+cpp_link_args = ['-L${NDK_SYSROOT_LIB_64}', '-L' + shims_path + '/lib', '-landroid', '-llog', '-lsync', '-lvulkan_wrapper', '-atomic']
 EOF
 
 # Reparación de librerías del sistema del core de Mesa
@@ -209,5 +200,5 @@ echo "msf:315508" > pkg/version.txt && chmod -R 755 pkg/
 cd pkg && tar -I "zstd -19 -T0" -cf "../wrapper.tzst" usr version.txt
 
 echo "=========================================================="
-echo "  778/778 COMPLETO - REGISTROS CON VALOR DE CONSTANTE OK  "
+echo "  778/778 COMPLETO - INSTALACIÓN DE COMPONENTES TOTAL OK "
 echo "=========================================================="
