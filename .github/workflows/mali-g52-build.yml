@@ -2,7 +2,7 @@ name: Mesa Vulkan Wrapper Mali Packager (.tzst)
 
 on:
   push:
-    # Mantenemos el disparador directo escuchando tus commits reales en tu rama de desarrollo
+    # Disparador activo escuchando tus commits reales en tu rama de desarrollo
     branches: [ "main", "master", "wrapper-25" ]
   workflow_dispatch:
 
@@ -49,8 +49,10 @@ jobs:
             find src/ -name "*.c" -exec sed -i 's/vk_icdGetInstanceProcAddr/extern int mallopt(int p, int v); extern int setenv(const char *n, const char *v, int o); mallopt(-1002, 0); setenv("MESA_VK_WSI_PRESENT_MODE", "mailbox", 1); setenv("vblank_mode", "0", 1); if (sizeof(void*) == 4) { setenv("MESA_VK_WSI_QUEUE_SIZE", "1", 1); } vk_icdGetInstanceProcAddr/g' {} + || true
           fi
 
-      - name: Run Build Script (Docker Container Safe Isolation)
+      - name: Run Modular Build Script (Docker Double-Pass and Packing)
         run: |
+          # 🟢 BLINDAJE DE EJECUCIÓN: Otorgamos permisos a ambos scripts y lanzamos el orquestador principal
+          chmod +x patch_mesa.sh
           chmod +x build.sh
           ./build.sh
 
