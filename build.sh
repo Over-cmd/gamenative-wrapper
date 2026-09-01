@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 INICIANDO ENLAZADOR MESA 25 CON FLAGS DE FEATURES RECALIBRADAS"
+echo "🚀 INICIANDO ENLAZADOR MESA 25 CON ENLACE ATÓMICO CORREGIDO"
 echo "=========================================================="
 
 echo "-> 1. Compilando el Interceptor oficial en Docker..."
@@ -54,7 +54,7 @@ sys_root = '${NDK_SYSROOT}'
 c_args = ['--sysroot=${NDK_SYSROOT}', '-DANDROID', '-D_GNU_SOURCE', '-DBIONIC_IOCTL_NO_SIGNEDNESS_OVERLOAD=1', '-DHAVE_LIBDRM_ATOMIC_PRIMITIVES=1']
 EOF
 
-# 🟢 REPARACIÓN DE FEATURE: valgrind vuelve a disabled como string y tests se queda como false booleano
+# Compilamos la librería real de forma limpia
 meson setup build-libdrm libdrm_android --cross-file cross_libdrm.txt --prefix="$(pwd)/shims_64" \
   -Dintel=disabled -Dradeon=disabled -Damdgpu=disabled -Dnouveau=disabled -Dvmwgfx=disabled -Domap=disabled -Dexynos=disabled -Dtegra=disabled -Dvc4=disabled -Detnaviv=disabled -Dman-pages=disabled -Dvalgrind=disabled -Dtests=false
 meson install -C build-libdrm
@@ -102,12 +102,14 @@ pkg_config_libdir = '$(pwd)/shims_64/lib/pkgconfig'
 [built-in options]
 c_args = ['--sysroot=' + '${NDK_SYSROOT}', '-D__TERMUX__', '-I$(pwd)/shims_64/include', '-I$(pwd)/shims_64/include/libdrm']
 cpp_args = ['--sysroot=' + '${NDK_SYSROOT}', '-D__TERMUX__', '-I$(pwd)/shims_64/include', '-I$(pwd)/shims_64/include/libdrm']
-c_link_args = ['-landroid', '-llog', '-lsync', '-lvulkan_wrapper', '-L${NDK_SYSROOT_LIB_64}', '-L$(pwd)/shims_64/lib']
-cpp_link_args = ['-landroid', '-llog', '-lsync', '-lvulkan_wrapper', '-L${NDK_SYSROOT_LIB_64}', '-L$(pwd)/shims_64/lib']
+c_link_args = ['-landroid', '-llog', '-lsync', '-lvulkan_wrapper', '-L${NDK_SYSROOT_LIB_64}', '-L$(pwd)/shims_64/lib', '-latomic']
+cpp_link_args = ['-landroid', '-llog', '-lsync', '-lvulkan_wrapper', '-L${NDK_SYSROOT_LIB_64}', '-L$(pwd)/shims_64/lib', '-latomic']
 EOF
 
+# 🟢 REPARACIÓN CRÍTICA PASO 1279: Desactivamos la búsqueda estricta de la librería externa 'atomic' porque el NDK la incluye nativamente
 sed -i "s/cc.find_library('dl'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/cc.find_library('rt'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
+sed -i "s/cc.find_library('atomic'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/dependency('libclc')/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/dep_libclc = .*/dep_libclc = dependency('', required : false)/g" meson.build 2>/dev/null || true
 
