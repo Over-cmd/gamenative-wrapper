@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 INICIANDO ENLAZADOR MESA 25 CON RAMA MAIN DE SAILFISHOS"
+echo "🚀 INICIANDO ENLAZADOR MESA 25 CON ARQUITECTURA SAILFISH"
 echo "=========================================================="
 
 echo "-> 1. Compilando el Interceptor oficial en Docker..."
@@ -30,11 +30,9 @@ mkdir -p "$(pwd)/shims_64"
 $NDK_BIN/aarch64-linux-android26-clang -c stub_logs.c -o stub_logs_64.o
 $NDK_BIN/llvm-ar rcs "$(pwd)/shims_64/libvulkan_wrapper.a" stub_logs_64.o
 
-# 🟢 DESPLIEGUE INDESTRUCTIBLE: Descargamos la rama main exacta de tu enlace
 echo "-> 2b. Descargando código legítimo de libdrm SailfishOS vía Zipball Real..."
 curl -L "https://github.com/sailfishos-mirror/drm/archive/refs/heads/main.zip" -o libdrm.zip
 unzip -q libdrm.zip
-# Calibramos el movimiento apuntando a drm-main conforme a la estructura de la rama
 mv -v drm-main libdrm_android
 rm -f libdrm.zip
 
@@ -53,12 +51,13 @@ endian = 'little'
 [properties]
 sys_root = '${NDK_SYSROOT}'
 [built-in options]
+config_h = true
 c_args = ['--sysroot=${NDK_SYSROOT}', '-DANDROID', '-D_GNU_SOURCE', '-DBIONIC_IOCTL_NO_SIGNEDNESS_OVERLOAD=1', '-DHAVE_LIBDRM_ATOMIC_PRIMITIVES=1']
 EOF
 
-# Compilamos la librería real apagando de forma estricta los controladores de PC obsoletos
+# 🟢 CORRECCIÓN SUPREMA FLAG: Cambiado -Dmanpages=disabled por -Dman-pages=disabled conforme exige el subproyecto de SailfishOS
 meson setup build-libdrm libdrm_android --cross-file cross_libdrm.txt --prefix="$(pwd)/shims_64" \
-  -Dintel=disabled -Dradeon=disabled -Damdgpu=disabled -Dnouveau=disabled -Dvmwgfx=disabled -Domap=disabled -Dexynos=disabled -Dtegra=disabled -Dvc4=disabled -Detnaviv=disabled -Dmanpages=disabled -Dvalgrind=disabled -Dtests=disabled
+  -Dintel=disabled -Dradeon=disabled -Damdgpu=disabled -Dnouveau=disabled -Dvmwgfx=disabled -Domap=disabled -Dexynos=disabled -Dtegra=disabled -Dvc4=disabled -Detnaviv=disabled -Dman-pages=disabled -Dvalgrind=disabled -Dtests=disabled
 meson install -C build-libdrm
 
 # Enlazamos las cabeceras originales directamente en las rutas de Mesa para que Clang las lea de golpe
