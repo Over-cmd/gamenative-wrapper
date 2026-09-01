@@ -32,7 +32,7 @@ $NDK_BIN/llvm-ar rcs "$(pwd)/shims_64/libvulkan_wrapper.a" stub_logs_64.o
 
 # 🟢 REPARACIÓN SUPREMA URL: Descarga directa de la rama principal (main) del mirror legítimo de SailfishOS
 echo "-> 2b. Descargando código legítimo de libdrm SailfishOS vía Zipball Real..."
-curl -L "https://github.com/sailfishos-mirror/drm/archive/refs/heads/main" -o libdrm.zip
+curl -L "https://github.com/sailfishos-mirror/drm/archive/refs/heads/main.zip" -o libdrm.zip
 unzip -q libdrm.zip
 # Al descargar la rama 'main' de 'drm', GitHub genera de manera nativa la carpeta 'drm-main'
 mv -v drm-main libdrm_android
