@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO PERFECCIONADO CON TARGET"
+echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO PERFECCIONADO CON NINJA FIJO"
 echo "=========================================================="
 
 WORKSPACE="$(pwd)"
@@ -20,9 +20,13 @@ echo "-> [Docker Internal] Preparando directorios para stubs primarios..."
 mkdir -p shims_64/lib
 mkdir -p drm_shims_inc/include/libdrm
 
-# 🟢 CORRECCIÓN SUPREMA PYTHON: Forzamos la instalación real de Meson directamente en la carpeta global de dist-packages de Ubuntu para que no se pierda el módulo
-echo "-> [Docker Internal] Instalando herramientas de compilación en el núcleo del sistema..."
-pip3 install --no-cache-dir --break-system-packages --target=/usr/lib/python3/dist-packages meson ninja mako packaging || pip3 install --no-cache-dir --target=/usr/lib/python3/dist-packages meson ninja mako packaging || true
+echo "-> [Docker Internal] Descargando e instalando Meson de forma autónoma local..."
+rm -rf meson_src
+git clone --depth 1 https://github.com meson_src
+MESON_EXEC="python3 /workspace/meson_src/meson.py"
+
+echo "-> [Docker Internal] Instalando dependencias de Python complementarias..."
+pip3 install --no-cache-dir --break-system-packages mako packaging || pip3 install --no-cache-dir mako packaging || true
 
 export ANDROID_NDK_HOME="/usr/local/lib/android/sdk/ndk/28.2.13676358"
 export NDK_BIN="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin"
@@ -54,13 +58,15 @@ if [ -n "$NDK_LLVM_LIB" ] && [ -d "$NDK_LLVM_LIB" ]; then
     cp -fv shims_64/lib/libdl.a "$NDK_LLVM_LIB/libdl.a"
 fi
 
+# 🟢 REPARACIÓN CRÍTICA SANITY: Indicamos la ruta absoluta real de Ninja instalada por apt para saciar el Setup de libdrm
 echo "-> [Docker Internal] Configurando receta para libdrm..."
-cat << EOL > cross_libdrm.txt
+cat << EOF > cross_libdrm.txt
 [binaries]
 c = '${NDK_BIN}/aarch64-linux-android26-clang'
 cpp = '${NDK_BIN}/aarch64-linux-android26-clang++'
 ar = '${NDK_BIN}/llvm-ar'
 strip = '${NDK_BIN}/llvm-strip'
+ninja = '/usr/bin/ninja'
 [host_machine]
 system = 'android'
 cpu_family = 'aarch64'
@@ -72,9 +78,9 @@ sys_root = '${NDK_SYSROOT}'
 c_args = ['--sysroot=${NDK_SYSROOT}', '-DANDROID', '-D_GNU_SOURCE']
 EOF
 
-python3 -m meson setup build-libdrm libdrm_android --cross-file cross_libdrm.txt --prefix="/workspace/shims_64" \
+$MESON_EXEC setup build-libdrm libdrm_android --cross-file cross_libdrm.txt --prefix="/workspace/shims_64" \
   -Dintel=disabled -Dradeon=disabled -Damdgpu=disabled -Dnouveau=disabled -Dman-pages=disabled -Dvalgrind=disabled -Dtests=false
-python3 -m meson install -C build-libdrm
+$MESON_EXEC install -C build-libdrm
 
 cp -rf shims_64/include/libdrm/* drm_shims_inc/include/libdrm/ 2>/dev/null || cp -rf shims_64/include/* drm_shims_inc/include/libdrm/ 2>/dev/null || true
 
@@ -88,6 +94,7 @@ if os.path.exists(p):
         f=open(p,"w"); f.write(c); f.close()
 '
 
+# 🟢 REPARACIÓN CRÍTICA SANITY: Amarramos el binario real de Ninja en el cross-file final de Mesa 25 para blindar la inicialización
 echo "-> [Docker Internal] Generando cross_64.txt definitivo para Mesa 25..."
 cat << EOL > cross_64.txt
 [constants]
@@ -99,6 +106,7 @@ cpp = '${NDK_BIN}/aarch64-linux-android26-clang++'
 ar = '${NDK_BIN}/llvm-ar'
 strip = '${NDK_BIN}/llvm-strip'
 pkg-config = '/usr/bin/pkg-config'
+ninja = '/usr/bin/ninja'
 [host_machine]
 system = 'android'
 cpu_family = 'aarch64'
@@ -115,15 +123,15 @@ c_args = ['--sysroot=${NDK_SYSROOT}', '-D__TERMUX__', '-I' + shims_path + '/incl
 cpp_args = ['--sysroot=${NDK_SYSROOT}', '-D__TERMUX__', '-I' + shims_path + '/include', '-I' + drm_inc + '/include', '-I' + drm_inc + '/include/libdrm']
 c_link_args = ['-L' + shims_path + '/lib', '-L${NDK_SYSROOT_LIB_64}', '-landroid', '-llog', '-ldl', '-lsync', '-lvulkan_wrapper', '-latomic']
 cpp_link_args = ['-L' + shims_path + '/lib', '-L${NDK_SYSROOT_LIB_64}', '-landroid', '-llog', '-ldl', '-lsync', '-lvulkan_wrapper', '-latomic']
-EOF
+EOL
 
 sed -i "s/cc.find_library('dl'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/cc.find_library('rt'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/cc.find_library('atomic'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/dependency('libclc')/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 
-python3 -m meson setup build-64 --cross-file cross_64.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=panfrost,wrapper
-python3 -m meson compile -C build-64
+$MESON_EXEC setup build-64 --cross-file cross_64.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=panfrost,wrapper
+$MESON_EXEC compile -C build-64
 EOF
 
 chmod +x docker_run_inside.sh
@@ -152,8 +160,8 @@ patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
 patchelf --set-soname libvulkan_panfrost.so pkg/usr/lib/aarch64-linux-android/libvulkan_panfrost.so
 patchelf --set-soname libdrm.so pkg/usr/lib/libdrm.so 2>/dev/null || true
 
-patchelf --add-needed libdrm.so pkg/usr/lib/aarch64-linux-android/libvulkan_panfrost.so 2>/dev/null || true
-patchelf --set-rpath '$ORIGIN' pkg/usr/lib/aarch64-linux-android/libvulkan_panfrost.so 2>/dev/null || true
+patchelf --add-needed libdrm.so pkg/usr/lib/libvulkan_panfrost.so 2>/dev/null || true
+patchelf --set-rpath '$ORIGIN' pkg/usr/lib/libvulkan_panfrost.so 2>/dev/null || true
 patchelf --add-needed libdrm.so pkg/usr/lib/libvulkan_wrapper.so 2>/dev/null || true
 patchelf --set-rpath '$ORIGIN' pkg/usr/lib/libvulkan_wrapper.so 2>/dev/null || true
 
@@ -175,6 +183,7 @@ cd pkg && tar -I "zstd -19 -T0" -cf "../wrapper.tzst" usr version.txt
 echo "-> 4. Purgando artefactos efímeros con privilegios de administración..."
 sudo rm -f docker_run_inside.sh
 sudo rm -rf drm_shims_inc/
+sudo rm -rf meson_src/
 
 echo "=========================================================="
 echo "🏆 ¡EMPAQUE MONOLÍTICO SEGURO REAL LOGRADO EN VERDE! 🏆"
