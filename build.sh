@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 INICIANDO ENLAZADOR MESA 25 CON ARQUITECTURA PURA RECALIBRADA"
+echo "🚀 INICIANDO ENLAZADOR MESA 25 CON LIBDRM FREEDESKTOP PURA"
 echo "=========================================================="
 
 echo "-> 1. Compilando el Interceptor oficial en Docker..."
@@ -30,19 +30,9 @@ mkdir -p "$(pwd)/shims_64"
 $NDK_BIN/aarch64-linux-android26-clang -c stub_logs.c -o stub_logs_64.o
 $NDK_BIN/llvm-ar rcs "$(pwd)/shims_64/libvulkan_wrapper.a" stub_logs_64.o
 
-echo "-> 2b. Activando repositorios de código fuente deb-src en formato deb822..."
-if [ -f /etc/apt/sources.list.d/ubuntu.sources ]; then
-    sudo sed -i 's/Types: deb/Types: deb deb-src/g' /etc/apt/sources.list.d/ubuntu.sources
-fi
-sudo apt-get update
-
-# Descargamos el código fuente legítimo de libdrm en un directorio limpio
-mkdir -p libdrm_android
-cd libdrm_android
-apt-get source libdrm
-# Movemos los archivos extraídos por la herramienta desde su subcarpeta hacia la raíz de compilación
-mv -v libdrm-*/* . 2>/dev/null || true
-cd ..
+# 🟢 JUGADA MAESTRA: Clonamos el repositorio exacto de tu enlace en una sola línea limpia e inmune a fallas
+echo "-> 2b. Descargando repositorio legítimo de libdrm Freedesktop..."
+git clone --depth=1 https://freedesktop.org libdrm_android
 
 # Receta de compilación cruzada nativa móvil con los macros atómicos legítimos
 cat << EOF > cross_libdrm.txt
@@ -62,9 +52,9 @@ sys_root = '${NDK_SYSROOT}'
 c_args = ['--sysroot=${NDK_SYSROOT}', '-DANDROID', '-D_GNU_SOURCE', '-DBIONIC_IOCTL_NO_SIGNEDNESS_OVERLOAD=1', '-DHAVE_LIBDRM_ATOMIC_PRIMITIVES=1']
 EOF
 
-# 🟢 CORRECCIÓN SUPREMA FLAG: Cambiado -Dmanpages=disabled por -Dman-pages=disabled conforme exige la receta nativa de Ubuntu
+# Compilamos la librería real apagando de forma estricta los controladores de PC obsoletos
 meson setup build-libdrm libdrm_android --cross-file cross_libdrm.txt --prefix="$(pwd)/shims_64" \
-  -Dintel=disabled -Dradeon=disabled -Damdgpu=disabled -Dnouveau=disabled -Dvmwgfx=disabled -Domap=disabled -Dexynos=disabled -Dtegra=disabled -Dvc4=disabled -Detnaviv=disabled -Dman-pages=disabled -Dvalgrind=disabled -Dtests=disabled
+  -Dintel=disabled -Dradeon=disabled -Damdgpu=disabled -Dnouveau=disabled -Dvmwgfx=disabled -Domap=disabled -Dexynos=disabled -Dtegra=disabled -Dvc4=disabled -Detnaviv=disabled -Dmanpages=disabled -Dvalgrind=disabled -Dtests=disabled
 meson install -C build-libdrm
 
 # Enlazamos las cabeceras originales directamente en las rutas de Mesa para que Clang las lea de golpe
