@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 INICIANDO ENLAZADOR MESA 25 CON UNZIP INDESTRUCTIBLE"
+echo "🚀 INICIANDO ENLAZADOR MESA 25 CON APT-SOURCE LEGÍTIMO"
 echo "=========================================================="
 
 echo "-> 1. Compilando el Interceptor oficial en Docker..."
@@ -30,14 +30,17 @@ mkdir -p "$(pwd)/shims_64"
 $NDK_BIN/aarch64-linux-android26-clang -c stub_logs.c -o stub_logs_64.o
 $NDK_BIN/llvm-ar rcs "$(pwd)/shims_64/libvulkan_wrapper.a" stub_logs_64.o
 
-# 🟢 CORRECCIÓN SUPREMA DE EXTRACCIÓN: Descargamos y extraemos vía Unzip nativo para esquivar el formato corrupto
-echo "-> 2b. Descargando código legítimo de libdrm Distrotech vía Zipball..."
-curl -L https://github.com -o libdrm.zip
-unzip -q libdrm.zip
-mv -v libdrm-distrotech-libdrm libdrm_android
-rm -f libdrm.zip
+# 🟢 JAQUE MATE SUPREMO A LOS ENLACES CORRUPTOS: Jalamos el código fuente legítimo desde los repositorios de Ubuntu
+echo "-> 2b. Descargando código fuente legítimo de libdrm vía APT nativo..."
+sudo apt-get update-minimal || sudo apt-get update
+mkdir -p libdrm_android
+cd libdrm_android
+apt-get source libdrm || apt-get source libdrm2
+# Entramos a la carpeta descomprimida automáticamente por APT y movemos el contenido al directorio raíz
+mv -v libdrm-*/* . 2>/dev/null || true
+cd ..
 
-# Receta de compilación cruzada nativa móvil con los macros atómicos legítimos de Distrotech
+# Receta de compilación cruzada nativa móvil con los macros atómicos legítimos
 cat << EOF > cross_libdrm.txt
 [binaries]
 c       = '${NDK_BIN}/aarch64-linux-android26-clang'
@@ -126,7 +129,7 @@ meson setup build-64 --cross-file cross_64.txt --wrap-mode=nodownload \
   -Dvulkan-layers=[]
 meson compile -C build-64
 
-echo "-> 5. Maquetando empaque unificado de integración reglamentaria..."
+echo "-> 5. Maquetando empaque compatible de Bannerlator..."
 rm -rf pkg
 mkdir -p pkg/usr/lib/aarch64-linux-android
 mkdir -p pkg/usr/share/vulkan/icd.d
