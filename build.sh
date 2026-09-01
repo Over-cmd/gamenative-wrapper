@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 INICIANDO ENLAZADOR MESA 25 CON ADAPTACIÓN DEB822 REAL"
+echo "🚀 INICIANDO ENLAZADOR MESA 25 CON ARQUITECTURA PURA RECALIBRADA"
 echo "=========================================================="
 
 echo "-> 1. Compilando el Interceptor oficial en Docker..."
@@ -30,7 +30,6 @@ mkdir -p "$(pwd)/shims_64"
 $NDK_BIN/aarch64-linux-android26-clang -c stub_logs.c -o stub_logs_64.o
 $NDK_BIN/llvm-ar rcs "$(pwd)/shims_64/libvulkan_wrapper.a" stub_logs_64.o
 
-# 🟢 JAQUE MATE AL REPOSITORIO DEB822: Habilitamos las fuentes nativas de Ubuntu 24.04 (Noble) modificando su estructura oficial
 echo "-> 2b. Activando repositorios de código fuente deb-src en formato deb822..."
 if [ -f /etc/apt/sources.list.d/ubuntu.sources ]; then
     sudo sed -i 's/Types: deb/Types: deb deb-src/g' /etc/apt/sources.list.d/ubuntu.sources
@@ -63,9 +62,9 @@ sys_root = '${NDK_SYSROOT}'
 c_args = ['--sysroot=${NDK_SYSROOT}', '-DANDROID', '-D_GNU_SOURCE', '-DBIONIC_IOCTL_NO_SIGNEDNESS_OVERLOAD=1', '-DHAVE_LIBDRM_ATOMIC_PRIMITIVES=1']
 EOF
 
-# Compilamos la librería real apagando de forma estricta los controladores de PC obsoletos
+# 🟢 CORRECCIÓN SUPREMA FLAG: Cambiado -Dmanpages=disabled por -Dman-pages=disabled conforme exige la receta nativa de Ubuntu
 meson setup build-libdrm libdrm_android --cross-file cross_libdrm.txt --prefix="$(pwd)/shims_64" \
-  -Dintel=disabled -Dradeon=disabled -Damdgpu=disabled -Dnouveau=disabled -Dvmwgfx=disabled -Domap=disabled -Dexynos=disabled -Dtegra=disabled -Dvc4=disabled -Detnaviv=disabled -Dmanpages=disabled -Dvalgrind=disabled -Dtests=disabled
+  -Dintel=disabled -Dradeon=disabled -Damdgpu=disabled -Dnouveau=disabled -Dvmwgfx=disabled -Domap=disabled -Dexynos=disabled -Dtegra=disabled -Dvc4=disabled -Detnaviv=disabled -Dman-pages=disabled -Dvalgrind=disabled -Dtests=disabled
 meson install -C build-libdrm
 
 # Enlazamos las cabeceras originales directamente en las rutas de Mesa para que Clang las lea de golpe
@@ -134,7 +133,7 @@ meson setup build-64 --cross-file cross_64.txt --wrap-mode=nodownload \
   -Dvulkan-layers=[]
 meson compile -C build-64
 
-echo "-> 5. Maquetando empaque compatible de Bannerlator..."
+echo "-> 5. Maquetando empaque unificado de integración reglamentaria..."
 rm -rf pkg
 mkdir -p pkg/usr/lib/aarch64-linux-android
 mkdir -p pkg/usr/share/vulkan/icd.d
