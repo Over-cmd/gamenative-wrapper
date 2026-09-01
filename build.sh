@@ -32,7 +32,7 @@ $NDK_BIN/llvm-ar rcs "$(pwd)/shims_64/libvulkan_wrapper.a" stub_logs_64.o
 
 # 🟢 REPARACIÓN SUPREMA URL: Usamos la URL real de descarga de un tag específico que entrega código C legítimo, no HTML
 echo "-> 2b. Descargando código legítimo de libdrm SailfishOS vía Zipball Real..."
-curl -L https://github.com -o libdrm.zip
+curl -L https://github.com/sailfishos-mirror/drm/ -o libdrm.zip
 unzip -q libdrm.zip
 # Como bajamos el tag 2.4.122, la carpeta se genera como drm-2.4.122 conforme a tu corrección
 mv -v drm-2.4.122 libdrm_android
