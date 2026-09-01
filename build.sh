@@ -23,9 +23,9 @@ mkdir -p drm_shims_inc/include/libdrm
 echo "-> [Docker Internal] Instalando herramientas de compilación..."
 pip3 install --no-cache-dir --break-system-packages meson ninja mako packaging || pip3 install --no-cache-dir meson ninja mako packaging || true
 
-# Capturamos la base de usuario real de Python de forma dinámica para blindar el entorno ante PEP 668
+# 🟢 CORRECCIÓN SUPREMA DE INFRAESTRUCTURA: Escapamos \$PATH con barra invertida para que se expanda dentro del contenedor y no en el host
 PYTHON_USER_BASE=$(python3 -m site --user-base 2>/dev/null || echo "/root/.local")
-export PATH="${PYTHON_USER_BASE}/bin:/usr/local/bin:/usr/bin:${PATH}"
+export PATH="${PYTHON_USER_BASE}/bin:/usr/local/bin:/usr/bin:\$PATH"
 
 export ANDROID_NDK_HOME="/usr/local/lib/android/sdk/ndk/28.2.13676358"
 export NDK_BIN="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin"
@@ -113,7 +113,6 @@ sys_root = '${NDK_SYSROOT}'
 libdir = '${NDK_SYSROOT_LIB_64}'
 pkg_config_path = shims_path + '/lib/pkgconfig'
 pkg_config_libdir = shims_path + '/lib/pkgconfig'
-# 🟢 CORRECCIÓN SUPREMA DE INCLUSIÓN DUAL: Inyectamos la raíz y la subcarpeta directa para saciar tanto llamadas planas como estructuradas
 [built-in options]
 c_args = ['--sysroot=${NDK_SYSROOT}', '-D__TERMUX__', '-I' + shims_path + '/include', '-I' + drm_inc + '/include', '-I' + drm_inc + '/include/libdrm']
 cpp_args = ['--sysroot=${NDK_SYSROOT}', '-D__TERMUX__', '-I' + shims_path + '/include', '-I' + drm_inc + '/include', '-I' + drm_inc + '/include/libdrm']
