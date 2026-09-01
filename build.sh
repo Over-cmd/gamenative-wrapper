@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 INICIANDO ENLAZADOR MESA 25 - HÍBRIDO PLANO RECALIBRADO"
+echo "🚀 INICIANDO COMPILACIÓN NATIVA REGLAMENTARIA DE BANNERLATOR"
 echo "=========================================================="
 
 echo "-> 1. Compilando el Interceptor oficial en Docker..."
@@ -13,39 +13,37 @@ export ANDROID_NDK_HOME="/usr/local/lib/android/sdk/ndk/28.2.13676358"
 export NDK_BIN="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin"
 export NDK_SYSROOT="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
 
-# Se inyectan los símbolos del Linker ld.lld para panvk y csf
+# Limpiamos los archivos modificados para dejar el árbol en su estado puro oficial
+git checkout src/vulkan/runtime/vk_instance.c 2>/dev/null || true
+git checkout src/vulkan/wsi/wsi_common_drm.c 2>/dev/null || true
+git checkout src/panfrost/lib/kmod/pan_kmod.c 2>/dev/null || true
+git checkout src/panfrost/lib/kmod/panfrost_kmod.c 2>/dev/null || true
+git checkout src/panfrost/lib/kmod/panthor_kmod.c 2>/dev/null || true
+git checkout src/panfrost/vulkan/jm/panvk_queue.h 2>/dev/null || true
+git checkout src/vulkan/wrapper/wrapper_log.c 2>/dev/null || true
+
+# Fabricamos el stub biónico mínimo de logs que ld.lld exige resolver en el wrapper
 cat << 'EOF' > stub_logs.c
-#include <stdint.h>
 int get_wrapper_log_level(const char *option) { (void)option; return 0; }
 void write_to_logfile(const char *fmt, const char *level, ...) { (void)fmt; (void)level; }
-uint32_t panthor_kmod_get_flush_id(void *dev) { (void)dev; return 0; }
-void vk_drm_syncobj_finish(void *device) { (void)device; }
-void *vk_drm_syncobj_get_type(void) { return (void*)0; }
 EOF
 
 mkdir -p "$(pwd)/shims_64"
 $NDK_BIN/aarch64-linux-android26-clang -c stub_logs.c -o stub_logs_64.o
 $NDK_BIN/llvm-ar rcs "$(pwd)/shims_64/libvulkan_wrapper.a" stub_logs_64.o
 
-echo "-> 2b. Levantando archivos DRM mudos para esquivar dependencias..."
-echo " " > src/vulkan/runtime/vk_drm_syncobj.c
-mkdir -p src/util && echo " " > src/util/libdrm.h
-
-echo "-> 2c. Ejecutando parches quirúrgicos desde patch_mesa.sh..."
-chmod +x patch_mesa.sh
-./patch_mesa.sh
-
 NDK_SYSROOT_LIB_64="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/26"
 
+# 🟢 CONFIGURACIÓN REGLAMENTARIA: Inyectamos el pkg-config local apuntando a los recursos de adrenotools
 cat << EOF > $(pwd)/shims_64/libdrm.pc
 Name: libdrm
 Description: Userspace interface to kernel DRM services
 Version: 2.4.120
 Libs: -L$(pwd)/shims_64 -lvulkan_wrapper
-Cflags: -I$(pwd)/shims_64 -I$(pwd)/include
+Cflags: -I.
 EOF
 
-echo "-> 3. Generando cross_64.txt..."
+echo "-> 3. Generando cross_64.txt con flags de compatibilidad biónica..."
 cat << EOF > cross_64.txt
 [constants]
 ndk_path = '${ANDROID_NDK_HOME}'
@@ -69,49 +67,54 @@ libdir = '${NDK_SYSROOT_LIB_64}'
 pkg_config_path = '$(pwd)/shims_64'
 pkg_config_libdir = '$(pwd)/shims_64'
 [built-in options]
-c_args = ['--sysroot=' + '${NDK_SYSROOT}', '-D__TERMUX__', '-I$(pwd)/shims_64']
-cpp_args = ['--sysroot=' + '${NDK_SYSROOT}', '-D__TERMUX__', '-I$(pwd)/shims_64']
+c_args = ['--sysroot=' + '${NDK_SYSROOT}', '-D__TERMUX__']
+cpp_args = ['--sysroot=' + '${NDK_SYSROOT}', '-D__TERMUX__']
 c_link_args = ['-landroid', '-llog', '-lsync', '-lvulkan_wrapper', '-L${NDK_SYSROOT_LIB_64}', '-L$(pwd)/shims_64']
 cpp_link_args = ['-landroid', '-llog', '-lsync', '-lvulkan_wrapper', '-L${NDK_SYSROOT_LIB_64}', '-L$(pwd)/shims_64']
 EOF
 
+# Parches rápidos sobre meson.build para saltarnos librerías de escritorio ausentes en móviles
 sed -i "s/cc.find_library('dl'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/cc.find_library('rt'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/dependency('libclc')/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/dep_libclc = .*/dep_libclc = dependency('', required : false)/g" meson.build 2>/dev/null || true
 
-echo "-> 4. Compilando Panfrost con el Wrapper de Adrenotools..."
-meson setup build-64 --cross-file cross_64.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dandroid-stub=true -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=panfrost,wrapper
+# 🟢 COMPILACIÓN OFICIAL DE BANNERLATOR: Desactivamos módulos DRM obsoletos desde las flags de Meson
+echo "-> 4. Compilando la pila oficial de Panfrost para Android..."
+meson setup build-64 --cross-file cross_64.txt --wrap-mode=nodownload \
+  -Dbuildtype=release \
+  -Dplatforms=android \
+  -Dandroid-stub=true \
+  -Dglx=disabled \
+  -Dgbm=disabled \
+  -Degl=disabled \
+  -Dllvm=disabled \
+  -Dgallium-drivers=[] \
+  -Dvulkan-drivers=panfrost,wrapper \
+  -Dgallium-vulkan-overlay=disabled \
+  -Dvulkan-layers=[]
 meson compile -C build-64
 
-# 🟢 FASE 5: REESTRUCTURACIÓN CON ACCESOS DIRECTOS SIN PERDER TU VISTA PLANA
-echo "-> 5. Maquetando empaque compatible ICD plano..."
+# 🟢 MAQUETADO DE INTEGRACIÓN REGLAMENTARIA (Estructura de Carpetas Oficiales de Bannerlator)
+echo "-> 5. Maquetando empaque unificado compatible con la app..."
 rm -rf pkg
-mkdir -p pkg/usr/lib
+mkdir -p pkg/usr/lib/aarch64-linux-android
 mkdir -p pkg/usr/share/vulkan/icd.d
 
-# 1. Colocamos los dos binarios sueltos directamente en la raíz de usr/lib
+# Colocamos el interceptor en la raíz de la arquitectura biónica
 cp -v compilacion/libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
-cp -v build-64/src/panfrost/vulkan/libvulkan_panfrost.so pkg/usr/lib/libvulkan_panfrost.so
+# Colocamos el driver físico real de Panfrost dentro de su ranura correspondiente
+cp -v build-64/src/panfrost/vulkan/libvulkan_panfrost.so pkg/usr/lib/aarch64-linux-android/libvulkan_wrapper.so
 
-# 2. Creamos las subcarpetas fantasmas que exige el interceptor oficial para no quedarse a ciegas
-mkdir -p pkg/usr/lib/aarch64-linux-android
-mkdir -p pkg/usr/lib/arm-linux-androideabi
-
-# 3. TRUCO MAESTRO: Creamos enlaces simbólicos relativos. Si el interceptor busca adentro, salta de inmediato al archivo plano suelto de afuera
-cd pkg/usr/lib/aarch64-linux-android && ln -sf ../libvulkan_panfrost.so libvulkan_wrapper.so
-cd ../arm-linux-androideabi && ln -sf ../libvulkan_wrapper.so libvulkan_wrapper.so
-cd ../../../..
-
-# Sello de firmas SONAME
+# Firmamos el SONAME dinámico interno de los binarios
 patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
-patchelf --set-soname libvulkan_panfrost.so pkg/usr/lib/libvulkan_panfrost.so
+patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/aarch64-linux-android/libvulkan_wrapper.so
 
-# Limpieza estricta de trazas pesadas
+# Aplicamos strip definitivo para optimizar espacio en el teléfono
 $NDK_BIN/llvm-strip --strip-unneeded pkg/usr/lib/libvulkan_wrapper.so 2>/dev/null || true
-$NDK_BIN/llvm-strip --strip-unneeded pkg/usr/lib/libvulkan_panfrost.so 2>/dev/null || true
+$NDK_BIN/llvm-strip --strip-unneeded pkg/usr/lib/aarch64-linux-android/*.so 2>/dev/null || true
 
-# Escribimos tu manifiesto ICD exactamente con la sintaxis plana solicitada
+# Escribimos el manifiesto ICD oficial con la ruta esperada por Bannerlator
 cat << 'EOF' > pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
 {
     "ICD": {
@@ -126,5 +129,5 @@ echo "msf:315508" > pkg/version.txt && chmod -R 755 pkg/
 cd pkg && tar -I "zstd -19 -T0" -cf "../wrapper.tzst" usr version.txt
 
 echo "=========================================================="
-echo "Ref: 778/778 - CONEXIÓN POR REDIRECCIÓN RELATIVA COMPLETADA"
+echo "🟢 ¡FAT PACK INTEGRAL REGLAMENTARIO COMPLETADO CON ÉXITO!"
 echo "=========================================================="
