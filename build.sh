@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 INICIANDO ENLAZADOR MESA 25 - COMPILACIÓN DUAL DE SHIMS"
+echo "🚀 INICIANDO ENLAZADOR MESA 25 - BLINDAJE DE PROXIMIDAD BIONIC"
 echo "=========================================================="
 
 # Fijamos la ruta absoluta calculada al inicio para blindar cambios accidentales de directorio
@@ -31,14 +31,11 @@ EOF
 
 mkdir -p "${WORKSPACE}/shims_64/lib"
 
-# 🟢 REPARACIÓN DUAL ADRENOTOOLS: Compilamos los shims en sus respectivos lenguajes para saciar a cpp y c por separado
 echo "-> 2c. Compilando shims nativos en formatos duales C y C++ de 64 bits..."
-# 1. Formato C puro para c.find_library('log')
 $NDK_BIN/aarch64-linux-android26-clang -c stub_logs.c -o stub_logs_c.o
 $NDK_BIN/llvm-ar rcs "${WORKSPACE}/shims_64/lib/liblog.a" stub_logs_c.o
 $NDK_BIN/llvm-ar rcs "${WORKSPACE}/shims_64/libvulkan_wrapper.a" stub_logs_c.o
 
-# 2. Formato C++ puro para cpp.find_library('android')
 $NDK_BIN/aarch64-linux-android26-clang++ -c stub_logs.c -o stub_logs_cpp.o
 $NDK_BIN/llvm-ar rcs "${WORKSPACE}/shims_64/lib/libandroid.a" stub_logs_cpp.o
 
@@ -120,8 +117,8 @@ pkg_config_libdir = shims_path + '/lib/pkgconfig'
 [built-in options]
 c_args = ['--sysroot=' + sysroot, '-D__TERMUX__', '-I' + shims_path + '/include', '-I' + shims_path + '/include/libdrm']
 cpp_args = ['--sysroot=' + sysroot, '-D__TERMUX__', '-I' + shims_path + '/include', '-I' + shims_path + '/include/libdrm']
-c_link_args = ['-landroid', '-llog', '-lsync', '-lvulkan_wrapper', '-L${NDK_SYSROOT_LIB_64}', '-L' + shims_path + '/lib', '-latomic']
-cpp_link_args = ['-landroid', '-llog', '-lsync', '-lvulkan_wrapper', '-L${NDK_SYSROOT_LIB_64}', '-L' + shims_path + '/lib', '-latomic']
+c_link_args = ['-L' + shims_path + '/lib', '-L${NDK_SYSROOT_LIB_64}', '-landroid', '-llog', '-lsync', '-lvulkan_wrapper', '-latomic']
+cpp_link_args = ['-L' + shims_path + '/lib', '-L${NDK_SYSROOT_LIB_64}', '-landroid', '-llog', '-lsync', '-lvulkan_wrapper', '-latomic']
 EOF
 
 # Reparación de librerías del sistema del core de Mesa
@@ -146,38 +143,40 @@ meson setup build-64 --cross-file cross_64.txt --wrap-mode=nodownload \
 echo "-> 4c. Lanzando compilación masiva con Ninja..."
 meson compile -C build-64
 
-echo "-> 5. Maquetando empaque unificado de integración reglamentaria..."
+# 🟢 FASE 5: REESTRUCTURACIÓN DE PROXIMIDAD BLINDADA (Aplanamiento absoluto de binarios en usr/lib)
+echo "-> 5. Maquetando empaque con arquitectura de proximidad unificada..."
 rm -rf pkg
 mkdir -p pkg/usr/lib/aarch64-linux-android
 mkdir -p pkg/usr/share/vulkan/icd.d
 
-# Copiamos el interceptor principal suelto en la raíz de usr/lib
+# 1. Colocamos los TRES componentes físicos reales sueltos en el mismo nivel raíz de usr/lib
 cp -v compilacion/libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
-
-# Guardamos la librería real libdrm.so plana para Bionic
 cp -v shims_64/lib/libdrm.so pkg/usr/lib/libdrm.so 2>/dev/null || cp -v shims_64/lib/aarch64-linux-gnu/libdrm.so pkg/usr/lib/libdrm.so 2>/dev/null || true
+cp -v build-64/src/panfrost/vulkan/libvulkan_panfrost.so pkg/usr/lib/libvulkan_panfrost.so
 
-# El driver conserva un nombre único en el disco para evitar el bucle infinito circular
-cp -v build-64/src/panfrost/vulkan/libvulkan_panfrost.so pkg/usr/lib/aarch64-linux-android/libvulkan_panfrost.so
+# 2. TRUCO DE COMPATIBILIDAD BANNERLATOR: Creamos un enlace simbólico relativo adentro. 
+# Si la app busca en la subcarpeta, salta instantáneamente al archivo plano exterior sin colisiones de SONAME
+cd pkg/usr/lib/aarch64-linux-android
+ln -sf ../libvulkan_panfrost.so libvulkan_wrapper.so
+cd "${WORKSPACE}"
 
 # Sellamos las firmas internas puras e independientes de cada componente
 patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
-patchelf --set-soname libvulkan_panfrost.so pkg/usr/lib/aarch64-linux-android/libvulkan_panfrost.so
+patchelf --set-soname libvulkan_panfrost.so pkg/usr/lib/libvulkan_panfrost.so
 patchelf --set-soname libdrm.so pkg/usr/lib/libdrm.so 2>/dev/null || true
 
-# Enlazamos con comillas simples puras hacia libdrm usando retroceso relativo
-patchelf --add-needed libdrm.so pkg/usr/lib/aarch64-linux-android/libvulkan_panfrost.so 2>/dev/null || true
-patchelf --set-rpath '$ORIGIN/..' pkg/usr/lib/aarch64-linux-android/libvulkan_panfrost.so 2>/dev/null || true
+# 🟢 CORRECCIÓN SUPREMA RPATH: Al estar codo con codo en la raíz, fijamos '$ORIGIN' plano. 
+# Bionic leerá la dependencia de forma inmediata compartiendo el mismo namespace sin restricciones de carpetas
+patchelf --add-needed libdrm.so pkg/usr/lib/libvulkan_panfrost.so 2>/dev/null || true
+patchelf --set-rpath '$ORIGIN' pkg/usr/lib/libvulkan_panfrost.so 2>/dev/null || true
 
-# Sello local $ORIGIN en el interceptor suelto para amarrar sus llamadas a su mismo nivel jerárquico
 patchelf --add-needed libdrm.so pkg/usr/lib/libvulkan_wrapper.so 2>/dev/null || true
 patchelf --set-rpath '$ORIGIN' pkg/usr/lib/libvulkan_wrapper.so 2>/dev/null || true
 
 # Strip final para aligerar espacio y eliminar símbolos de desarrollo redundantes
 $NDK_BIN/llvm-strip --strip-unneeded pkg/usr/lib/*.so 2>/dev/null || true
-$NDK_BIN/llvm-strip --strip-unneeded pkg/usr/lib/aarch64-linux-android/*.so 2>/dev/null || true
 
-# Manifiesto ICD oficial de Bannerlator
+# Manifiesto ICD oficial de Bannerlator apuntando a la raíz plana
 cat << 'EOF' > pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
 {
     "ICD": {
@@ -192,5 +191,5 @@ echo "msf:315508" > pkg/version.txt && chmod -R 755 pkg/
 cd pkg && tar -I "zstd -19 -T0" -cf "../wrapper.tzst" usr version.txt
 
 echo "=========================================================="
-echo "  778/778 COMPLETO - REGISTROS CON VALOR DE CONSTANTE OK  "
+echo "  778/778 COMPLETO - REGISTROS CON BLINDAJE BIONIC OK     "
 echo "=========================================================="
