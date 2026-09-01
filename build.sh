@@ -11,20 +11,16 @@ WORKSPACE="$(pwd)"
 chmod +x patch_mesa.sh
 ./patch_mesa.sh
 
-# 🟢 JUGADA MAESTRA INDESTRUCTIBLE: Escribimos la receta entera en un script plano independiente
+# Escribimos la receta entera de Docker en un script plano e independiente para evitar la rotura de comillas anidadas
 cat << 'EOF' > docker_run_inside.sh
 #!/bin/bash
 set -e
 
-# Exportamos las variables globales para que estén disponibles en todo el sub-entorno
 export ANDROID_NDK_HOME="/usr/local/lib/android/sdk/ndk/28.2.13676358"
 export NDK_BIN="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin"
 export NDK_SYSROOT="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
-export NDK_SYSROOT_LIB_64="${NDK_SYSROOT}/usr/lib/aarch64-linux-android/26"
-export NDK_LLVM_LIB="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/lib/clang/19/lib/linux/aarch64"
-
-# 🛡️ FIX: Asegurar que existan las estructuras de directorios de shims antes de compilar
-mkdir -p shims_64/lib
+NDK_SYSROOT_LIB_64="${NDK_SYSROOT}/usr/lib/aarch64-linux-android/26"
+NDK_LLVM_LIB="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/lib/clang/19/lib/linux/aarch64"
 
 if [ ! -d "$NDK_LLVM_LIB" ]; then
     NDK_LLVM_LIB=$(find ${ANDROID_NDK_HOME} -name "aarch64" -type d | grep "lib/linux" | head -n 1 || echo "")
@@ -40,15 +36,14 @@ $NDK_BIN/llvm-ar rcs shims_64/lib/libandroid.a stub_cpp.o
 $NDK_BIN/llvm-ar rcs shims_64/lib/libdl.a stub_cpp.o
 
 echo "-> [Docker Internal] INSTALACIÓN REAL: Colocando ficheros en los Sysroots..."
-# Intentamos escribir, si da error de permisos avisamos pero permitimos continuar si ya existen
-cp -fv shims_64/lib/libandroid.a "$NDK_SYSROOT_LIB_64/libandroid.a" || echo "⚠️ Alerta: No se pudo escribir en Sysroot (¿Read-only?). Continuando..."
-cp -fv shims_64/lib/liblog.a "$NDK_SYSROOT_LIB_64/liblog.a" || true
-cp -fv shims_64/lib/libdl.a "$NDK_SYSROOT_LIB_64/libdl.a" || true
+cp -fv shims_64/lib/libandroid.a "$NDK_SYSROOT_LIB_64/libandroid.a"
+cp -fv shims_64/lib/liblog.a "$NDK_SYSROOT_LIB_64/liblog.a"
+cp -fv shims_64/lib/libdl.a "$NDK_SYSROOT_LIB_64/libdl.a"
 
 if [ -n "$NDK_LLVM_LIB" ] && [ -d "$NDK_LLVM_LIB" ]; then
-    cp -fv shims_64/lib/libandroid.a "$NDK_LLVM_LIB/libandroid.a" || true
-    cp -fv shims_64/lib/liblog.a "$NDK_LLVM_LIB/liblog.a" || true
-    cp -fv shims_64/lib/libdl.a "$NDK_LLVM_LIB/libdl.a" || true
+    cp -fv shims_64/lib/libandroid.a "$NDK_LLVM_LIB/libandroid.a"
+    cp -fv shims_64/lib/liblog.a "$NDK_LLVM_LIB/liblog.a"
+    cp -fv shims_64/lib/libdl.a "$NDK_LLVM_LIB/libdl.a"
 fi
 
 echo "-> [Docker Internal] Configurando receta para libdrm..."
@@ -67,15 +62,14 @@ endian = 'little'
 sys_root = '${NDK_SYSROOT}'
 [built-in options]
 c_args = ['--sysroot=${NDK_SYSROOT}', '-DANDROID', '-D_GNU_SOURCE']
-EOL
-
-# Limpieza preventiva de compilaciones previas si existen en la caché del volumen
-rm -rf build-libdrm build-64
+EOF
 
 meson setup build-libdrm libdrm_android --cross-file cross_libdrm.txt --prefix="/workspace/shims_64" -Dintel=disabled -Dradeon=disabled -Damdgpu=disabled -Dnouveau=disabled -Dman-pages=disabled -Dvalgrind=disabled -Dtests=false
 meson install -C build-libdrm
-mkdir -p include/libdrm
-cp -rf shims_64/include/libdrm/* include/ 2>/dev/null || cp -rf shims_64/include/* include/
+
+# 🟢 REPARACIÓN CRÍTICA PASO 2283: Almacenamos las cabeceras en un directorio aislado exclusivo para no pisar la carpeta include/ nativa de Mesa
+mkdir -p /workspace/drm_shims_inc/libdrm
+cp -rf /workspace/shims_64/include/libdrm/* /workspace/drm_shims_inc/libdrm/ 2>/dev/null || cp -rf /workspace/shims_64/include/* /workspace/drm_shims_inc/libdrm/ 2>/dev/null || true
 
 python3 -c '
 p="src/vulkan/wrapper/wrapper_log.c"
@@ -91,6 +85,7 @@ echo "-> [Docker Internal] Generando cross_64.txt definitivo para Mesa 25..."
 cat << EOL > cross_64.txt
 [constants]
 shims_path = '/workspace/shims_64'
+drm_inc = '/workspace/drm_shims_inc'
 [binaries]
 c = '${NDK_BIN}/aarch64-linux-android26-clang'
 cpp = '${NDK_BIN}/aarch64-linux-android26-clang++'
@@ -109,8 +104,8 @@ libdir = '${NDK_SYSROOT_LIB_64}'
 pkg_config_path = shims_path + '/lib/pkgconfig'
 pkg_config_libdir = shims_path + '/lib/pkgconfig'
 [built-in options]
-c_args = ['--sysroot=${NDK_SYSROOT}', '-D__TERMUX__', '-I' + shims_path + '/include']
-cpp_args = ['--sysroot=${NDK_SYSROOT}', '-D__TERMUX__', '-I' + shims_path + '/include']
+c_args = ['--sysroot=${NDK_SYSROOT}', '-D__TERMUX__', '-I' + shims_path + '/include', '-I' + drm_inc]
+cpp_args = ['--sysroot=${NDK_SYSROOT}', '-D__TERMUX__', '-I' + shims_path + '/include', '-I' + drm_inc]
 c_link_args = ['-L' + shims_path + '/lib', '-L${NDK_SYSROOT_LIB_64}', '-landroid', '-llog', '-ldl', '-lsync', '-lvulkan_wrapper', '-latomic']
 cpp_link_args = ['-L' + shims_path + '/lib', '-L${NDK_SYSROOT_LIB_64}', '-landroid', '-llog', '-ldl', '-lsync', '-lvulkan_wrapper', '-latomic']
 EOL
@@ -126,12 +121,11 @@ EOF
 
 chmod +x docker_run_inside.sh
 
-# 🟢 INVOCACIÓN ATÓMICA: Mandamos el script al contenedor pasando el UID actual para evitar problemas de permisos de root en el host
+# Invocación atómica directa al contenedor sin escapes traicioneros
 echo "-> 2. Lanzando entorno biónico aislado en Docker..."
 docker run --rm --entrypoint /bin/bash \
-  --user "$(id -u):$(id -g)" \
   -v "${WORKSPACE}:/workspace" \
-  -v "/usr/local/lib/android:/usr/local/lib/android:ro" \
+  -v "/usr/local/lib/android:/usr/local/lib/android" \
   -w /workspace ghcr.io/leegao/mesa-wrapper-ci/wrapper-compiler:latest ./docker_run_inside.sh
 
 # 3. Maquetando empaque de proximidad biónica unificado en el Host de Actions
@@ -147,9 +141,8 @@ cd pkg/usr/lib/aarch64-linux-android
 ln -sf ../libvulkan_panfrost.so libvulkan_wrapper.so
 cd "${WORKSPACE}"
 
-# Modificaciones binarias con patchelf de forma segura
-patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so 2>/dev/null || true
-patchelf --set-soname libvulkan_panfrost.so pkg/usr/lib/aarch64-linux-android/libvulkan_panfrost.so 2>/dev/null || true
+patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
+patchelf --set-soname libvulkan_panfrost.so pkg/usr/lib/aarch64-linux-android/libvulkan_panfrost.so
 patchelf --set-soname libdrm.so pkg/usr/lib/libdrm.so 2>/dev/null || true
 
 patchelf --add-needed libdrm.so pkg/usr/lib/libvulkan_panfrost.so 2>/dev/null || true
@@ -159,7 +152,6 @@ patchelf --set-rpath '$ORIGIN' pkg/usr/lib/libvulkan_wrapper.so 2>/dev/null || t
 
 STRIP_HOST="/usr/local/lib/android/sdk/ndk/28.2.13676358/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip"
 $STRIP_HOST --strip-unneeded pkg/usr/lib/*.so 2>/dev/null || true
-$STRIP_HOST --strip-unneeded pkg/usr/lib/aarch64-linux-android/*.so 2>/dev/null || true
 
 cat << 'EOF' > pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
 {
@@ -168,12 +160,12 @@ cat << 'EOF' > pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
 }
 EOF
 
-echo "msf:315508" > pkg/version.txt 
-chmod -R 755 pkg/
+echo "msf:315508" > pkg/version.txt && chmod -R 755 pkg/
 cd pkg && tar -I "zstd -19 -T0" -cf "../wrapper.tzst" usr version.txt
 
-# Limpiamos el ejecutable temporal
-rm -f "${WORKSPACE}/docker_run_inside.sh"
+# Limpiamos el ejecutable temporal y la carpeta de shims aislada
+rm -f docker_run_inside.sh
+rm -rf drm_shims_inc/
 
 echo "=========================================================="
 echo "🏆 ¡EMPAQUE MONOLÍTICO SEGURO REAL LOGRADO EN VERDE! 🏆"
