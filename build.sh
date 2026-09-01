@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 INICIANDO ENLAZADOR MESA 25 CON LIBDRM FREEDESKTOP PURA"
+echo "🚀 INICIANDO ENLAZADOR MESA 25 CON DRIVER DE SAILFISHOS"
 echo "=========================================================="
 
 echo "-> 1. Compilando el Interceptor oficial en Docker..."
@@ -30,9 +30,9 @@ mkdir -p "$(pwd)/shims_64"
 $NDK_BIN/aarch64-linux-android26-clang -c stub_logs.c -o stub_logs_64.o
 $NDK_BIN/llvm-ar rcs "$(pwd)/shims_64/libvulkan_wrapper.a" stub_logs_64.o
 
-# 🟢 JUGADA MAESTRA: Clonamos el repositorio exacto de tu enlace en una sola línea limpia e inmune a fallas
-echo "-> 2b. Descargando repositorio legítimo de libdrm Freedesktop..."
-git clone --depth=1 https://freedesktop.org libdrm_android
+# 🟢 JUGADA MAESTRA INDESTRUCTIBLE: Clonamos el repositorio limpio del mirror de SailfishOS en una sola línea
+echo "-> 2b. Descargando repositorio legítimo de libdrm desde el Mirror oficial..."
+git clone --depth=1 https://github.com libdrm_android
 
 # Receta de compilación cruzada nativa móvil con los macros atómicos legítimos
 cat << EOF > cross_libdrm.txt
@@ -123,7 +123,7 @@ meson setup build-64 --cross-file cross_64.txt --wrap-mode=nodownload \
   -Dvulkan-layers=[]
 meson compile -C build-64
 
-echo "-> 5. Maquetando empaque unificado de integración reglamentaria..."
+echo "-> 5. Maquetando empaque compatible de Bannerlator..."
 rm -rf pkg
 mkdir -p pkg/usr/lib/aarch64-linux-android
 mkdir -p pkg/usr/share/vulkan/icd.d
