@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 INICIANDO ENLAZADOR MESA 25 CON CURL INDESTRUCTIBLE"
+echo "🚀 INICIANDO ENLAZADOR MESA 25 CON UNZIP INDESTRUCTIBLE"
 echo "=========================================================="
 
 echo "-> 1. Compilando el Interceptor oficial en Docker..."
@@ -30,12 +30,12 @@ mkdir -p "$(pwd)/shims_64"
 $NDK_BIN/aarch64-linux-android26-clang -c stub_logs.c -o stub_logs_64.o
 $NDK_BIN/llvm-ar rcs "$(pwd)/shims_64/libvulkan_wrapper.a" stub_logs_64.o
 
-# 🟢 JAQUE MATE AL GIT CLONE: Descargamos el código fuente real de Distrotech empaquetado mediante Curl nativo
-echo "-> 2b. Descargando código legítimo de libdrm Distrotech vía Tarball..."
-mkdir -p libdrm_android
-curl -L https://github.com -o libdrm.tar.gz
-tar -xzf libdrm.tar.gz -C libdrm_android --strip-components=1
-rm -f libdrm.tar.gz
+# 🟢 CORRECCIÓN SUPREMA DE EXTRACCIÓN: Descargamos y extraemos vía Unzip nativo para esquivar el formato corrupto
+echo "-> 2b. Descargando código legítimo de libdrm Distrotech vía Zipball..."
+curl -L https://github.com -o libdrm.zip
+unzip -q libdrm.zip
+mv -v libdrm-distrotech-libdrm libdrm_android
+rm -f libdrm.zip
 
 # Receta de compilación cruzada nativa móvil con los macros atómicos legítimos de Distrotech
 cat << EOF > cross_libdrm.txt
@@ -77,7 +77,7 @@ if "fcntl.h" not in c:
 
 NDK_SYSROOT_LIB_64="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/26"
 
-echo "-> 3. Generando cross_64.txt definitivo con dependencias legítimas de Android..."
+echo "-> 3. Generando cross_64.txt definitivo con dependencias legítimas..."
 cat << EOF > cross_64.txt
 [constants]
 ndk_path = '${ANDROID_NDK_HOME}'
