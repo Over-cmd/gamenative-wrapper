@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 INICIANDO ENLAZADOR MESA 25 CON URL ZIP REAL CORREGIDA"
+echo "🚀 INICIANDO ENLAZADOR MESA 25 CON RAMA MAIN DE SAILFISHOS"
 echo "=========================================================="
 
 echo "-> 1. Compilando el Interceptor oficial en Docker..."
@@ -30,11 +30,11 @@ mkdir -p "$(pwd)/shims_64"
 $NDK_BIN/aarch64-linux-android26-clang -c stub_logs.c -o stub_logs_64.o
 $NDK_BIN/llvm-ar rcs "$(pwd)/shims_64/libvulkan_wrapper.a" stub_logs_64.o
 
-# 🟢 REPARACIÓN SUPREMA URL: Descarga directa de la rama principal (main) del mirror legítimo de SailfishOS
+# 🟢 DESPLIEGUE INDESTRUCTIBLE: Descargamos la rama main exacta de tu enlace
 echo "-> 2b. Descargando código legítimo de libdrm SailfishOS vía Zipball Real..."
 curl -L "https://github.com/sailfishos-mirror/drm/archive/refs/heads/main.zip" -o libdrm.zip
 unzip -q libdrm.zip
-# Al descargar la rama 'main' de 'drm', GitHub genera de manera nativa la carpeta 'drm-main'
+# Calibramos el movimiento apuntando a drm-main conforme a la estructura de la rama
 mv -v drm-main libdrm_android
 rm -f libdrm.zip
 
