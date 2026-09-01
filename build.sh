@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO PERFECCIONADO CON TUS AJUSTES"
+echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO PERFECCIONADO Y SEGURO TOTAL"
 echo "=========================================================="
 
 WORKSPACE="$(pwd)"
@@ -11,21 +11,21 @@ WORKSPACE="$(pwd)"
 chmod +x patch_mesa.sh
 ./patch_mesa.sh
 
-# Escribimos la receta entera de Docker en un script plano e independiente para evitar la rotura de comillas anidadas
+# Escribimos la receta entera de Docker en un script plano e independiente
 cat << 'EOF' > docker_run_inside.sh
 #!/bin/bash
 set -e
 
-# 🟢 CORRECCIÓN DE PRECISIÓN 1: Forzamos la creación del directorio antes de que llvm-ar intente escribir sus .a
 echo "-> [Docker Internal] Preparando directorios para stubs primarios..."
 mkdir -p shims_64/lib
 mkdir -p drm_shims_inc/include/libdrm
 
-echo "-> [Docker Internal] Instalando herramientas reglamentarias de compilación..."
+echo "-> [Docker Internal] Instalando herramientas de compilación..."
 pip3 install --no-cache-dir --break-system-packages meson ninja mako packaging || pip3 install --no-cache-dir meson ninja mako packaging || true
 
-# 🟢 CORRECCIÓN DE PRECISIÓN 2: Blindamos el PATH inyectando las rutas de Pip para asegurar la ejecución de meson setup
-export PATH="/usr/local/bin:/root/.local/bin:${PATH}"
+# 🟢 CORRECCIÓN DE PRECISIÓN PATH: Capturamos la base de usuario real de Python de forma dinámica para blindar el entorno ante PEP 668
+PYTHON_USER_BASE=$(python3 -m site --user-base 2>/dev/null || echo "/root/.local")
+export PATH="${PYTHON_USER_BASE}/bin:/usr/local/bin:/usr/bin:${PATH}"
 
 export ANDROID_NDK_HOME="/usr/local/lib/android/sdk/ndk/28.2.13676358"
 export NDK_BIN="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin"
@@ -79,7 +79,6 @@ meson setup build-libdrm libdrm_android --cross-file cross_libdrm.txt --prefix="
   -Dintel=disabled -Dradeon=disabled -Damdgpu=disabled -Dnouveau=disabled -Dman-pages=disabled -Dvalgrind=disabled -Dtests=false
 meson install -C build-libdrm
 
-# 🟢 CORRECCIÓN DE PRECISIÓN 3: Mapeamos el subdirectorio intermedio reglamentario /include/libdrm/ para saciar las dependencias cruzadas de Mesa 25
 cp -rf shims_64/include/libdrm/* drm_shims_inc/include/libdrm/ 2>/dev/null || cp -rf shims_64/include/* drm_shims_inc/include/libdrm/ 2>/dev/null || true
 
 python3 -c '
@@ -174,9 +173,10 @@ EOF
 echo "msf:315508" > pkg/version.txt && chmod -R 755 pkg/
 cd pkg && tar -I "zstd -19 -T0" -cf "../wrapper.tzst" usr version.txt
 
-# Limpiamos los ejecutables temporales
-rm -f docker_run_inside.sh
-rm -rf drm_shims_inc/
+# 🟢 REPARACIÓN CRÍTICA PERMISOS HOST: Usamos sudo rm -rf para purgar los residuos creados por root dentro del volumen sin atascar el pipeline
+echo "-> 4. Purgando artefactos efímeros con privilegios de administración..."
+sudo rm -f docker_run_inside.sh
+sudo rm -rf drm_shims_inc/
 
 echo "=========================================================="
 echo "🏆 ¡EMPAQUE MONOLÍTICO SEGURO REAL LOGRADO EN VERDE! 🏆"
