@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 INICIANDO ENLAZADOR MESA 25 - ADRENOTOOLS FIJADO EN LÍNEA"
+echo "🚀 INICIANDO ENLAZADOR MESA 25 - LIBERACIÓN DE PERMISOS OK"
 echo "=========================================================="
 
 # Fijamos la ruta absoluta calculada al inicio para blindar cambios accidentales de directorio
@@ -77,12 +77,15 @@ if "fcntl.h" not in c:
     f=open(p,"w"); f.write(c); f.close()
 '
 
-# 🟢 REPARACIÓN CRÍTICA EN TIEMPO PREVIO: Modificamos el meson.build local de tu submódulo real de Adrenotools ANTES de generar las configuraciones de Mesa
+# 🟢 REPARACIÓN CRÍTICA DE PERMISOS: Forzamos el desbloqueo de solo lectura mediante chmod 755 antes de meter el sed
 echo "-> 2c. Aplicando cirugía en frío sobre tu submódulo integrado de Adrenotools..."
-if [ -f subprojects/libadrenotools/meson.build ]; then
-    sed -i "s/cc.find_library('android'/dependency('', required : false) #/g" subprojects/libadrenotools/meson.build
-    sed -i "s/cc.find_library('log'/dependency('', required : false) #/g" subprojects/libadrenotools/meson.build
-    echo "-> ¡Submódulo local de libadrenotools parchado exitosamente antes del Setup!"
+if [ -d subprojects/libadrenotools ]; then
+    chmod -R 755 subprojects/libadrenotools
+    if [ -f subprojects/libadrenotools/meson.build ]; then
+        sed -i "s/cc.find_library('android'/dependency('', required : false) #/g" subprojects/libadrenotools/meson.build
+        sed -i "s/cc.find_library('log'/dependency('', required : false) #/g" subprojects/libadrenotools/meson.build
+        echo "-> ¡Submódulo local de libadrenotools liberado y parchado exitosamente!"
+    fi
 fi
 
 NDK_SYSROOT_LIB_64="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/26"
