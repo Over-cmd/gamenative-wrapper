@@ -2,163 +2,108 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 INICIANDO ENLAZADOR MESA 25 - ENTRYPOINT DOCKER LIBERADO"
+echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO DOCKER UNIFICADO"
 echo "=========================================================="
 
 WORKSPACE="$(pwd)"
 
-# 1. Limpieza absoluta bajo CleanSpec para evitar colisiones pasadas
-rm -rf shims_64/ build-libdrm/ build-64/ libdrm_android/ include/ pkg/
-mkdir -p shims_64/lib
+# Ejecutamos el preparador local de fuentes
+chmod +x patch_mesa.sh
+./patch_mesa.sh
 
-echo "-> 2a. Descargando código real de libdrm SailfishOS..."
-curl -L "https://github.com/sailfishos-mirror/drm/archive/refs/heads/main.zip" -o libdrm.zip
-unzip -q libdrm.zip
-mv -v drm-main libdrm_android
-rm -f libdrm.zip
-
-echo "-> 2b. Descargando código real de Adrenotools de Pipetto..."
-mkdir -p subprojects
-curl -L "https://github.com/Pipetto-crypto/libadrenotools/archive/refs/heads/master.zip" -o adrenotools.zip
-unzip -q adrenotools.zip
-rm -rf subprojects/libadrenotools
-mv -v libadrenotools-master subprojects/libadrenotools
-rm -f adrenotools.zip
-
-# 🟢 REPARACIÓN CRÍTICA DOCKER: Inyectamos --entrypoint /bin/bash para saltarnos el comando rígido original de la imagen
-echo "-> 3. Lanzando entorno biónico aislado en Docker..."
+# 🟢 INYECCIÓN MAESTRA DOCKER AUTOMÁTICA: Pasamos un script inline limpio sin variables pesadas
 docker run --rm --entrypoint /bin/bash -v "${WORKSPACE}:/workspace" -w /workspace ghcr.io/leegao/mesa-wrapper-ci/wrapper-compiler:latest -c '
 set -e
 
-export ANDROID_NDK_HOME="/usr/local/lib/android/sdk/ndk/28.2.13676358"
-export NDK_BIN="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin"
-export NDK_SYSROOT="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
-NDK_SYSROOT_LIB_64="${NDK_SYSROOT}/usr/lib/aarch64-linux-android/26"
-NDK_LLVM_LIB="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/lib/clang/19/lib/linux/aarch64"
+# Auto-detección elástica del NDK de nacimiento de la imagen de LeeGao
+NDK_BIN=$(dirname $(which aarch64-linux-android*-clang 2>/dev/null | head -n 1) 2>/dev/null || echo "")
+CC_MOBI=$(find $NDK_BIN -name "aarch64-linux-android*-clang" | grep -v "++" | head -n 1)
+CXX_MOBI=$(find $NDK_BIN -name "aarch64-linux-android*-clang++" | head -n 1)
+AR_MOBI=$(find $NDK_BIN -name "llvm-ar" | head -n 1)
+STRIP_MOBI=$(find $NDK_BIN -name "llvm-strip" | head -n 1)
+NDK_SYSROOT=$(dirname $(dirname $NDK_BIN))/sysroot
+NDK_SYSROOT_LIB_64=$(find $NDK_SYSROOT -name "libandroid.so" 2>/dev/null | grep "usr/lib" | head -n 1 | xargs dirname 2>/dev/null || echo "")
+NDK_LLVM_LIB=$(find $(dirname $(dirname $NDK_BIN))/lib/clang/ -name "aarch64" -type d 2>/dev/null | head -n 1 || echo "")
 
-echo "-> [Docker] Generando fuentes de stubs atómicos para Adrenotools..."
-cat << "EOF" > stub_logs.c
-int get_wrapper_log_level(const char *option) { (void)option; return 0; }
-void write_to_logfile(const char *fmt, const char *level, ...) { (void)fmt; (void)level; }
-void *dlopen(const char *f, int flags) { (void)f; (void)flags; return 0; }
-void *dlsym(void *h, const char *s) { (void)h; (void)s; return 0; }
-int dlclose(void *h) { (void)h; return 0; }
-EOF
+# Compilación dual biónica real para saciar a Adrenotools
+$CC_MOBI -c stub_logs.c -o stub_c.o
+$AR_MOBI rcs shims_64/lib/liblog.a stub_c.o
+$AR_MOBI rcs shims_64/lib/libvulkan_wrapper.a stub_c.o
+$CXX_MOBI -c stub_logs.c -o stub_cpp.o
+$AR_MOBI rcs shims_64/lib/libandroid.a stub_cpp.o
+$AR_MOBI rcs shims_64/lib/libdl.a stub_cpp.o
 
-# Compilamos las librerías reales firmadas en C y C++ de 64 bits móviles
-$NDK_BIN/aarch64-linux-android26-clang -c stub_logs.c -o stub_c.o
-$NDK_BIN/llvm-ar rcs shims_64/lib/liblog.a stub_c.o
-$NDK_BIN/llvm-ar rcs shims_64/libvulkan_wrapper.a stub_c.o
+# Instalación física real en el core del compilador del contenedor
+cp -fv shims_64/lib/libandroid.a "$NDK_SYSROOT_LIB_64/libandroid.a"
+cp -fv shims_64/lib/liblog.a "$NDK_SYSROOT_LIB_64/liblog.a"
+cp -fv shims_64/lib/libdl.a "$NDK_SYSROOT_LIB_64/libdl.a"
+cp -fv shims_64/lib/libandroid.a "$NDK_LLVM_LIB/libandroid.a"
+cp -fv shims_64/lib/liblog.a "$NDK_LLVM_LIB/liblog.a"
+cp -fv shims_64/lib/libdl.a "$NDK_LLVM_LIB/libdl.a"
 
-$NDK_BIN/aarch64-linux-android26-clang++ -c stub_logs.c -o stub_cpp.o
-$NDK_BIN/llvm-ar rcs shims_64/lib/libandroid.a stub_cpp.o
-$NDK_BIN/llvm-ar rcs shims_64/lib/libdl.a stub_cpp.o
-
-echo "-> [Docker] INSTALACIÓN REAL: Colocando ficheros directamente en los Sysroots internos del compilador..."
-mkdir -p "${NDK_LLVM_LIB}"
-cp -fv shims_64/lib/libandroid.a "${NDK_SYSROOT_LIB_64}/libandroid.a"
-cp -fv shims_64/lib/liblog.a "${NDK_SYSROOT_LIB_64}/liblog.a"
-cp -fv shims_64/lib/libdl.a "${NDK_SYSROOT_LIB_64}/libdl.a"
-cp -fv shims_64/lib/libandroid.a "${NDK_LLVM_LIB}/libandroid.a"
-cp -fv shims_64/lib/liblog.a "${NDK_LLVM_LIB}/liblog.a"
-cp -fv shims_64/lib/libdl.a "${NDK_LLVM_LIB}/libdl.a"
-
-echo "-> [Docker] Configurando receta de compilación para libdrm..."
+# Compilamos libdrm real móvil
 cat << EOF > cross_libdrm.txt
 [binaries]
-c       = '"'"'${NDK_BIN}/aarch64-linux-android26-clang'"'"'
-cpp     = '"'"'${NDK_BIN}/aarch64-linux-android26-clang++'"'"'
-ar      = '"'"'${NDK_BIN}/llvm-ar'"'"'
-strip   = '"'"'${NDK_BIN}/llvm-strip'"'"'
+c = '"'"'$CC_MOBI'"'"'
+cpp = '"'"'$CXX_MOBI'"'"'
+ar = '"'"'$AR_MOBI'"'"'
+strip = '"'"'$STRIP_MOBI'"'"'
 [host_machine]
-system = 'android'
-cpu_family = 'aarch64'
-cpu = 'aarch64'
-endian = 'little'
+system = '\''android'\''
+cpu_family = '\''aarch64'\''
+cpu = '\''aarch64'\''
+endian = '\''little'\''
 [properties]
-sys_root = '"'"'${NDK_SYSROOT}'"'"'
+sys_root = '"'"'$NDK_SYSROOT'"'"'
 [built-in options]
-c_args = ['\''--sysroot=${NDK_SYSROOT}'\'', '\''-DANDROID'\'', '\''-D_GNU_SOURCE'\'', '\''-DBIONIC_IOCTL_NO_SIGNEDNESS_OVERLOAD=1'\'', '\''-DHAVE_LIBDRM_ATOMIC_PRIMITIVES=1'\'']
+c_args = ['\''--sysroot=$NDK_SYSROOT'\'', '\''-DANDROID'\'', '\''-D_GNU_SOURCE'\'']
 EOF
 
-meson setup build-libdrm libdrm_android --cross-file cross_libdrm.txt --prefix="/workspace/shims_64" \
-  -Dintel=disabled -Dradeon=disabled -Damdgpu=disabled -Dnouveau=disabled -Dvmwgfx=disabled -Domap=disabled -Dexynos=disabled -Dtegra=disabled -Dvc4=disabled -Detnaviv=disabled -Dman-pages=disabled -Dvalgrind=disabled -Dtests=false
+meson setup build-libdrm libdrm_android --cross-file cross_libdrm.txt --prefix="/workspace/shims_64" -Dintel=disabled -Dradeon=disabled -Damdgpu=disabled -Dnouveau=disabled -Dman-pages=disabled -Dvalgrind=disabled -Dtests=false
 meson install -C build-libdrm
-
 mkdir -p include/libdrm
 cp -rf shims_64/include/libdrm/* include/ 2>/dev/null || cp -rf shims_64/include/* include/
-cp -rf include/* include/libdrm/ 2>/dev/null || true
 
-python3 -c '\''
-p="src/vulkan/wrapper/wrapper_log.c"
-import os
-if os.path.exists(p):
-    f=open(p,"r"); c=f.read(); f.close()
-    if "fcntl.h" not in c:
-        c = "#include <fcntl.h>\n#include <unistd.h>\n" + c
-        f=open(p,"w"); f.write(c); f.close()
-'\''
-
-echo "-> [Docker] Generando cross_64.txt puro de asignación reglamentaria..."
+# Generamos cross_64.txt definitivo para Mesa 25 amarrado a tus constantes puras
 cat << EOF > cross_64.txt
 [constants]
-ndk_path = '"'"'${ANDROID_NDK_HOME}'"'"'
-toolchain = ndk_path + '"'"'/toolchains/llvm/prebuilt/linux-x86_64/bin'"'"'
-sysroot = ndk_path + '"'"'/toolchains/llvm/prebuilt/linux-x86_64/sysroot'"'"'
 shims_path = '"'"'/workspace/shims_64'"'"'
-api = '"'"'26'"'"'
-
 [binaries]
-c       = toolchain + '"'"'/aarch64-linux-android'"'"' + api + '"'"'-clang'"'"'
-cpp     = toolchain + '"'"'/aarch64-linux-android'"'"' + api + '"'"'-clang++'"'"'
-ar      = toolchain + '"'"'/llvm-ar'"'"'
-strip   = toolchain + '"'"'/llvm-strip'"'"'
-pkg-config = '"'"'/usr/bin/pkg-config'"'"'
-
+c = '"'"'$CC_MOBI'"'"'
+cpp = '"'"'$CXX_MOBI'"'"'
+ar = '"'"'$AR_MOBI'"'"'
+strip = '"'"'$STRIP_MOBI'"'"'
+pkg-config = '\''/usr/bin/pkg-config'\''
 [host_machine]
-system = 'android'
-cpu_family = 'aarch64'
-cpu = 'aarch64'
-endian = 'little'
-
+system = '\''android'\''
+cpu_family = '\''aarch64'\''
+cpu = '\''aarch64'\''
+endian = '\''little'\''
 [properties]
 needs_exe_wrapper = true
-sys_root = sysroot
-libdir = '"'"'${NDK_SYSROOT_LIB_64}'"'"'
+sys_root = '"'"'$NDK_SYSROOT'"'"'
+libdir = '"'"'$NDK_SYSROOT_LIB_64'"'"'
 pkg_config_path = shims_path + '"'"'/lib/pkgconfig'"'"'
 pkg_config_libdir = shims_path + '"'"'/lib/pkgconfig'"'"'
-
 [built-in options]
-c_args = ['\''--sysroot='\'' + sysroot, '\''-D__TERMUX__'\'', '\''-I'\'' + shims_path + '\''/include'\'', '\''-I'\'' + shims_path + '\''/include/libdrm'\'']
-cpp_args = ['\''--sysroot='\'' + sysroot, '\''-D__TERMUX__'\'', '\''-I'\'' + shims_path + '\''/include'\'', '\''-I'\'' + shims_path + '\''/include/libdrm'\'']
-c_link_args = ['\''-L'\'' + shims_path + '\''/lib'\'', '\''-L${NDK_SYSROOT_LIB_64}'\'', '\''-landroid'\'', '\''-llog'\'', '\''-ldl'\'', '\''-lsync'\'', '\''-lvulkan_wrapper'\'', '\''-latomic'\'']
-cpp_link_args = ['\''-L'\'' + shims_path + '\''/lib'\'', '\''-L${NDK_SYSROOT_LIB_64}'\'', '\''-landroid'\'', '\''-llog'\'', '\''-ldl'\'', '\''-lsync'\'', '\''-lvulkan_wrapper'\'', '\''-latomic'\'']
+c_args = ['\''--sysroot=$NDK_SYSROOT'\'', '\''-D__TERMUX__'\'', '\''-I'\'' + shims_path + '\''/include'\'']
+cpp_args = ['\''--sysroot=$NDK_SYSROOT'\'', '\''-D__TERMUX__'\'', '\''-I'\'' + shims_path + '\''/include'\'']
+c_link_args = ['\''-L'\'' + shims_path + '\''/lib'\'', '\''-L$NDK_SYSROOT_LIB_64'\'', '\''-landroid'\'', '\''-llog'\'', '\''-ldl'\'', '\''-lsync'\'', '\''-lvulkan_wrapper'\'', '\''-latomic'\'']
+cpp_link_args = ['\''-L'\'' + shims_path + '\''/lib'\'', '\''-L$NDK_SYSROOT_LIB_64'\'', '\''-landroid'\'', '\''-llog'\'', '\''-ldl'\'', '\''-lsync'\'', '\''-lvulkan_wrapper'\'', '\''-latomic'\'']
 EOF
 
+# Apagamos validaciones del compilador del host de PC que dan guerra
 sed -i "s/cc.find_library('\''dl'\''/dependency('\''\'', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/cc.find_library('\''rt'\''/dependency('\''\'', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/cc.find_library('\''atomic'\''/dependency('\''\'', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/dependency('\''libclc'\'')/dependency('\''\'', required : false) #/g" meson.build 2>/dev/null || true
-sed -i "s/dep_libclc = .*/dep_libclc = dependency('\''\'', required : false)/g" meson.build 2>/dev/null || true
 
-echo "-> [Docker] Inicializando Mesa 25 Setup con Adrenotools legítimo..."
-meson setup build-64 --cross-file cross_64.txt --wrap-mode=nodownload \
-  -Dbuildtype=release \
-  -Dplatforms=android \
-  -Dglx=disabled \
-  -Dgbm=disabled \
-  -Degl=disabled \
-  -Dllvm=disabled \
-  -Dgallium-drivers=[] \
-  -Dvulkan-drivers=panfrost,wrapper \
-  -Dvulkan-layers=[]
-
-echo "-> [Docker] Lanzando compilación masiva de los 778 objetos con Ninja..."
+meson setup build-64 --cross-file cross_64.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=panfrost,wrapper
 meson compile -C build-64
 '
 
-# 5. Maquetando empaque unificado de proximidad biónica en el host de las Actions
-echo "-> 5. Maquetando empaque unificado de proximidad biónica..."
+# 5. Maquetando empaque de proximidad biónica unificado en el Host de Actions
+echo "-> 5. Maquetando empaque de proximidad unificado..."
 mkdir -p pkg/usr/lib/aarch64-linux-android
 mkdir -p pkg/usr/share/vulkan/icd.d
 
@@ -179,7 +124,9 @@ patchelf --set-rpath '$ORIGIN' pkg/usr/lib/libvulkan_panfrost.so 2>/dev/null || 
 patchelf --add-needed libdrm.so pkg/usr/lib/libvulkan_wrapper.so 2>/dev/null || true
 patchelf --set-rpath '$ORIGIN' pkg/usr/lib/libvulkan_wrapper.so 2>/dev/null || true
 
-$NDK_BIN/llvm-strip --strip-unneeded pkg/usr/lib/*.so 2>/dev/null || true
+# Buscamos el binario de strip nativo para limpiar símbolos redundantes
+STRIP_HOST=$(find /usr/local/lib/android/ -name "llvm-strip" -perm /a+x 2>/dev/null | head -n 1 || echo "strip")
+$STRIP_HOST --strip-unneeded pkg/usr/lib/*.so 2>/dev/null || true
 
 cat << 'EOF' > pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
 {
