@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 INICIANDO ENLAZADOR MESA 25 - RECALIBRACIÓN BIONIC REAL"
+echo "🚀 INICIANDO ENLAZADOR MESA 25 - BLINDAJE DE ENLAZADO LOCAL"
 echo "=========================================================="
 
 echo "-> 1. Compilando el Interceptor oficial en Docker..."
@@ -113,7 +113,7 @@ sed -i "s/cc.find_library('atomic'/dependency('', required : false) #/g" meson.b
 sed -i "s/dependency('libclc')/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/dep_libclc = .*/dep_libclc = dependency('', required : false)/g" meson.build 2>/dev/null || true
 
-# 🟢 REPARACIÓN CRÍTICA MESA 25: Eliminado el flag extinto -Dandroid-stub=true conforme a tus especificaciones puras
+# Compilando la pila oficial de Panfrost
 echo "-> 4. Compilando Panfrost Mesa 25 amarrado a libdrm real..."
 meson setup build-64 --cross-file cross_64.txt --wrap-mode=nodownload \
   -Dbuildtype=release \
@@ -127,24 +127,28 @@ meson setup build-64 --cross-file cross_64.txt --wrap-mode=nodownload \
   -Dvulkan-layers=[]
 meson compile -C build-64
 
-echo "-> 5. Maquetando empaque compatible de Bannerlator..."
+echo "-> 5. Maquetando empaque unificado de integración reglamentaria..."
 rm -rf pkg
 mkdir -p pkg/usr/lib/aarch64-linux-android
 mkdir -p pkg/usr/share/vulkan/icd.d
 
-# Copiamos el interceptor principal
+# Copiamos el interceptor principal (el escudo de entrada suelto)
 cp -v compilacion/libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
 
-# 🟢 REPARACIÓN CRÍTICA BIONIC LINKER: Guardamos la librería real bajo el nombre plano libdrm.so para esquivar el rechazo de Android
+# Guardamos la librería real bajo el nombre plano libdrm.so para Bionic
 cp -v shims_64/lib/libdrm.so pkg/usr/lib/libdrm.so 2>/dev/null || cp -v shims_64/lib/aarch64-linux-gnu/libdrm.so pkg/usr/lib/libdrm.so 2>/dev/null || true
 
-# Colocamos el driver físico real de Panfrost Mesa 25 en su ranura reglamentaria
+# Conservamos el nombre original libvulkan_wrapper.so exigido por Bannerlator para el archivo del driver físico
 cp -v build-64/src/panfrost/vulkan/libvulkan_panfrost.so pkg/usr/lib/aarch64-linux-android/libvulkan_wrapper.so
 
-# Firmamos las identidades dinámicas con patchelf para acoplar libadrenotools y forzar la lectura del libdrm plano
+# Asignamos identidades de ADN internas independientes para que Bionic no asuma que son la misma librería
 patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
-patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/aarch64-linux-android/libvulkan_wrapper.so
+patchelf --set-soname libvulkan_panfrost.so pkg/usr/lib/aarch64-linux-android/libvulkan_wrapper.so
 patchelf --set-soname libdrm.so pkg/usr/lib/libdrm.so 2>/dev/null || true
+
+# 🟢 REPARACIÓN CRÍTICA EXCLUSIVA APLICANDO TU DISEÑO: Amarramos libdrm.so de forma local mediante RUNPATH con retroceso $ORIGIN
+patchelf --add-needed libdrm.so pkg/usr/lib/aarch64-linux-android/libvulkan_wrapper.so 2>/dev/null || true
+patchelf --set-rpath '\$ORIGIN/..' pkg/usr/lib/aarch64-linux-android/libvulkan_wrapper.so 2>/dev/null || true
 
 # Strip final para aligerar espacio y eliminar símbolos de desarrollo redundantes
 $NDK_BIN/llvm-strip --strip-unneeded pkg/usr/lib/*.so 2>/dev/null || true
