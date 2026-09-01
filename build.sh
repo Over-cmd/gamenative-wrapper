@@ -16,6 +16,10 @@ cat << 'EOF' > docker_run_inside.sh
 #!/bin/bash
 set -e
 
+# 🟢 REPARACIÓN CRÍTICA COMANDO AUSENTE: Forzamos la instalación real e inmediata de Meson y Ninja en el núcleo del contenedor
+echo "-> [Docker Internal] Instalando herramientas reglamentarias de compilación..."
+pip3 install --no-cache-dir --break-system-packages meson ninja mako packaging || pip3 install --no-cache-dir meson ninja mako packaging || true
+
 export ANDROID_NDK_HOME="/usr/local/lib/android/sdk/ndk/28.2.13676358"
 export NDK_BIN="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin"
 export NDK_SYSROOT="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
@@ -67,7 +71,6 @@ EOF
 meson setup build-libdrm libdrm_android --cross-file cross_libdrm.txt --prefix="/workspace/shims_64" -Dintel=disabled -Dradeon=disabled -Damdgpu=disabled -Dnouveau=disabled -Dman-pages=disabled -Dvalgrind=disabled -Dtests=false
 meson install -C build-libdrm
 
-# 🟢 REPARACIÓN CRÍTICA PASO 2283: Almacenamos las cabeceras en un directorio aislado exclusivo para no pisar la carpeta include/ nativa de Mesa
 mkdir -p /workspace/drm_shims_inc/libdrm
 cp -rf /workspace/shims_64/include/libdrm/* /workspace/drm_shims_inc/libdrm/ 2>/dev/null || cp -rf /workspace/shims_64/include/* /workspace/drm_shims_inc/libdrm/ 2>/dev/null || true
 
@@ -108,7 +111,7 @@ c_args = ['--sysroot=${NDK_SYSROOT}', '-D__TERMUX__', '-I' + shims_path + '/incl
 cpp_args = ['--sysroot=${NDK_SYSROOT}', '-D__TERMUX__', '-I' + shims_path + '/include', '-I' + drm_inc]
 c_link_args = ['-L' + shims_path + '/lib', '-L${NDK_SYSROOT_LIB_64}', '-landroid', '-llog', '-ldl', '-lsync', '-lvulkan_wrapper', '-latomic']
 cpp_link_args = ['-L' + shims_path + '/lib', '-L${NDK_SYSROOT_LIB_64}', '-landroid', '-llog', '-ldl', '-lsync', '-lvulkan_wrapper', '-latomic']
-EOL
+EOF
 
 sed -i "s/cc.find_library('dl'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/cc.find_library('rt'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
