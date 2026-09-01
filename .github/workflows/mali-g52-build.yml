@@ -2,7 +2,8 @@ name: Mesa Vulkan Wrapper Mali Packager (.tzst)
 
 on:
   push:
-    branches: [ "main", "master" ]
+    # 🟢 CORRECCIÓN SUPREMA DISPARADOR: Agregamos wrapper-25 para que Actions escuche tus commits reales de desarrollo
+    branches: [ "main", "master", "wrapper-25" ]
   workflow_dispatch:
 
 env:
@@ -38,7 +39,6 @@ jobs:
             echo "-> Aplicando parches de alineación de memoria de 32 bits en: $WRAPPER_DEVICE"
             sed -i 's/\r$//' "$WRAPPER_DEVICE"
             sed -i '1i#include <stdint.h>' "$WRAPPER_DEVICE"
-            # 🟢 CORRECCIÓN SUPREMA DE SINTAXIS: Escribimos el prototipo formal completo de mallopt para Clang
             sed -i '1iextern int mallopt(int param, int value);' "$WRAPPER_DEVICE"
             sed -i '1iextern int setenv(const char *name, const char *value, int overwrite);' "$WRAPPER_DEVICE"
             
