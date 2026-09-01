@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 INICIANDO ENLAZADOR MESA 25 - CIRUGÍA EN MEMORIA VIRTUAL"
+echo "🚀 INICIANDO ENLAZADOR MESA 25 - COMPILACIÓN DUAL DE SHIMS"
 echo "=========================================================="
 
 # Fijamos la ruta absoluta calculada al inicio para blindar cambios accidentales de directorio
@@ -29,9 +29,18 @@ int get_wrapper_log_level(const char *option) { (void)option; return 0; }
 void write_to_logfile(const char *fmt, const char *level, ...) { (void)fmt; (void)level; }
 EOF
 
-mkdir -p "${WORKSPACE}/shims_64"
-$NDK_BIN/aarch64-linux-android26-clang -c stub_logs.c -o stub_logs_64.o
-$NDK_BIN/llvm-ar rcs "${WORKSPACE}/shims_64/libvulkan_wrapper.a" stub_logs_64.o
+mkdir -p "${WORKSPACE}/shims_64/lib"
+
+# 🟢 REPARACIÓN DUAL ADRENOTOOLS: Compilamos los shims en sus respectivos lenguajes para saciar a cpp y c por separado
+echo "-> 2c. Compilando shims nativos en formatos duales C y C++ de 64 bits..."
+# 1. Formato C puro para c.find_library('log')
+$NDK_BIN/aarch64-linux-android26-clang -c stub_logs.c -o stub_logs_c.o
+$NDK_BIN/llvm-ar rcs "${WORKSPACE}/shims_64/lib/liblog.a" stub_logs_c.o
+$NDK_BIN/llvm-ar rcs "${WORKSPACE}/shims_64/libvulkan_wrapper.a" stub_logs_c.o
+
+# 2. Formato C++ puro para cpp.find_library('android')
+$NDK_BIN/aarch64-linux-android26-clang++ -c stub_logs.c -o stub_logs_cpp.o
+$NDK_BIN/llvm-ar rcs "${WORKSPACE}/shims_64/lib/libandroid.a" stub_logs_cpp.o
 
 echo "-> 2b. Descargando código legítimo de libdrm SailfishOS vía Zipball Real..."
 curl -L "https://github.com/sailfishos-mirror/drm/archive/refs/heads/main.zip" -o libdrm.zip
@@ -75,19 +84,6 @@ f=open(p,"r"); c=f.read(); f.close()
 if "fcntl.h" not in c:
     c = "#include <fcntl.h>\n#include <unistd.h>\n" + c
     f=open(p,"w"); f.write(c); f.close()
-'
-
-# 🟢 REPARACIÓN CRÍTICA MEMORIA: Usamos Python puro para saltarnos los candados de permisos de Git sin detonar el Operation not permitted
-echo "-> 2c. Aplicando cirugía en memoria virtual sobre el meson.build de Adrenotools..."
-python3 -c '
-import os
-p = "subprojects/libadrenotools/meson.build"
-if os.path.exists(p):
-    f = open(p, "r"); c = f.read(); f.close()
-    c = c.replace("cc.find_library(\x27android\x27", "dependency(\x27\x27, required : false) #")
-    c = c.replace("cc.find_library(\x27log\x27", "dependency(\x27\x27, required : false) #")
-    f = open(p, "w"); f.write(c); f.close()
-    print("-> ¡Submódulo Adrenotools modificado exitosamente en memoria!")
 '
 
 NDK_SYSROOT_LIB_64="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/26"
@@ -135,7 +131,7 @@ sed -i "s/cc.find_library('atomic'/dependency('', required : false) #/g" meson.b
 sed -i "s/dependency('libclc')/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/dep_libclc = .*/dep_libclc = dependency('', required : false)/g" meson.build 2>/dev/null || true
 
-echo "-> 4. Inicializando entorno de Meson (Mesa 25 Setup con Adrenotools Limpio)..."
+echo "-> 4. Inicializando entorno de Meson (Mesa 25 Setup)..."
 meson setup build-64 --cross-file cross_64.txt --wrap-mode=nodownload \
   -Dbuildtype=release \
   -Dplatforms=android \
