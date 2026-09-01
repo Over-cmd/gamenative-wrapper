@@ -2,7 +2,7 @@ name: Mesa Vulkan Wrapper Mali Packager (.tzst)
 
 on:
   push:
-    # 🟢 CORRECCIÓN SUPREMA DISPARADOR: Agregamos wrapper-25 para que Actions escuche tus commits reales de desarrollo
+    # Mantenemos el disparador directo escuchando tus commits reales en tu rama de desarrollo
     branches: [ "main", "master", "wrapper-25" ]
   workflow_dispatch:
 
@@ -28,7 +28,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y zstd patchelf python3 python3-pip python3-setuptools ninja-build
-          pip3 install mako PyYAML 'meson>=1.4.0' packaging
+          pip3 install mako PyYAML packaging
 
       - name: Surgical Silicon Modification (Anti-Overflow MALI Hybrid Injection)
         run: |
@@ -49,7 +49,7 @@ jobs:
             find src/ -name "*.c" -exec sed -i 's/vk_icdGetInstanceProcAddr/extern int mallopt(int p, int v); extern int setenv(const char *n, const char *v, int o); mallopt(-1002, 0); setenv("MESA_VK_WSI_PRESENT_MODE", "mailbox", 1); setenv("vblank_mode", "0", 1); if (sizeof(void*) == 4) { setenv("MESA_VK_WSI_QUEUE_SIZE", "1", 1); } vk_icdGetInstanceProcAddr/g' {} + || true
           fi
 
-      - name: Run Build Script (Docker Double-Pass and Packing)
+      - name: Run Build Script (Docker Container Safe Isolation)
         run: |
           chmod +x build.sh
           ./build.sh
