@@ -2,12 +2,12 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO CON RECETA DE MESON FIJA OK"
+echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO SECUENCIALMENTE INMUTABLE"
 echo "=========================================================="
 
 WORKSPACE="$(pwd)"
 
-# Detectamos si el meson.build nativo está corrupto por Bash, lo demolemos físicamente y forzamos su reconstrucción pura desde el HEAD de Git
+# 🟢 REPARACIÓN CRÍTICA INMUNE: Detectamos si el meson.build nativo está corrupto por Bash, lo demolemos físicamente y forzamos su reconstrucción pura desde el HEAD de Git
 echo "-> 1a. Escaneando y sanando el archivo meson.build raíz..."
 if [ -f "meson.build" ] && grep -q "WORKSPACE=" "meson.build"; then
     echo "-> [⚠️ ALERTA HOST] ¡Corrupción de Bash detectada en meson.build! Demoliendo archivo corrupto..."
@@ -17,9 +17,13 @@ fi
 # Forzamos a Git a rescatar la copia virgen legítima del repositorio desbancando cualquier untracked block
 git checkout HEAD -- meson.build 2>/dev/null || git checkout -f meson.build 2>/dev/null || true
 
-# Invocamos la fase de preparación de fuentes y descompresión de zips (Módulo 1)
+# 🟢 ORDEN DE INTEGRACIÓN SUPREMA: Invocamos la fase de preparación de fuentes y descompresión de zips (Módulo 1)
 chmod +x patch_mesa.sh
 ./patch_mesa.sh
+
+# 🟢 ORDEN DE INTEGRACIÓN SUPREMA: Generamos y congelamos las recetas cross_libdrm y cross_64 físicamente en el Host AQUÍ, garantizando que estén 100% estables y grabadas en el volumen compartido antes de inicializar Docker
+chmod +x generate_cross.sh
+./generate_cross.sh
 
 # Otorgamos permisos de lectura universales al stub generado para que Clang dentro de Docker pueda leerlo sin Permission Denied bajo --user
 if [ -f "stub_logs.c" ]; then
@@ -27,11 +31,8 @@ if [ -f "stub_logs.c" ]; then
     chmod 644 stub_logs.c
 fi
 
-# Invocamos el generador de cross-files aislado en el Host (Módulo Intermedio)
-chmod +x generate_cross.sh
-./generate_cross.sh
-
-# Escribimos la receta entera de Docker en un script plano e independiente libre de volcados complejos
+# 🟢 ORDEN DE INTEGRACIÓN SUPREMA: Escribimos la receta de Docker con las constantes cruzadas del Host ya fijas en piedra
+echo "-> 1c. Estructurando receta interna compacta para la jaula de Docker..."
 cat << 'EOF' > docker_run_inside.sh
 #!/bin/bash
 set -e
@@ -70,7 +71,7 @@ cp -fv shims_64/lib/libandroid.a "$NDK_SYSROOT_LIB_64/libandroid.a" 2>/dev/null 
 cp -fv shims_64/lib/liblog.a "$NDK_SYSROOT_LIB_64/liblog.a" 2>/dev/null || true
 cp -fv shims_64/lib/libdl.a "$NDK_SYSROOT_LIB_64/libdl.a" 2>/dev/null || true
 
-# Compilación real e instalación de libdrm en su prefijo aislado
+# Compilación real e instalación de libdrm en su prefijo aislado leyendo la receta fija del Host
 python3 meson_src/meson.py setup build-libdrm libdrm_android --cross-file /workspace/cross_libdrm.txt --prefix="/workspace/shims_64" \
   -Dintel=disabled -Dradeon=disabled -Damdgpu=disabled -Dnouveau=disabled -Dman-pages=disabled -Dvalgrind=disabled -Dtests=false
 python3 meson_src/meson.py install -C build-libdrm
@@ -86,12 +87,11 @@ if os.path.exists(p):
 '
 
 sed -i "s/cc.find_library('dl'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
-# 🟢 CORRECCIÓN SUPREMA DE SINTAXIS DE MESON: Reemplazamos el 'some_req' inexistente por el argumento reglamentario 'required : false'
 sed -i "s/cc.find_library('rt'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/cc.find_library('atomic'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/dependency('libclc')/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 
-# Meson Setup lee cross_64 inyectando las cabeceras Khronos de forma directa vía banderas de Clang
+# Meson Setup lee cross_64 inyectando las cabeceras Khronos de forma directa vía banderas estables de Clang
 python3 meson_src/meson.py setup build-64 --cross-file /workspace/cross_64.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=panfrost,wrapper
 python3 meson_src/meson.py compile -C build-64
 EOF
