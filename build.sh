@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO CON PARCHE SEGURO EN HOST OK"
+echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO CON RE-DIRECCIÓN WRAP SEGURO OK"
 echo "=========================================================="
 
 WORKSPACE="$(pwd)"
@@ -29,6 +29,14 @@ git checkout HEAD -- meson.build 2>/dev/null || git checkout -f meson.build 2>/d
 chmod +x patch_mesa.sh
 ./patch_mesa.sh
 
+# 🟢 REPARACIÓN CRÍTICA DESCRIPTOR LOCAL: Modificamos el archivo .wrap en caliente en el Host para obligar a Meson a leer tus fuentes locales parchadas sin descargar nada de internet de forma efímera
+echo "-> 1b. Mutando de forma efímera libadrenotools.wrap hacia origen local..."
+mkdir -p subprojects
+cat << 'EOF' > subprojects/libadrenotools.wrap
+[wrap-file]
+directory = libadrenotools
+EOF
+
 if [ -f "stub_logs.c" ]; then
     chmod 644 stub_logs.c
 fi
@@ -37,21 +45,19 @@ fi
 chmod +x generate_cross.sh
 ./generate_cross.sh
 
-# 🟢 REPARACIÓN CRÍTICA EN EL HOST: Aplicamos la purga recursiva AQUÍ en el Host, garantizando que las comillas simples se procesen puras sin deformarse por cat o streams de Docker
-echo "-> 1b. Aplicando cirugía sintáctica sobre Adrenotools en el Host..."
+# Aplicando la cirugía de expresiones regulares robusta sobre todo el árbol de Adrenotools local
+echo "-> 1c. Aplicando parches sintácticos robustos sobre Adrenotools en el Host..."
 if [ -d "subprojects/libadrenotools" ]; then
-    find subprojects/libadrenotools -name "meson.build" -exec sed -i "s/cc.find_library('android'/dependency('', required : false) #/g" {} +
-    find subprojects/libadrenotools -name "meson.build" -exec sed -i 's/cc.find_library("android"/dependency("", required : false) #/g' {} +
-    find subprojects/libadrenotools -name "meson.build" -exec sed -i "s/cc.find_library('log'/dependency('', required : false) #/g" {} +
-    find subprojects/libadrenotools -name "meson.build" -exec sed -i 's/cc.find_library("log"/dependency("", required : false) #/g' {} +
+    find subprojects/libadrenotools -name "meson.build" -exec sed -i "s/cc.find_library(.*android.*/dependency('', required : false) #/g" {} +
+    find subprojects/libadrenotools -name "meson.build" -exec sed -i "s/cc.find_library(.*log.*/dependency('', required : false) #/g" {} +
 fi
 
 # Aseguramos la flexibilidad de permisos en el volumen compartido para evitar bloqueos con --user
-echo "-> 1c. Inmunizando y abriendo permisos del volumen de trabajo..."
+echo "-> 1d. Inmunizando y abriendo permisos del volumen de trabajo..."
 chmod -R 777 "$WORKSPACE"
 
-# Escribimos la receta entera de Docker limpia de comandos de parche complejos
-echo "-> 1d. Estructurando receta interna compacta para la jaula de Docker..."
+# Escribimos la receta entera de Docker limpia e inyectamos las variables dinámicas del NDK
+echo "-> 1e. Estructurando receta interna compacta para la jaula de Docker..."
 cat << EOF > docker_run_inside.sh
 #!/bin/bash
 set -e
@@ -73,7 +79,7 @@ NDK_SYSROOT_LIB_64="\${NDK_SYSROOT}/usr/lib/aarch64-linux-android/26"
 # Búsqueda dinámica del core de LLVM de Clang interna
 NDK_LLVM_LIB="/usr/local/lib/android/sdk/ndk/28.2.13676358/toolchains/llvm/prebuilt/linux-x86_64/lib/clang/19/lib/linux/aarch64"
 if [ ! -d "\$NDK_LLVM_LIB" ]; then
-    NDK_LLVM_LIB=\$(find \${ANDROID_NDK_HOME} -name "aarch64" -type d | grep "lib/linux" | head -n 1 || echo "")
+    NDK_LLVM_LIB=\$(find \telephone \${ANDROID_NDK_HOME} -name "aarch64" -type d | grep "lib/linux" | head -n 1 || echo "")
 fi
 
 echo "-> [Docker Internal] Compilando stubs duales legítivos para enlazado preferencial..."
@@ -109,8 +115,8 @@ python3 meson_src/meson.py setup build-libdrm libdrm_android --cross-file /works
   -Dintel=disabled -Dradeon=disabled -Damdgpu=disabled -Dnouveau=disabled -Dman-pages=disabled -Dvalgrind=disabled -Dtests=false
 python3 meson_src/meson.py install -C build-libdrm
 
-# Meson Setup lee cross_64 inyectando las directivas locales unificadas con el subproyecto Adrenotools ya parchado desde el Host
-python3 meson_src/meson.py setup build-64 --cross-file /workspace/cross_64.txt --wrap-mode=forcefallback -Dbuildtype=release -Dplatforms=android -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=panfrost,wrapper
+# Meson Setup lee cross_64 inyectando las directivas locales unificadas con el subproyecto Adrenotools ya forzado de forma local pura
+python3 meson_src/meson.py setup build-64 --cross-file /workspace/cross_64.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=panfrost,wrapper
 python3 meson_src/meson.py compile -C build-64
 EOF
 
