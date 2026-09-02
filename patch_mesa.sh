@@ -43,9 +43,10 @@ echo "-> 1f. Clonando la versión de desarrollo compatible de Meson 1.11.1..."
 rm -rf meson_src
 git clone --depth 1 --branch 1.11.1 https://github.com/mesonbuild/meson.git meson_src
 
-# 🟢 REPARACIÓN INDUSTRIAL STUBS V48: Removemos get_wrapper_log_level de este archivo artificial para eliminar la colisión por duplicado en ld.lld de raíz
+# 🟢 REPARACIÓN INDUSTRIAL STUBS V49: Inyectamos <stddef.h> en la cabecera del stub. Esto mapea la macro size_t de forma nativa en Clang 19 para la arquitectura ARM64, destruyendo el error sintáctico de tipo implícito al instante
 cat << 'EOF' > stub_logs.c
 #include <stdarg.h>
+#include <stddef.h>
 
 void write_to_logfile(const char *fmt, const char *level, ...) { (void)fmt; (void)level; }
 
@@ -71,9 +72,8 @@ void* dlsym(void* handle, const char* symbol) { (void)handle; (void)symbol; retu
 int dlclose(void* handle) { (void)handle; return 0; }
 EOF
 
-# Nos aseguramos de que el proceso background de la papelera .trash/ haya terminado antes de ceder el control al Módulo 2
 wait $PID_CLEAN 2>/dev/null || true
 
 echo "=========================================================="
-echo "🟢 MÓDULO 1 CONCLUIDO CON ÉXITO - SUBPROYECTOS RECURSIVOS OK"
+echo "🟢 MÓDULO 1 CONCLUIDO CON ÉXITO - REPOSITORIOS ALINEADOS OK"
 echo "=========================================================="
