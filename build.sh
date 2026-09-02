@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO CON INTEGRACIÓN TOTAL OK"
+echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO CON RECETA DE MESON FIJA OK"
 echo "=========================================================="
 
 WORKSPACE="$(pwd)"
@@ -21,7 +21,7 @@ git checkout HEAD -- meson.build 2>/dev/null || git checkout -f meson.build 2>/d
 chmod +x patch_mesa.sh
 ./patch_mesa.sh
 
-# 🟢 CORRECCIÓN SUPREMA DE PERMISOS: Otorgamos permisos de lectura universales al stub generado para que Clang dentro de Docker pueda leerlo sin Permission Denied bajo --user
+# Otorgamos permisos de lectura universales al stub generado para que Clang dentro de Docker pueda leerlo sin Permission Denied bajo --user
 if [ -f "stub_logs.c" ]; then
     echo "-> 1b. Inmunizando permisos de lectura para stub_logs.c..."
     chmod 644 stub_logs.c
@@ -86,7 +86,8 @@ if os.path.exists(p):
 '
 
 sed -i "s/cc.find_library('dl'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
-sed -i "s/cc.find_library('rt'/dependency('', some_req : false) #/g" meson.build 2>/dev/null || true
+# 🟢 CORRECCIÓN SUPREMA DE SINTAXIS DE MESON: Reemplazamos el 'some_req' inexistente por el argumento reglamentario 'required : false'
+sed -i "s/cc.find_library('rt'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/cc.find_library('atomic'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/dependency('libclc')/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 
@@ -153,7 +154,6 @@ echo "msf:315508" > pkg/version.txt && chmod -R 755 pkg/
 cd pkg && tar -I "zstd -19 -T0" -cf "../wrapper.tzst" usr version.txt
 cd "${WORKSPACE}"
 
-# 🟢 REPARACIÓN CRÍTICA ELIMINACIÓN REMANENTE: Extirpamos de forma tajante el 'include/' de la purga final para blindar la idempotencia del repositorio de cara a builds futuros consecutivos
 echo "-> 6. Purgando artefactos efímeros de forma transparente y segura..."
 rm -f docker_run_inside.sh cross_libdrm.txt cross_64.txt stub_logs.c stub_c.o stub_cpp.o generate_cross.sh
 rm -rf meson_src/
