@@ -14,7 +14,6 @@ export NDK_BIN="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin"
 export NDK_SYSROOT="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
 NDK_SYSROOT_LIB_64="${NDK_SYSROOT}/usr/lib/aarch64-linux-android/26"
 
-# 🟢 REPARACIÓN SUPREMA STUBS: Forzamos de forma simétrica a que todos los stubs .a se escriban y archiven dentro de shims_64/lib/ para que ld.lld los localice mediante -L de forma instantánea
 echo "-> [Docker Internal] Compilando stubs duales legítivos para enlazado preferencial..."
 $NDK_BIN/aarch64-linux-android26-clang -c stub_logs.c -o stub_c.o
 $NDK_BIN/llvm-ar rcs shims_64/lib/liblog.a stub_c.o
@@ -38,27 +37,30 @@ if os.path.exists(p):
         f=open(p,"w"); f.write(c); f.close()
 '
 
-echo "-> [Docker Internal] Aplicando parches sintácticos atómicos in-situ..."
+# 🟢 REPARACIÓN CRÍTICA SÍMBOLOS REALES: En lugar de comentar las librerías con #, las sustituimos de forma legítima por un declare_dependency de Meson que inyecta los link_args explícitos. Esto le enseña a Clang exactamente dónde buscar los símbolos vitales del sistema Android
+echo "-> [Docker Internal] Inyectando dependencias declarativas explícitas sobre Mesa 25..."
 if [ -f "meson.build" ]; then
-    sed -i "s/.*find_library('dl'.*/dependency('', required : false) #/g" meson.build
-    sed -i "s/.*find_library('rt'.*/dependency('', required : false) #/g" meson.build
-    sed -i "s/.*find_library('atomic'.*/dependency('', required : false) #/g" meson.build
-    sed -i "s/dependency('libclc')/dependency('', required : false) #/g" meson.build
+    sed -i "s/.*find_library('dl'.*/declare_dependency(link_args : ['-ldl'])/g" meson.build
+    sed -i "s/.*find_library('rt'.*/declare_dependency(link_args : ['-lc'])/g" meson.build
+    sed -i "s/.*find_library('atomic'.*/declare_dependency(link_args : ['-latomic'])/g" meson.build
+    sed -i "s/dependency('libclc')/declare_dependency()/g" meson.build
 fi
 
+echo "-> [Docker Internal] Saneando el árbol profundo de subproyectos de Adrenotools..."
 if [ -d "subprojects/libadrenotools" ]; then
-    find subprojects/libadrenotools -name "meson.build" -exec sed -i "s/.*find_library('android'.*/dependency('', required : false) #/g" {} +
-    find subprojects/libadrenotools -name "meson.build" -exec sed -i 's/.*find_library("android".*/dependency("", required : false) #/g' {} +
-    find subprojects/libadrenotools -name "meson.build" -exec sed -i "s/.*find_library('log'.*/dependency('', required : false) #/g" {} +
-    find subprojects/libadrenotools -name "meson.build" -exec sed -i 's/.*find_library("log".*/dependency("", required : false) #/g' {} +
-    find subprojects/libadrenotools -name "meson.build" -exec sed -i "s/.*find_library('dl'.*/dependency('', required : false) #/g" {} +
-    find subprojects/libadrenotools -name "meson.build" -exec sed -i 's/.*find_library("dl".*/dependency("", required : false) #/g' {} +
+    find subprojects/libadrenotools -name "meson.build" -exec sed -i "s/.*find_library('android'.*/declare_dependency(link_args : ['-landroid'])/g" {} +
+    find subprojects/libadrenotools -name "meson.build" -exec sed -i 's/.*find_library("android".*/declare_dependency(link_args : ["-landroid"])/g' {} +
+    find subprojects/libadrenotools -name "meson.build" -exec sed -i "s/.*find_library('log'.*/declare_dependency(link_args : ['-llog'])/g" {} +
+    find subprojects/libadrenotools -name "meson.build" -exec sed -i 's/.*find_library("log".*/declare_dependency(link_args : ["-llog"])/g' {} +
+    find subprojects/libadrenotools -name "meson.build" -exec sed -i "s/.*find_library('dl'.*/declare_dependency(link_args : ['-ldl'])/g" {} +
+    find subprojects/libadrenotools -name "meson.build" -exec sed -i 's/.*find_library("dl".*/declare_dependency(link_args : ["-ldl"])/g' {} +
 fi
 
+# Inicializamos formalmente las variables de linkernsbypass apuntando a los objetos de enlace real estructurados
 BYPASS_RECIPE="subprojects/libadrenotools/lib/linkernsbypass/meson.build"
 if [ -f "$BYPASS_RECIPE" ]; then
-    echo "-> [Docker Internal] Inyectando inicializaciones de la triada sobre linkernsbypass..."
-    echo -e "libandroid_dep = dependency('', required : false)\nliblog_dep = dependency('', required : false)\nlibdl_dep = dependency('', required : false)\n$(cat $BYPASS_RECIPE)" > "$BYPASS_RECIPE"
+    echo "-> [Docker Internal] Estabilizando tokens globales sobre linkernsbypass..."
+    echo -e "libandroid_dep = declare_dependency(link_args : ['-landroid'])\nliblog_dep = declare_dependency(link_args : ['-llog'])\nlibdl_dep = declare_dependency(link_args : ['-ldl'])\n$(cat $BYPASS_RECIPE)" > "$BYPASS_RECIPE"
 fi
 
 # Compilación de libdrm en su prefijo aislado
@@ -66,6 +68,6 @@ python3 meson_src/meson.py setup build-libdrm libdrm_android --cross-file /works
   -Dintel=disabled -Dradeon=disabled -Damdgpu=disabled -Dnouveau=disabled -Dman-pages=disabled -Dvalgrind=disabled -Dtests=false
 python3 meson_src/meson.py install -C build-libdrm
 
-# Compilación del Core de Mesa 25 con el árbol de subproyectos 100% estabilizado
+# Compilación del Core de Mesa 25 con las banderas de enlazado de sistema re-acopladas de forma impecable
 python3 meson_src/meson.py setup build-64 --cross-file /workspace/cross_64.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=panfrost,wrapper
 python3 meson_src/meson.py compile -C build-64
