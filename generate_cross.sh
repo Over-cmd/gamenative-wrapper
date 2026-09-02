@@ -5,6 +5,8 @@ echo "=========================================================="
 echo "🎯 MODULO INTERMEDIO: GENERACIÓN DE RECETAS EN EL HOST"
 echo "=========================================================="
 
+WORKSPACE="$(pwd)"
+
 echo "-> Generando cross_libdrm.txt..."
 cat << EOF > cross_libdrm.txt
 [binaries]
@@ -47,9 +49,11 @@ sys_root = '/usr/local/lib/android/sdk/ndk/28.2.13676358/toolchains/llvm/prebuil
 libdir = '/usr/local/lib/android/sdk/ndk/28.2.13676358/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/26'
 pkg_config_path = shims_path + '/lib/pkgconfig'
 pkg_config_libdir = shims_path + '/lib/pkgconfig'
+# 🟢 CORRECCIÓN SUPREMA DE VÍAS DE ENLAZADO: Inyectamos de forma nativa la ruta -L local a nivel de c_args y cpp_args globales. 
+# Esto fuerza a que subproyectos autónomos externos como libadrenotools localicen los stubs de Android de forma inmediata.
 [built-in options]
-c_args = ['--sysroot=/usr/local/lib/android/sdk/ndk/28.2.13676358/toolchains/llvm/prebuilt/linux-x86_64/sysroot', '-D__TERMUX__', '-I' + mesa_root, '-I' + mesa_root + '/src', '-I' + shims_path + '/include', '-I' + shims_path + '/include/libdrm']
-cpp_args = ['--sysroot=/usr/local/lib/android/sdk/ndk/28.2.13676358/toolchains/llvm/prebuilt/linux-x86_64/sysroot', '-D__TERMUX__', '-I' + mesa_root, '-I' + mesa_root + '/src', '-I' + shims_path + '/include', '-I' + shims_path + '/include/libdrm']
+c_args = ['--sysroot=/usr/local/lib/android/sdk/ndk/28.2.13676358/toolchains/llvm/prebuilt/linux-x86_64/sysroot', '-D__TERMUX__', '-I' + mesa_root, '-I' + mesa_root + '/src', '-I' + shims_path + '/include', '-I' + shims_path + '/include/libdrm', '-L' + shims_path + '/lib']
+cpp_args = ['--sysroot=/usr/local/lib/android/sdk/ndk/28.2.13676358/toolchains/llvm/prebuilt/linux-x86_64/sysroot', '-D__TERMUX__', '-I' + mesa_root, '-I' + mesa_root + '/src', '-I' + shims_path + '/include', '-I' + shims_path + '/include/libdrm', '-L' + shims_path + '/lib']
 c_link_args = ['-L' + shims_path + '/lib', '-L/usr/local/lib/android/sdk/ndk/28.2.13676358/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/26', '-landroid', '-llog', '-ldl', '-lsync', '-lvulkan_wrapper', '-latomic']
 cpp_link_args = ['-L' + shims_path + '/lib', '-L/usr/local/lib/android/sdk/ndk/28.2.13676358/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/26', '-landroid', '-llog', '-ldl', '-lsync', '-lvulkan_wrapper', '-latomic']
 EOF
