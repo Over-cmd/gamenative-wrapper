@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO CON PURGA RECURSIVA DE ADRENOTOOLS OK"
+echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO CON PURGA EN EL HOST OK"
 echo "=========================================================="
 
 WORKSPACE="$(pwd)"
@@ -37,12 +37,19 @@ fi
 chmod +x generate_cross.sh
 ./generate_cross.sh
 
+# 🟢 REPARACIÓN SUPREMA DE INTEGRACIÓN: Forzamos la limpieza recursiva de las garras de find_library en Adrenotools AQUÍ en el Host. Esto garantiza permisos de escritura plenos sobre las recetas antes de entrar a Docker
+echo "-> 1b. Aplicando parches sintácticos recursivos sobre Adrenotools en el Host..."
+if [ -d "subprojects/libadrenotools" ]; then
+    find subprojects/libadrenotools -name "meson.build" -exec sed -i "s/cc.find_library('android'/dependency('', required : false) #/g" {} +
+    find subprojects/libadrenotools -name "meson.build" -exec sed -i "s/cc.find_library('log'/dependency('', required : false) #/g" {} +
+fi
+
 # Aseguramos la flexibilidad de permisos en el volumen compartido para evitar bloqueos con --user
-echo "-> 1b. Inmunizando y abriendo permisos del volumen de trabajo..."
+echo "-> 1c. Inmunizando y abriendo permisos del volumen de trabajo..."
 chmod -R 777 "$WORKSPACE"
 
 # Escribimos la receta entera de Docker limpia e inyectamos las variables dinámicas del NDK
-echo "-> 1c. Estructurando receta interna compacta para la jaula de Docker..."
+echo "-> 1d. Estructurando receta interna compacta para la jaula de Docker..."
 cat << EOF > docker_run_inside.sh
 #!/bin/bash
 set -e
@@ -77,7 +84,7 @@ echo "-> [Docker Internal] Compilando stubs duales legítivos para enlazado pref
 \$NDK_BIN/llvm-ar rcs shims_64/lib/libdl.a stub_cpp.o
 
 cp -fv shims_64/lib/libandroid.a "\$NDK_SYSROOT_LIB_64/libandroid.a" 2>/dev/null || true
-cp -fv shims_64/lib/liblog.a "$NDK_SYSROOT_LIB_64/liblog.a" 2>/dev/null || true
+cp -fv shims_64/lib/liblog.a "\$NDK_SYSROOT_LIB_64/liblog.a" 2>/dev/null || true
 cp -fv shims_64/lib/libdl.a "\$NDK_SYSROOT_LIB_64/libdl.a" 2>/dev/null || true
 
 python3 -c '
@@ -95,19 +102,12 @@ sed -i "s/cc.find_library('rt'/dependency('', required : false) #/g" meson.build
 sed -i "s/cc.find_library('atomic'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/dependency('libclc')/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 
-# 🟢 REPARACIÓN SUPREMA MASIVA RECURSIVA: Rastreamos y neutralizamos find_library de forma destructiva en CUALQUIER sub-receta profunda de libadrenotools para que no escape ningún candado oculto
-echo "-> [Docker Internal] Aplicando parches sintácticos recursivos sobre Adrenotools..."
-if [ -d "subprojects/libadrenotools" ]; then
-    find subprojects/libadrenotools -name "meson.build" -exec sed -i "s/cc.find_library('android'/dependency('', required : false) #/g" {} +
-    find subprojects/libadrenotools -name "meson.build" -exec sed -i "s/cc.find_library('log'/dependency('', required : false) #/g" {} +
-fi
-
 # Compilación de libdrm
 python3 meson_src/meson.py setup build-libdrm libdrm_android --cross-file /workspace/cross_libdrm.txt --prefix="/workspace/shims_64" \
   -Dintel=disabled -Dradeon=disabled -Damdgpu=disabled -Dnouveau=disabled -Dman-pages=disabled -Dvalgrind=disabled -Dtests=false
 python3 meson_src/meson.py install -C build-libdrm
 
-# Meson Setup lee cross_64 inyectando las directivas locales unificadas con el descriptor .wrap listo
+# Meson Setup lee cross_64 inyectando las directivas locales unificadas con el subproyecto Adrenotools ya parchado desde el Host
 python3 meson_src/meson.py setup build-64 --cross-file /workspace/cross_64.txt --wrap-mode=forcefallback -Dbuildtype=release -Dplatforms=android -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=panfrost,wrapper
 python3 meson_src/meson.py compile -C build-64
 EOF
