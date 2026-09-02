@@ -43,12 +43,10 @@ echo "-> 1f. Clonando la versión de desarrollo compatible de Meson 1.11.1..."
 rm -rf meson_src
 git clone --depth 1 --branch 1.11.1 https://github.com/mesonbuild/meson.git meson_src
 
-# 🟢 REPARACIÓN INDUSTRIAL STUBS V49: Inyectamos <stddef.h> en la cabecera del stub. Esto mapea la macro size_t de forma nativa en Clang 19 para la arquitectura ARM64, destruyendo el error sintáctico de tipo implícito al instante
+# 🟢 REPARACIÓN INDUSTRIAL STUBS V50: Purificamos write_to_logfile de este archivo artificial para eliminar la última duplicidad en ld.lld de raíz
 cat << 'EOF' > stub_logs.c
 #include <stdarg.h>
 #include <stddef.h>
-
-void write_to_logfile(const char *fmt, const char *level, ...) { (void)fmt; (void)level; }
 
 // Firmas de enlazado de liblog.a para Adrenotools
 int __android_log_print(int prio, const char *tag, const char *fmt, ...) {
