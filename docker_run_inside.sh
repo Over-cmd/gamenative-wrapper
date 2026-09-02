@@ -37,17 +37,16 @@ if os.path.exists(p):
         f=open(p,"w"); f.write(c); f.close()
 '
 
-# 🟢 REPARACIÓN CRÍTICA ANON_FILE: Inyectamos la macro real inmutable del Kernel Linux para SYS_memfd_create en la arquitectura aarch64 (Syscall 279) para evitar el colapso sintáctico de Clang en la compilación cruzada de la API 26
+# 🟢 REPARACIÓN INDUSTRIAL ANON_FILE: Sustituimos el token SYS_memfd_create directamente por su valor numérico real del Kernel de Linux para la arquitectura ARM64 (279) de forma literal en la línea. Esto elude cualquier redefinición o purga oculta de las cabeceras de Google
 python3 -c '
 p="src/util/anon_file.c"
 import os
 if os.path.exists(p):
     f=open(p,"r"); c=f.read(); f.close()
-    if "SYS_memfd_create" not in c:
-        patch = "#ifndef SYS_memfd_create\n#define SYS_memfd_create 279\n#endif\n"
-        c = patch + c
+    if "SYS_memfd_create" in c:
+        c = c.replace("SYS_memfd_create", "279")
         f=open(p,"w"); f.write(c); f.close()
-        print("-> [Docker Internal] Parche SYS_memfd_create inyectado en anon_file.c con éxito.")
+        print("-> [Docker Internal] Éxito: SYS_memfd_create transmutado a la Syscall 279 de forma literal.")
 '
 
 echo "-> [Docker Internal] Aplicando parches sintácticos atómicos in-situ..."
