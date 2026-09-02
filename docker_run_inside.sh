@@ -37,7 +37,6 @@ if os.path.exists(p):
         f=open(p,"w"); f.write(c); f.close()
 '
 
-# 🟢 REPARACIÓN SUPREMA TOTAL INDESTRUCTIBLE: Usamos una expresión regular masiva que machaca find_library tanto para cc como para cxx de forma síncrona al ras del setup
 echo "-> [Docker Internal] Aplicando parches sintácticos atómicos in-situ..."
 if [ -f "meson.build" ]; then
     sed -i "s/.*find_library('dl'.*/dependency('', required : false) #/g" meson.build
@@ -46,11 +45,14 @@ if [ -f "meson.build" ]; then
     sed -i "s/dependency('libclc')/dependency('', required : false) #/g" meson.build
 fi
 
+# 🟢 REPARACIÓN INDUSTRIAL TOTAL MULTI-NIVEL: Agregamos la elisión de 'dl' con comodines elásticos cubriendo comillas simples y dobles en todo el árbol profundo de subproyectos (incluyendo linkernsbypass). No hay candado interno que escape a esta red de arrastre
 if [ -d "subprojects/libadrenotools" ]; then
     find subprojects/libadrenotools -name "meson.build" -exec sed -i "s/.*find_library('android'.*/dependency('', required : false) #/g" {} +
     find subprojects/libadrenotools -name "meson.build" -exec sed -i 's/.*find_library("android".*/dependency("", required : false) #/g' {} +
     find subprojects/libadrenotools -name "meson.build" -exec sed -i "s/.*find_library('log'.*/dependency('', required : false) #/g" {} +
     find subprojects/libadrenotools -name "meson.build" -exec sed -i 's/.*find_library("log".*/dependency("", required : false) #/g' {} +
+    find subprojects/libadrenotools -name "meson.build" -exec sed -i "s/.*find_library('dl'.*/dependency('', required : false) #/g" {} +
+    find subprojects/libadrenotools -name "meson.build" -exec sed -i 's/.*find_library("dl".*/dependency("", required : false) #/g' {} +
 fi
 
 # Compilación de libdrm en su prefijo aislado
@@ -58,6 +60,6 @@ python3 meson_src/meson.py setup build-libdrm libdrm_android --cross-file /works
   -Dintel=disabled -Dradeon=disabled -Damdgpu=disabled -Dnouveau=disabled -Dman-pages=disabled -Dvalgrind=disabled -Dtests=false
 python3 meson_src/meson.py install -C build-libdrm
 
-# Compilación del Core de Mesa 25 leyendo las fuentes locales ya modificadas
+# Compilación del Core de Mesa 25 leyendo las fuentes locales ya completamente purificadas a nivel profundo
 python3 meson_src/meson.py setup build-64 --cross-file /workspace/cross_64.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=panfrost,wrapper
 python3 meson_src/meson.py compile -C build-64
