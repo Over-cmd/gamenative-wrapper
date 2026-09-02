@@ -19,7 +19,7 @@ fi
 # Forzamos a Git a rescatar la copia virgen legítima del repositorio desbancando cualquier untracked block
 git checkout HEAD -- meson.build 2>/dev/null || git checkout -f meson.build 2>/dev/null || true
 
-# 🟢 SANACIÓN QUIRÚRGICA DE REPOSITORIO: Formateamos las líneas corruptas nativas de tu repositorio
+# SANACIÓN QUIRÚRGICA DE REPOSITORIO: Formateamos las líneas corruptas nativas de tu repositorio
 # Esto remueve los espacios en blanco fantasmas dentro de las comillas de default_options que hacían colapsar a Meson
 if [ -f "meson.build" ]; then
     echo "-> [Host] Purificando la sintaxis del proyecto en meson.build..."
@@ -113,18 +113,18 @@ if os.path.exists(p):
         f=open(p,"w"); f.write(c); f.close()
 '
 
+# 🟢 PARCHE AL VUELO INTERNO: Modificamos libadrenotools dentro de la jaula, asegurando su existencia física en disco tras la preparación del Módulo 1
+echo "-> [Docker Internal] Aplicando elusión de dependencias sobre libadrenotools..."
+if [ -f "subprojects/libadrenotools/meson.build" ]; then
+    sed -i "s/cc.find_library('android')/dependency('', required : false) #/g" subprojects/libadrenotools/meson.build 2>/dev/null || true
+    sed -i "s/cc.find_library('log')/dependency('', required : false) #/g" subprojects/libadrenotools/meson.build 2>/dev/null || true
+fi
+
 # Aplicamos los parches de elusión de dependencias apuntando estrictamente a la ruta de Mesa 25
 sed -i "s/cc.find_library('dl'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/cc.find_library('rt'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/cc.find_library('atomic'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/dependency('libclc')/dependency('', required : false) #/g" meson.build 2>/dev/null || true
-
-# 🟢 REPARACIÓN MAESTRA DE DEPENDENCIAS SUBPROYECTO: Forzamos la elusión de la librería rígida de Android y Log en libadrenotools
-if [ -f "subprojects/libadrenotools/meson.build" ]; then
-    echo "-> [Docker Internal] Parcheando find_library de Android en libadrenotools..."
-    sed -i "s/cc.find_library('android'/dependency('', required : false) #/g" subprojects/libadrenotools/meson.build 2>/dev/null || true
-    sed -i "s/cc.find_library('log'/dependency('', required : false) #/g" subprojects/libadrenotools/meson.build 2>/dev/null || true
-fi
 
 # Meson Setup lee cross_64 de forma síncrona impecable e inmutable sobre el árbol limpio de Mesa 25
 python3 meson_src/meson.py setup build-64 --cross-file /workspace/cross_64.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=panfrost,wrapper
@@ -133,7 +133,7 @@ EOF
 
 chmod +x docker_run_inside.sh
 
-# 5. Invocación atómica directa al contenedor de LeeGao mapeado por hardware e identidad de usuario protegida
+# 3. Invocación atómica directa al contenedor de LeeGao mapeado por hardware e identidad de usuario protegida
 echo "-> 3. Lanzando entorno biónico aislado en Docker..."
 docker run --rm --entrypoint /bin/bash \
   --user "$(id -u):$(id -g)" \
@@ -141,7 +141,7 @@ docker run --rm --entrypoint /bin/bash \
   -v "/usr/local/lib/android:/usr/local/lib/android" \
   -w /workspace ghcr.io/leegao/mesa-wrapper-ci/wrapper-compiler:latest ./docker_run_inside.sh
 
-# 6. Maquetando empaque de proximidad biónica unificado en el Host de Actions
+# 4. Maquetando empaque de proximidad biónica unificado en el Host de Actions
 echo "-> 4. Maquetando empaque unificado de proximidad biónica..."
 mkdir -p pkg/usr/lib/aarch64-linux-android
 mkdir -p pkg/usr/share/vulkan/icd.d
