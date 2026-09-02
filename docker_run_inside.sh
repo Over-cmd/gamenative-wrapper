@@ -17,7 +17,7 @@ NDK_SYSROOT_LIB_64="${NDK_SYSROOT}/usr/lib/aarch64-linux-android/26"
 echo "-> [Docker Internal] Compilando stubs duales legítivos para enlazado preferencial..."
 $NDK_BIN/aarch64-linux-android26-clang -c stub_logs.c -o stub_c.o
 $NDK_BIN/llvm-ar rcs shims_64/lib/liblog.a stub_c.o
-$NDK_BIN/llvm-ar rcs shims_64/lib/libvulkan_wrapper.a stub_c.o
+$NDK_BIN/shims_64/libvulkan_wrapper.a stub_c.o 2>/dev/null || $NDK_BIN/llvm-ar rcs shims_64/libvulkan_wrapper.a stub_c.o
 
 $NDK_BIN/aarch64-linux-android26-clang++ -c stub_logs.c -o stub_cpp.o
 $NDK_BIN/llvm-ar rcs shims_64/lib/libandroid.a stub_cpp.o
@@ -48,17 +48,29 @@ if os.path.exists(p):
         print("-> [Docker Internal] Éxito: SYS_memfd_create transmutado a la Syscall 279 de forma literal.")
 '
 
-# 🟢 REPARACIÓN CRÍTICA DISK_CACHE: Redirigimos la llamada secure_getenv hacia la función estándar getenv() de la biblioteca bionic para la API 26 mediante una macro en la cabecera. Esto elude la ausencia de la función sin romper la integridad del mapa de memoria de Mesa 25
 python3 -c '
 p="src/util/disk_cache_os.c"
 import os
 if os.path.exists(p):
     f=open(p,"r"); c=f.read(); f.close()
-    if "secure_getenv" in c and "getenv" not in c.split("\n")[0]:
+    if "secure_getenv" in c and "getenv" not in c.split("\n"):
         patch = "#ifdef __ANDROID__\n#define secure_getenv getenv\n#endif\n"
         c = patch + c
         f=open(p,"w"); f.write(c); f.close()
-        print("-> [Docker Internal] Éxito: secure_getenv mapeado hacia getenv en disk_cache_os.c")
+        print("-> [Docker Internal] Éxito: secure_getenv mapeado hacia getenv in disk_cache_os.c")
+'
+
+# 🟢 REPARACIÓN CRÍTICA U_QSORT: Forzamos la definición de HAVE_QSORT_R en la cabecera de ordenamiento de Mesa 25 para obligar al preprocesador a desviar el flujo lógico hacia la función nativa real de Android (qsort_r), eludiendo el crash por la ausencia de qsort_s
+python3 -c '
+p="src/util/u_qsort.h"
+import os
+if os.path.exists(p):
+    f=open(p,"r"); c=f.read(); f.close()
+    if "HAVE_QSORT_R" not in c:
+        patch = "#ifdef __ANDROID__\n#define HAVE_QSORT_R 1\n#endif\n"
+        c = patch + c
+        f=open(p,"w"); f.write(c); f.close()
+        print("-> [Docker Internal] Éxito: Activado mapeo nativo HAVE_QSORT_R en u_qsort.h")
 '
 
 echo "-> [Docker Internal] Aplicando parches sintácticos atómicos in-situ..."
