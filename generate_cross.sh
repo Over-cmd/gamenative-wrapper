@@ -5,8 +5,6 @@ echo "=========================================================="
 echo "🎯 MODULO INTERMEDIO: GENERACIÓN DE RECETAS EN EL HOST"
 echo "=========================================================="
 
-WORKSPACE="$(pwd)"
-
 echo "-> Generando cross_libdrm.txt..."
 cat << EOF > cross_libdrm.txt
 [binaries]
@@ -46,15 +44,14 @@ endian = 'little'
 [properties]
 needs_exe_wrapper = true
 sys_root = '/usr/local/lib/android/sdk/ndk/28.2.13676358/toolchains/llvm/prebuilt/linux-x86_64/sysroot'
-libdir = '/usr/local/lib/android/sdk/ndk/28.2.13676358/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/26'
-# 🟢 CORRECCIÓN SUPREMA DE PROPIEDADES: Inyectamos la variable sys_roots nativa de Meson para find_library().
-# Esto obliga al motor a escanear nuestra carpeta local de shims antes de fallar por restricciones de usuario de Docker.
-sys_roots = ['/workspace/shims_64']
+# 🟢 ENLACE PRIORITARIO: Colocamos la carpeta de nuestros stubs en el libdir preferencial de las propiedades de Meson
+libdir = ['/workspace/shims_64/lib', '/usr/local/lib/android/sdk/ndk/28.2.13676358/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/26']
 pkg_config_path = shims_path + '/lib/pkgconfig'
 pkg_config_libdir = shims_path + '/lib/pkgconfig'
+# 🟢 PRECEDENCIA DE CLANG: Añadimos -B para obligar a Clang a buscar stubs binarios en shims_64 antes de procesar find_library
 [built-in options]
-c_args = ['--sysroot=/usr/local/lib/android/sdk/ndk/28.2.13676358/toolchains/llvm/prebuilt/linux-x86_64/sysroot', '-D__TERMUX__', '-I' + mesa_root, '-I' + mesa_root + '/src', '-I' + shims_path + '/include', '-I' + shims_path + '/include/libdrm']
-cpp_args = ['--sysroot=/usr/local/lib/android/sdk/ndk/28.2.13676358/toolchains/llvm/prebuilt/linux-x86_64/sysroot', '-D__TERMUX__', '-I' + mesa_root, '-I' + mesa_root + '/src', '-I' + shims_path + '/include', '-I' + shims_path + '/include/libdrm']
+c_args = ['--sysroot=/usr/local/lib/android/sdk/ndk/28.2.13676358/toolchains/llvm/prebuilt/linux-x86_64/sysroot', '-D__TERMUX__', '-B' + shims_path + '/lib', '-I' + mesa_root, '-I' + mesa_root + '/src', '-I' + shims_path + '/include', '-I' + shims_path + '/include/libdrm']
+cpp_args = ['--sysroot=/usr/local/lib/android/sdk/ndk/28.2.13676358/toolchains/llvm/prebuilt/linux-x86_64/sysroot', '-D__TERMUX__', '-B' + shims_path + '/lib', '-I' + mesa_root, '-I' + mesa_root + '/src', '-I' + shims_path + '/include', '-I' + shims_path + '/include/libdrm']
 c_link_args = ['-L' + shims_path + '/lib', '-L/usr/local/lib/android/sdk/ndk/28.2.13676358/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/26', '-landroid', '-llog', '-ldl', '-lsync', '-lvulkan_wrapper', '-latomic']
 cpp_link_args = ['-L' + shims_path + '/lib', '-L/usr/local/lib/android/sdk/ndk/28.2.13676358/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/26', '-landroid', '-llog', '-ldl', '-lsync', '-lvulkan_wrapper', '-latomic']
 EOF
