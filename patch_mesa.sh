@@ -7,21 +7,16 @@ echo "=========================================================="
 
 WORKSPACE="$(pwd)"
 
-# 1a. Instalando dependencias regulatorias de Python en el Host
 echo "-> 1a. Instalando dependencias de Python en el Host..."
 pip3 install --no-cache-dir mako packaging pyyaml 2>/dev/null || true
 
-# Ejecutamos el vaciado pesado de escombros de forma SÍNCRONA en primer plano
 echo "-> 1b. Ejecutando purga destructiva de residuos previos de forma síncrona..."
-# 🟢 TU CORRECCIÓN SUPREMA: Eliminamos 'include/' de la lista de borrado para proteger de forma absoluta las cabeceras Khronos nativas de Mesa 25
 sudo rm -rf shims_64/ build-libdrm/ libdrm_android/ pkg/ drm_shims_inc/ build-64/
 
-# Movemos los residuos masivos de Git y Adrenotools a la papelera en un milisegundo
 mkdir -p .trash
 if [ -d "subprojects/libadrenotools" ]; then mv subprojects/libadrenotools .trash/adrenotools_$(date +%s) || true; fi
 if [ -d "meson_src" ]; then mv meson_src .trash/meson_$(date +%s) || true; fi
 
-# La papelera se tritura en segundo plano liberando espacio, pero el script esperará su fin
 sudo rm -rf .trash/ &
 PID_CLEAN=$!
 
@@ -45,7 +40,6 @@ echo "-> 1f. Clonando el código fuente oficial y autónomo de Meson..."
 rm -rf meson_src
 git clone --depth 1 https://github.com/mesonbuild/meson.git meson_src
 
-# Fabricamos el archivo de stubs de logs mínimos para el compilador móvil
 cat << 'EOF' > stub_logs.c
 int get_wrapper_log_level(const char *option) { (void)option; return 0; }
 void write_to_logfile(const char *fmt, const char *level, ...) { (void)fmt; (void)level; }
@@ -54,7 +48,6 @@ void *dlsym(void *h, const char *s) { (void)h; (void)s; return 0; }
 int dlclose(void *h) { (void)h; return 0; }
 EOF
 
-# Nos aseguramos de que el proceso background de la papelera .trash/ haya terminado antes de ceder el control al Módulo 2
 wait $PID_CLEAN 2>/dev/null || true
 
 echo "=========================================================="
