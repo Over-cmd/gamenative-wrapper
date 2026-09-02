@@ -20,7 +20,6 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y patchelf zstd unzip python3-pip python3-setuptools
-          # Aseguramos de forma redundante las dependencias críticas de parseo para el Host
           pip3 install --no-cache-dir mako packaging pyyaml
 
       - name: 🛠️ 3. Ejecutar Orquestador Biónico Unificado
@@ -28,7 +27,6 @@ jobs:
           chmod +x patch_mesa.sh
           chmod +x generate_cross.sh
           chmod +x build.sh
-          # Disparamos el Módulo Maestro de control secuencial inmutable
           ./build.sh
 
       - name: 📦 4. Cargar Artefacto de Driver Compilado
