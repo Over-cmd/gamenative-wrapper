@@ -113,20 +113,20 @@ if os.path.exists(p):
         f=open(p,"w"); f.write(c); f.close()
 '
 
-# 🟢 PARCHE AL VUELO INTERNO: Modificamos libadrenotools dentro de la jaula, asegurando su existencia física en disco tras la preparación del Módulo 1
-echo "-> [Docker Internal] Aplicando elusión de dependencias sobre libadrenotools..."
-if [ -f "subprojects/libadrenotools/meson.build" ]; then
-    sed -i "s/cc.find_library('android')/dependency('', required : false) #/g" subprojects/libadrenotools/meson.build 2>/dev/null || true
-    sed -i "s/cc.find_library('log')/dependency('', required : false) #/g" subprojects/libadrenotools/meson.build 2>/dev/null || true
-fi
+# 🟢 REPARACIÓN CRÍTICA SÍNCRONA DE SUBPROYECTOS:
+# Ejecutamos una búsqueda recursiva por sed en caliente. Esto asegura que no dependamos de si el Módulo 1 
+# se retrasó en primer plano, forzando la elusión de 'android' y 'log' en CUALQUIER archivo build de adrenotools.
+echo "-> [Docker Internal] Ejecutando elusión forense de find_library en libadrenotools..."
+find subprojects/libadrenotools/ -name "meson.build" -exec sed -i "s/cc.find_library('android'/dependency('', required : false) #/g" {} + 2>/dev/null || true
+find subprojects/libadrenotools/ -name "meson.build" -exec sed -i "s/cc.find_library('log'/dependency('', required : false) #/g" {} + 2>/dev/null || true
 
-# Aplicamos los parches de elusión de dependencias apuntando estrictamente a la ruta de Mesa 25
+# Aplicamos los parches de elusión de dependencias apuntando estrictamente a la raíz de Mesa 25
 sed -i "s/cc.find_library('dl'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/cc.find_library('rt'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/cc.find_library('atomic'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/dependency('libclc')/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 
-# Meson Setup lee cross_64 de forma síncrona impecable e inmutable sobre el árbol limpio de Mesa 25
+# Meson Setup lee cross_64 de forma síncrona e inmune sobre el árbol limpio de Mesa 25
 python3 meson_src/meson.py setup build-64 --cross-file /workspace/cross_64.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=panfrost,wrapper
 python3 meson_src/meson.py compile -C build-64
 EOF
