@@ -48,6 +48,19 @@ if os.path.exists(p):
         print("-> [Docker Internal] Éxito: SYS_memfd_create transmutado a la Syscall 279 de forma literal.")
 '
 
+# 🟢 REPARACIÓN CRÍTICA DISK_CACHE: Redirigimos la llamada secure_getenv hacia la función estándar getenv() de la biblioteca bionic para la API 26 mediante una macro en la cabecera. Esto elude la ausencia de la función sin romper la integridad del mapa de memoria de Mesa 25
+python3 -c '
+p="src/util/disk_cache_os.c"
+import os
+if os.path.exists(p):
+    f=open(p,"r"); c=f.read(); f.close()
+    if "secure_getenv" in c and "getenv" not in c.split("\n")[0]:
+        patch = "#ifdef __ANDROID__\n#define secure_getenv getenv\n#endif\n"
+        c = patch + c
+        f=open(p,"w"); f.write(c); f.close()
+        print("-> [Docker Internal] Éxito: secure_getenv mapeado hacia getenv en disk_cache_os.c")
+'
+
 echo "-> [Docker Internal] Aplicando parches sintácticos atómicos in-situ..."
 if [ -f "meson.build" ]; then
     sed -i "s/.*find_library('dl'.*/declare_dependency(link_args : ['-ldl'])/g" meson.build
@@ -65,14 +78,6 @@ if [ -d "subprojects/libadrenotools" ]; then
     find subprojects/libadrenotools -name "meson.build" -exec sed -i 's/.*find_library("dl".*/declare_dependency(link_args : ["-ldl"])/g' {} +
 fi
 
-# 🟢 REPARACIÓN CRÍTICA LINKER HOOKS: Barremos todo el árbol clonado de Adrenotools y mutamos de forma agresiva cualquier bandera de enlace rígida bionic '-Wl,--as-needed' o '-Wl,--no-undefined' hacia un esquema elástico que permita la carga libre de dependencias dynamic de sistema
-echo "-> [Docker Internal] Mutando flags de enlace rígidos en Adrenotools..."
-if [ -d "subprojects/libadrenotools" ]; then
-    find subprojects/libadrenotools -name "meson.build" -exec sed -i 's/-Wl,--no-undefined/-Wl,--allow-shlib-undefined/g' {} +
-    find subprojects/libadrenotools -name "meson.build" -exec sed -i 's/b_lundef=true/b_lundef=false/g' {} +
-    find subprojects/libadrenotools -name "meson.build" -exec sed -i 's/b_asneeded=true/b_asneeded=false/g' {} +
-fi
-
 # Inicializamos formalmente las variables de linkernsbypass apuntando a los objetos de enlace real estructurados
 BYPASS_RECIPE="subprojects/libadrenotools/lib/linkernsbypass/meson.build"
 if [ -f "$BYPASS_RECIPE" ]; then
@@ -85,6 +90,6 @@ python3 meson_src/meson.py setup build-libdrm libdrm_android --cross-file /works
   -Dintel=disabled -Dradeon=disabled -Damdgpu=disabled -Dnouveau=disabled -Dman-pages=disabled -Dvalgrind=disabled -Dtests=false
 python3 meson_src/meson.py install -C build-libdrm
 
-# Compilación del Core de Mesa 25 libre de restricciones de indeterminación de firmas
+# Compilación del Core de Mesa 25 con las banderas de enlazado de sistema re-acopladas de forma impecable
 python3 meson_src/meson.py setup build-64 --cross-file /workspace/cross_64.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=panfrost,wrapper
 python3 meson_src/meson.py compile -C build-64
