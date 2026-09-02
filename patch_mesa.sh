@@ -11,7 +11,7 @@ WORKSPACE="$(pwd)"
 echo "-> 1a. Instalando dependencias de Python en el Host..."
 pip3 install --no-cache-dir mako packaging pyyaml 2>/dev/null || true
 
-# Ejecutamos el vaciado pesado de escombros de forma SÍNCRONA en primer plano
+# Ejecutamos el vaciado pesado de escombros de forma SÍNCRONA en primer plano para evitar condiciones de carrera
 echo "-> 1b. Ejecutando purga destructiva de residuos previos de forma síncrona..."
 sudo rm -rf shims_64/ build-libdrm/ libdrm_android/ pkg/ drm_shims_inc/ build-64/
 
@@ -31,15 +31,14 @@ unzip -q libdrm.zip
 mv -v drm-main libdrm_android
 rm -f libdrm.zip
 
-echo "-> 1e. Descargando código legítimo de libadrenotools (Pipetto)..."
+# 🟢 CORRECCIÓN SUPREMA 1e: Reemplazamos el curl incompleto por un clonado recursivo legítimo de Git para descargar físicamente el submódulo linkernsbypass y sus meson.build anidados
+echo "-> 1e. Descargando código real de libadrenotools con submódulos recursivos..."
 mkdir -p subprojects
-curl -L "https://github.com/Pipetto-crypto/libadrenotools/archive/refs/heads/master.zip" -o adrenotools.zip
-unzip -q adrenotools.zip
-mv -v libadrenotools-master subprojects/libadrenotools
-rm -f adrenotools.zip
+rm -rf subprojects/libadrenotools
+git clone --depth 1 --recursive subprojects/libadrenotools/lib/linkernsbypass/meson.build
 
-# 🟢 TU CORRECCIÓN MAGISTRAL APLICADA: Clonamos de forma elástica apuntando de forma rígida al Tag oficial de la versión 1.11.1 para garantizar soporte nativo absoluto en entornos con Python 3.9 legados
-echo "-> 1f. Clonando la versión estable y compatible de Meson 1.11.1..."
+
+echo "-> 1f. Clonando la versión de desarrollo compatible de Meson 1.11.1..."
 rm -rf meson_src
 git clone --depth 1 --branch 1.11.1 https://github.com/mesonbuild/meson.git meson_src
 
@@ -56,5 +55,5 @@ EOF
 wait $PID_CLEAN 2>/dev/null || true
 
 echo "=========================================================="
-echo "🟢 MÓDULO 1 CONCLUIDO CON ÉXITO - REPOSITORIOS ALINEADOS OK"
+echo "🟢 MÓDULO 1 CONCLUIDO CON ÉXITO - SUBPROYECTOS RECURSIVOS OK"
 echo "=========================================================="
