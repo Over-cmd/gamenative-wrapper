@@ -45,7 +45,6 @@ if [ -f "meson.build" ]; then
     sed -i "s/dependency('libclc')/dependency('', required : false) #/g" meson.build
 fi
 
-# 🟢 REPARACIÓN INDUSTRIAL TOTAL MULTI-NIVEL: Agregamos la elisión de 'dl' con comodines elásticos cubriendo comillas simples y dobles en todo el árbol profundo de subproyectos (incluyendo linkernsbypass). No hay candado interno que escape a esta red de arrastre
 if [ -d "subprojects/libadrenotools" ]; then
     find subprojects/libadrenotools -name "meson.build" -exec sed -i "s/.*find_library('android'.*/dependency('', required : false) #/g" {} +
     find subprojects/libadrenotools -name "meson.build" -exec sed -i 's/.*find_library("android".*/dependency("", required : false) #/g' {} +
@@ -55,11 +54,18 @@ if [ -d "subprojects/libadrenotools" ]; then
     find subprojects/libadrenotools -name "meson.build" -exec sed -i 's/.*find_library("dl".*/dependency("", required : false) #/g' {} +
 fi
 
+# 🟢 REPARACIÓN CRÍTICA VARIABLES INTERNAL: Inyectamos la declaración explícita de libandroid_dep y liblog_dep como dependencias vacías legales en la cabecera de linkernsbypass para triturar el error de "Unknown variable"
+BYPASS_RECIPE="subprojects/libadrenotools/lib/linkernsbypass/meson.build"
+if [ -f "$BYPASS_RECIPE" ]; then
+    echo "-> [Docker Internal] Inyectando declaraciones globales sobre linkernsbypass..."
+    echo -e "libandroid_dep = dependency('', required : false)\nliblog_dep = dependency('', required : false)\n$(cat $BYPASS_RECIPE)" > "$BYPASS_RECIPE"
+fi
+
 # Compilación de libdrm en su prefijo aislado
 python3 meson_src/meson.py setup build-libdrm libdrm_android --cross-file /workspace/cross_libdrm.txt --prefix="/workspace/shims_64" \
   -Dintel=disabled -Dradeon=disabled -Damdgpu=disabled -Dnouveau=disabled -Dman-pages=disabled -Dvalgrind=disabled -Dtests=false
 python3 meson_src/meson.py install -C build-libdrm
 
-# Compilación del Core de Mesa 25 leyendo las fuentes locales ya completamente purificadas a nivel profundo
+# Compilación del Core de Mesa 25 con el árbol de dependencias 100% estabilizado
 python3 meson_src/meson.py setup build-64 --cross-file /workspace/cross_64.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=panfrost,wrapper
 python3 meson_src/meson.py compile -C build-64
