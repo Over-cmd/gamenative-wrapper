@@ -36,6 +36,10 @@ echo "-> 1e. Descargando código real de libadrenotools con submódulos recursiv
 mkdir -p subprojects
 rm -rf subprojects/libadrenotools
 git clone --depth 1 --recursive https://github.com/Over-cmd/libadrenotools.git subprojects/libadrenotools
+sed -i "s/cc.find_library('android'/dependency('', required : false) #/g" subprojects/libadrenotools/meson.build
+sed -i 's/cc.find_library("android"/dependency("", required : false) #/g' subprojects/libadrenotools/meson.build
+sed -i "s/cc.find_library('log'/dependency('', required : false) #/g" subprojects/libadrenotools/meson.build
+sed -i 's/cc.find_library("log"/dependency("", required : false) #/g' subprojects/libadrenotools/meson.build
 
 echo "-> 1f. Clonando la versión de desarrollo compatible de Meson 1.11.1..."
 rm -rf meson_src
