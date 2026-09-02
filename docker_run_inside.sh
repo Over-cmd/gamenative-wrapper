@@ -37,8 +37,20 @@ if os.path.exists(p):
         f=open(p,"w"); f.write(c); f.close()
 '
 
-# 🟢 REPARACIÓN CRÍTICA SÍMBOLOS REALES: En lugar de comentar las librerías con #, las sustituimos de forma legítima por un declare_dependency de Meson que inyecta los link_args explícitos. Esto le enseña a Clang exactamente dónde buscar los símbolos vitales del sistema Android
-echo "-> [Docker Internal] Inyectando dependencias declarativas explícitas sobre Mesa 25..."
+# 🟢 REPARACIÓN CRÍTICA ANON_FILE: Inyectamos la macro real inmutable del Kernel Linux para SYS_memfd_create en la arquitectura aarch64 (Syscall 279) para evitar el colapso sintáctico de Clang en la compilación cruzada de la API 26
+python3 -c '
+p="src/util/anon_file.c"
+import os
+if os.path.exists(p):
+    f=open(p,"r"); c=f.read(); f.close()
+    if "SYS_memfd_create" not in c:
+        patch = "#ifndef SYS_memfd_create\n#define SYS_memfd_create 279\n#endif\n"
+        c = patch + c
+        f=open(p,"w"); f.write(c); f.close()
+        print("-> [Docker Internal] Parche SYS_memfd_create inyectado en anon_file.c con éxito.")
+'
+
+echo "-> [Docker Internal] Aplicando parches sintácticos atómicos in-situ..."
 if [ -f "meson.build" ]; then
     sed -i "s/.*find_library('dl'.*/declare_dependency(link_args : ['-ldl'])/g" meson.build
     sed -i "s/.*find_library('rt'.*/declare_dependency(link_args : ['-lc'])/g" meson.build
@@ -46,7 +58,6 @@ if [ -f "meson.build" ]; then
     sed -i "s/dependency('libclc')/declare_dependency()/g" meson.build
 fi
 
-echo "-> [Docker Internal] Saneando el árbol profundo de subproyectos de Adrenotools..."
 if [ -d "subprojects/libadrenotools" ]; then
     find subprojects/libadrenotools -name "meson.build" -exec sed -i "s/.*find_library('android'.*/declare_dependency(link_args : ['-landroid'])/g" {} +
     find subprojects/libadrenotools -name "meson.build" -exec sed -i 's/.*find_library("android".*/declare_dependency(link_args : ["-landroid"])/g' {} +
