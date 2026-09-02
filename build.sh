@@ -2,55 +2,44 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO SEGURO TOTAL"
+echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO DEFINITIVO CON SANACIÓN TOTAL"
 echo "=========================================================="
 
 WORKSPACE="$(pwd)"
 
-# 🟢 REPARACIÓN MAESTRA DE DESINFECCIÓN DE BYTES:
-# Si el archivo meson.build existe y contiene trazas de Bash, lo destruimos e intentamos restaurar.
-# Si Git falla en restaurarlo, creamos un archivo de escape legal para que Meson no muera.
-echo "-> 1a. Escaneando y desinfectando de forma radical el archivo meson.build raíz..."
+# 🟢 SANACIÓN QUIRÚRGICA INDESTRUCTIBLE EN EL HOST: Trituramos cualquier echo o comilla doble intrusa que baje corrupta del commit viejo de GitHub antes de iniciar el flujo
+echo "-> 1a. Purificando de forma radical y síncrona el archivo meson.build raíz..."
 if [ -f "meson.build" ]; then
-    if grep -q "WORKSPACE=" "meson.build" || grep -q "echo " "meson.build" || grep -q "====" "meson.build"; then
-        echo "-> [⚠️ ALERTA HOST] ¡Corrupción crítica de Bash detectada en meson.build! Demoliendo archivo impostor..."
-        sudo rm -f meson.build
-    fi
+    # Eliminamos cualquier línea que contenga la palabra echo o las comillas dobles huérfanas de Bash
+    sed -i '/echo "/d' meson.build 2>/dev/null || true
+    sed -i '/=====/d' meson.build 2>/dev/null || true
+    sed -i '/WORKSPACE=/d' meson.build 2>/dev/null || true
 fi
 
-# Forzamos una limpieza absoluta del índice de Git del Host eliminando bloqueos de root previos
-echo "-> [Host] Forzando restauración del árbol de fuentes desde el repositorio puro..."
-sudo git reset --hard HEAD 2>/dev/null || true
-sudo git clean -fdx -e .git/ 2>/dev/null || true
-git checkout HEAD -- meson.build 2>/dev/null || git checkout -f meson.build 2>/dev/null || true
-
-# 🟢 TRATAMIENTO DE ESCAPE DE EMERGENCIA: Si por alguna razón Git no pudo restaurar el meson.build original 
-# y el archivo sigue ausente o corrupto, inyectamos una cabecera mínima legal para que Meson pase el setup
-if [ ! -f "meson.build" ] || grep -q "echo " "meson.build"; then
-    echo "-> [⚠️ ESCAPE] Git bloqueado. Fabricando meson.build de emergencia legal..."
-    cat << 'EOF' > meson.build
-project('mesa', 'c', 'cpp', version : '25.0.0', meson_version : '>= 1.11.0')
-# Lienzo recuperado de forma artificial segura
-EOF
-fi
-
-# Aseguramos de forma preventiva la existencia inmaculada de las cabeceras nativas de Mesa
-git checkout HEAD -- include/ 2>/dev/null || true
-
-# Invocamos la fase de preparación de fuentes (Módulo 1)
+# Invocamos la fase de preparación de fuentes y descompresión de zips de Meson 1.11.1 (Módulo 1)
 chmod +x patch_mesa.sh
 ./patch_mesa.sh
+
+# 🟢 SANACIÓN QUIRÚRGICA EN EL HOST: Aplicamos las elusiones de dependencias legítimas en el Host sobre el archivo purificado
+if [ -f "meson.build" ]; then
+    echo "-> 1b. Aplicando parches regulatorios sobre meson.build inmaculado..."
+    sed -i "s/cc.find_library('dl'/dependency('', required : false) #/g" meson.build
+    sed -i "s/cc.find_library('rt'/dependency('', required : false) #/g" meson.build
+    sed -i "s/cc.find_library('atomic'/dependency('', required : false) #/g" meson.build
+    sed -i "s/dependency('libclc')/dependency('', required : false) #/g" meson.build
+fi
 
 # Otorgamos permisos de lectura universales al stub generado para que Clang dentro de Docker pueda leerlo sin Permission Denied bajo --user
 if [ -f "stub_logs.c" ]; then
     chmod 644 stub_logs.c
 fi
 
-# Invocamos el generador de cross-files en el Host (Módulo Intermedio)
+# Invocamos el generador de cross-files aislado en el Host (Módulo Intermedio)
 chmod +x generate_cross.sh
 ./generate_cross.sh
 
-# Escribimos la receta entera de Docker libre de volcados de texto complejos y mutaciones de ámbito invasivas
+# Escribimos la receta entera de Docker limpia de comandos complejos de anidación
+echo "-> 1c. Estructurando receta interna compacta para la jaula de Docker..."
 cat << 'EOF' > docker_run_inside.sh
 #!/bin/bash
 set -e
@@ -78,7 +67,7 @@ fi
 echo "-> [Docker Internal] Compilando stubs duales legítivos para enlazado preferencial..."
 $NDK_BIN/aarch64-linux-android26-clang -c stub_logs.c -o stub_c.o
 $NDK_BIN/llvm-ar rcs shims_64/lib/liblog.a stub_c.o
-$NDK_BIN/llvm-ar rcs shims_64/libvulkan_wrapper.a stub_c.o
+$NDK_BIN/shims_64/libvulkan_wrapper.a stub_c.o 2>/dev/null || $NDK_BIN/llvm-ar rcs shims_64/libvulkan_wrapper.a stub_c.o
 
 $NDK_BIN/aarch64-linux-android26-clang++ -c stub_logs.c -o stub_cpp.o
 $NDK_BIN/llvm-ar rcs shims_64/lib/libandroid.a stub_cpp.o
@@ -104,15 +93,7 @@ python3 meson_src/meson.py setup build-libdrm libdrm_android --cross-file /works
   -Dintel=disabled -Dradeon=disabled -Damdgpu=disabled -Dnouveau=disabled -Dman-pages=disabled -Dvalgrind=disabled -Dtests=false
 python3 meson_src/meson.py install -C build-libdrm
 
-# Aplicamos los parches de elusión de dependencias apuntando estrictamente a la ruta de Mesa 25 para no pisar por error a libdrm
-if [ -f "meson.build" ]; then
-    sed -i "s/cc.find_library('dl'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
-    sed -i "s/cc.find_library('rt'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
-    sed -i "s/cc.find_library('atomic'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
-    sed -i "s/dependency('libclc')/dependency('', required : false) #/g" meson.build 2>/dev/null || true
-fi
-
-# Meson Setup lee cross_64 de forma síncrona impecable e inmutable sobre el árbol limpio de Mesa 25
+# Meson Setup lee cross_64 de forma síncrona impecable e inmutable sobre el árbol purificado de Mesa 25
 python3 meson_src/meson.py setup build-64 --cross-file /workspace/cross_64.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=panfrost,wrapper
 python3 meson_src/meson.py compile -C build-64
 EOF
@@ -175,7 +156,6 @@ echo "msf:315508" > pkg/version.txt && chmod -R 755 pkg/
 cd pkg && tar -I "zstd -19 -T0" -cf "../wrapper.tzst" usr version.txt
 cd "${WORKSPACE}"
 
-# PURGA TRANSPARENTE: Eliminamos residuos de forma segura
 echo "-> 6. Purgando artefactos efímeros de forma transparente y segura..."
 rm -f docker_run_inside.sh cross_libdrm.txt cross_64.txt stub_logs.c stub_c.o stub_cpp.o generate_cross.sh
 rm -rf meson_src/
