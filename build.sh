@@ -7,21 +7,19 @@ echo "=========================================================="
 
 WORKSPACE="$(pwd)"
 
-# Detectamos si el meson.build nativo está corrupto por Bash, lo demolemos físicamente y forzamos su reconstrucción pura desde el HEAD de Git
+# Escaneamos y sanamos el archivo meson.build raíz
 echo "-> 1a. Escaneando y sanando el archivo meson.build raíz..."
 if [ -f "meson.build" ] && grep -q "WORKSPACE=" "meson.build"; then
     echo "-> [⚠️ ALERTA HOST] ¡Corrupción de Bash detectada en meson.build! Demoliendo archivo corrupto..."
     rm -f meson.build
 fi
 
-# Forzamos a Git a rescatar la copia virgen legítima del repositorio desbancando cualquier untracked block
 git checkout HEAD -- meson.build 2>/dev/null || git checkout -f meson.build 2>/dev/null || true
 
-# Invocamos la fase de preparación de fuentes y descompresión de zips (Módulo 1)
+# Invocamos la fase de preparación de fuentes (Módulo 1)
 chmod +x patch_mesa.sh
 ./patch_mesa.sh
 
-# Otorgamos permisos de lectura universales al stub generado para que Clang dentro de Docker pueda leerlo sin Permission Denied bajo --user
 if [ -f "stub_logs.c" ]; then
     echo "-> 1b. Inmunizando permisos de lectura para stub_logs.c..."
     chmod 644 stub_logs.c
@@ -31,7 +29,7 @@ fi
 chmod +x generate_cross.sh
 ./generate_cross.sh
 
-# Escribimos la receta entera de Docker limpia de comandos de anidación
+# Escribimos la receta entera de Docker limpia
 echo "-> 1c. Estructurando receta interna compacta para la jaula de Docker..."
 cat << 'EOF' > docker_run_inside.sh
 #!/bin/bash
@@ -51,7 +49,7 @@ export NDK_BIN="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin"
 export NDK_SYSROOT="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
 NDK_SYSROOT_LIB_64="${NDK_SYSROOT}/usr/lib/aarch64-linux-android/26"
 
-# Recuperamos la búsqueda dinámica del core de LLVM de Clang de la imagen de LeeGao
+# Búsqueda dinámica del core de LLVM de Clang
 NDK_LLVM_LIB="/usr/local/lib/android/sdk/ndk/28.2.13676358/toolchains/llvm/prebuilt/linux-x86_64/lib/clang/19/lib/linux/aarch64"
 if [ ! -d "$NDK_LLVM_LIB" ]; then
     NDK_LLVM_LIB=$(find ${ANDROID_NDK_HOME} -name "aarch64" -type d | grep "lib/linux" | head -n 1 || echo "")
@@ -66,7 +64,6 @@ $NDK_BIN/aarch64-linux-android26-clang++ -c stub_logs.c -o stub_cpp.o
 $NDK_BIN/llvm-ar rcs shims_64/lib/libandroid.a stub_cpp.o
 $NDK_BIN/llvm-ar rcs shims_64/lib/libdl.a stub_cpp.o
 
-# Inyección local defensiva en Sysroots internos si el contenedor lo permite
 cp -fv shims_64/lib/libandroid.a "$NDK_SYSROOT_LIB_64/libandroid.a" 2>/dev/null || true
 cp -fv shims_64/lib/liblog.a "$NDK_SYSROOT_LIB_64/liblog.a" 2>/dev/null || true
 cp -fv shims_64/lib/libdl.a "$NDK_SYSROOT_LIB_64/libdl.a" 2>/dev/null || true
@@ -81,6 +78,7 @@ if os.path.exists(p):
         f=open(p,"w"); f.write(c); f.close()
 '
 
+# Elisiones de librerías nativas para el core
 sed -i "s/cc.find_library('dl'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/cc.find_library('rt'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/cc.find_library('atomic'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
@@ -91,19 +89,19 @@ if [ -f "subprojects/libadrenotools/meson.build" ]; then
     sed -i "s/cc.find_library('log'/dependency('', required : false) #/g" subprojects/libadrenotools/meson.build 2>/dev/null || true
 fi
 
-# Compilación real e instalación de libdrm en su prefijo aislado leyendo la receta fija del Host
+# Compilación de libdrm
 python3 meson_src/meson.py setup build-libdrm libdrm_android --cross-file /workspace/cross_libdrm.txt --prefix="/workspace/shims_64" \
   -Dintel=disabled -Dradeon=disabled -Damdgpu=disabled -Dnouveau=disabled -Dman-pages=disabled -Dvalgrind=disabled -Dtests=false
 python3 meson_src/meson.py install -C build-libdrm
 
-# 🟢 REPARACIÓN CRÍTICA EXTRACCIÓN DETECTADA: Inyectamos la directiva --force-fallback-for=libadrenotools para obligar a Meson a procesar y construir el subproyecto físico local de Adrenotools saltándose el bloqueo de wrap-mode
+# Meson Setup lee cross_64 inyectando la directiva --force-fallback-for=libadrenotools para saltar el bloqueo de wrap-mode
 python3 meson_src/meson.py setup build-64 --cross-file /workspace/cross_64.txt --wrap-mode=nodownload --force-fallback-for=libadrenotools -Dbuildtype=release -Dplatforms=android -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=panfrost,wrapper
 python3 meson_src/meson.py compile -C build-64
 EOF
 
 chmod +x docker_run_inside.sh
 
-# 3. Invocación atómica directa al contenedor de LeeGao mapeado por hardware e identidad de usuario protegida
+# Invocación atómica directa al contenedor de LeeGao mapeado por hardware e identidad de usuario protegida
 echo "-> 3. Lanzando entorno biónico aislado en Docker..."
 docker run --rm --entrypoint /bin/bash \
   --user "$(id -u):$(id -g)" \
@@ -111,7 +109,7 @@ docker run --rm --entrypoint /bin/bash \
   -v "/usr/local/lib/android:/usr/local/lib/android" \
   -w /workspace ghcr.io/leegao/mesa-wrapper-ci/wrapper-compiler:latest ./docker_run_inside.sh
 
-# 4. Maquetando empaque de proximidad biónica unificado en el Host de Actions
+# Maquetando empaque de proximidad biónica unificado en el Host de Actions
 echo "-> 4. Maquetando empaque unificado de proximidad biónica..."
 mkdir -p pkg/usr/lib/aarch64-linux-android
 mkdir -p pkg/usr/share/vulkan/icd.d
