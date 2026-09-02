@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO CON CIRUGÍA MESA 25 OK"
+echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO PERFECCIONADO CON DESACTIVACIÓN ATÓMICA"
 echo "=========================================================="
 
 WORKSPACE="$(pwd)"
@@ -82,10 +82,10 @@ if os.path.exists(p):
         f=open(p,"w"); f.write(c); f.close()
 '
 
-# 🟢 REPARACIÓN TRITURADORA ADAPTADOR: Corregimos el bug de la variable inexistente inc_include en el stub móvil de Mesa 25
-echo "-> [Docker Internal] Parchando variable inc_include corrupta de Mesa 25..."
+# 🟢 REPARACIÓN CRÍTICA ATÓMICA: Forzamos with_android_stub a falso al inicio del subproyecto para saltarnos el bucle foreach roto de variables de forma limpia y legal
+echo "-> [Docker Internal] Parchando bandera maestra in situ de android_stub..."
 if [ -f "src/android_stub/meson.build" ]; then
-    sed -i "s/inc_include/inc_src/g" src/android_stub/meson.build
+    sed -i '1iwith_android_stub = false' src/android_stub/meson.build
 fi
 
 sed -i "s/cc.find_library('dl'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
