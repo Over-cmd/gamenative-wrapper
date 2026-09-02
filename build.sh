@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO CON INYECCIÓN DEFENSIVA"
+echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO CON CIRUGÍA MESA 25 OK"
 echo "=========================================================="
 
 WORKSPACE="$(pwd)"
@@ -64,19 +64,10 @@ python3 meson_src/meson.py setup build-libdrm libdrm_android --cross-file /works
   -Dintel=disabled -Dradeon=disabled -Damdgpu=disabled -Dnouveau=disabled -Dman-pages=disabled -Dvalgrind=disabled -Dtests=false
 python3 meson_src/meson.py install -C build-libdrm
 
-# 🟢 FASE DE DIAGNÓSTICO FORENSE: Escaneamos el disco antes de tocar nada para ver quién creó la carpeta include/
-echo "-> [🔍 FORENSE DOCKER] Escaneando presencia de carpetas intrusas..."
-ls -la /workspace/
-if [ -d "/workspace/include" ]; then
-    echo "-> [🔍 FORENSE DOCKER] ¡Carpeta include/ detectada! Listando contenido:"
-    ls -la /workspace/include/
-fi
-
-# Intentamos borrarla de forma agresiva con permisos de superusuario interno
+# Limpieza interna preventiva de la raíz
 rm -rf /workspace/include/ ./include/ || true
 
-# 🟢 JUGADA MAESTRA DEFENSIVA: Si la carpeta persiste o se recrea de forma fantasma, le inyectamos un meson.build vacío legal para saciar la línea 2283
-echo "-> [Docker Internal] Aplicando inyección defensiva contra el error de la línea 2283..."
+# Aplicando inyección defensiva contra el error histórico de la línea 2283
 mkdir -p /workspace/include
 echo "# Fichero de escape atómico vacío legal" > /workspace/include/meson.build
 chmod 755 /workspace/include/meson.build
@@ -91,12 +82,18 @@ if os.path.exists(p):
         f=open(p,"w"); f.write(c); f.close()
 '
 
+# 🟢 REPARACIÓN TRITURADORA ADAPTADOR: Corregimos el bug de la variable inexistente inc_include en el stub móvil de Mesa 25
+echo "-> [Docker Internal] Parchando variable inc_include corrupta de Mesa 25..."
+if [ -f "src/android_stub/meson.build" ]; then
+    sed -i "s/inc_include/inc_src/g" src/android_stub/meson.build
+fi
+
 sed -i "s/cc.find_library('dl'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/cc.find_library('rt'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/cc.find_library('atomic'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/dependency('libclc')/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 
-# Lanzamos el setup con el escape inyectado en verde limpio
+# Lanzamos el setup con el árbol totalmente liberado
 python3 meson_src/meson.py setup build-64 --cross-file /workspace/cross_64.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=panfrost,wrapper
 python3 meson_src/meson.py compile -C build-64
 EOF
