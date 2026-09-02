@@ -2,25 +2,24 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO INTEGRAL MODULAR"
+echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO CON RESTAURACIÓN FORZADA OK"
 echo "=========================================================="
 
 WORKSPACE="$(pwd)"
 
-# 1. Invocamos la fase de preparación de fuentes (Módulo 1)
+# 🟢 REPARACIÓN CRÍTICA INMUNE: Forzamos a Git a revertir cualquier sobreescritura accidental sobre meson.build para recuperar el archivo original legítimo de Mesa 25 antes de que actúe Docker
+echo "-> 1a. Purificando el árbol de fuentes y rescatando meson.build original de Git..."
+git checkout -f meson.build 2>/dev/null || true
+
+# Invocamos la fase de preparación de fuentes y descompresión de zips (Módulo 1)
 chmod +x patch_mesa.sh
 ./patch_mesa.sh
 
-# 2. Invocamos el generador de cross-files en el Host (Módulo Intermedio)
+# Invocamos el generador de cross-files aislado en el Host (Módulo Intermedio)
 chmod +x generate_cross.sh
 ./generate_cross.sh
 
-# 🟢 REPARACIÓN HISTÓRICA: Como restauramos el meson.build corrupto revirtiendo los cambios locales de Git, aseguramos el lienzo 100% original de Mesa 25
-if [ -f "meson.build" ]; then
-    git checkout meson.build 2>/dev/null || true
-fi
-
-# Escribimos la receta entera de Docker en un script plano e independiente libre de condicionales cat complejos
+# Escribimos la receta entera de Docker en un script plano e independiente libre de volcados de texto cruzados
 cat << 'EOF' > docker_run_inside.sh
 #!/bin/bash
 set -e
@@ -54,7 +53,7 @@ $NDK_BIN/aarch64-linux-android26-clang++ -c stub_logs.c -o stub_cpp.o
 $NDK_BIN/llvm-ar rcs shims_64/lib/libandroid.a stub_cpp.o
 $NDK_BIN/llvm-ar rcs shims_64/lib/libdl.a stub_cpp.o
 
-# Inyección defensiva en Sysroots internos
+# Inyección local defensiva en Sysroots internos
 cp -fv shims_64/lib/libandroid.a "$NDK_SYSROOT_LIB_64/libandroid.a" 2>/dev/null || true
 cp -fv shims_64/lib/liblog.a "$NDK_SYSROOT_LIB_64/liblog.a" 2>/dev/null || true
 cp -fv shims_64/lib/libdl.a "$NDK_SYSROOT_LIB_64/libdl.a" 2>/dev/null || true
@@ -79,7 +78,7 @@ sed -i "s/cc.find_library('rt'/dependency('', required : false) #/g" meson.build
 sed -i "s/cc.find_library('atomic'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/dependency('libclc')/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 
-# Meson Setup lee cross_64 de forma síncrona impecable
+# Meson Setup lee cross_64 inyectando las cabeceras Khronos de forma directa vía banderas de Clang sobre el meson.build legítimo rescatado
 python3 meson_src/meson.py setup build-64 --cross-file /workspace/cross_64.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=panfrost,wrapper
 python3 meson_src/meson.py compile -C build-64
 EOF
