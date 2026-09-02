@@ -49,8 +49,8 @@ sys_root = '/usr/local/lib/android/sdk/ndk/28.2.13676358/toolchains/llvm/prebuil
 libdir = '/usr/local/lib/android/sdk/ndk/28.2.13676358/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/26'
 pkg_config_path = shims_path + '/lib/pkgconfig'
 pkg_config_libdir = shims_path + '/lib/pkgconfig'
-# 🟢 CORRECCIÓN SUPREMA DE VÍAS DE ENLAZADO: Inyectamos de forma nativa la ruta -L local a nivel de c_args y cpp_args globales. 
-# Esto fuerza a que subproyectos autónomos externos como libadrenotools localicen los stubs de Android de forma inmediata.
+# 🟢 INTEGRACIÓN RADICAL: Sumamos '-L' + shims_path + '/lib' directamente en c_args y cpp_args globales. 
+# Esto fuerza a Clang a rastrear nuestro nido local de shims biónicos durante la ejecución interna de find_library() de los subproyectos.
 [built-in options]
 c_args = ['--sysroot=/usr/local/lib/android/sdk/ndk/28.2.13676358/toolchains/llvm/prebuilt/linux-x86_64/sysroot', '-D__TERMUX__', '-I' + mesa_root, '-I' + mesa_root + '/src', '-I' + shims_path + '/include', '-I' + shims_path + '/include/libdrm', '-L' + shims_path + '/lib']
 cpp_args = ['--sysroot=/usr/local/lib/android/sdk/ndk/28.2.13676358/toolchains/llvm/prebuilt/linux-x86_64/sysroot', '-D__TERMUX__', '-I' + mesa_root, '-I' + mesa_root + '/src', '-I' + shims_path + '/include', '-I' + shims_path + '/include/libdrm', '-L' + shims_path + '/lib']
