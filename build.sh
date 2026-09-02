@@ -37,7 +37,7 @@ fi
 chmod +x generate_cross.sh
 ./generate_cross.sh
 
-# 🟢 REPARACIÓN SUPREMA EXPRESIONES REGULARES: Usamos un sed ultra-flexible que destruye la validación use comillas simples, dobles o espacios en todo adrenotools
+# 🟢 REPARACIÓN SUPREMA EXPRESIONES REGULARES: Usamos un sed ultra-flexible en el Host que destruye la validación use comillas simples, dobles o espacios en todo adrenotools en cuanto patch_mesa lo descarga
 echo "-> 1b. Aplicando parches sintácticos robustos sobre Adrenotools en el Host..."
 if [ -d "subprojects/libadrenotools" ]; then
     find subprojects/libadrenotools -name "meson.build" -exec sed -i "s/cc.find_library(.*android.*/dependency('', required : false) #/g" {} +
