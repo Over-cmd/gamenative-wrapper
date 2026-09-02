@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO MAESTRO SEGURO V65"
+echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO MAESTRO SEGURO V66"
 echo "=========================================================="
 
 WORKSPACE="$(pwd)"
@@ -26,21 +26,7 @@ chmod +x patch_mesa.sh generate_cross.sh docker_run_inside.sh
 ./patch_mesa.sh
 rm -f subprojects/libadrenotools.wrap
 
-# 🟢 REPARACIÓN CRÍTICA PERMISOS HOST: Forzamos la apertura de permisos de escritura totales sobre la carpeta recién clonada ANTES de pasar los sed. Esto garantiza que las modificaciones se guarden en disco físicamente sin bloqueos silenciosos
-echo "-> 1b. Abriendo permisos de escritura sobre subprojects..."
-chmod -R 777 subprojects/ 2>/dev/null || true
-
-echo "-> 1c. Aplicando parches sintácticos sobre Adrenotools y Mesa en el Host..."
-if [ -f "meson.build" ]; then
-    sed -i "s/cc.find_library('dl'/dependency('', required : false) #/g" meson.build
-    sed -i 's/cc.find_library("dl"/dependency("", required : false) #/g' meson.build
-    sed -i "s/cc.find_library('rt'/dependency('', required : false) #/g" meson.build
-    sed -i 's/cc.find_library("rt"/dependency("", required : false) #/g' meson.build
-    sed -i "s/cc.find_library('atomic'/dependency('', required : false) #/g" meson.build
-    sed -i 's/cc.find_library("atomic"/dependency("", required : false) #/g' meson.build
-    sed -i "s/dependency('libclc')/dependency('', required : false) #/g" meson.build
-fi
-
+echo "-> 1b. Aplicando parches sintácticos sobre Adrenotools en el Host..."
 if [ -d "subprojects/libadrenotools" ]; then
     find subprojects/libadrenotools -name "meson.build" -exec sed -i "s/cc.find_library('android'/dependency('', required : false) #/g" {} +
     find subprojects/libadrenotools -name "meson.build" -exec sed -i 's/cc.find_library("android"/dependency("", required : false) #/g' {} +
@@ -51,7 +37,6 @@ fi
 if [ -f "stub_logs.c" ]; then chmod 644 stub_logs.c; fi
 ./generate_cross.sh
 
-# Otorgamos permisos masivos finales para la jaula de Docker
 chmod -R 777 "$WORKSPACE"
 
 echo "-> 3. Lanzando entorno biónico aislado en Docker..."
@@ -85,8 +70,20 @@ else
     echo "-> [❌ ERROR CRÍTICO] Falta libvulkan_panfrost.so"; exit 1
 fi
 
+# 🟢 REPARACIÓN CRÍTICA SÍNCRONA STRIP: Aplicamos la limpieza de símbolos sobrantes a los archivos FÍSICOS REALES de forma explícita e individual AQUÍ, antes de fabricar enlaces blandos que confundan a la herramienta. Esto reduce el peso del driver para Termux al mínimo legal sin romper inodos
+STRIP_HOST="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip"
+if [ -f "$STRIP_HOST" ]; then
+    echo "-> [Host] Aligerando binarios reales con llvm-strip de forma explícita..."
+    $STRIP_HOST --strip-unneeded pkg/usr/lib/libvulkan_wrapper.so 2>/dev/null || true
+    $STRIP_HOST --strip-unneeded pkg/usr/lib/libdrm.so 2>/dev/null || true
+    $STRIP_HOST --strip-unneeded pkg/usr/lib/aarch64-linux-android/libvulkan_panfrost.so 2>/dev/null || true
+fi
+
+# Fabricamos de forma segura el enlace simbólico virtual una vez limpiados los datos reales
+echo "-> [Host] Inicializando enlace de acoplamiento para Panfrost..."
 cd pkg/usr/lib/aarch64-linux-android && ln -sf ../libvulkan_panfrost.so libvulkan_wrapper.so && cd "${WORKSPACE}"
 
+# Sellado estructural con patchelf sobre las rutas consolidadas
 patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
 patchelf --add-needed libdrm.so pkg/usr/lib/libvulkan_wrapper.so
 patchelf --set-rpath '$ORIGIN' pkg/usr/lib/libvulkan_wrapper.so
@@ -94,12 +91,6 @@ patchelf --set-soname libvulkan_panfrost.so pkg/usr/lib/aarch64-linux-android/li
 patchelf --add-needed libdrm.so pkg/usr/lib/aarch64-linux-android/libvulkan_panfrost.so
 patchelf --set-rpath '$ORIGIN' pkg/usr/lib/aarch64-linux-android/libvulkan_panfrost.so
 patchelf --set-soname libdrm.so pkg/usr/lib/libdrm.so
-
-STRIP_HOST="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip"
-if [ -f "$STRIP_HOST" ]; then
-    $STRIP_HOST --strip-unneeded pkg/usr/lib/*.so
-    $STRIP_HOST --strip-unneeded pkg/usr/lib/aarch64-linux-android/*.so
-fi
 
 cat << 'EOF' > pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
 { "ICD": { "api_version": "1.3.289", "library_path": "libvulkan_wrapper.so" }, "file_format_version": "1.0.0" }
