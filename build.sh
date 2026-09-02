@@ -2,28 +2,31 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO CON PARCHES ABSOLUTOS OK"
+echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO CON RUTAS INMUTABLES OK"
 echo "=========================================================="
 
 WORKSPACE="$(pwd)"
 
-# Detectamos si el meson.build nativo está corrupto por Bash, lo demolemos físicamente y forzamos su reconstrucción pura desde el HEAD de Git
-echo "-> 1a. Escaneando y sanando el archivo meson.build raíz..."
-if [ -f "meson.build" ] && grep -q "WORKSPACE=" "meson.build"; then
-    echo "-> [⚠️ ALERTA HOST] ¡Corrupción de Bash detectada en meson.build! Demoliendo archivo corrupto..."
-    rm -f meson.build
-fi
-
-# Forzamos a Git a rescatar la copia virgen legítima del repositorio desbancando cualquier untracked block
+# 🟢 SANACIÓN QUIRÚRGICA EN EL HOST: Forzamos a Git a rescatar la copia virgen legítima del repositorio desbancando cualquier untracked block
+echo "-> 1a. Purificando el árbol de fuentes y rescatando meson.build original de Git..."
+rm -f meson.build
 git checkout HEAD -- meson.build 2>/dev/null || git checkout -f meson.build 2>/dev/null || true
 
 # Invocamos la fase de preparación de fuentes y descompresión de zips (Módulo 1)
 chmod +x patch_mesa.sh
 ./patch_mesa.sh
 
+# 🟢 SANACIÓN QUIRÚRGICA EN EL HOST: Aplicamos las elusiones de dependencias en el Host para que Docker reciba el archivo procesado de forma inmutable sin conflictos de anidación de comillas
+if [ -f "meson.build" ]; then
+    echo "-> 1b. Aplicando parches regulatorios sobre meson.build en el Host..."
+    sed -i "s/cc.find_library('dl'/dependency('', required : false) #/g" meson.build
+    sed -i "s/cc.find_library('rt'/dependency('', required : false) #/g" meson.build
+    sed -i "s/cc.find_library('atomic'/dependency('', required : false) #/g" meson.build
+    sed -i "s/dependency('libclc')/dependency('', required : false) #/g" meson.build
+fi
+
 # Otorgamos permisos de lectura universales al stub generado para que Clang dentro de Docker pueda leerlo sin Permission Denied bajo --user
 if [ -f "stub_logs.c" ]; then
-    echo "-> 1b. Inmunizando permisos de lectura para stub_logs.c..."
     chmod 644 stub_logs.c
 fi
 
@@ -31,7 +34,7 @@ fi
 chmod +x generate_cross.sh
 ./generate_cross.sh
 
-# Escribimos la receta entera de Docker en un script plano e independiente libre de volcados complejos
+# Escribimos la receta entera de Docker limpia de comandos sed o cat complejos invasivos
 cat << 'EOF' > docker_run_inside.sh
 #!/bin/bash
 set -e
@@ -80,27 +83,12 @@ if os.path.exists(p):
         f=open(p,"w"); f.write(c); f.close()
 '
 
-# 🟢 REPARACIÓN CRÍTICA RUTA ABSOLUTA: Aplicamos los parches de elusión de dependencias apuntando estrictamente a la ruta absoluta /workspace/meson.build de Mesa 25 para no pisar por error a libdrm
-echo "-> [Docker Internal] Aplicando parches sintácticos sobre Mesa 25..."
-if [ -f "/workspace/meson.build" ]; then
-    sed -i "s/cc.find_library('dl'/dependency('', required : false) #/g" /workspace/meson.build 2>/dev/null || true
-    sed -i "s/cc.find_library('rt'/dependency('', required : false) #/g" /workspace/meson.build 2>/dev/null || true
-    sed -i "s/cc.find_library('atomic'/dependency('', required : false) #/g" /workspace/meson.build 2>/dev/null || true
-    sed -i "s/dependency('libclc')/dependency('', required : false) #/g" /workspace/meson.build 2>/dev/null || true
-fi
-
-# 🟢 SANACIÓN PREVENTIVA LIBDRM: Limpiamos cualquier rastro de inyección de Bash en el subproyecto de libdrm para asegurar que empiece limpio
-if [ -f "/workspace/libdrm_android/meson.build" ]; then
-    sed -i '/echo "/d' /workspace/libdrm_android/meson.build 2>/dev/null || true
-    sed -i '/=====/d' /workspace/libdrm_android/meson.build 2>/dev/null || true
-fi
-
 # Compilación real e instalación de libdrm en su prefijo aislado leyendo la receta fija del Host
 python3 meson_src/meson.py setup build-libdrm libdrm_android --cross-file /workspace/cross_libdrm.txt --prefix="/workspace/shims_64" \
   -Dintel=disabled -Dradeon=disabled -Damdgpu=disabled -Dnouveau=disabled -Dman-pages=disabled -Dvalgrind=disabled -Dtests=false
 python3 meson_src/meson.py install -C build-libdrm
 
-# Meson Setup lee cross_64 inyectando las cabeceras Khronos de forma directa vía banderas de Clang
+# Meson Setup lee cross_64 de forma síncrona impecable e inmutable sobre el árbol limpio de Mesa 25
 python3 meson_src/meson.py setup build-64 --cross-file /workspace/cross_64.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=panfrost,wrapper
 python3 meson_src/meson.py compile -C build-64
 EOF
