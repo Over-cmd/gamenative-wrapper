@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO MAESTRO SEGURO"
+echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO CON PURGA ATÓMICA MESA 25"
 echo "=========================================================="
 
 WORKSPACE="$(pwd)"
@@ -26,8 +26,18 @@ chmod +x patch_mesa.sh generate_cross.sh docker_run_inside.sh
 ./patch_mesa.sh
 rm -f subprojects/libadrenotools.wrap
 
-# 🟢 REPARACIÓN CRÍTICA HOST PURGE: Ejecutamos el parche masivo recursivo con comillas simples y dobles AQUÍ en el Host. Al tener privilegios plenos sobre tu espacio de trabajo, el reemplazo de find_library se inyectará de forma física real e indestructible antes de levantar el contenedor
-echo "-> 1b. Aplicando parches sintácticos sobre Adrenotools en el Host..."
+# 🟢 REPARACIÓN CRÍTICA ATÓMICA TOTAL: Parcheamos de forma masiva en el Host todas las variantes de comillas simples y dobles para find_library('atomic') en Mesa y Adrenotools
+echo "-> 1b. Aplicando cirugía sintáctica de elisión en el Host..."
+if [ -f "meson.build" ]; then
+    sed -i "s/cc.find_library('dl'/dependency('', required : false) #/g" meson.build
+    sed -i 's/cc.find_library("dl"/dependency("", required : false) #/g' meson.build
+    sed -i "s/cc.find_library('rt'/dependency('', required : false) #/g" meson.build
+    sed -i 's/cc.find_library("rt"/dependency("", required : false) #/g' meson.build
+    sed -i "s/cc.find_library('atomic'/dependency('', required : false) #/g" meson.build
+    sed -i 's/cc.find_library("atomic"/dependency("", required : false) #/g' meson.build
+    sed -i "s/dependency('libclc')/dependency('', required : false) #/g" meson.build
+fi
+
 if [ -d "subprojects/libadrenotools" ]; then
     find subprojects/libadrenotools -name "meson.build" -exec sed -i "s/cc.find_library('android'/dependency('', required : false) #/g" {} +
     find subprojects/libadrenotools -name "meson.build" -exec sed -i 's/cc.find_library("android"/dependency("", required : false) #/g' {} +
