@@ -14,10 +14,13 @@ export NDK_BIN="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin"
 export NDK_SYSROOT="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
 NDK_SYSROOT_LIB_64="${NDK_SYSROOT}/usr/lib/aarch64-linux-android/26"
 
+# 🟢 REPARACIÓN INDUSTRIAL STUBS REALES: Compilamos stub_logs.c directamente como una librería compartida .so legítima con Clang (libvulkan_wrapper.so) y la clonamos de forma redundante en todos los directorios de enlace. Esto garantiza que ld.lld la encuentre sí o sí sin depender de llvm-ar ni condiciones de carrera de disco
 echo "-> [Docker Internal] Compilando stubs duales legítivos para enlazado preferencial..."
+$NDK_BIN/aarch64-linux-android26-clang -shared -fPIC stub_logs.c -o shims_64/lib/libvulkan_wrapper.so
+$NDK_BIN/aarch64-linux-android26-clang -shared -fPIC stub_logs.c -o libvulkan_wrapper.so
+
 $NDK_BIN/aarch64-linux-android26-clang -c stub_logs.c -o stub_c.o
 $NDK_BIN/llvm-ar rcs shims_64/lib/liblog.a stub_c.o
-$NDK_BIN/shims_64/libvulkan_wrapper.a stub_c.o 2>/dev/null || $NDK_BIN/llvm-ar rcs shims_64/libvulkan_wrapper.a stub_c.o
 
 $NDK_BIN/aarch64-linux-android26-clang++ -c stub_logs.c -o stub_cpp.o
 $NDK_BIN/llvm-ar rcs shims_64/lib/libandroid.a stub_cpp.o
@@ -27,7 +30,7 @@ cp -fv shims_64/lib/libandroid.a "$NDK_SYSROOT_LIB_64/libandroid.a" 2>/dev/null 
 cp -fv shims_64/lib/liblog.a "$NDK_SYSROOT_LIB_64/liblog.a" 2>/dev/null || true
 cp -fv shims_64/lib/libdl.a "$NDK_SYSROOT_LIB_64/libdl.a" 2>/dev/null || true
 
-echo "-> [Docker Internal] Forzamiento de inodos de memoria compartida..."
+echo "-> [Docker Internal] Sincronizando inodos físicos en el hardware..."
 sync
 sleep 2
 
@@ -49,7 +52,7 @@ if os.path.exists(p):
     if "SYS_memfd_create" in c:
         c = c.replace("SYS_memfd_create", "279")
         f=open(p,"w"); f.write(c); f.close()
-        print("-> [Docker Internal] Éxito: SYS_memfd_create transmutado a la Syscall 279.")
+        print("-> [Docker Internal] Éxito: SYS_memfd_create transmutado a la Syscall 279 de forma literal.")
 '
 
 python3 -c '
@@ -61,18 +64,15 @@ if os.path.exists(p):
         patch = "#ifdef __ANDROID__\n#define secure_getenv getenv\n#endif\n"
         c = patch + c
         f=open(p,"w"); f.write(c); f.close()
-        print("-> [Docker Internal] Éxito: secure_getenv mapeado hacia getenv.")
+        print("-> [Docker Internal] Éxito: secure_getenv mapeado hacia getenv in disk_cache_os.c")
 '
 
-# 🟢 REPARACIÓN CRÍTICA BLINDAJE MUTACIÓN U_QSORT: Inyectamos el encendido incondicional de HAVE_QSORT_R y apagamos HAVE_QSORT_S en la raíz misma de la cabecera. Esto aplasta la configuración errónea heredada de src/config.h y obliga a Clang a utilizar el método reglamentario de Android (qsort_r)
 python3 -c '
 p="src/util/u_qsort.h"
 import os
 if os.path.exists(p):
     f=open(p,"r"); c=f.read(); f.close()
-    # Limpiamos cualquier intento o parche previo para evitar duplicados
     c = c.replace("#define HAVE_QSORT_R 1", "")
-    # Inyectamos el casquete de anulación absoluta en la primera línea
     patch = "#ifndef HAVE_QSORT_R\n#define HAVE_QSORT_R 1\n#endif\n#undef HAVE_QSORT_S\n"
     c = patch + c
     f=open(p,"w"); f.write(c); f.close()
