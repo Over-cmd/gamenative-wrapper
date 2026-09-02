@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO CON PURGA EN EL HOST OK"
+echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO CON PURGA ROBUSTA OK"
 echo "=========================================================="
 
 WORKSPACE="$(pwd)"
@@ -37,11 +37,11 @@ fi
 chmod +x generate_cross.sh
 ./generate_cross.sh
 
-# 🟢 REPARACIÓN SUPREMA DE INTEGRACIÓN: Forzamos la limpieza recursiva de las garras de find_library en Adrenotools AQUÍ en el Host. Esto garantiza permisos de escritura plenos sobre las recetas antes de entrar a Docker
-echo "-> 1b. Aplicando parches sintácticos recursivos sobre Adrenotools en el Host..."
+# 🟢 REPARACIÓN SUPREMA EXPRESIONES REGULARES: Usamos un sed ultra-flexible que destruye la validación use comillas simples, dobles o espacios en todo adrenotools
+echo "-> 1b. Aplicando parches sintácticos robustos sobre Adrenotools en el Host..."
 if [ -d "subprojects/libadrenotools" ]; then
-    find subprojects/libadrenotools -name "meson.build" -exec sed -i "s/cc.find_library('android'/dependency('', required : false) #/g" {} +
-    find subprojects/libadrenotools -name "meson.build" -exec sed -i "s/cc.find_library('log'/dependency('', required : false) #/g" {} +
+    find subprojects/libadrenotools -name "meson.build" -exec sed -i "s/cc.find_library(.*android.*/dependency('', required : false) #/g" {} +
+    find subprojects/libadrenotools -name "meson.build" -exec sed -i "s/cc.find_library(.*log.*/dependency('', required : false) #/g" {} +
 fi
 
 # Aseguramos la flexibilidad de permisos en el volumen compartido para evitar bloqueos con --user
@@ -50,7 +50,7 @@ chmod -R 777 "$WORKSPACE"
 
 # Escribimos la receta entera de Docker limpia e inyectamos las variables dinámicas del NDK
 echo "-> 1d. Estructurando receta interna compacta para la jaula de Docker..."
-cat << EOF > docker_run_inside.sh
+cat << 'EOF' > docker_run_inside.sh
 #!/bin/bash
 set -e
 
@@ -64,28 +64,28 @@ echo "-> [Docker Internal] Instalando dependencias de Python complementarias..."
 pip3 install --no-cache-dir --break-system-packages mako packaging || pip3 install --no-cache-dir mako packaging || true
 
 export ANDROID_NDK_HOME="$ANDROID_NDK_HOME"
-export NDK_BIN="\${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin"
-export NDK_SYSROOT="\${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
-NDK_SYSROOT_LIB_64="\${NDK_SYSROOT}/usr/lib/aarch64-linux-android/26"
+export NDK_BIN="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin"
+export NDK_SYSROOT="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
+NDK_SYSROOT_LIB_64="${NDK_SYSROOT}/usr/lib/aarch64-linux-android/26"
 
 # Búsqueda dinámica del core de LLVM de Clang interna
-NDK_LLVM_LIB="\${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/lib/clang/19/lib/linux/aarch64"
-if [ ! -d "\$NDK_LLVM_LIB" ]; then
-    NDK_LLVM_LIB=\$(find \${ANDROID_NDK_HOME} -name "aarch64" -type d | grep "lib/linux" | head -n 1 || echo "")
+NDK_LLVM_LIB="/usr/local/lib/android/sdk/ndk/28.2.13676358/toolchains/llvm/prebuilt/linux-x86_64/lib/clang/19/lib/linux/aarch64"
+if [ ! -d "$NDK_LLVM_LIB" ]; then
+    NDK_LLVM_LIB=$(find ${ANDROID_NDK_HOME} -name "aarch64" -type d | grep "lib/linux" | head -n 1 || echo "")
 fi
 
 echo "-> [Docker Internal] Compilando stubs duales legítivos para enlazado preferencial..."
-\$NDK_BIN/aarch64-linux-android26-clang -c stub_logs.c -o stub_c.o
-\$NDK_BIN/llvm-ar rcs shims_64/lib/liblog.a stub_c.o
-\$NDK_BIN/shims_64/libvulkan_wrapper.a stub_c.o 2>/dev/null || \$NDK_BIN/llvm-ar rcs shims_64/libvulkan_wrapper.a stub_c.o
+$NDK_BIN/aarch64-linux-android26-clang -c stub_logs.c -o stub_c.o
+$NDK_BIN/llvm-ar rcs shims_64/lib/liblog.a stub_c.o
+$NDK_BIN/shims_64/libvulkan_wrapper.a stub_c.o 2>/dev/null || $NDK_BIN/llvm-ar rcs shims_64/libvulkan_wrapper.a stub_c.o
 
-\$NDK_BIN/aarch64-linux-android26-clang++ -c stub_logs.c -o stub_cpp.o
-\$NDK_BIN/llvm-ar rcs shims_64/lib/libandroid.a stub_cpp.o
-\$NDK_BIN/llvm-ar rcs shims_64/lib/libdl.a stub_cpp.o
+$NDK_BIN/aarch64-linux-android26-clang++ -c stub_logs.c -o stub_cpp.o
+$NDK_BIN/llvm-ar rcs shims_64/lib/libandroid.a stub_cpp.o
+$NDK_BIN/llvm-ar rcs shims_64/lib/libdl.a stub_cpp.o
 
-cp -fv shims_64/lib/libandroid.a "\$NDK_SYSROOT_LIB_64/libandroid.a" 2>/dev/null || true
-cp -fv shims_64/lib/liblog.a "\$NDK_SYSROOT_LIB_64/liblog.a" 2>/dev/null || true
-cp -fv shims_64/lib/libdl.a "\$NDK_SYSROOT_LIB_64/libdl.a" 2>/dev/null || true
+cp -fv shims_64/lib/libandroid.a "$NDK_SYSROOT_LIB_64/libandroid.a" 2>/dev/null || true
+cp -fv shims_64/lib/liblog.a "$NDK_SYSROOT_LIB_64/liblog.a" 2>/dev/null || true
+cp -fv shims_64/lib/libdl.a "$NDK_SYSROOT_LIB_64/libdl.a" 2>/dev/null || true
 
 python3 -c '
 p="src/vulkan/wrapper/wrapper_log.c"
