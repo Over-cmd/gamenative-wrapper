@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO MAESTRO SEGURO V66"
+echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO CON RECTIFICACIÓN DE RUTAS V67"
 echo "=========================================================="
 
 WORKSPACE="$(pwd)"
@@ -50,12 +50,16 @@ docker run --rm --entrypoint /bin/bash \
 echo "-> 4. Maquetando empaque unificado de proximidad biónica..."
 mkdir -p pkg/usr/lib/aarch64-linux-android pkg/usr/share/vulkan/icd.d
 
-if [ -f "compilacion/libvulkan_wrapper.so" ]; then
-    cp -v compilacion/libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
+# 🟢 REPARACIÓN INDUSTRIAL RUTA WRAPPER: Mapeamos de forma estricta la ubicación real del archivo generado por Ninja dentro de la estructura de subcarpetas de Mesa 25
+WRAPPER_REAL_SRC="build-64/src/vulkan/wrapper/libvulkan_wrapper.so"
+
+if [ -f "$WRAPPER_REAL_SRC" ]; then
+    cp -v "$WRAPPER_REAL_SRC" pkg/usr/lib/libvulkan_wrapper.so
 elif [ -f "libvulkan_wrapper.so" ]; then
     cp -v libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
 else
-    echo "-> [❌ ERROR CRÍTICO] Falta libvulkan_wrapper.so"; exit 1
+    echo "-> [❌ ERROR CRÍTICO] No se localizó el archivo físico real libvulkan_wrapper.so en $WRAPPER_REAL_SRC"
+    exit 1
 fi
 
 if [ -f "shims_64/lib/libdrm.so" ]; then
@@ -70,7 +74,7 @@ else
     echo "-> [❌ ERROR CRÍTICO] Falta libvulkan_panfrost.so"; exit 1
 fi
 
-# 🟢 REPARACIÓN CRÍTICA SÍNCRONA STRIP: Aplicamos la limpieza de símbolos sobrantes a los archivos FÍSICOS REALES de forma explícita e individual AQUÍ, antes de fabricar enlaces blandos que confundan a la herramienta. Esto reduce el peso del driver para Termux al mínimo legal sin romper inodos
+# Aplicamos la limpieza de símbolos sobrantes a los archivos FÍSICOS REALES consolidados
 STRIP_HOST="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip"
 if [ -f "$STRIP_HOST" ]; then
     echo "-> [Host] Aligerando binarios reales con llvm-strip de forma explícita..."
@@ -79,7 +83,7 @@ if [ -f "$STRIP_HOST" ]; then
     $STRIP_HOST --strip-unneeded pkg/usr/lib/aarch64-linux-android/libvulkan_panfrost.so 2>/dev/null || true
 fi
 
-# Fabricamos de forma segura el enlace simbólico virtual una vez limpiados los datos reales
+# Fabricamos de forma segura el enlace de acoplamiento para Termux
 echo "-> [Host] Inicializando enlace de acoplamiento para Panfrost..."
 cd pkg/usr/lib/aarch64-linux-android && ln -sf ../libvulkan_panfrost.so libvulkan_wrapper.so && cd "${WORKSPACE}"
 
