@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO MAESTRO SEGURO"
+echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO MAESTRO SEGURO V65"
 echo "=========================================================="
 
 WORKSPACE="$(pwd)"
@@ -26,7 +26,21 @@ chmod +x patch_mesa.sh generate_cross.sh docker_run_inside.sh
 ./patch_mesa.sh
 rm -f subprojects/libadrenotools.wrap
 
-echo "-> 1b. Aplicando parches sintácticos sobre Adrenotools en el Host..."
+# 🟢 REPARACIÓN CRÍTICA PERMISOS HOST: Forzamos la apertura de permisos de escritura totales sobre la carpeta recién clonada ANTES de pasar los sed. Esto garantiza que las modificaciones se guarden en disco físicamente sin bloqueos silenciosos
+echo "-> 1b. Abriendo permisos de escritura sobre subprojects..."
+chmod -R 777 subprojects/ 2>/dev/null || true
+
+echo "-> 1c. Aplicando parches sintácticos sobre Adrenotools y Mesa en el Host..."
+if [ -f "meson.build" ]; then
+    sed -i "s/cc.find_library('dl'/dependency('', required : false) #/g" meson.build
+    sed -i 's/cc.find_library("dl"/dependency("", required : false) #/g' meson.build
+    sed -i "s/cc.find_library('rt'/dependency('', required : false) #/g" meson.build
+    sed -i 's/cc.find_library("rt"/dependency("", required : false) #/g' meson.build
+    sed -i "s/cc.find_library('atomic'/dependency('', required : false) #/g" meson.build
+    sed -i 's/cc.find_library("atomic"/dependency("", required : false) #/g' meson.build
+    sed -i "s/dependency('libclc')/dependency('', required : false) #/g" meson.build
+fi
+
 if [ -d "subprojects/libadrenotools" ]; then
     find subprojects/libadrenotools -name "meson.build" -exec sed -i "s/cc.find_library('android'/dependency('', required : false) #/g" {} +
     find subprojects/libadrenotools -name "meson.build" -exec sed -i 's/cc.find_library("android"/dependency("", required : false) #/g' {} +
@@ -37,6 +51,7 @@ fi
 if [ -f "stub_logs.c" ]; then chmod 644 stub_logs.c; fi
 ./generate_cross.sh
 
+# Otorgamos permisos masivos finales para la jaula de Docker
 chmod -R 777 "$WORKSPACE"
 
 echo "-> 3. Lanzando entorno biónico aislado en Docker..."
