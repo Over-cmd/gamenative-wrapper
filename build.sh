@@ -2,14 +2,20 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO CON RESTAURACIÓN FORZADA OK"
+echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO CON PURIFICACIÓN DE INDICE OK"
 echo "=========================================================="
 
 WORKSPACE="$(pwd)"
 
-# 🟢 REPARACIÓN CRÍTICA INMUNE: Forzamos a Git a revertir cualquier sobreescritura accidental sobre meson.build para recuperar el archivo original legítimo de Mesa 25 antes de que actúe Docker
-echo "-> 1a. Purificando el árbol de fuentes y rescatando meson.build original de Git..."
-git checkout -f meson.build 2>/dev/null || true
+# 🟢 TU CORRECCIÓN MAGISTRAL APLICADA: Detectamos si el meson.build nativo está corrupto por Bash, lo demolemos físicamente y forzamos su reconstrucción pura desde el HEAD de Git
+echo "-> 1a. Escaneando y sanando de forma indestructible el archivo meson.build raíz..."
+if [ -f "meson.build" ] && grep -q "WORKSPACE=" "meson.build"; then
+    echo "-> [⚠️ ALERTA HOST] ¡Corrupción de Bash detectada en meson.build! Demoliendo archivo corrupto..."
+    rm -f meson.build
+fi
+
+# Forzamos a Git a rescatar la copia virgen legítima del repositorio desbancando cualquier untracked block
+git checkout HEAD -- meson.build 2>/dev/null || git checkout -f meson.build 2>/dev/null || true
 
 # Invocamos la fase de preparación de fuentes y descompresión de zips (Módulo 1)
 chmod +x patch_mesa.sh
@@ -19,7 +25,7 @@ chmod +x patch_mesa.sh
 chmod +x generate_cross.sh
 ./generate_cross.sh
 
-# Escribimos la receta entera de Docker en un script plano e independiente libre de volcados de texto cruzados
+# Escribimos la receta entera de Docker en un script plano e independiente libre de volcados complejos
 cat << 'EOF' > docker_run_inside.sh
 #!/bin/bash
 set -e
@@ -53,7 +59,7 @@ $NDK_BIN/aarch64-linux-android26-clang++ -c stub_logs.c -o stub_cpp.o
 $NDK_BIN/llvm-ar rcs shims_64/lib/libandroid.a stub_cpp.o
 $NDK_BIN/llvm-ar rcs shims_64/lib/libdl.a stub_cpp.o
 
-# Inyección local defensiva en Sysroots internos
+# Inyección defensiva en Sysroots internos si el contenedor lo permite
 cp -fv shims_64/lib/libandroid.a "$NDK_SYSROOT_LIB_64/libandroid.a" 2>/dev/null || true
 cp -fv shims_64/lib/liblog.a "$NDK_SYSROOT_LIB_64/liblog.a" 2>/dev/null || true
 cp -fv shims_64/lib/libdl.a "$NDK_SYSROOT_LIB_64/libdl.a" 2>/dev/null || true
@@ -78,7 +84,7 @@ sed -i "s/cc.find_library('rt'/dependency('', required : false) #/g" meson.build
 sed -i "s/cc.find_library('atomic'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/dependency('libclc')/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 
-# Meson Setup lee cross_64 inyectando las cabeceras Khronos de forma directa vía banderas de Clang sobre el meson.build legítimo rescatado
+# Meson Setup lee cross_64 inyectando las cabeceras Khronos de forma directa vía banderas de Clang
 python3 meson_src/meson.py setup build-64 --cross-file /workspace/cross_64.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=panfrost,wrapper
 python3 meson_src/meson.py compile -C build-64
 EOF
