@@ -37,22 +37,11 @@ if os.path.exists(p):
         f=open(p,"w"); f.write(c); f.close()
 '
 
-sed -i "s/cc.find_library('dl'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
-sed -i "s/cc.find_library('rt'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
-sed -i "s/cc.find_library('atomic'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
-sed -i "s/dependency('libclc')/dependency('', required : false) #/g" meson.build 2>/dev/null || true
-
-echo "-> [Docker Internal] Ejecutando purga quirúrgica por ruta absoluta sobre Adrenotools..."
-if [ -d "/workspace/subprojects/libadrenotools" ]; then
-    find /workspace/subprojects/libadrenotools -name "meson.build" -exec sed -i "s/cc.find_library('android'/dependency('', required : false) #/g" {} +
-    find /workspace/subprojects/libadrenotools -name "meson.build" -exec sed -i 's/cc.find_library("android"/dependency("", required : false) #/g' {} +
-    find /workspace/subprojects/libadrenotools -name "meson.build" -exec sed -i "s/cc.find_library('log'/dependency('', required : false) #/g" {} +
-    find /workspace/subprojects/libadrenotools -name "meson.build" -exec sed -i 's/cc.find_library("log"/dependency("", required : false) #/g' {} +
-fi
-
+# Compilación de libdrm en su prefijo aislado
 python3 meson_src/meson.py setup build-libdrm libdrm_android --cross-file /workspace/cross_libdrm.txt --prefix="/workspace/shims_64" \
   -Dintel=disabled -Dradeon=disabled -Damdgpu=disabled -Dnouveau=disabled -Dman-pages=disabled -Dvalgrind=disabled -Dtests=false
 python3 meson_src/meson.py install -C build-libdrm
 
+# Compilación del Core de Mesa 25 leyendo las fuentes locales ya purificadas desde el Host
 python3 meson_src/meson.py setup build-64 --cross-file /workspace/cross_64.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=panfrost,wrapper
 python3 meson_src/meson.py compile -C build-64
