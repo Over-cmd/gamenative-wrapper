@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO CON STRIP UNIFICADO OK"
+echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO CON IDENTIDAD PROTEGIDA OK"
 echo "=========================================================="
 
 WORKSPACE="$(pwd)"
@@ -49,16 +49,11 @@ $NDK_BIN/aarch64-linux-android26-clang++ -c stub_logs.c -o stub_cpp.o
 $NDK_BIN/llvm-ar rcs shims_64/lib/libandroid.a stub_cpp.o
 $NDK_BIN/llvm-ar rcs shims_64/lib/libdl.a stub_cpp.o
 
-echo "-> [Docker Internal] INSTALACIÓN REAL: Colocando ficheros en los Sysroots..."
-cp -fv shims_64/lib/libandroid.a "$NDK_SYSROOT_LIB_64/libandroid.a"
-cp -fv shims_64/lib/liblog.a "$NDK_SYSROOT_LIB_64/liblog.a"
-cp -fv shims_64/lib/libdl.a "$NDK_SYSROOT_LIB_64/libdl.a"
-
-if [ -n "$NDK_LLVM_LIB" ] && [ -d "$NDK_LLVM_LIB" ]; then
-    cp -fv shims_64/lib/libandroid.a "$NDK_LLVM_LIB/libandroid.a"
-    cp -fv shims_64/lib/liblog.a "$NDK_LLVM_LIB/liblog.a"
-    cp -fv shims_64/lib/libdl.a "$NDK_LLVM_LIB/libdl.a"
-fi
+# Al correr como usuario ordinario, los Sysroots internos del contenedor de LeeGao reflejan los permisos montados.
+# Intentamos la inyección local. Si el volumen NDK es estricto de solo lectura (:ro), nuestro Cross-File se encargará del desvío preferencial vía flags de Clang.
+cp -fv shims_64/lib/libandroid.a "$NDK_SYSROOT_LIB_64/libandroid.a" 2>/dev/null || true
+cp -fv shims_64/lib/liblog.a "$NDK_SYSROOT_LIB_64/liblog.a" 2>/dev/null || true
+cp -fv shims_64/lib/libdl.a "$NDK_SYSROOT_LIB_64/libdl.a" 2>/dev/null || true
 
 # Compilación real e instalación de libdrm en su prefijo aislado
 python3 meson_src/meson.py setup build-libdrm libdrm_android --cross-file /workspace/cross_libdrm.txt --prefix="/workspace/shims_64" \
@@ -87,9 +82,10 @@ EOF
 
 chmod +x docker_run_inside.sh
 
-# Invocación atómica directa al contenedor de LeeGao mapeado por hardware
+# 🟢 REPARACIÓN CRÍTICA ATÓMICA DE PERMISOS: Forzamos a Docker a adoptar la identidad real del Host ($(id -u):$(id -g)) para blindar el pipeline contra secuestros de root
 echo "-> 3. Lanzando entorno biónico aislado en Docker..."
 docker run --rm --entrypoint /bin/bash \
+  --user "$(id -u):$(id -g)" \
   -v "${WORKSPACE}:/workspace" \
   -v "/usr/local/lib/android:/usr/local/lib/android" \
   -w /workspace ghcr.io/leegao/mesa-wrapper-ci/wrapper-compiler:latest ./docker_run_inside.sh
@@ -107,7 +103,7 @@ cd pkg/usr/lib/aarch64-linux-android
 ln -sf ../libvulkan_panfrost.so libvulkan_wrapper.so
 cd "${WORKSPACE}"
 
-# Control defensivo de patchelf contra archivos inexistentes
+# Control defensivo de patchelf contra archivos inexistentes (Lectura transparente sin colisiones de UID)
 if [ -f "pkg/usr/lib/libvulkan_wrapper.so" ]; then
     patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so 2>/dev/null || true
     patchelf --add-needed libdrm.so pkg/usr/lib/libvulkan_wrapper.so 2>/dev/null || true
@@ -124,7 +120,6 @@ if [ -f "pkg/usr/lib/libdrm.so" ]; then
     patchelf --set-soname libdrm.so pkg/usr/lib/libdrm.so 2>/dev/null || true
 fi
 
-# 🟢 REPARACIÓN CRÍTICA MAYÚSCULAS: Corregimos $strip_HOST por $STRIP_HOST para evitar la variable vacía case-sensitive
 STRIP_HOST="/usr/local/lib/android/sdk/ndk/28.2.13676358/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip"
 if [ -f "$STRIP_HOST" ]; then
     $STRIP_HOST --strip-unneeded pkg/usr/lib/*.so 2>/dev/null || true
@@ -143,11 +138,11 @@ echo "msf:315508" > pkg/version.txt && chmod -R 755 pkg/
 cd pkg && tar -I "zstd -19 -T0" -cf "../wrapper.tzst" usr version.txt
 cd "${WORKSPACE}"
 
-echo "-> 6. Purgando artefactos efímeros con privilegios de administración..."
-sudo rm -f docker_run_inside.sh cross_libdrm.txt cross_64.txt stub_logs.c stub_c.o stub_cpp.o generate_cross.sh
-sudo rm -rf meson_src/
-sudo rm -rf shims_64/
-sudo rm -rf build-64/
+echo "-> 6. Purgando artefactos efímeros de forma transparente y segura..."
+rm -f docker_run_inside.sh cross_libdrm.txt cross_64.txt stub_logs.c stub_c.o stub_cpp.o generate_cross.sh
+rm -rf meson_src/
+rm -rf shims_64/
+rm -rf build-64/
 
 echo "=========================================================="
 echo "  778/778 COMPLETO - REGISTROS ENLAZADOS CORRECTAMENTE OK "
