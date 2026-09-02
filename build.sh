@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO PERFECCIONADO CON DESACTIVACIÓN ATÓMICA"
+echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO CON UNIFICACIÓN GLOBAL"
 echo "=========================================================="
 
 WORKSPACE="$(pwd)"
@@ -82,18 +82,16 @@ if os.path.exists(p):
         f=open(p,"w"); f.write(c); f.close()
 '
 
-# 🟢 REPARACIÓN CRÍTICA ATÓMICA: Forzamos with_android_stub a falso al inicio del subproyecto para saltarnos el bucle foreach roto de variables de forma limpia y legal
-echo "-> [Docker Internal] Parchando bandera maestra in situ de android_stub..."
-if [ -f "src/android_stub/meson.build" ]; then
-    sed -i '1iwith_android_stub = false' src/android_stub/meson.build
-fi
+# 🟢 REPARACIÓN MAESTRA GLOBAL: Sustituimos inc_include por un directorio relativo de escape legal existente para triturar los errores del preprocesador al vuelo
+echo "-> [Docker Internal] Ejecutando unificación global de variables inc_include..."
+find src/ -name "meson.build" -exec sed -i "s/inc_include/include_directories('..')/g" {} +
 
 sed -i "s/cc.find_library('dl'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/cc.find_library('rt'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/cc.find_library('atomic'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/dependency('libclc')/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 
-# Lanzamos el setup con el árbol totalmente liberado
+# Lanzamos el setup con el árbol totalmente unificado y libre de variables fantasma
 python3 meson_src/meson.py setup build-64 --cross-file /workspace/cross_64.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=panfrost,wrapper
 python3 meson_src/meson.py compile -C build-64
 EOF
