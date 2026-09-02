@@ -26,6 +26,7 @@ echo "-> 1c. Inicializando nidos de compilación limpios e inmunes..."
 mkdir -p shims_64/lib
 
 echo "-> 1d. Descargando código legítimo de libdrm (SailfishOS)..."
+rm -rf libdrm_android
 git clone --depth 1 https://github.com/sailfishos-mirror/drm.git libdrm_android
 
 # 🟢 CORRECCIÓN SUPREMA 1e: Reemplazamos el curl incompleto por un clonado recursivo legítimo de Git para descargar físicamente el submódulo linkernsbypass y sus meson.build anidados
