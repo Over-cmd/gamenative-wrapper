@@ -2,13 +2,13 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO CON PURIFICACIÓN DE INDICE OK"
+echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO CON INTEGRACIÓN TOTAL OK"
 echo "=========================================================="
 
 WORKSPACE="$(pwd)"
 
-# 🟢 TU CORRECCIÓN MAGISTRAL APLICADA: Detectamos si el meson.build nativo está corrupto por Bash, lo demolemos físicamente y forzamos su reconstrucción pura desde el HEAD de Git
-echo "-> 1a. Escaneando y sanando de forma indestructible el archivo meson.build raíz..."
+# Detectamos si el meson.build nativo está corrupto por Bash, lo demolemos físicamente y forzamos su reconstrucción pura desde el HEAD de Git
+echo "-> 1a. Escaneando y sanando el archivo meson.build raíz..."
 if [ -f "meson.build" ] && grep -q "WORKSPACE=" "meson.build"; then
     echo "-> [⚠️ ALERTA HOST] ¡Corrupción de Bash detectada en meson.build! Demoliendo archivo corrupto..."
     rm -f meson.build
@@ -20,6 +20,12 @@ git checkout HEAD -- meson.build 2>/dev/null || git checkout -f meson.build 2>/d
 # Invocamos la fase de preparación de fuentes y descompresión de zips (Módulo 1)
 chmod +x patch_mesa.sh
 ./patch_mesa.sh
+
+# 🟢 CORRECCIÓN SUPREMA DE PERMISOS: Otorgamos permisos de lectura universales al stub generado para que Clang dentro de Docker pueda leerlo sin Permission Denied bajo --user
+if [ -f "stub_logs.c" ]; then
+    echo "-> 1b. Inmunizando permisos de lectura para stub_logs.c..."
+    chmod 644 stub_logs.c
+fi
 
 # Invocamos el generador de cross-files aislado en el Host (Módulo Intermedio)
 chmod +x generate_cross.sh
@@ -59,7 +65,7 @@ $NDK_BIN/aarch64-linux-android26-clang++ -c stub_logs.c -o stub_cpp.o
 $NDK_BIN/llvm-ar rcs shims_64/lib/libandroid.a stub_cpp.o
 $NDK_BIN/llvm-ar rcs shims_64/lib/libdl.a stub_cpp.o
 
-# Inyección defensiva en Sysroots internos si el contenedor lo permite
+# Inyección local defensiva en Sysroots internos si el contenedor lo permite
 cp -fv shims_64/lib/libandroid.a "$NDK_SYSROOT_LIB_64/libandroid.a" 2>/dev/null || true
 cp -fv shims_64/lib/liblog.a "$NDK_SYSROOT_LIB_64/liblog.a" 2>/dev/null || true
 cp -fv shims_64/lib/libdl.a "$NDK_SYSROOT_LIB_64/libdl.a" 2>/dev/null || true
@@ -80,7 +86,7 @@ if os.path.exists(p):
 '
 
 sed -i "s/cc.find_library('dl'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
-sed -i "s/cc.find_library('rt'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
+sed -i "s/cc.find_library('rt'/dependency('', some_req : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/cc.find_library('atomic'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/dependency('libclc')/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 
@@ -147,6 +153,7 @@ echo "msf:315508" > pkg/version.txt && chmod -R 755 pkg/
 cd pkg && tar -I "zstd -19 -T0" -cf "../wrapper.tzst" usr version.txt
 cd "${WORKSPACE}"
 
+# 🟢 REPARACIÓN CRÍTICA ELIMINACIÓN REMANENTE: Extirpamos de forma tajante el 'include/' de la purga final para blindar la idempotencia del repositorio de cara a builds futuros consecutivos
 echo "-> 6. Purgando artefactos efímeros de forma transparente y segura..."
 rm -f docker_run_inside.sh cross_libdrm.txt cross_64.txt stub_logs.c stub_c.o stub_cpp.o generate_cross.sh
 rm -rf meson_src/
