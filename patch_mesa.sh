@@ -43,13 +43,32 @@ echo "-> 1f. Clonando la versión de desarrollo compatible de Meson 1.11.1..."
 rm -rf meson_src
 git clone --depth 1 --branch 1.11.1 https://github.com/mesonbuild/meson.git meson_src
 
-# Fabricamos el archivo de stubs de logs mínimos para el compilador móvil
+# 🟢 REPARACIÓN INDUSTRIAL STUBS V48: Removemos get_wrapper_log_level de este archivo artificial para eliminar la colisión por duplicado en ld.lld de raíz
 cat << 'EOF' > stub_logs.c
-int get_wrapper_log_level(const char *option) { (void)option; return 0; }
+#include <stdarg.h>
+
 void write_to_logfile(const char *fmt, const char *level, ...) { (void)fmt; (void)level; }
-void *dlopen(const char *f, int flags) { (void)f; (void)flags; return 0; }
-void *dlsym(void *h, const char *s) { (void)h; (void)s; return 0; }
-int dlclose(void *h) { (void)h; return 0; }
+
+// Firmas de enlazado de liblog.a para Adrenotools
+int __android_log_print(int prio, const char *tag, const char *fmt, ...) {
+    (void)prio; (void)tag; (void)fmt;
+    return 0;
+}
+
+// Firmas de enlazado de libandroid.a y libdl.a para linkernsbypass
+void* android_dlopen_ext(const char* filename, int flags, const void* extinfo) {
+    (void)filename; (void)flags; (void)extinfo;
+    return 0;
+}
+
+int dl_iterate_phdr(int (*callback)(void*, size_t, void*), void* data) {
+    (void)callback; (void)data;
+    return 0;
+}
+
+void* dlopen(const char* filename, int flags) { (void)filename; (void)flags; return 0; }
+void* dlsym(void* handle, const char* symbol) { (void)handle; (void)symbol; return 0; }
+int dlclose(void* handle) { (void)handle; return 0; }
 EOF
 
 # Nos aseguramos de que el proceso background de la papelera .trash/ haya terminado antes de ceder el control al Módulo 2
