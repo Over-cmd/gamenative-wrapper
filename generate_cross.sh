@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🎯 MODULO INTERMEDIO: GENERACIÓN DE RECETAS EN EL HOST V31"
+echo "🎯 MODULO INTERMEDIO: GENERACIÓN DE RECETAS EN EL HOST V32"
 echo "=========================================================="
 
 echo "-> Generando cross_libdrm.txt..."
@@ -24,7 +24,7 @@ sys_root = '/usr/local/lib/android/sdk/ndk/28.2.13676358/toolchains/llvm/prebuil
 c_args = ['--sysroot=/usr/local/lib/android/sdk/ndk/28.2.13676358/toolchains/llvm/prebuilt/linux-x86_64/sysroot', '-DANDROID', '-D_GNU_SOURCE']
 EOF
 
-echo "-> Generando cross_64.txt de Mesa 25 con Blindaje Antidoto Linker..."
+echo "-> Generando cross_64.txt de Mesa 25 con Alineación Unificada NDK r28..."
 cat << EOF > cross_64.txt
 [constants]
 shims_path = '/workspace/shims_64'
@@ -44,14 +44,15 @@ endian = 'little'
 [properties]
 needs_exe_wrapper = true
 sys_root = '/usr/local/lib/android/sdk/ndk/28.2.13676358/toolchains/llvm/prebuilt/linux-x86_64/sysroot'
-libdir = ['/workspace/shims_64/lib', '/usr/local/lib/android/sdk/ndk/28.2.13676358/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/26']
+# 🟢 CORRECCIÓN SUPREMA LIBDIR: Removemos el sufijo /26 falso acoplando la ruta raíz consolidada del NDK r28 para que ld.lld localice -llog, -landroid y -ldl al instante
+libdir = ['/workspace/shims_64/lib', '/usr/local/lib/android/sdk/ndk/28.2.13676358/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android']
 pkg_config_path = shims_path + '/lib/pkgconfig'
 pkg_config_libdir = shims_path + '/lib/pkgconfig'
 [built-in options]
 c_args = ['--sysroot=/usr/local/lib/android/sdk/ndk/28.2.13676358/toolchains/llvm/prebuilt/linux-x86_64/sysroot', '-D__TERMUX__', '-B' + shims_path + '/lib', '-I' + mesa_root, '-I' + mesa_root + '/src', '-I' + shims_path + '/include', '-I' + shims_path + '/include/libdrm']
 cpp_args = ['--sysroot=/usr/local/lib/android/sdk/ndk/28.2.13676358/toolchains/llvm/prebuilt/linux-x86_64/sysroot', '-D__TERMUX__', '-B' + shims_path + '/lib', '-I' + mesa_root, '-I' + mesa_root + '/src', '-I' + shims_path + '/include', '-I' + shims_path + '/include/libdrm']
-c_link_args = ['-Wl,--no-as-needed', '-L' + shims_path + '/lib', '-L/usr/local/lib/android/sdk/ndk/28.2.13676358/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/26', '-landroid', '-llog', '-ldl', '-lsync', '-lvulkan_wrapper', '-latomic']
-cpp_link_args = ['-Wl,--no-as-needed', '-L' + shims_path + '/lib', '-L/usr/local/lib/android/sdk/ndk/28.2.13676358/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/26', '-landroid', '-llog', '-ldl', '-lsync', '-lvulkan_wrapper', '-latomic']
+c_link_args = ['-Wl,--no-as-needed', '-L' + shims_path + '/lib', '-L/usr/local/lib/android/sdk/ndk/28.2.13676358/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android', '-landroid', '-llog', '-ldl', '-lsync', '-lvulkan_wrapper', '-latomic']
+cpp_link_args = ['-Wl,--no-as-needed', '-L' + shims_path + '/lib', '-L/usr/local/lib/android/sdk/ndk/28.2.13676358/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android', '-landroid', '-llog', '-ldl', '-lsync', '-lvulkan_wrapper', '-latomic']
 EOF
 
 echo "=========================================================="
