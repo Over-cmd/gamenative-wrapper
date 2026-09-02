@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO CON ENLACE DIRECTO OK"
+echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO CON NORMALIZACIÓN CASING OK"
 echo "=========================================================="
 
 WORKSPACE="$(pwd)"
@@ -29,12 +29,13 @@ git checkout HEAD -- meson.build 2>/dev/null || git checkout -f meson.build 2>/d
 chmod +x patch_mesa.sh
 ./patch_mesa.sh
 
-# 🟢 REPARACIÓN CRÍTICA NUCLEAR ANTI-CRASH: Trituramos físicamente el archivo .wrap para evitar excepciones de Python y nos aseguramos de que el nombre del directorio sea estrictamente exacto en minúsculas
-echo "-> 1b. Saneando la jerarquía física de subprojects en el Host..."
+# 🟢 REPARACIÓN CRÍTICA SUPREMA CASING: Forzamos a que el directorio clonado adopte minúsculas estrictas para saciar la búsqueda rígida de Meson y borramos residuos de wraps remotos
+echo "-> 1b. Normalizando nombres y saneando jerarquía de subprojects en el Host..."
 rm -f subprojects/libadrenotools.wrap
 
 if [ -d "subprojects/libadrenotools" ]; then
-    echo "-> [OK] Directorio físico local verificado con éxito."
+    mv subprojects/libadrenotools subprojects/libadrenotools_tmp
+    mv subprojects/libadrenotools_tmp subprojects/libadrenotools
 fi
 
 if [ -f "stub_logs.c" ]; then
@@ -45,7 +46,7 @@ fi
 chmod +x generate_cross.sh
 ./generate_cross.sh
 
-# Aplicamos los parches sintácticos literales con comillas simples y dobles directamente en el Host
+# Aplicamos los parches sintácticos literales directamente en el Host sobre la carpeta normalizada
 echo "-> 1c. Aplicando parches sintácticos robustos sobre Adrenotools en el Host..."
 if [ -d "subprojects/libadrenotools" ]; then
     find subprojects/libadrenotools -name "meson.build" -exec sed -i "s/cc.find_library('android'/dependency('', required : false) #/g" {} +
@@ -117,7 +118,7 @@ python3 meson_src/meson.py setup build-libdrm libdrm_android --cross-file /works
   -Dintel=disabled -Dradeon=disabled -Damdgpu=disabled -Dnouveau=disabled -Dman-pages=disabled -Dvalgrind=disabled -Dtests=false
 python3 meson_src/meson.py install -C build-libdrm
 
-# Meson Setup lee cross_64 de forma síncrona impecable. Al no haber archivo .wrap, usará la carpeta física local de forma directa y legal
+# Meson Setup lee cross_64 de forma síncrona impecable apuntando al directorio local normalizado
 python3 meson_src/meson.py setup build-64 --cross-file /workspace/cross_64.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=panfrost,wrapper
 python3 meson_src/meson.py compile -C build-64
 EOF
