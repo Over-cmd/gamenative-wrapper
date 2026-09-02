@@ -11,20 +11,20 @@ WORKSPACE="$(pwd)"
 echo "-> 1a. Instalando dependencias de Python en el Host..."
 pip3 install --no-cache-dir mako packaging pyyaml 2>/dev/null || true
 
-# 🟢 CORRECCIÓN SUPREMA DE CONCURRENCIA: Ejecutamos el vaciado pesado de escombros de forma SÍNCRONA en primer plano para evitar que un rm -rf retrasado barra el nuevo mkdir
+# Ejecutamos el vaciado pesado de escombros de forma SÍNCRONA en primer plano
 echo "-> 1b. Ejecutando purga destructiva de residuos previos de forma síncrona..."
-sudo rm -rf shims_64/ build-libdrm/ libdrm_android/ include/ pkg/ drm_shims_inc/ build-64/
+# 🟢 TU CORRECCIÓN SUPREMA: Eliminamos 'include/' de la lista de borrado para proteger de forma absoluta las cabeceras Khronos nativas de Mesa 25
+sudo rm -rf shims_64/ build-libdrm/ libdrm_android/ pkg/ drm_shims_inc/ build-64/
 
 # Movemos los residuos masivos de Git y Adrenotools a la papelera en un milisegundo
 mkdir -p .trash
 if [ -d "subprojects/libadrenotools" ]; then mv subprojects/libadrenotools .trash/adrenotools_$(date +%s) || true; fi
 if [ -d "meson_src" ]; then mv meson_src .trash/meson_$(date +%s) || true; fi
 
-# La papelera .trash/ se tritura en segundo plano de forma segura, pero el script esperará su fin si es necesario
+# La papelera se tritura en segundo plano liberando espacio, pero el script esperará su fin
 sudo rm -rf .trash/ &
 PID_CLEAN=$!
 
-# 🟢 CORRECCIÓN SUPREMA DE INFRAESTRUCTURA: Inicializamos los carriles limpios SOLO cuando el disco está completamente pacificado y libre de hilos rm -rf mutantes
 echo "-> 1c. Inicializando nidos de compilación limpios e inmunes..."
 mkdir -p shims_64/lib
 
@@ -54,7 +54,7 @@ void *dlsym(void *h, const char *s) { (void)h; (void)s; return 0; }
 int dlclose(void *h) { (void)h; return 0; }
 EOF
 
-# Nos aseguramos de que el proceso background de la papelera .trash/ haya terminado antes de cederle el control al Módulo 2
+# Nos aseguramos de que el proceso background de la papelera .trash/ haya terminado antes de ceder el control al Módulo 2
 wait $PID_CLEAN 2>/dev/null || true
 
 echo "=========================================================="
