@@ -44,11 +44,9 @@ endian = 'little'
 [properties]
 needs_exe_wrapper = true
 sys_root = '/usr/local/lib/android/sdk/ndk/28.2.13676358/toolchains/llvm/prebuilt/linux-x86_64/sysroot'
-# 🟢 ENLACE PRIORITARIO: Colocamos la carpeta de nuestros stubs en el libdir preferencial de las propiedades de Meson
 libdir = ['/workspace/shims_64/lib', '/usr/local/lib/android/sdk/ndk/28.2.13676358/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/26']
 pkg_config_path = shims_path + '/lib/pkgconfig'
 pkg_config_libdir = shims_path + '/lib/pkgconfig'
-# 🟢 PRECEDENCIA DE CLANG: Añadimos -B para obligar a Clang a buscar stubs binarios en shims_64 antes de procesar find_library
 [built-in options]
 c_args = ['--sysroot=/usr/local/lib/android/sdk/ndk/28.2.13676358/toolchains/llvm/prebuilt/linux-x86_64/sysroot', '-D__TERMUX__', '-B' + shims_path + '/lib', '-I' + mesa_root, '-I' + mesa_root + '/src', '-I' + shims_path + '/include', '-I' + shims_path + '/include/libdrm']
 cpp_args = ['--sysroot=/usr/local/lib/android/sdk/ndk/28.2.13676358/toolchains/llvm/prebuilt/linux-x86_64/sysroot', '-D__TERMUX__', '-B' + shims_path + '/lib', '-I' + mesa_root, '-I' + mesa_root + '/src', '-I' + shims_path + '/include', '-I' + shims_path + '/include/libdrm']
