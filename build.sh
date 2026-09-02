@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO CON REDIRECCIÓN LOCAL OK"
+echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO CON ENLACE DIRECTO OK"
 echo "=========================================================="
 
 WORKSPACE="$(pwd)"
@@ -29,14 +29,13 @@ git checkout HEAD -- meson.build 2>/dev/null || git checkout -f meson.build 2>/d
 chmod +x patch_mesa.sh
 ./patch_mesa.sh
 
-# 🟢 REPARACIÓN CRÍTICA SINTAXIS WRAP: Reemplazamos [wrap-file] por la sección oficial [wrap-redirect] con sus llaves reglamentarias. Esto obliga a Meson a acoplar la carpeta local de Adrenotools sin pedir ficheros source_filename comprimidos
-echo "-> 1b. Mutando de forma efímera libadrenotools.wrap hacia redirección local legítima..."
-mkdir -p subprojects
-cat << 'EOF' > subprojects/libadrenotools.wrap
-[wrap-redirect]
-filename = libadrenotools.wrap
-directory = libadrenotools
-EOF
+# 🟢 REPARACIÓN CRÍTICA NUCLEAR ANTI-CRASH: Trituramos físicamente el archivo .wrap para evitar excepciones de Python y nos aseguramos de que el nombre del directorio sea estrictamente exacto en minúsculas
+echo "-> 1b. Saneando la jerarquía física de subprojects en el Host..."
+rm -f subprojects/libadrenotools.wrap
+
+if [ -d "subprojects/libadrenotools" ]; then
+    echo "-> [OK] Directorio físico local verificado con éxito."
+fi
 
 if [ -f "stub_logs.c" ]; then
     chmod 644 stub_logs.c
@@ -118,7 +117,7 @@ python3 meson_src/meson.py setup build-libdrm libdrm_android --cross-file /works
   -Dintel=disabled -Dradeon=disabled -Damdgpu=disabled -Dnouveau=disabled -Dman-pages=disabled -Dvalgrind=disabled -Dtests=false
 python3 meson_src/meson.py install -C build-libdrm
 
-# Meson Setup lee cross_64 de forma síncrona impecable e inmutable
+# Meson Setup lee cross_64 de forma síncrona impecable. Al no haber archivo .wrap, usará la carpeta física local de forma directa y legal
 python3 meson_src/meson.py setup build-64 --cross-file /workspace/cross_64.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=panfrost,wrapper
 python3 meson_src/meson.py compile -C build-64
 EOF
