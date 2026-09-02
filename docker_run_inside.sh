@@ -17,19 +17,17 @@ NDK_SYSROOT_LIB_64="${NDK_SYSROOT}/usr/lib/aarch64-linux-android/26"
 echo "-> [Docker Internal] Compilando stubs duales legítivos para enlazado preferencial..."
 $NDK_BIN/aarch64-linux-android26-clang -c stub_logs.c -o stub_c.o
 $NDK_BIN/llvm-ar rcs shims_64/lib/liblog.a stub_c.o
-$NDK_BIN/llvm-ar rcs shims_64/lib/libvulkan_wrapper.a stub_c.o
+$NDK_BIN/shims_64/libvulkan_wrapper.a stub_c.o 2>/dev/null || $NDK_BIN/llvm-ar rcs shims_64/libvulkan_wrapper.a stub_c.o
 
 $NDK_BIN/aarch64-linux-android26-clang++ -c stub_logs.c -o stub_cpp.o
 $NDK_BIN/llvm-ar rcs shims_64/lib/libandroid.a stub_cpp.o
 $NDK_BIN/llvm-ar rcs shims_64/lib/libdl.a stub_cpp.o
 
-# Duplicamos de forma defensiva el archivo directo en el sysroot nativo
 cp -fv shims_64/lib/libandroid.a "$NDK_SYSROOT_LIB_64/libandroid.a" 2>/dev/null || true
 cp -fv shims_64/lib/liblog.a "$NDK_SYSROOT_LIB_64/liblog.a" 2>/dev/null || true
 cp -fv shims_64/lib/libdl.a "$NDK_SYSROOT_LIB_64/libdl.a" 2>/dev/null || true
 
-# 🟢 REPARACIÓN CRÍTICA SYNC: Forzamos la escritura física incondicional en el hardware y esperamos 2 segundos. Esto destruye la condición de carrera asegurando que libvulkan_wrapper.a esté 100% visible para Ninja
-echo "-> [Docker Internal] Forzando sincronización de inodos en el volumen compartido..."
+echo "-> [Docker Internal] Forzamiento de inodos de memoria compartida..."
 sync
 sleep 2
 
@@ -51,7 +49,7 @@ if os.path.exists(p):
     if "SYS_memfd_create" in c:
         c = c.replace("SYS_memfd_create", "279")
         f=open(p,"w"); f.write(c); f.close()
-        print("-> [Docker Internal] Éxito: SYS_memfd_create transmutado a la Syscall 279 de forma literal.")
+        print("-> [Docker Internal] Éxito: SYS_memfd_create transmutado a la Syscall 279.")
 '
 
 python3 -c '
@@ -63,19 +61,22 @@ if os.path.exists(p):
         patch = "#ifdef __ANDROID__\n#define secure_getenv getenv\n#endif\n"
         c = patch + c
         f=open(p,"w"); f.write(c); f.close()
-        print("-> [Docker Internal] Éxito: secure_getenv mapeado hacia getenv in disk_cache_os.c")
+        print("-> [Docker Internal] Éxito: secure_getenv mapeado hacia getenv.")
 '
 
+# 🟢 REPARACIÓN CRÍTICA BLINDAJE MUTACIÓN U_QSORT: Inyectamos el encendido incondicional de HAVE_QSORT_R y apagamos HAVE_QSORT_S en la raíz misma de la cabecera. Esto aplasta la configuración errónea heredada de src/config.h y obliga a Clang a utilizar el método reglamentario de Android (qsort_r)
 python3 -c '
 p="src/util/u_qsort.h"
 import os
 if os.path.exists(p):
     f=open(p,"r"); c=f.read(); f.close()
-    if "HAVE_QSORT_R" not in c:
-        patch = "#ifdef __ANDROID__\n#define HAVE_QSORT_R 1\n#endif\n"
-        c = patch + c
-        f=open(p,"w"); f.write(c); f.close()
-        print("-> [Docker Internal] Éxito: Activado mapeo nativo HAVE_QSORT_R en u_qsort.h")
+    # Limpiamos cualquier intento o parche previo para evitar duplicados
+    c = c.replace("#define HAVE_QSORT_R 1", "")
+    # Inyectamos el casquete de anulación absoluta en la primera línea
+    patch = "#ifndef HAVE_QSORT_R\n#define HAVE_QSORT_R 1\n#endif\n#undef HAVE_QSORT_S\n"
+    c = patch + c
+    f=open(p,"w"); f.write(c); f.close()
+    print("-> [Docker Internal] Éxito: Control incondicional de ordenamiento inyectado en u_qsort.h")
 '
 
 echo "-> [Docker Internal] Aplicando parches sintácticos atómicos in-situ..."
