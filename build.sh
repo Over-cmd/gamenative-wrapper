@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO CON RUTAS CLANG CORREGIDAS"
+echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO CON STRIP UNIFICADO OK"
 echo "=========================================================="
 
 WORKSPACE="$(pwd)"
@@ -34,7 +34,7 @@ export NDK_BIN="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin"
 export NDK_SYSROOT="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
 NDK_SYSROOT_LIB_64="${NDK_SYSROOT}/usr/lib/aarch64-linux-android/26"
 
-# 🟢 REPARACIÓN CRÍTICA REINSTAURADA: Recuperamos la búsqueda dinámica del core de LLVM de Clang de la imagen de LeeGao
+# Recuperamos la búsqueda dinámica del core de LLVM de Clang de la imagen de LeeGao
 NDK_LLVM_LIB="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/lib/clang/19/lib/linux/aarch64"
 if [ ! -d "$NDK_LLVM_LIB" ]; then
     NDK_LLVM_LIB=$(find ${ANDROID_NDK_HOME} -name "aarch64" -type d | grep "lib/linux" | head -n 1 || echo "")
@@ -124,10 +124,11 @@ if [ -f "pkg/usr/lib/libdrm.so" ]; then
     patchelf --set-soname libdrm.so pkg/usr/lib/libdrm.so 2>/dev/null || true
 fi
 
+# 🟢 REPARACIÓN CRÍTICA MAYÚSCULAS: Corregimos $strip_HOST por $STRIP_HOST para evitar la variable vacía case-sensitive
 STRIP_HOST="/usr/local/lib/android/sdk/ndk/28.2.13676358/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip"
 if [ -f "$STRIP_HOST" ]; then
     $STRIP_HOST --strip-unneeded pkg/usr/lib/*.so 2>/dev/null || true
-    $strip_HOST --strip-unneeded pkg/usr/lib/aarch64-linux-android/*.so 2>/dev/null || true
+    $STRIP_HOST --strip-unneeded pkg/usr/lib/aarch64-linux-android/*.so 2>/dev/null || true
 fi
 
 cat << 'EOF' > pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
