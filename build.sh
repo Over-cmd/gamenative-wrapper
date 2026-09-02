@@ -118,17 +118,13 @@ sed -i "s/cc.find_library('rt'/dependency('', required : false) #/g" meson.build
 sed -i "s/cc.find_library('atomic'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/dependency('libclc')/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 
-# Meson Setup lee cross_64 de forma síncrona e inmune sobre el árbol limpio de Mesa 25
-# 🟢 TRITURACIÓN DE CONMUTACIÓN AL VUELO: Lanzamos el setup e INMEDIATAMENTE ANTES de compilar machacamos de forma masiva
-# cualquier copia residual o espejo que Meson haya generado en build-64/ o subprojects/ para anular find_library de Android de raíz.
-python3 meson_src/meson.py setup build-64 --cross-file /workspace/cross_64.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=panfrost,wrapper || true
+# 🟢 REPARACIÓN INDUSTRIAL TOTAL DE ENLAZADOR: Exportamos variables globales del compilador hacia los Shims locales.
+# Esto inyecta de forma obligatoria las rutas en las llamadas internas de find_library() de Meson sin romper ni tocar cachés temporales.
+export LIBRARY_PATH="/workspace/shims_64/lib:${LIBRARY_PATH}"
+export LDFLAGS="-L/workspace/shims_64/lib ${LDFLAGS}"
 
-echo "-> [Docker Internal] Aplicando parches sintácticos masivos de elusión sobre dependencias..."
-find /workspace/ -name "meson.build" -exec sed -i "s/cc.find_library('android'/dependency('', required : false) #/g" {} + 2>/dev/null || true
-find /workspace/ -name "meson.build" -exec sed -i "s/cc.find_library('log'/dependency('', required : false) #/g" {} + 2>/dev/null || true
-
-# Re-lanzamos el setup para asentar las dependencias modificadas y disparamos la compilación final
-python3 meson_src/meson.py setup build-64 --reconfigure --cross-file /workspace/cross_64.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=panfrost,wrapper
+# Lanzamos el setup con el entorno del enlazador cruzado completamente redirigido
+python3 meson_src/meson.py setup build-64 --cross-file /workspace/cross_64.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=panfrost,wrapper
 python3 meson_src/meson.py compile -C build-64
 EOF
 
@@ -190,6 +186,7 @@ echo "msf:315508" > pkg/version.txt && chmod -R 755 pkg/
 cd pkg && tar -I "zstd -19 -T0" -cf "../wrapper.tzst" usr version.txt
 cd "${WORKSPACE}"
 
+# PURGA TRANSPARENTE: Eliminamos residuos de forma segura sin sudo
 echo "-> 6. Purgando artefactos efímeros de forma transparente y segura..."
 rm -f docker_run_inside.sh cross_libdrm.txt cross_64.txt stub_logs.c stub_c.o stub_cpp.o generate_cross.sh
 rm -rf meson_src/
