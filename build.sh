@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO COMPACTADO OK"
+echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO MAESTRO SEGURO"
 echo "=========================================================="
 
 WORKSPACE="$(pwd)"
@@ -26,12 +26,21 @@ chmod +x patch_mesa.sh generate_cross.sh docker_run_inside.sh
 ./patch_mesa.sh
 rm -f subprojects/libadrenotools.wrap
 
+# 🟢 REPARACIÓN CRÍTICA HOST PURGE: Ejecutamos el parche masivo recursivo con comillas simples y dobles AQUÍ en el Host. Al tener privilegios plenos sobre tu espacio de trabajo, el reemplazo de find_library se inyectará de forma física real e indestructible antes de levantar el contenedor
+echo "-> 1b. Aplicando parches sintácticos sobre Adrenotools en el Host..."
+if [ -d "subprojects/libadrenotools" ]; then
+    find subprojects/libadrenotools -name "meson.build" -exec sed -i "s/cc.find_library('android'/dependency('', required : false) #/g" {} +
+    find subprojects/libadrenotools -name "meson.build" -exec sed -i 's/cc.find_library("android"/dependency("", required : false) #/g' {} +
+    find subprojects/libadrenotools -name "meson.build" -exec sed -i "s/cc.find_library('log'/dependency('', required : false) #/g" {} +
+    find subprojects/libadrenotools -name "meson.build" -exec sed -i 's/cc.find_library("log"/dependency("", required : false) #/g' {} +
+fi
+
 if [ -f "stub_logs.c" ]; then chmod 644 stub_logs.c; fi
 ./generate_cross.sh
 
 chmod -R 777 "$WORKSPACE"
 
-echo "-> 3. Lanzando entorno biónico aislado en Docker cargando receta fija..."
+echo "-> 3. Lanzando entorno biónico aislado en Docker..."
 docker run --rm --entrypoint /bin/bash \
   --user "$(id -u):$(id -g)" \
   -e ANDROID_NDK_HOME="$ANDROID_NDK_HOME" \
