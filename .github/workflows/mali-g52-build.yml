@@ -1,72 +1,41 @@
-name: Mesa Vulkan Wrapper Mali Packager (.tzst)
+name: Bannerlator Mali Wrapper CI
 
 on:
   push:
-    # Gatillo de escucha activo en las ramas oficiales y tu entorno de desarrollo wrapper-25
-    branches: [ "main", "master", "wrapper-25" ]
+    branches:
+      - wrapper-25
   workflow_dispatch:
 
-env:
-  BUILD_DIR: compilacion
-  IMAGE_TAG: ghcr.io/leegao/mesa-wrapper-ci/wrapper-compiler:latest
-
 jobs:
-  build-aarch64-wrapper:
-    runs-on: ubuntu-latest
-
+  build-driver:
+    runs-on: ubuntu-24.04
     steps:
-      - name: Checkout Code
+      - name: 📥 1. Checkout Code (Rama Activa wrapper-25)
         uses: actions/checkout@v4
         with:
-          submodules: recursive
-          fetch-depth: 0
+          submodules: 'recursive'
+          fetch-depth: 1
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Install Zstd and Patchelf Packager
+      - name: ⚙️ 2. Instalar Herramientas Regulatorias en el Host
         run: |
           sudo apt-get update
-          sudo apt-get install -y zstd patchelf python3 python3-pip python3-setuptools ninja-build
-          pip3 install --no-cache-dir --break-system-packages mako PyYAML packaging || pip3 install --no-cache-dir mako PyYAML packaging || true
+          sudo apt-get install -y patchelf zstd unzip python3-pip python3-setuptools
+          # Aseguramos de forma redundante las dependencias críticas de parseo para el Host
+          pip3 install --no-cache-dir mako packaging pyyaml
 
-      - name: Surgical Silicon Modification (Anti-Overflow MALI Hybrid Injection)
+      - name: 🛠️ 3. Ejecutar Orquestador Biónico Unificado
         run: |
-          echo "-> Rastreando el corazón del Wrapper para soldar compatibilidad híbrida Vulkan..."
-          WRAPPER_DEVICE=$(find src/ -name "wrapper_device.c" | head -n 1)
-          
-          if [ -n "$WRAPPER_DEVICE" ] && [ -f "$WRAPPER_DEVICE" ]; then
-            echo "-> Aplicando parches de alineación de memoria de 32 bits en: $WRAPPER_DEVICE"
-            sed -i 's/\r$//' "$WRAPPER_DEVICE"
-            sed -i '1i#include <stdint.h>' "$WRAPPER_DEVICE"
-            sed -i '1iextern int mallopt(int param, int value);' "$WRAPPER_DEVICE"
-            sed -i '1iextern int setenv(const char *name, const char *value, int overwrite);' "$WRAPPER_DEVICE"
-            
-            sed -i '/vk_icdGetInstanceProcAddr/!b;n;i\\ extern int mallopt(int p, int v);\\n extern int setenv(const char *n, const char *v, int o);\\n mallopt(-1002, 0);\\n setenv("MESA_VK_WSI_PRESENT_MODE", "mailbox", 1);\\n setenv("vblank_mode", "0", 1);\\n if (sizeof(void*) == 4) {\\n   setenv("MESA_VK_WSI_QUEUE_SIZE", "1", 1);\\n }' "$WRAPPER_DEVICE"
-            echo "-> Envoltura híbrida inyectada con éxito."
-          else
-            echo "-> Archivo wrapper_device.c no encontrado, aplicando fallback..."
-            find src/ -name "*.c" -exec sed -i 's/vk_icdGetInstanceProcAddr/extern int mallopt(int p, int v); extern int setenv(const char *n, const char *v, int o); mallopt(-1002, 0); setenv("MESA_VK_WSI_PRESENT_MODE", "mailbox", 1); setenv("vblank_mode", "0", 1); if (sizeof(void*) == 4) { setenv("MESA_VK_WSI_QUEUE_SIZE", "1", 1); } vk_icdGetInstanceProcAddr/g' {} + || true
-          fi
-
-      - name: Run Modular Build Script (Docker Double-Pass and Packing)
-        run: |
-          # 🟢 BLINDAJE DE INFRAESTRUCTURA MODULAR: Otorgamos permisos reglamentarios a la triada de scripts y disparamos
-          # Forzamos una desinfección preventiva del Host por si quedan residuos huérfanos de compilaciones locales corruptas
-          if [ -f "meson.build" ] && grep -q "WORKSPACE=" "meson.build"; then
-            echo "⚠️ [Host CI] ¡Corrupción de Bash detectada en meson.build! Purgando..."
-            rm -f meson.build
-            git checkout HEAD -- meson.build 2>/dev/null || true
-          fi
-          
-          chmod +x patch_mesa.sh || true
-          chmod +x generate_cross.sh || true
-          chmod +x build.sh || true
+          chmod +x patch_mesa.sh
+          chmod +x generate_cross.sh
+          chmod +x build.sh
+          # Disparamos el Módulo Maestro de control secuencial inmutable
           ./build.sh
 
-      - name: Upload Final wrapper.tzst for Bannerlator
+      - name: 📦 4. Cargar Artefacto de Driver Compilado
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: Bannerlator-Mali-Wrapper
-          path: ${{ github.workspace }}/wrapper.tzst
+          path: wrapper.tzst
           if-no-files-found: error
+          retention-days: 7
