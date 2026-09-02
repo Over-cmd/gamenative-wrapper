@@ -2,12 +2,12 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO PARAMETRIZADO E INDESTRUCTIBLE"
+echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO CON BYPASS DE ADRENOTOOLS OK"
 echo "=========================================================="
 
 WORKSPACE="$(pwd)"
 
-# 🟢 REPARACIÓN 1: Localización dinámica y elástica del NDK r28 en las GitHub Actions para triturar rutas hardcodeadas
+# Localización dinámica y elástica del NDK r28 en las GitHub Actions para triturar rutas hardcodeadas
 echo "-> 1a. Rastreando de forma dinámica la ubicación del Android NDK..."
 NDK_BASE_SEARCH="/usr/local/lib/android/sdk/ndk"
 ANDROID_NDK_HOME=$(find "$NDK_BASE_SEARCH" -maxdepth 1 -type d -name "28.*" | head -n 1 || echo "")
@@ -37,7 +37,7 @@ fi
 chmod +x generate_cross.sh
 ./generate_cross.sh
 
-# 🟢 REPARACIÓN 2: Aseguramos la flexibilidad de permisos en el volumen compartido para que el usuario ordinario mapeado en Docker (--user) opere sin bloqueos de escritura
+# Aseguramos la flexibilidad de permisos en el volumen compartido para evitar bloqueos con --user
 echo "-> 1b. Inmunizando y abriendo permisos del volumen de trabajo..."
 chmod -R 777 "$WORKSPACE"
 
@@ -95,9 +95,11 @@ sed -i "s/cc.find_library('rt'/dependency('', required : false) #/g" meson.build
 sed -i "s/cc.find_library('atomic'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/dependency('libclc')/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 
+# 🟢 CORRECCIÓN QUIRÚRGICA ADRENOTOOLS NATIVE: Neutralizamos find_library para 'android' y 'log' en Adrenotools convirtiéndolos en dependencias vacías legales para saltar la validación estricta de Meson
+echo "-> [Docker Internal] Aplicando parches sintácticos sobre el subproyecto Adrenotools..."
 if [ -f "subprojects/libadrenotools/meson.build" ]; then
-    sed -i "s/cc.find_library('android'/dependency('', required : false) #/g" subprojects/libadrenotools/meson.build 2>/dev/null || true
-    sed -i "s/cc.find_library('log'/dependency('', required : false) #/g" subprojects/libadrenotools/meson.build 2>/dev/null || true
+    sed -i "s/cc.find_library('android'/dependency('', required : false) #/g" subprojects/libadrenotools/meson.build
+    sed -i "s/cc.find_library('log'/dependency('', required : false) #/g" subprojects/libadrenotools/meson.build
 fi
 
 # Compilación de libdrm
@@ -120,12 +122,11 @@ docker run --rm --entrypoint /bin/bash \
   -v "/usr/local/lib/android:/usr/local/lib/android" \
   -w /workspace ghcr.io/leegao/mesa-wrapper-ci/wrapper-compiler:latest ./docker_run_inside.sh
 
-# 🟢 REPARACIÓN 3: Control estricto de errores eliminando silenciados traicioneros. Si un binario no se generó por un fallo previo, el pipeline abortará formalmente con Exit Code 1 protegiendo la integridad del empaque
+# Control estricto de errores eliminando silenciados traicioneros
 echo "-> 4. Maquetando empaque unificado de proximidad biónica..."
 mkdir -p pkg/usr/lib/aarch64-linux-android
 mkdir -p pkg/usr/share/vulkan/icd.d
 
-# Recolectamos el wrapper interceptor legítimo
 if [ -f "compilacion/libvulkan_wrapper.so" ]; then
     cp -v compilacion/libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
 elif [ -f "libvulkan_wrapper.so" ]; then
@@ -135,7 +136,6 @@ else
     exit 1
 fi
 
-# Recolectamos libdrm instalada
 if [ -f "shims_64/lib/libdrm.so" ]; then
     cp -v shims_64/lib/libdrm.so pkg/usr/lib/libdrm.so
 else
@@ -143,7 +143,6 @@ else
     exit 1
 fi
 
-# Recolectamos el controlador Panfrost legítimo
 if [ -f "build-64/src/panfrost/vulkan/libvulkan_panfrost.so" ]; then
     cp -v build-64/src/panfrost/vulkan/libvulkan_panfrost.so pkg/usr/lib/aarch64-linux-android/libvulkan_panfrost.so
 else
@@ -155,7 +154,7 @@ cd pkg/usr/lib/aarch64-linux-android
 ln -sf ../libvulkan_panfrost.so libvulkan_wrapper.so
 cd "${WORKSPACE}"
 
-# Sellado estructural con patchelf vigilado sin silenciar errores estructurales
+# Sellado estructural con patchelf
 patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
 patchelf --add-needed libdrm.so pkg/usr/lib/libvulkan_wrapper.so
 patchelf --set-rpath '$ORIGIN' pkg/usr/lib/libvulkan_wrapper.so
@@ -178,6 +177,8 @@ cat << 'EOF' > pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
     "ICD": { "api_version": "1.3.289", "library_path": "libvulkan_wrapper.so" },
     "file_format_version": "1.0.0"
 }
+EOF
+
 echo "-> 5. Sellando empaque reglamentario de alta compresión..."
 echo "msf:315508" > pkg/version.txt && chmod -R 755 pkg/
 cd pkg && tar -I "zstd -19 -T0" -cf "../wrapper.tzst" usr version.txt
