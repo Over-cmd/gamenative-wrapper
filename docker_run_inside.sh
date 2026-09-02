@@ -14,7 +14,6 @@ export NDK_BIN="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin"
 export NDK_SYSROOT="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
 NDK_SYSROOT_LIB_64="${NDK_SYSROOT}/usr/lib/aarch64-linux-android/26"
 
-# 🟢 REPARACIÓN INDUSTRIAL STUBS REALES: Compilamos stub_logs.c directamente como una librería compartida .so legítima con Clang (libvulkan_wrapper.so) y la clonamos de forma redundante en todos los directorios de enlace. Esto garantiza que ld.lld la encuentre sí o sí sin depender de llvm-ar ni condiciones de carrera de disco
 echo "-> [Docker Internal] Compilando stubs duales legítivos para enlazado preferencial..."
 $NDK_BIN/aarch64-linux-android26-clang -shared -fPIC stub_logs.c -o shims_64/lib/libvulkan_wrapper.so
 $NDK_BIN/aarch64-linux-android26-clang -shared -fPIC stub_logs.c -o libvulkan_wrapper.so
@@ -55,17 +54,9 @@ if os.path.exists(p):
         print("-> [Docker Internal] Éxito: SYS_memfd_create transmutado a la Syscall 279 de forma literal.")
 '
 
-python3 -c '
-p="src/util/disk_cache_os.c"
-import os
-if os.path.exists(p):
-    f=open(p,"r"); c=f.read(); f.close()
-    if "secure_getenv" in c and "getenv" not in c.split("\n"):
-        patch = "#ifdef __ANDROID__\n#define secure_getenv getenv\n#endif\n"
-        c = patch + c
-        f=open(p,"w"); f.write(c); f.close()
-        print("-> [Docker Internal] Éxito: secure_getenv mapeado hacia getenv in disk_cache_os.c")
-'
+# 🟢 REPARACIÓN CRÍTICA BARRIDO SECURE_GETENV: Ejecutamos un reemplazo masivo recursivo con sed sobre TODO el árbol de fuentes 'src/' de Mesa 25 para transmutar de raíz cualquier llamada residual a secure_getenv hacia la función estándar getenv() de bionic. Esto neutraliza de forma preventiva futuros bloqueos en spirv_to_nir.c o cualquier otro sub-módulo
+echo "-> [Docker Internal] Ejecutando barrido total recursivo de secure_getenv hacia getenv..."
+find src/ -type f \( -name "*.c" -o -name "*.cpp" -o -name "*.h" \) -exec sed -i 's/secure_getenv/getenv/g' {} +
 
 python3 -c '
 p="src/util/u_qsort.h"
