@@ -2,11 +2,12 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO CON PURGA ATÓMICA MESA 25"
+echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO CON VERIFICACIÓN SÍNCRONA OK"
 echo "=========================================================="
 
 WORKSPACE="$(pwd)"
 
+# 1a. Rastreando de forma dinámica la ubicación del Android NDK
 echo "-> 1a. Rastreando de forma dinámica la ubicación del Android NDK..."
 NDK_BASE_SEARCH="/usr/local/lib/android/sdk/ndk"
 ANDROID_NDK_HOME=$(find "$NDK_BASE_SEARCH" -maxdepth 1 -type d -name "28.*" | head -n 1 || echo "")
@@ -26,24 +27,37 @@ chmod +x patch_mesa.sh generate_cross.sh docker_run_inside.sh
 ./patch_mesa.sh
 rm -f subprojects/libadrenotools.wrap
 
-# 🟢 REPARACIÓN CRÍTICA ATÓMICA TOTAL: Parcheamos de forma masiva en el Host todas las variantes de comillas simples y dobles para find_library('atomic') en Mesa y Adrenotools
-echo "-> 1b. Aplicando cirugía sintáctica de elisión en el Host..."
+# 🟢 REPARACIÓN CRÍTICA BLOQUEO DEFENSIVO: Congelamos el script y esperamos un máximo de 30 segundos a que el sistema de archivos del Host estabilice y escriba físicamente el archivo meson.build de Adrenotools clonado
+echo "-> 1b. Sincronizando y bloqueando hilo de disco para subprojects..."
+ADRENOTOOLS_BUILD="subprojects/libadrenotools/meson.build"
+COUNTER=0
+until [ -f "$ADRENOTOOLS_BUILD" ] || [ $COUNTER -eq 30 ]; do
+    sleep 1
+    COUNTER=$((COUNTER + 1))
+done
+
+if [ ! -f "$ADRENOTOOLS_BUILD" ]; then
+    echo "-> [❌ ERROR CRÍTICO HOST] El archivo $ADRENOTOOLS_BUILD no apareció en el tiempo límite."
+    exit 1
+fi
+echo "-> [OK] Fuentes de Adrenotools detectadas en disco en el segundo $COUNTER."
+
+# 🟢 PURGA SINTÁCTICA ROBUSTA TOTAL: Una vez asegurado el archivo en el disco, aplicamos el sed literal redundante en Mesa 25 y Adrenotools de forma obligatoria
+echo "-> 1c. Aplicando cirugía sintáctica de elisión en el Host..."
 if [ -f "meson.build" ]; then
     sed -i "s/cc.find_library('dl'/dependency('', required : false) #/g" meson.build
     sed -i 's/cc.find_library("dl"/dependency("", required : false) #/g' meson.build
     sed -i "s/cc.find_library('rt'/dependency('', required : false) #/g" meson.build
     sed -i 's/cc.find_library("rt"/dependency("", required : false) #/g' meson.build
     sed -i "s/cc.find_library('atomic'/dependency('', required : false) #/g" meson.build
-    sed -i 's/cc.find_library("atomic"/dependency("", required : false) #/g' meson.build
+    sed -i 's/cc.find_library("atomic"/dependency("", required : false) #/g' mesh.build 2>/dev/null || sed -i 's/cc.find_library("atomic"/dependency("", required : false) #/g' meson.build
     sed -i "s/dependency('libclc')/dependency('', required : false) #/g" meson.build
 fi
 
-if [ -d "subprojects/libadrenotools" ]; then
-    find subprojects/libadrenotools -name "meson.build" -exec sed -i "s/cc.find_library('android'/dependency('', required : false) #/g" {} +
-    find subprojects/libadrenotools -name "meson.build" -exec sed -i 's/cc.find_library("android"/dependency("", required : false) #/g' {} +
-    find subprojects/libadrenotools -name "meson.build" -exec sed -i "s/cc.find_library('log'/dependency('', required : false) #/g" {} +
-    find subprojects/libadrenotools -name "meson.build" -exec sed -i 's/cc.find_library("log"/dependency("", required : false) #/g' {} +
-fi
+find subprojects/libadrenotools -name "meson.build" -exec sed -i "s/cc.find_library('android'/dependency('', required : false) #/g" {} +
+find subprojects/libadrenotools -name "meson.build" -exec sed -i 's/cc.find_library("android"/dependency("", required : false) #/g' {} +
+find subprojects/libadrenotools -name "meson.build" -exec sed -i "s/cc.find_library('log'/dependency('', required : false) #/g" {} +
+find subprojects/libadrenotools -name "meson.build" -exec sed -i 's/cc.find_library("log"/dependency("", required : false) #/g' {} +
 
 if [ -f "stub_logs.c" ]; then chmod 644 stub_logs.c; fi
 ./generate_cross.sh
