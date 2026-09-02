@@ -37,7 +37,6 @@ if os.path.exists(p):
         f=open(p,"w"); f.write(c); f.close()
 '
 
-# 🟢 REPARACIÓN INDUSTRIAL ANON_FILE: Sustituimos el token SYS_memfd_create directamente por su valor numérico real del Kernel de Linux para la arquitectura ARM64 (279) de forma literal en la línea. Esto elude cualquier redefinición o purga oculta de las cabeceras de Google
 python3 -c '
 p="src/util/anon_file.c"
 import os
@@ -66,6 +65,14 @@ if [ -d "subprojects/libadrenotools" ]; then
     find subprojects/libadrenotools -name "meson.build" -exec sed -i 's/.*find_library("dl".*/declare_dependency(link_args : ["-ldl"])/g' {} +
 fi
 
+# 🟢 REPARACIÓN CRÍTICA LINKER HOOKS: Barremos todo el árbol clonado de Adrenotools y mutamos de forma agresiva cualquier bandera de enlace rígida bionic '-Wl,--as-needed' o '-Wl,--no-undefined' hacia un esquema elástico que permita la carga libre de dependencias dynamic de sistema
+echo "-> [Docker Internal] Mutando flags de enlace rígidos en Adrenotools..."
+if [ -d "subprojects/libadrenotools" ]; then
+    find subprojects/libadrenotools -name "meson.build" -exec sed -i 's/-Wl,--no-undefined/-Wl,--allow-shlib-undefined/g' {} +
+    find subprojects/libadrenotools -name "meson.build" -exec sed -i 's/b_lundef=true/b_lundef=false/g' {} +
+    find subprojects/libadrenotools -name "meson.build" -exec sed -i 's/b_asneeded=true/b_asneeded=false/g' {} +
+fi
+
 # Inicializamos formalmente las variables de linkernsbypass apuntando a los objetos de enlace real estructurados
 BYPASS_RECIPE="subprojects/libadrenotools/lib/linkernsbypass/meson.build"
 if [ -f "$BYPASS_RECIPE" ]; then
@@ -78,6 +85,6 @@ python3 meson_src/meson.py setup build-libdrm libdrm_android --cross-file /works
   -Dintel=disabled -Dradeon=disabled -Damdgpu=disabled -Dnouveau=disabled -Dman-pages=disabled -Dvalgrind=disabled -Dtests=false
 python3 meson_src/meson.py install -C build-libdrm
 
-# Compilación del Core de Mesa 25 con las banderas de enlazado de sistema re-acopladas de forma impecable
+# Compilación del Core de Mesa 25 libre de restricciones de indeterminación de firmas
 python3 meson_src/meson.py setup build-64 --cross-file /workspace/cross_64.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=panfrost,wrapper
 python3 meson_src/meson.py compile -C build-64
