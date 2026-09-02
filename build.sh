@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO CON RECTIFICACIÓN DE RUTAS V67"
+echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO CON DOBLE ICD (PANFROST + WRAPPER) OK"
 echo "=========================================================="
 
 WORKSPACE="$(pwd)"
@@ -50,7 +50,6 @@ docker run --rm --entrypoint /bin/bash \
 echo "-> 4. Maquetando empaque unificado de proximidad biónica..."
 mkdir -p pkg/usr/lib/aarch64-linux-android pkg/usr/share/vulkan/icd.d
 
-# 🟢 REPARACIÓN INDUSTRIAL RUTA WRAPPER: Mapeamos de forma estricta la ubicación real del archivo generado por Ninja dentro de la estructura de subcarpetas de Mesa 25
 WRAPPER_REAL_SRC="build-64/src/vulkan/wrapper/libvulkan_wrapper.so"
 
 if [ -f "$WRAPPER_REAL_SRC" ]; then
@@ -96,8 +95,19 @@ patchelf --add-needed libdrm.so pkg/usr/lib/aarch64-linux-android/libvulkan_panf
 patchelf --set-rpath '$ORIGIN' pkg/usr/lib/aarch64-linux-android/libvulkan_panfrost.so
 patchelf --set-soname libdrm.so pkg/usr/lib/libdrm.so
 
+# 🟢 INYECCIÓN MAESTRA DOBLE ICD: Fabricamos los dos descriptores JSON reglamentarios exigidos por el estándar Khronos para mapear simétricamente tanto el Wrapper como el núcleo real de Panfrost
 cat << 'EOF' > pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
-{ "ICD": { "api_version": "1.3.289", "library_path": "libvulkan_wrapper.so" }, "file_format_version": "1.0.0" }
+{
+    "ICD": { "api_version": "1.3.289", "library_path": "libvulkan_wrapper.so" },
+    "file_format_version": "1.0.0"
+}
+EOF
+
+cat << 'EOF' > pkg/usr/share/vulkan/icd.d/panfrost_icd.aarch64.json
+{
+    "ICD": { "api_version": "1.3.289", "library_path": "aarch64-linux-android/libvulkan_panfrost.so" },
+    "file_format_version": "1.0.0"
+}
 EOF
 
 echo "-> 5. Sellando empaque de alta compresión..."
