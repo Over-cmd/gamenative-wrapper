@@ -2,12 +2,12 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO EN CASQUETE INDESTRUCTIBLE OK"
+echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO CON PARCHE SEGURO EN HOST OK"
 echo "=========================================================="
 
 WORKSPACE="$(pwd)"
 
-# 🟢 REPARACIÓN 1: Localización dinámica y elástica del NDK r28 en las GitHub Actions para triturar rutas hardcodeadas
+# Localización dinámica y elástica del NDK r28 en las GitHub Actions para triturar rutas hardcodeadas
 echo "-> 1a. Rastreando de forma dinámica la ubicación del Android NDK..."
 NDK_BASE_SEARCH="/usr/local/lib/android/sdk/ndk"
 ANDROID_NDK_HOME=$(find "$NDK_BASE_SEARCH" -maxdepth 1 -type d -name "28.*" | head -n 1 || echo "")
@@ -37,18 +37,20 @@ fi
 chmod +x generate_cross.sh
 ./generate_cross.sh
 
-# Aplicando la cirugía de expresiones regulares robusta sobre todo el árbol de Adrenotools
-echo "-> 1b. Aplicando parches sintácticos robustos sobre Adrenotools en el Host..."
+# 🟢 REPARACIÓN CRÍTICA EN EL HOST: Aplicamos la purga recursiva AQUÍ en el Host, garantizando que las comillas simples se procesen puras sin deformarse por cat o streams de Docker
+echo "-> 1b. Aplicando cirugía sintáctica sobre Adrenotools en el Host..."
 if [ -d "subprojects/libadrenotools" ]; then
-    find subprojects/libadrenotools -name "meson.build" -exec sed -i "s/cc.find_library(.*android.*/dependency('', required : false) #/g" {} +
-    find subprojects/libadrenotools -name "meson.build" -exec sed -i "s/cc.find_library(.*log.*/dependency('', required : false) #/g" {} +
+    find subprojects/libadrenotools -name "meson.build" -exec sed -i "s/cc.find_library('android'/dependency('', required : false) #/g" {} +
+    find subprojects/libadrenotools -name "meson.build" -exec sed -i 's/cc.find_library("android"/dependency("", required : false) #/g' {} +
+    find subprojects/libadrenotools -name "meson.build" -exec sed -i "s/cc.find_library('log'/dependency('', required : false) #/g" {} +
+    find subprojects/libadrenotools -name "meson.build" -exec sed -i 's/cc.find_library("log"/dependency("", required : false) #/g' {} +
 fi
 
 # Aseguramos la flexibilidad de permisos en el volumen compartido para evitar bloqueos con --user
 echo "-> 1c. Inmunizando y abriendo permisos del volumen de trabajo..."
 chmod -R 777 "$WORKSPACE"
 
-# 🟢 REPARACIÓN 2: Usamos cat << EOF sin comillas para forzar la inyección real del path del NDK, escapando con \$ las variables exclusivas de Docker
+# Escribimos la receta entera de Docker limpia de comandos de parche complejos
 echo "-> 1d. Estructurando receta interna compacta para la jaula de Docker..."
 cat << EOF > docker_run_inside.sh
 #!/bin/bash
@@ -114,7 +116,7 @@ EOF
 
 chmod +x docker_run_inside.sh
 
-# 🟢 REPARACIÓN 3: Mapeo de volumen elástico indestructible. Montamos exactamente la ruta descubierta del NDK para asegurar el acceso total a Clang de forma transparente
+# Mapeo de volumen elástico indestructible. Montamos exactamente la ruta descubierta del NDK para asegurar el acceso total a Clang de forma transparente
 echo "-> 3. Lanzando entorno biónico aislado en Docker..."
 docker run --rm --entrypoint /bin/bash \
   --user "$(id -u):$(id -g)" \
