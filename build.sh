@@ -7,10 +7,14 @@ echo "=========================================================="
 
 WORKSPACE="$(pwd)"
 
-# 1a. Rastreando de forma dinámica la ubicación del Android NDK
+# 1a. Rastreando de forma dinámica la ubicación del Android NDK (Protegido contra SIGPIPE)
 echo "-> 1a. Rastreando de forma dinámica la ubicación del Android NDK..."
 NDK_BASE_SEARCH="/usr/local/lib/android/sdk/ndk"
-ANDROID_NDK_HOME=$(find "$NDK_BASE_SEARCH" -maxdepth 1 -type d -name "28.*" | head -n 1 || echo "")
+
+# Ejecutamos sin set -e temporalmente para evitar caídas por tuberías rotas con head
+set +e
+ANDROID_NDK_HOME=$(find "$NDK_BASE_SEARCH" -maxdepth 1 -type d -name "28.*" 2>/dev/null | head -n 1)
+set -e
 
 if [ -z "$ANDROID_NDK_HOME" ] || [ ! -d "$ANDROID_NDK_HOME" ]; then
     echo "-> [⚠️ ERROR HOST] No se localizó ninguna instalación válida del NDK r28"
@@ -27,7 +31,7 @@ chmod +x patch_mesa.sh generate_cross.sh docker_run_inside.sh
 ./patch_mesa.sh
 rm -f subprojects/libadrenotools.wrap
 
-# 🟢 REPARACIÓN CRÍTICA BLOQUEO DEFENSIVO: Congelamos el script y esperamos un máximo de 30 segundos a que el sistema de archivos del Host estabilice y escriba físicamente el archivo meson.build de Adrenotools clonado
+# 🟢 REPARACIÓN CRÍTICA BLOQUEO DEFENSIVO
 echo "-> 1b. Sincronizando y bloqueando hilo de disco para subprojects..."
 ADRENOTOOLS_BUILD="subprojects/libadrenotools/meson.build"
 COUNTER=0
@@ -42,15 +46,16 @@ if [ ! -f "$ADRENOTOOLS_BUILD" ]; then
 fi
 echo "-> [OK] Fuentes de Adrenotools detectadas en disco en el segundo $COUNTER."
 
-# 🟢 PURGA SINTÁCTICA ROBUSTA TOTAL: Una vez asegurado el archivo en el disco, aplicamos el sed literal redundante en Mesa 25 y Adrenotools de forma obligatoria
+# 🟢 PURGA SINTÁCTICA ROBUSTA TOTAL (Corregido mesh.build -> meson.build)
 echo "-> 1c. Aplicando cirugía sintáctica de elisión en el Host..."
 if [ -f "meson.build" ]; then
     sed -i "s/cc.find_library('dl'/dependency('', required : false) #/g" meson.build
     sed -i 's/cc.find_library("dl"/dependency("", required : false) #/g' meson.build
     sed -i "s/cc.find_library('rt'/dependency('', required : false) #/g" meson.build
     sed -i 's/cc.find_library("rt"/dependency("", required : false) #/g' meson.build
+    rm -f mesh.build 2>/dev/null # Limpieza por si acaso existía el archivo erróneo
     sed -i "s/cc.find_library('atomic'/dependency('', required : false) #/g" meson.build
-    sed -i 's/cc.find_library("atomic"/dependency("", required : false) #/g' mesh.build 2>/dev/null || sed -i 's/cc.find_library("atomic"/dependency("", required : false) #/g' meson.build
+    sed -i 's/cc.find_library("atomic"/dependency("", required : false) #/g' meson.build
     sed -i "s/dependency('libclc')/dependency('', required : false) #/g" meson.build
 fi
 
@@ -95,11 +100,14 @@ else
     echo "-> [❌ ERROR CRÍTICO] Falta libvulkan_panfrost.so"; exit 1
 fi
 
-cd pkg/usr/lib/aarch64-linux-android && ln -sf ../libvulkan_panfrost.so libvulkan_wrapper.so && cd "${WORKSPACE}"
+# Corregido: Enlace simbólico relativo correcto apuntando a la carpeta contenedora superior
+cd pkg/usr/lib/aarch64-linux-android && ln -sf ../libvulkan_wrapper.so libvulkan_wrapper.so && cd "${WORKSPACE}"
 
+# Ejecuciones seguras de patchelf
 patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
 patchelf --add-needed libdrm.so pkg/usr/lib/libvulkan_wrapper.so
 patchelf --set-rpath '$ORIGIN' pkg/usr/lib/libvulkan_wrapper.so
+
 patchelf --set-soname libvulkan_panfrost.so pkg/usr/lib/aarch64-linux-android/libvulkan_panfrost.so
 patchelf --add-needed libdrm.so pkg/usr/lib/aarch64-linux-android/libvulkan_panfrost.so
 patchelf --set-rpath '$ORIGIN' pkg/usr/lib/aarch64-linux-android/libvulkan_panfrost.so
