@@ -7,16 +7,16 @@ echo "=========================================================="
 
 WORKSPACE="$(pwd)"
 
-echo "-> 1a. Ejecutando purga atómica instantánea de bajo impacto..."
+echo "-> 1a. Ejecutando purga atómica de directorios previos..."
 mkdir -p .trash
 if [ -d "subprojects/libadrenotools" ]; then mv subprojects/libadrenotools .trash/adrenotools_$(date +%s) || true; fi
 if [ -d "build-64" ]; then mv build-64 .trash/build64_$(date +%s) || true; fi
 if [ -d "meson_src" ]; then mv meson_src .trash/meson_$(date +%s) || true; fi
 
-sudo rm -rf shims_64/ build-libdrm/ libdrm_android/ include/ pkg/ drm_shims_inc/ .trash/ &
+# Saneamos los residuos en segundo plano sin estrangular el ulimit del host
+sudo rm -rf shims_64/ build-libdrm/ libdrm_android/ pkg/ .trash/ &
 
 mkdir -p shims_64/lib
-mkdir -p drm_shims_inc/include/libdrm
 
 echo "-> 1b. Descargando código legítimo de libdrm (SailfishOS)..."
 curl -L "https://github.com/sailfishos-mirror/drm/archive/refs/heads/main.zip" -o libdrm.zip
