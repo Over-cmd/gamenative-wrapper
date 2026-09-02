@@ -54,11 +54,11 @@ if [ -d "subprojects/libadrenotools" ]; then
     find subprojects/libadrenotools -name "meson.build" -exec sed -i 's/.*find_library("dl".*/dependency("", required : false) #/g' {} +
 fi
 
-# 🟢 REPARACIÓN CRÍTICA VARIABLES INTERNAL: Inyectamos la declaración explícita de libandroid_dep y liblog_dep como dependencias vacías legales en la cabecera de linkernsbypass para triturar el error de "Unknown variable"
+# 🟢 REPARACIÓN CRÍTICA ATÓMICA TRIADA: Inicializamos formalmente las tres variables de dependencias mutadas en la cabecera in situ de linkernsbypass para anular los errores de variables desconocidas en cascada
 BYPASS_RECIPE="subprojects/libadrenotools/lib/linkernsbypass/meson.build"
 if [ -f "$BYPASS_RECIPE" ]; then
-    echo "-> [Docker Internal] Inyectando declaraciones globales sobre linkernsbypass..."
-    echo -e "libandroid_dep = dependency('', required : false)\nliblog_dep = dependency('', required : false)\n$(cat $BYPASS_RECIPE)" > "$BYPASS_RECIPE"
+    echo "-> [Docker Internal] Inyectando inicializaciones de la triada sobre linkernsbypass..."
+    echo -e "libandroid_dep = dependency('', required : false)\nliblog_dep = dependency('', required : false)\nlibdl_dep = dependency('', required : false)\n$(cat $BYPASS_RECIPE)" > "$BYPASS_RECIPE"
 fi
 
 # Compilación de libdrm en su prefijo aislado
@@ -66,6 +66,6 @@ python3 meson_src/meson.py setup build-libdrm libdrm_android --cross-file /works
   -Dintel=disabled -Dradeon=disabled -Damdgpu=disabled -Dnouveau=disabled -Dman-pages=disabled -Dvalgrind=disabled -Dtests=false
 python3 meson_src/meson.py install -C build-libdrm
 
-# Compilación del Core de Mesa 25 con el árbol de dependencias 100% estabilizado
+# Compilación del Core de Mesa 25 con el árbol de subproyectos 100% estabilizado
 python3 meson_src/meson.py setup build-64 --cross-file /workspace/cross_64.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=panfrost,wrapper
 python3 meson_src/meson.py compile -C build-64
