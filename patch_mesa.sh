@@ -35,7 +35,7 @@ rm -f libdrm.zip
 echo "-> 1e. Descargando código real de libadrenotools con submódulos recursivos..."
 mkdir -p subprojects
 rm -rf subprojects/libadrenotools
-git clone --depth 1 --recursive https://github.com/Over-cmd/libadrenotools.git/subprojects/libadrenotools
+git clone --depth 1 --recursive https://github.com/Over-cmd/libadrenotools.git subprojects/libadrenotools
 
 echo "-> 1f. Clonando la versión de desarrollo compatible de Meson 1.11.1..."
 rm -rf meson_src
