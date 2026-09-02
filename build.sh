@@ -2,12 +2,12 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO CON IDENTIDAD PROTEGIDA OK"
+echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO CON SANACIÓN EN EL HOST"
 echo "=========================================================="
 
 WORKSPACE="$(pwd)"
 
-# 1. Invocamos la fase de preparación de fuentes (Módulo 1)
+# 1. Invocamos la fase de preparación de fuentes y clonado de Meson (Módulo 1)
 chmod +x patch_mesa.sh
 ./patch_mesa.sh
 
@@ -15,7 +15,14 @@ chmod +x patch_mesa.sh
 chmod +x generate_cross.sh
 ./generate_cross.sh
 
-# Escribimos la receta entera de Docker en un script plano e independiente
+# 🟢 TU CORRECCIÓN MAGISTRAL APLICADA: Ejecutamos la purificación sintáctica AQUÍ en el Host bajo la identidad nativa del runner, garantizando permisos plenos de escritura antes de llamar a Docker
+echo "-> 2b. Sanando y purificando cabeceras corruptas de meson.build en el Host..."
+if [ -f "meson.build" ]; then
+    sed -i '/echo "/d' meson.build 2>/dev/null || true
+    sed -i '/=====/d' meson.build 2>/dev/null || true
+fi
+
+# Escribimos la receta entera de Docker en un script plano e independiente libre de sed invasivos
 cat << 'EOF' > docker_run_inside.sh
 #!/bin/bash
 set -e
@@ -49,8 +56,7 @@ $NDK_BIN/aarch64-linux-android26-clang++ -c stub_logs.c -o stub_cpp.o
 $NDK_BIN/llvm-ar rcs shims_64/lib/libandroid.a stub_cpp.o
 $NDK_BIN/llvm-ar rcs shims_64/lib/libdl.a stub_cpp.o
 
-# Al correr como usuario ordinario, los Sysroots internos del contenedor de LeeGao reflejan los permisos montados.
-# Intentamos la inyección local. Si el volumen NDK es estricto de solo lectura (:ro), nuestro Cross-File se encargará del desvío preferencial vía flags de Clang.
+# Inyección defensiva en Sysroots internos si el contenedor lo permite
 cp -fv shims_64/lib/libandroid.a "$NDK_SYSROOT_LIB_64/libandroid.a" 2>/dev/null || true
 cp -fv shims_64/lib/liblog.a "$NDK_SYSROOT_LIB_64/liblog.a" 2>/dev/null || true
 cp -fv shims_64/lib/libdl.a "$NDK_SYSROOT_LIB_64/libdl.a" 2>/dev/null || true
@@ -82,7 +88,7 @@ EOF
 
 chmod +x docker_run_inside.sh
 
-# 🟢 REPARACIÓN CRÍTICA ATÓMICA DE PERMISOS: Forzamos a Docker a adoptar la identidad real del Host ($(id -u):$(id -g)) para blindar el pipeline contra secuestros de root
+# 3. Invocación atómica directa al contenedor de LeeGao mapeado por hardware e identidad de usuario protegida
 echo "-> 3. Lanzando entorno biónico aislado en Docker..."
 docker run --rm --entrypoint /bin/bash \
   --user "$(id -u):$(id -g)" \
@@ -103,7 +109,7 @@ cd pkg/usr/lib/aarch64-linux-android
 ln -sf ../libvulkan_panfrost.so libvulkan_wrapper.so
 cd "${WORKSPACE}"
 
-# Control defensivo de patchelf contra archivos inexistentes (Lectura transparente sin colisiones de UID)
+# Control defensivo de patchelf contra archivos inexistentes
 if [ -f "pkg/usr/lib/libvulkan_wrapper.so" ]; then
     patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so 2>/dev/null || true
     patchelf --add-needed libdrm.so pkg/usr/lib/libvulkan_wrapper.so 2>/dev/null || true
