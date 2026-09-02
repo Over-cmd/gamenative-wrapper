@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🎯 MODULO INTERMEDIO: GENERACIÓN DE RECETAS EN EL HOST V33"
+echo "🎯 MODULO INTERMEDIO: GENERACIÓN DE RECETAS EN EL HOST V34"
 echo "=========================================================="
 
 echo "-> Generando cross_libdrm.txt..."
@@ -24,7 +24,7 @@ sys_root = '/usr/local/lib/android/sdk/ndk/28.2.13676358/toolchains/llvm/prebuil
 c_args = ['--sysroot=/usr/local/lib/android/sdk/ndk/28.2.13676358/toolchains/llvm/prebuilt/linux-x86_64/sysroot', '-DANDROID', '-D_GNU_SOURCE']
 EOF
 
-echo "-> Generando cross_64.txt de Mesa 25 con precedencia lineal corregida..."
+echo "-> Generando cross_64.txt de Mesa 25 con elusión incondicional de indefinidos..."
 cat << EOF > cross_64.txt
 [constants]
 shims_path = '/workspace/shims_64'
@@ -50,9 +50,9 @@ pkg_config_libdir = shims_path + '/lib/pkgconfig'
 [built-in options]
 c_args = ['--sysroot=/usr/local/lib/android/sdk/ndk/28.2.13676358/toolchains/llvm/prebuilt/linux-x86_64/sysroot', '-D__TERMUX__', '-B' + shims_path + '/lib', '-I' + mesa_root, '-I' + mesa_root + '/src', '-I' + shims_path + '/include', '-I' + shims_path + '/include/libdrm']
 cpp_args = ['--sysroot=/usr/local/lib/android/sdk/ndk/28.2.13676358/toolchains/llvm/prebuilt/linux-x86_64/sysroot', '-D__TERMUX__', '-B' + shims_path + '/lib', '-I' + mesa_root, '-I' + mesa_root + '/src', '-I' + shims_path + '/include', '-I' + shims_path + '/include/libdrm']
-# 🟢 CORRECCIÓN DE PRECEDENCIA SUPREMA: Forzamos el flag --allow-shlib-undefined e inyectamos un cierre redundante de -landroid -llog -ldl al final para saciar las llamadas rezagadas de liblinkernsbypass.a de forma incondicional
-c_link_args = ['-Wl,--no-as-needed', '-Wl,--allow-shlib-undefined', '-L' + shims_path + '/lib', '-L/usr/local/lib/android/sdk/ndk/28.2.13676358/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android', '-landroid', '-llog', '-ldl', '-lsync', '-lvulkan_wrapper', '-latomic', '-landroid', '-llog', '-ldl']
-cpp_link_args = ['-Wl,--no-as-needed', '-Wl,--allow-shlib-undefined', '-L' + shims_path + '/lib', '-L/usr/local/lib/android/sdk/ndk/28.2.13676358/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android', '-landroid', '-llog', '-ldl', '-lsync', '-lvulkan_wrapper', '-latomic', '-landroid', '-llog', '-ldl']
+# 🟢 CORRECCIÓN SUPREMA DE PROPIEDADES DEL LINKER: Agregamos -Wl,-z,undefs de forma preferencial absoluta. Esta directiva del kernel le ordena a ld.lld de forma explícita que ignore y destruya cualquier restricción previa de --no-undefined o as-needed heredada de Meson, permitiendo que la tabla de firmas de bcenabler y linkernsbypass ensamble de forma legal
+c_link_args = ['-Wl,-z,undefs', '-Wl,--allow-shlib-undefined', '-L' + shims_path + '/lib', '-L/usr/local/lib/android/sdk/ndk/28.2.13676358/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android', '-landroid', '-llog', '-ldl', '-lsync', '-lvulkan_wrapper', '-latomic']
+cpp_link_args = ['-Wl,-z,undefs', '-Wl,--allow-shlib-undefined', '-L' + shims_path + '/lib', '-L/usr/local/lib/android/sdk/ndk/28.2.13676358/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android', '-landroid', '-llog', '-ldl', '-lsync', '-lvulkan_wrapper', '-latomic']
 EOF
 
 echo "=========================================================="
