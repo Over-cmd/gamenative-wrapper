@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO INTEGRAL ALIGERADO"
+echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO CON RUTAS CLANG CORREGIDAS"
 echo "=========================================================="
 
 WORKSPACE="$(pwd)"
@@ -33,6 +33,12 @@ export ANDROID_NDK_HOME="/usr/local/lib/android/sdk/ndk/28.2.13676358"
 export NDK_BIN="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin"
 export NDK_SYSROOT="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
 NDK_SYSROOT_LIB_64="${NDK_SYSROOT}/usr/lib/aarch64-linux-android/26"
+
+# 🟢 REPARACIÓN CRÍTICA REINSTAURADA: Recuperamos la búsqueda dinámica del core de LLVM de Clang de la imagen de LeeGao
+NDK_LLVM_LIB="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/lib/clang/19/lib/linux/aarch64"
+if [ ! -d "$NDK_LLVM_LIB" ]; then
+    NDK_LLVM_LIB=$(find ${ANDROID_NDK_HOME} -name "aarch64" -type d | grep "lib/linux" | head -n 1 || echo "")
+fi
 
 echo "-> [Docker Internal] Compilando stubs duales legítivos para enlazado preferencial..."
 $NDK_BIN/aarch64-linux-android26-clang -c stub_logs.c -o stub_c.o
@@ -69,13 +75,12 @@ if os.path.exists(p):
         f=open(p,"w"); f.write(c); f.close()
 '
 
-# 🟢 REPARACIÓN MAESTRA DEFENSIVA: Eliminamos cualquier comando sed o cat invasivo sobre meson.build. El árbol de Git se mantiene 100% virgen e intacto
 sed -i "s/cc.find_library('dl'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/cc.find_library('rt'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/cc.find_library('atomic'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/dependency('libclc')/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 
-# Meson Setup lee cross_64 inyectando las cabecerasKhronos de forma directa vía banderas de Clang
+# Meson Setup lee cross_64 inyectando las cabeceras Khronos de forma directa vía banderas de Clang
 python3 meson_src/meson.py setup build-64 --cross-file /workspace/cross_64.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=panfrost,wrapper
 python3 meson_src/meson.py compile -C build-64
 EOF
@@ -122,7 +127,7 @@ fi
 STRIP_HOST="/usr/local/lib/android/sdk/ndk/28.2.13676358/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip"
 if [ -f "$STRIP_HOST" ]; then
     $STRIP_HOST --strip-unneeded pkg/usr/lib/*.so 2>/dev/null || true
-    $STRIP_HOST --strip-unneeded pkg/usr/lib/aarch64-linux-android/*.so 2>/dev/null || true
+    $strip_HOST --strip-unneeded pkg/usr/lib/aarch64-linux-android/*.so 2>/dev/null || true
 fi
 
 cat << 'EOF' > pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
