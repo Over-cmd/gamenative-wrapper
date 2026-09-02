@@ -2,16 +2,18 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO CON RECETA DE MESON FIJA OK"
+echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO COMPLETO E INDESTRUCTIBLE"
 echo "=========================================================="
 
 WORKSPACE="$(pwd)"
 
 # 1. Escaneamos y sanamos el archivo meson.build raíz de forma destructiva si está corrupto
-echo "-> 1a. Escaneando y sanando el archivo meson.build raíz..."
-if [ -f "meson.build" ] && grep -q "WORKSPACE=" "meson.build"; then
-    echo "-> [⚠️ ALERTA HOST] ¡Corrupción de Bash detectada en meson.build! Demoliendo archivo corrupto..."
-    rm -f meson.build
+echo "-> 1a. Escaneando y desinfectando de forma radical el archivo meson.build raíz..."
+if [ -f "meson.build" ]; then
+    if grep -q "WORKSPACE=" "meson.build" || grep -q "echo " "meson.build" || grep -q "====" "meson.build"; then
+        echo "-> [⚠️ ALERTA HOST] ¡Corrupción crítica de Bash detectada en meson.build! Demoliendo archivo impostor..."
+        rm -f meson.build
+    fi
 fi
 
 # Forzamos a Git a rescatar la copia virgen legítima del repositorio desbancando cualquier untracked block
@@ -37,7 +39,7 @@ if [ -d ".git" ]; then
     git checkout HEAD -- include/ 2>/dev/null || true
 fi
 
-# 2. Invocamos la fase de preparación de fuentes y descompresión de zips (Módulo 1)
+# 2. Invocamos la fase de preparación de fuentes (Módulo 1)
 chmod +x patch_mesa.sh
 ./patch_mesa.sh
 
@@ -51,7 +53,7 @@ fi
 chmod +x generate_cross.sh
 ./generate_cross.sh
 
-# Escribimos la receta entera de Docker libre de volcados complejos
+# Escribimos la receta entera de Docker libre de volcados de texto complejos y mutaciones de ámbito invasivas
 cat << 'EOF' > docker_run_inside.sh
 #!/bin/bash
 set -e
@@ -96,7 +98,7 @@ if [ -n "$NDK_LLVM_LIB" ] && [ -d "$NDK_LLVM_LIB" ]; then
     cp -fv shims_64/lib/libdl.a "$NDK_LLVM_LIB/libdl.a" 2>/dev/null || true
 fi
 
-# Compilación real e instalación de libdrm en su prefijo aislado
+# Compilación real e instalación de libdrm en su prefijo aislado leyendo la receta fija del Host
 python3 meson_src/meson.py setup build-libdrm libdrm_android --cross-file /workspace/cross_libdrm.txt --prefix="/workspace/shims_64" \
   -Dintel=disabled -Dradeon=disabled -Damdgpu=disabled -Dnouveau=disabled -Dman-pages=disabled -Dvalgrind=disabled -Dtests=false
 python3 meson_src/meson.py install -C build-libdrm
@@ -111,12 +113,20 @@ if os.path.exists(p):
         f=open(p,"w"); f.write(c); f.close()
 '
 
+# Aplicamos los parches de elusión de dependencias apuntando estrictamente a la ruta de Mesa 25
 sed -i "s/cc.find_library('dl'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/cc.find_library('rt'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/cc.find_library('atomic'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/dependency('libclc')/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 
-# Meson Setup lee cross_64 utilizando las cabeceras Khronos inyectadas de forma limpia en el cross-file por generate_cross.sh
+# 🟢 REPARACIÓN MAESTRA DE DEPENDENCIAS SUBPROYECTO: Forzamos la elusión de la librería rígida de Android y Log en libadrenotools
+if [ -f "subprojects/libadrenotools/meson.build" ]; then
+    echo "-> [Docker Internal] Parcheando find_library de Android en libadrenotools..."
+    sed -i "s/cc.find_library('android'/dependency('', required : false) #/g" subprojects/libadrenotools/meson.build 2>/dev/null || true
+    sed -i "s/cc.find_library('log'/dependency('', required : false) #/g" subprojects/libadrenotools/meson.build 2>/dev/null || true
+fi
+
+# Meson Setup lee cross_64 de forma síncrona impecable e inmutable sobre el árbol limpio de Mesa 25
 python3 meson_src/meson.py setup build-64 --cross-file /workspace/cross_64.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=panfrost,wrapper
 python3 meson_src/meson.py compile -C build-64
 EOF
@@ -179,7 +189,7 @@ echo "msf:315508" > pkg/version.txt && chmod -R 755 pkg/
 cd pkg && tar -I "zstd -19 -T0" -cf "../wrapper.tzst" usr version.txt
 cd "${WORKSPACE}"
 
-# Extirpamos de forma tajante el 'include/' de la purga final para blindar la idempotencia de cara a ejecuciones de pipeline consecutivas
+# PURGA TRANSPARENTE: Eliminamos residuos de forma segura sin sudo
 echo "-> 6. Purgando artefactos efímeros de forma transparente y segura..."
 rm -f docker_run_inside.sh cross_libdrm.txt cross_64.txt stub_logs.c stub_c.o stub_cpp.o generate_cross.sh
 rm -rf meson_src/
