@@ -1,1 +1,39 @@
+name: Bannerlator Mali Wrapper CI
 
+on:
+  push:
+    branches:
+      - wrapper-25
+  workflow_dispatch:
+
+jobs:
+  build-driver:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: 📥 1. Checkout Code (Rama Activa wrapper-25)
+        uses: actions/checkout@v4
+        with:
+          submodules: 'recursive'
+          fetch-depth: 1
+
+      - name: ⚙️ 2. Instalar Herramientas Regulatorias en el Host
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y patchelf zstd unzip python3-pip python3-setuptools
+          pip3 install --no-cache-dir mako packaging pyyaml
+
+      - name: 🛠️ 3. Ejecutar Orquestador Biónico Unificado
+        run: |
+          chmod +x patch_mesa.sh
+          chmod +x generate_cross.sh
+          chmod +x build.sh
+          ./build.sh
+
+      - name: 📦 4. Cargar Artefacto de Driver Compilado
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Bannerlator-Mali-Wrapper
+          path: wrapper.tzst
+          if-no-files-found: error
+          retention-days: 7
