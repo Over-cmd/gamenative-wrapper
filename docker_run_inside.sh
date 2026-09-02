@@ -14,10 +14,11 @@ export NDK_BIN="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin"
 export NDK_SYSROOT="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
 NDK_SYSROOT_LIB_64="${NDK_SYSROOT}/usr/lib/aarch64-linux-android/26"
 
+# 🟢 REPARACIÓN SUPREMA STUBS: Forzamos de forma simétrica a que todos los stubs .a se escriban y archiven dentro de shims_64/lib/ para que ld.lld los localice mediante -L de forma instantánea
 echo "-> [Docker Internal] Compilando stubs duales legítivos para enlazado preferencial..."
 $NDK_BIN/aarch64-linux-android26-clang -c stub_logs.c -o stub_c.o
 $NDK_BIN/llvm-ar rcs shims_64/lib/liblog.a stub_c.o
-$NDK_BIN/shims_64/libvulkan_wrapper.a stub_c.o 2>/dev/null || $NDK_BIN/llvm-ar rcs shims_64/libvulkan_wrapper.a stub_c.o
+$NDK_BIN/llvm-ar rcs shims_64/lib/libvulkan_wrapper.a stub_c.o
 
 $NDK_BIN/aarch64-linux-android26-clang++ -c stub_logs.c -o stub_cpp.o
 $NDK_BIN/llvm-ar rcs shims_64/lib/libandroid.a stub_cpp.o
@@ -54,7 +55,6 @@ if [ -d "subprojects/libadrenotools" ]; then
     find subprojects/libadrenotools -name "meson.build" -exec sed -i 's/.*find_library("dl".*/dependency("", required : false) #/g' {} +
 fi
 
-# 🟢 REPARACIÓN CRÍTICA ATÓMICA TRIADA: Inicializamos formalmente las tres variables de dependencias mutadas en la cabecera in situ de linkernsbypass para anular los errores de variables desconocidas en cascada
 BYPASS_RECIPE="subprojects/libadrenotools/lib/linkernsbypass/meson.build"
 if [ -f "$BYPASS_RECIPE" ]; then
     echo "-> [Docker Internal] Inyectando inicializaciones de la triada sobre linkernsbypass..."
