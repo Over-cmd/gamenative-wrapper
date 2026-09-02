@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO CON UNIFICACIÓN GLOBAL"
+echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO CON INYECCIÓN BLINDADA"
 echo "=========================================================="
 
 WORKSPACE="$(pwd)"
@@ -33,13 +33,8 @@ export ANDROID_NDK_HOME="/usr/local/lib/android/sdk/ndk/28.2.13676358"
 export NDK_BIN="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin"
 export NDK_SYSROOT="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
 NDK_SYSROOT_LIB_64="${NDK_SYSROOT}/usr/lib/aarch64-linux-android/26"
-NDK_LLVM_LIB="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/lib/clang/19/lib/linux/aarch64"
 
-if [ ! -d "$NDK_LLVM_LIB" ]; then
-    NDK_LLVM_LIB=$(find ${ANDROID_NDK_HOME} -name "aarch64" -type d | grep "lib/linux" | head -n 1 || echo "")
-fi
-
-echo "-> [Docker Internal] Compilando stubs duales legítivos..."
+echo "-> [Docker Internal] Compilando stubs duales legítivos para enlazado preferencial..."
 $NDK_BIN/aarch64-linux-android26-clang -c stub_logs.c -o stub_c.o
 $NDK_BIN/llvm-ar rcs shims_64/lib/liblog.a stub_c.o
 $NDK_BIN/llvm-ar rcs shims_64/libvulkan_wrapper.a stub_c.o
@@ -48,30 +43,12 @@ $NDK_BIN/aarch64-linux-android26-clang++ -c stub_logs.c -o stub_cpp.o
 $NDK_BIN/llvm-ar rcs shims_64/lib/libandroid.a stub_cpp.o
 $NDK_BIN/llvm-ar rcs shims_64/lib/libdl.a stub_cpp.o
 
-echo "-> [Docker Internal] INSTALACIÓN REAL: Colocando ficheros en los Sysroots..."
-cp -fv shims_64/lib/libandroid.a "$NDK_SYSROOT_LIB_64/libandroid.a"
-cp -fv shims_64/lib/liblog.a "$NDK_SYSROOT_LIB_64/liblog.a"
-cp -fv shims_64/lib/libdl.a "$NDK_SYSROOT_LIB_64/libdl.a"
-
-if [ -n "$NDK_LLVM_LIB" ] && [ -d "$NDK_LLVM_LIB" ]; then
-    cp -fv shims_64/lib/libandroid.a "$NDK_LLVM_LIB/libandroid.a"
-    cp -fv shims_64/lib/liblog.a "$NDK_LLVM_LIB/liblog.a"
-    cp -fv shims_64/lib/libdl.a "$NDK_LLVM_LIB/libdl.a"
-fi
-
-# Compilación real e instalación de libdrm
+# Compilación real e instalación de libdrm en su prefijo aislado
 python3 meson_src/meson.py setup build-libdrm libdrm_android --cross-file /workspace/cross_libdrm.txt --prefix="/workspace/shims_64" \
   -Dintel=disabled -Dradeon=disabled -Damdgpu=disabled -Dnouveau=disabled -Dman-pages=disabled -Dvalgrind=disabled -Dtests=false
 python3 meson_src/meson.py install -C build-libdrm
 
-# Limpieza interna preventiva de la raíz
-rm -rf /workspace/include/ ./include/ || true
-
-# Aplicando inyección defensiva contra el error histórico de la línea 2283
-mkdir -p /workspace/include
-echo "# Fichero de escape atómico vacío legal" > /workspace/include/meson.build
-chmod 755 /workspace/include/meson.build
-
+# Trazas del subsistema wrapper
 python3 -c '
 p="src/vulkan/wrapper/wrapper_log.c"
 import os
@@ -82,16 +59,20 @@ if os.path.exists(p):
         f=open(p,"w"); f.write(c); f.close()
 '
 
-# 🟢 REPARACIÓN MAESTRA GLOBAL: Sustituimos inc_include por un directorio relativo de escape legal existente para triturar los errores del preprocesador al vuelo
-echo "-> [Docker Internal] Ejecutando unificación global de variables inc_include..."
-find src/ -name "meson.build" -exec sed -i "s/inc_include/include_directories('..')/g" {} +
+# 🟢 REPARACIÓN CRÍTICA SINTAXIS MESON: Inyectamos la variable usando comillas simples estrictas y limpias sobre un archivo temporal para no romper la cabecera de copyright nativa de Mesa
+echo "-> [Docker Internal] Inyectando definición global legal de inc_include sin romper cabeceras..."
+if [ -f "meson.build" ]; then
+    echo "inc_include = include_directories('include')" > meson_inject.txt
+    cat meson.build >> meson_inject.txt
+    mv meson_inject.txt meson.build
+fi
 
 sed -i "s/cc.find_library('dl'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/cc.find_library('rt'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/cc.find_library('atomic'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/dependency('libclc')/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 
-# Lanzamos el setup con el árbol totalmente unificado y libre de variables fantasma
+# Lanzamos el setup con el árbol totalmente liberado y con variables sintácticas puras
 python3 meson_src/meson.py setup build-64 --cross-file /workspace/cross_64.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=panfrost,wrapper
 python3 meson_src/meson.py compile -C build-64
 EOF
@@ -158,7 +139,6 @@ sudo rm -f docker_run_inside.sh cross_libdrm.txt cross_64.txt stub_logs.c stub_c
 sudo rm -rf meson_src/
 sudo rm -rf shims_64/
 sudo rm -rf build-64/
-sudo rm -rf include/
 
 echo "=========================================================="
 echo "  778/778 COMPLETO - REGISTROS ENLAZADOS CORRECTAMENTE OK "
