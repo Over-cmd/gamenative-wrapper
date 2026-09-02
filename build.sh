@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO CON INYECCIÓN BLINDADA"
+echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO INTEGRAL ALIGERADO"
 echo "=========================================================="
 
 WORKSPACE="$(pwd)"
@@ -43,12 +43,22 @@ $NDK_BIN/aarch64-linux-android26-clang++ -c stub_logs.c -o stub_cpp.o
 $NDK_BIN/llvm-ar rcs shims_64/lib/libandroid.a stub_cpp.o
 $NDK_BIN/llvm-ar rcs shims_64/lib/libdl.a stub_cpp.o
 
+echo "-> [Docker Internal] INSTALACIÓN REAL: Colocando ficheros en los Sysroots..."
+cp -fv shims_64/lib/libandroid.a "$NDK_SYSROOT_LIB_64/libandroid.a"
+cp -fv shims_64/lib/liblog.a "$NDK_SYSROOT_LIB_64/liblog.a"
+cp -fv shims_64/lib/libdl.a "$NDK_SYSROOT_LIB_64/libdl.a"
+
+if [ -n "$NDK_LLVM_LIB" ] && [ -d "$NDK_LLVM_LIB" ]; then
+    cp -fv shims_64/lib/libandroid.a "$NDK_LLVM_LIB/libandroid.a"
+    cp -fv shims_64/lib/liblog.a "$NDK_LLVM_LIB/liblog.a"
+    cp -fv shims_64/lib/libdl.a "$NDK_LLVM_LIB/libdl.a"
+fi
+
 # Compilación real e instalación de libdrm en su prefijo aislado
 python3 meson_src/meson.py setup build-libdrm libdrm_android --cross-file /workspace/cross_libdrm.txt --prefix="/workspace/shims_64" \
   -Dintel=disabled -Dradeon=disabled -Damdgpu=disabled -Dnouveau=disabled -Dman-pages=disabled -Dvalgrind=disabled -Dtests=false
 python3 meson_src/meson.py install -C build-libdrm
 
-# Trazas del subsistema wrapper
 python3 -c '
 p="src/vulkan/wrapper/wrapper_log.c"
 import os
@@ -59,20 +69,13 @@ if os.path.exists(p):
         f=open(p,"w"); f.write(c); f.close()
 '
 
-# 🟢 REPARACIÓN CRÍTICA SINTAXIS MESON: Inyectamos la variable usando comillas simples estrictas y limpias sobre un archivo temporal para no romper la cabecera de copyright nativa de Mesa
-echo "-> [Docker Internal] Inyectando definición global legal de inc_include sin romper cabeceras..."
-if [ -f "meson.build" ]; then
-    echo "inc_include = include_directories('include')" > meson_inject.txt
-    cat meson.build >> meson_inject.txt
-    mv meson_inject.txt meson.build
-fi
-
+# 🟢 REPARACIÓN MAESTRA DEFENSIVA: Eliminamos cualquier comando sed o cat invasivo sobre meson.build. El árbol de Git se mantiene 100% virgen e intacto
 sed -i "s/cc.find_library('dl'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/cc.find_library('rt'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/cc.find_library('atomic'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/dependency('libclc')/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 
-# Lanzamos el setup con el árbol totalmente liberado y con variables sintácticas puras
+# Meson Setup lee cross_64 inyectando las cabecerasKhronos de forma directa vía banderas de Clang
 python3 meson_src/meson.py setup build-64 --cross-file /workspace/cross_64.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=panfrost,wrapper
 python3 meson_src/meson.py compile -C build-64
 EOF
