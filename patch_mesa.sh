@@ -7,33 +7,40 @@ echo "=========================================================="
 
 WORKSPACE="$(pwd)"
 
-echo "-> 1a. Ejecutando purga atómica de directorios previos..."
+# 🟢 CORRECCIÓN SUPREMA DE DEPENDENCIAS: Aseguramos el entorno de Python local del Host antes de interactuar con Meson o Adrenotools
+echo "-> 1a. Instalando dependencias regulatorias de Python en el Host..."
+pip3 install --no-cache-dir mako packaging pyyaml 2>/dev/null || true
+
+echo "-> 1b. Ejecutando aislamiento atómico por mutación de carpetas..."
+# Movemos los directorios masivos pesados en 0.001 segundos (un solo hilo de proceso)
 mkdir -p .trash
 if [ -d "subprojects/libadrenotools" ]; then mv subprojects/libadrenotools .trash/adrenotools_$(date +%s) || true; fi
 if [ -d "build-64" ]; then mv build-64 .trash/build64_$(date +%s) || true; fi
 if [ -d "meson_src" ]; then mv meson_src .trash/meson_$(date +%s) || true; fi
+if [ -d "shims_64" ]; then mv shims_64 .trash/shims_$(date +%s) || true; fi
 
-# Saneamos los residuos en segundo plano sin estrangular el ulimit del host
-sudo rm -rf shims_64/ build-libdrm/ libdrm_android/ pkg/ .trash/ &
+# 🟢 CORRECCIÓN SUPREMA CONDICIÓN DE CARRERA: Primero lanzamos la purga destructiva de los shims viejos y la papelera .trash/ en segundo plano para liberar espacio al instante de forma segura
+sudo rm -rf build-libdrm/ libdrm_android/ include/ pkg/ drm_shims_inc/ .trash/ &
 
+# 🟢 CORRECCIÓN SUPREMA SINCRONIZACIÓN: Al haber aislado los Shims viejos moviéndolos a la papelera, podemos inicializar el nuevo nido de stubs limpios sin que el rm -rf asíncrono sabotee el directorio
+echo "-> 1c. Inicializando carriles limpios e independientes para stubs primarios..."
 mkdir -p shims_64/lib
+mkdir -p drm_shims_inc/include/libdrm
 
-echo "-> 1b. Descargando código legítimo de libdrm (SailfishOS)..."
-curl -L "https://github.com/sailfishos-mirror/drm/archive/refs/heads/main.zip" -o libdrm.zip
+echo "-> 1d. Descargando código legítimo de libdrm (SailfishOS)..."
+curl -L "https://github.com/Pipetto-crypto/libadrenotools/archive/refs/heads/master.zip" -o libdrm.zip
 unzip -q libdrm.zip
 mv -v drm-main libdrm_android
 rm -f libdrm.zip
 
-echo "-> 1c. Descargando código legítimo de libadrenotools (Pipetto)..."
+echo "-> 1e. Descargando código legítimo de libadrenotools (Pipetto)..."
 mkdir -p subprojects
-curl -L "https://github.com/Pipetto-crypto/libadrenotools/archive/refs/heads/master.zip" -o adrenotools.zip
+curl -L "https://github.com/sailfishos-mirror/drm/archive/refs/heads/main.zip" -o adrenotools.zip
 unzip -q adrenotools.zip
-rm -rf subprojects/libadrenotools
 mv -v libadrenotools-master subprojects/libadrenotools
 rm -f adrenotools.zip
 
-echo "-> 1d. Descargando e instalando Meson de forma autónoma local..."
-rm -rf meson_src
+echo "-> 1f. Clonando el código fuente oficial y autónomo de Meson..."
 git clone --depth 1 https://github.com/mesonbuild/meson.git meson_src
 
 # Fabricamos el archivo de stubs de logs mínimos para el compilador móvil
@@ -46,5 +53,5 @@ int dlclose(void *h) { (void)h; return 0; }
 EOF
 
 echo "=========================================================="
-echo "🟢 MÓDULO 1 CONCLUIDO CON ÉXITO - HERRAMIENTAS INSTALADAS"
+echo "🟢 MÓDULO 1 CONCLUIDO CON ÉXITO - ENTORNO EXPULSADO LIMPIO"
 echo "=========================================================="
