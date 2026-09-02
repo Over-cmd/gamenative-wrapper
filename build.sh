@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO CON BYPASS DE ADRENOTOOLS OK"
+echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO CON PURGA RECURSIVA DE ADRENOTOOLS OK"
 echo "=========================================================="
 
 WORKSPACE="$(pwd)"
@@ -70,14 +70,14 @@ fi
 echo "-> [Docker Internal] Compilando stubs duales legítivos para enlazado preferencial..."
 \$NDK_BIN/aarch64-linux-android26-clang -c stub_logs.c -o stub_c.o
 \$NDK_BIN/llvm-ar rcs shims_64/lib/liblog.a stub_c.o
-\$NDK_BIN/llvm-ar rcs shims_64/libvulkan_wrapper.a stub_c.o
+\$NDK_BIN/shims_64/libvulkan_wrapper.a stub_c.o 2>/dev/null || \$NDK_BIN/llvm-ar rcs shims_64/libvulkan_wrapper.a stub_c.o
 
 \$NDK_BIN/aarch64-linux-android26-clang++ -c stub_logs.c -o stub_cpp.o
 \$NDK_BIN/llvm-ar rcs shims_64/lib/libandroid.a stub_cpp.o
 \$NDK_BIN/llvm-ar rcs shims_64/lib/libdl.a stub_cpp.o
 
 cp -fv shims_64/lib/libandroid.a "\$NDK_SYSROOT_LIB_64/libandroid.a" 2>/dev/null || true
-cp -fv shims_64/lib/liblog.a "\$NDK_SYSROOT_LIB_64/liblog.a" 2>/dev/null || true
+cp -fv shims_64/lib/liblog.a "$NDK_SYSROOT_LIB_64/liblog.a" 2>/dev/null || true
 cp -fv shims_64/lib/libdl.a "\$NDK_SYSROOT_LIB_64/libdl.a" 2>/dev/null || true
 
 python3 -c '
@@ -95,11 +95,11 @@ sed -i "s/cc.find_library('rt'/dependency('', required : false) #/g" meson.build
 sed -i "s/cc.find_library('atomic'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/dependency('libclc')/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 
-# 🟢 CORRECCIÓN QUIRÚRGICA ADRENOTOOLS NATIVE: Neutralizamos find_library para 'android' y 'log' en Adrenotools convirtiéndolos en dependencias vacías legales para saltar la validación estricta de Meson
-echo "-> [Docker Internal] Aplicando parches sintácticos sobre el subproyecto Adrenotools..."
-if [ -f "subprojects/libadrenotools/meson.build" ]; then
-    sed -i "s/cc.find_library('android'/dependency('', required : false) #/g" subprojects/libadrenotools/meson.build
-    sed -i "s/cc.find_library('log'/dependency('', required : false) #/g" subprojects/libadrenotools/meson.build
+# 🟢 REPARACIÓN SUPREMA MASIVA RECURSIVA: Rastreamos y neutralizamos find_library de forma destructiva en CUALQUIER sub-receta profunda de libadrenotools para que no escape ningún candado oculto
+echo "-> [Docker Internal] Aplicando parches sintácticos recursivos sobre Adrenotools..."
+if [ -d "subprojects/libadrenotools" ]; then
+    find subprojects/libadrenotools -name "meson.build" -exec sed -i "s/cc.find_library('android'/dependency('', required : false) #/g" {} +
+    find subprojects/libadrenotools -name "meson.build" -exec sed -i "s/cc.find_library('log'/dependency('', required : false) #/g" {} +
 fi
 
 # Compilación de libdrm
