@@ -2,57 +2,34 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO COMPLETO E INDESTRUCTIBLE"
+echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO CON DESVÍO DE ADRENOTOOLS OK"
 echo "=========================================================="
 
 WORKSPACE="$(pwd)"
 
-# 1. Escaneamos y sanamos el archivo meson.build raíz de forma destructiva si está corrupto
-echo "-> 1a. Escaneando y desinfectando de forma radical el archivo meson.build raíz..."
-if [ -f "meson.build" ]; then
-    if grep -q "WORKSPACE=" "meson.build" || grep -q "echo " "meson.build" || grep -q "====" "meson.build"; then
-        echo "-> [⚠️ ALERTA HOST] ¡Corrupción crítica de Bash detectada en meson.build! Demoliendo archivo impostor..."
-        rm -f meson.build
-    fi
+# Escaneamos y sanamos el archivo meson.build raíz
+echo "-> 1a. Escaneando y sanando el archivo meson.build raíz..."
+if [ -f "meson.build" ] && grep -q "WORKSPACE=" "meson.build"; then
+    echo "-> [⚠️ ALERTA HOST] ¡Corrupción de Bash detectada en meson.build! Demoliendo archivo corrupto..."
+    rm -f meson.build
 fi
 
-# Forzamos a Git a rescatar la copia virgen legítima del repositorio desbancando cualquier untracked block
 git checkout HEAD -- meson.build 2>/dev/null || git checkout -f meson.build 2>/dev/null || true
 
-# SANACIÓN QUIRÚRGICA DE REPOSITORIO: Formateamos las líneas corruptas nativas de tu repositorio
-if [ -f "meson.build" ]; then
-    echo "-> [Host] Purificando la sintaxis del proyecto en meson.build..."
-    sed -i "s/' buildtype=/'buildtype=/g" meson.build
-    sed -i "s/' b_ndebug=/'b_ndebug=/g" meson.build
-    sed -i "s/' c_std=/'c_std=/g" meson.build
-    sed -i "s/' cpp_std=/'cpp_std=/g" meson.build
-    sed -i "s/' rust_std=/'rust_std=/g" meson.build
-    sed -i "s/' build.rust_std=/'build.rust_std=/g" meson.build
-    sed -i "s/' mesa'/'mesa'/g" meson.build
-    sed -i "s/' c', ' cpp'/'c', 'cpp'/g" meson.build
-    sed -i "s/' MIT'/'MIT'/g" meson.build
-fi
-
-# Aseguramos de forma preventiva la existencia inmaculada de las cabeceras nativas de Mesa
-if [ -d ".git" ]; then
-    git checkout HEAD -- include/ 2>/dev/null || true
-fi
-
-# 2. Invocamos la fase de preparación de fuentes (Módulo 1)
+# Invocamos la fase de preparación de fuentes (Módulo 1)
 chmod +x patch_mesa.sh
 ./patch_mesa.sh
 
-# Otorgamos permisos de lectura universales al stub generado para que Clang dentro de Docker pueda leerlo sin Permission Denied bajo --user
 if [ -f "stub_logs.c" ]; then
     echo "-> 1b. Inmunizando permisos de lectura para stub_logs.c..."
     chmod 644 stub_logs.c
 fi
 
-# 3. Invocamos el generador de cross-files aislado en el Host (Módulo Intermedio)
+# Invocamos el generador de cross-files aislado en el Host (Módulo Intermedio)
 chmod +x generate_cross.sh
 ./generate_cross.sh
 
-# Escribimos la receta entera de Docker libre de volcados de texto complejos y mutaciones de ámbito invasivas
+# Escribimos la receta entera de Docker limpia
 cat << 'EOF' > docker_run_inside.sh
 #!/bin/bash
 set -e
@@ -71,7 +48,7 @@ export NDK_BIN="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin"
 export NDK_SYSROOT="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
 NDK_SYSROOT_LIB_64="${NDK_SYSROOT}/usr/lib/aarch64-linux-android/26"
 
-# Recuperamos la búsqueda dinámica del core de LLVM de Clang de la imagen de LeeGao
+# Búsqueda dinámica del core de LLVM de Clang
 NDK_LLVM_LIB="/usr/local/lib/android/sdk/ndk/28.2.13676358/toolchains/llvm/prebuilt/linux-x86_64/lib/clang/19/lib/linux/aarch64"
 if [ ! -d "$NDK_LLVM_LIB" ]; then
     NDK_LLVM_LIB=$(find ${ANDROID_NDK_HOME} -name "aarch64" -type d | grep "lib/linux" | head -n 1 || echo "")
@@ -80,27 +57,15 @@ fi
 echo "-> [Docker Internal] Compilando stubs duales legítivos para enlazado preferencial..."
 $NDK_BIN/aarch64-linux-android26-clang -c stub_logs.c -o stub_c.o
 $NDK_BIN/llvm-ar rcs shims_64/lib/liblog.a stub_c.o
-$NDK_BIN/llvm-ar rcs shims_64/libvulkan_wrapper.a stub_c.o
+$NDK_BIN/shims_64/lib/libvulkan_wrapper.a stub_c.o 2>/dev/null || $NDK_BIN/llvm-ar rcs shims_64/lib/libvulkan_wrapper.a stub_c.o
 
 $NDK_BIN/aarch64-linux-android26-clang++ -c stub_logs.c -o stub_cpp.o
 $NDK_BIN/llvm-ar rcs shims_64/lib/libandroid.a stub_cpp.o
 $NDK_BIN/llvm-ar rcs shims_64/lib/libdl.a stub_cpp.o
 
-# Inyección local defensiva en Sysroots internos si el contenedor lo permite
 cp -fv shims_64/lib/libandroid.a "$NDK_SYSROOT_LIB_64/libandroid.a" 2>/dev/null || true
 cp -fv shims_64/lib/liblog.a "$NDK_SYSROOT_LIB_64/liblog.a" 2>/dev/null || true
 cp -fv shims_64/lib/libdl.a "$NDK_SYSROOT_LIB_64/libdl.a" 2>/dev/null || true
-
-if [ -n "$NDK_LLVM_LIB" ] && [ -d "$NDK_LLVM_LIB" ]; then
-    cp -fv shims_64/lib/libandroid.a "$NDK_LLVM_LIB/libandroid.a" 2>/dev/null || true
-    cp -fv shims_64/lib/liblog.a "$NDK_LLVM_LIB/liblog.a" 2>/dev/null || true
-    cp -fv shims_64/lib/libdl.a "$NDK_LLVM_LIB/libdl.a" 2>/dev/null || true
-fi
-
-# Compilación real e instalación de libdrm en su prefijo aislado leyendo la receta fija del Host
-python3 meson_src/meson.py setup build-libdrm libdrm_android --cross-file /workspace/cross_libdrm.txt --prefix="/workspace/shims_64" \
-  -Dintel=disabled -Dradeon=disabled -Damdgpu=disabled -Dnouveau=disabled -Dman-pages=disabled -Dvalgrind=disabled -Dtests=false
-python3 meson_src/meson.py install -C build-libdrm
 
 python3 -c '
 p="src/vulkan/wrapper/wrapper_log.c"
@@ -112,25 +77,31 @@ if os.path.exists(p):
         f=open(p,"w"); f.write(c); f.close()
 '
 
-# Aplicamos los parches de elusión de dependencias apuntando estrictamente a la raíz de Mesa 25
+# Elisiones de librerías nativas para el core
 sed -i "s/cc.find_library('dl'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/cc.find_library('rt'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/cc.find_library('atomic'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 sed -i "s/dependency('libclc')/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 
-# 🟢 REPARACIÓN INDUSTRIAL TOTAL DE ENLAZADOR: Exportamos variables globales del compilador hacia los Shims locales.
-# Esto inyecta de forma obligatoria las rutas en las llamadas internas de find_library() de Meson sin romper ni tocar cachés temporales.
-export LIBRARY_PATH="/workspace/shims_64/lib:${LIBRARY_PATH}"
-export LDFLAGS="-L/workspace/shims_64/lib ${LDFLAGS}"
+# 🟢 BYPASS ADRENOTOOLS: Parcheamos las garras de find_library en adrenotools para que lea tus dependencias legítimas inyectadas en las propiedades del crossfile
+if [ -f "subprojects/libadrenotools/meson.build" ]; then
+    sed -i "s/cc.find_library('android'/dependency('', required : false) #/g" subprojects/libadrenotools/meson.build 2>/dev/null || true
+    sed -i "s/cc.find_library('log'/dependency('', required : false) #/g" subprojects/libadrenotools/meson.build 2>/dev/null || true
+fi
 
-# Lanzamos el setup con el entorno del enlazador cruzado completamente redirigido
+# Compilación de libdrm
+python3 meson_src/meson.py setup build-libdrm libdrm_android --cross-file /workspace/cross_libdrm.txt --prefix="/workspace/shims_64" \
+  -Dintel=disabled -Dradeon=disabled -Damdgpu=disabled -Dnouveau=disabled -Dman-pages=disabled -Dvalgrind=disabled -Dtests=false
+python3 meson_src/meson.py install -C build-libdrm
+
+# Meson Setup lee cross_64 inyectando las cabeceras Khronos de forma directa vía banderas de Clang
 python3 meson_src/meson.py setup build-64 --cross-file /workspace/cross_64.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=panfrost,wrapper
 python3 meson_src/meson.py compile -C build-64
 EOF
 
 chmod +x docker_run_inside.sh
 
-# 3. Invocación atómica directa al contenedor de LeeGao mapeado por hardware e identidad de usuario protegida
+# Invocación atómica directa al contenedor de LeeGao mapeado por hardware e identidad de usuario protegida
 echo "-> 3. Lanzando entorno biónico aislado en Docker..."
 docker run --rm --entrypoint /bin/bash \
   --user "$(id -u):$(id -g)" \
@@ -138,7 +109,7 @@ docker run --rm --entrypoint /bin/bash \
   -v "/usr/local/lib/android:/usr/local/lib/android" \
   -w /workspace ghcr.io/leegao/mesa-wrapper-ci/wrapper-compiler:latest ./docker_run_inside.sh
 
-# 4. Maquetando empaque de proximidad biónica unificado en el Host de Actions
+# Maquetando empaque de proximidad biónica unificado en el Host de Actions
 echo "-> 4. Maquetando empaque unificado de proximidad biónica..."
 mkdir -p pkg/usr/lib/aarch64-linux-android
 mkdir -p pkg/usr/share/vulkan/icd.d
@@ -186,7 +157,6 @@ echo "msf:315508" > pkg/version.txt && chmod -R 755 pkg/
 cd pkg && tar -I "zstd -19 -T0" -cf "../wrapper.tzst" usr version.txt
 cd "${WORKSPACE}"
 
-# PURGA TRANSPARENTE: Eliminamos residuos de forma segura sin sudo
 echo "-> 6. Purgando artefactos efímeros de forma transparente y segura..."
 rm -f docker_run_inside.sh cross_libdrm.txt cross_64.txt stub_logs.c stub_c.o stub_cpp.o generate_cross.sh
 rm -rf meson_src/
