@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO CON FALLBACK SEGURO OK"
+echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO CON REDIRECCIÓN WRAP OK"
 echo "=========================================================="
 
 WORKSPACE="$(pwd)"
@@ -29,8 +29,16 @@ fi
 chmod +x generate_cross.sh
 ./generate_cross.sh
 
+# 🟢 REPARACIÓN CRÍTICA DESCRIPTOR WRAP: Fabricamos el mapa in situ para que Meson entienda que libadrenotools es un fallback local legítimo sin conexión a internet
+echo "-> 1c. Generando descriptor inmutable libadrenotools.wrap..."
+mkdir -p subprojects
+cat << 'EOF' > subprojects/libadrenotools.wrap
+[wrap-git]
+directory = libadrenotools
+EOF
+
 # Escribimos la receta entera de Docker limpia
-echo "-> 1c. Estructurando receta interna compacta para la jaula de Docker..."
+echo "-> 1d. Estructurando receta interna compacta para la jaula de Docker..."
 cat << 'EOF' > docker_run_inside.sh
 #!/bin/bash
 set -e
@@ -94,14 +102,14 @@ python3 meson_src/meson.py setup build-libdrm libdrm_android --cross-file /works
   -Dintel=disabled -Dradeon=disabled -Damdgpu=disabled -Dnouveau=disabled -Dman-pages=disabled -Dvalgrind=disabled -Dtests=false
 python3 meson_src/meson.py install -C build-libdrm
 
-# Meson Setup lee cross_64 inyectando la directiva --force-fallback-for=libadrenotools para saltar el bloqueo de wrap-mode
+# Meson Setup lee cross_64 inyectando las directivas locales unificadas con el descriptor .wrap listo
 python3 meson_src/meson.py setup build-64 --cross-file /workspace/cross_64.txt --wrap-mode=nodownload --force-fallback-for=libadrenotools -Dbuildtype=release -Dplatforms=android -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=panfrost,wrapper
 python3 meson_src/meson.py compile -C build-64
 EOF
 
 chmod +x docker_run_inside.sh
 
-# Invocación atómica directa al contenedor de LeeGao mapeado por hardware e identidad de usuario protegida
+# 3. Invocación atómica directa al contenedor de LeeGao mapeado por hardware e identidad de usuario protegida
 echo "-> 3. Lanzando entorno biónico aislado en Docker..."
 docker run --rm --entrypoint /bin/bash \
   --user "$(id -u):$(id -g)" \
@@ -162,6 +170,7 @@ rm -f docker_run_inside.sh cross_libdrm.txt cross_64.txt stub_logs.c stub_c.o st
 rm -rf meson_src/
 rm -rf shims_64/
 rm -rf build-64/
+rm -f subprojects/libadrenotools.wrap
 
 echo "=========================================================="
 echo "  778/778 COMPLETO - REGISTROS ENLAZADOS CORRECTAMENTE OK "
