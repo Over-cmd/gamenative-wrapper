@@ -28,7 +28,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y zstd patchelf python3 python3-pip python3-setuptools ninja-build
-          pip3 install mako PyYAML packaging
+          pip3 install --no-cache-dir --break-system-packages mako PyYAML packaging || pip3 install --no-cache-dir mako PyYAML packaging || true
 
       - name: Surgical Silicon Modification (Anti-Overflow MALI Hybrid Injection)
         run: |
@@ -52,9 +52,16 @@ jobs:
       - name: Run Modular Build Script (Docker Double-Pass and Packing)
         run: |
           # 🟢 BLINDAJE DE INFRAESTRUCTURA MODULAR: Otorgamos permisos reglamentarios a la triada de scripts y disparamos
-          chmod +x patch_mesa.sh
-          chmod +x generate_cross.sh
-          chmod +x build.sh
+          # Forzamos una desinfección preventiva del Host por si quedan residuos huérfanos de compilaciones locales corruptas
+          if [ -f "meson.build" ] && grep -q "WORKSPACE=" "meson.build"; then
+            echo "⚠️ [Host CI] ¡Corrupción de Bash detectada en meson.build! Purgando..."
+            rm -f meson.build
+            git checkout HEAD -- meson.build 2>/dev/null || true
+          fi
+          
+          chmod +x patch_mesa.sh || true
+          chmod +x generate_cross.sh || true
+          chmod +x build.sh || true
           ./build.sh
 
       - name: Upload Final wrapper.tzst for Bannerlator
