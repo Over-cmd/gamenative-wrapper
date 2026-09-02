@@ -2,44 +2,56 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO DEFINITIVO CON SANACIÓN TOTAL"
+echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO CON RECETA DE MESON FIJA OK"
 echo "=========================================================="
 
 WORKSPACE="$(pwd)"
 
-# 🟢 SANACIÓN QUIRÚRGICA INDESTRUCTIBLE EN EL HOST: Trituramos cualquier echo o comilla doble intrusa que baje corrupta del commit viejo de GitHub antes de iniciar el flujo
-echo "-> 1a. Purificando de forma radical y síncrona el archivo meson.build raíz..."
-if [ -f "meson.build" ]; then
-    # Eliminamos cualquier línea que contenga la palabra echo o las comillas dobles huérfanas de Bash
-    sed -i '/echo "/d' meson.build 2>/dev/null || true
-    sed -i '/=====/d' meson.build 2>/dev/null || true
-    sed -i '/WORKSPACE=/d' meson.build 2>/dev/null || true
+# 1. Escaneamos y sanamos el archivo meson.build raíz de forma destructiva si está corrupto
+echo "-> 1a. Escaneando y sanando el archivo meson.build raíz..."
+if [ -f "meson.build" ] && grep -q "WORKSPACE=" "meson.build"; then
+    echo "-> [⚠️ ALERTA HOST] ¡Corrupción de Bash detectada en meson.build! Demoliendo archivo corrupto..."
+    rm -f meson.build
 fi
 
-# Invocamos la fase de preparación de fuentes y descompresión de zips de Meson 1.11.1 (Módulo 1)
+# Forzamos a Git a rescatar la copia virgen legítima del repositorio desbancando cualquier untracked block
+git checkout HEAD -- meson.build 2>/dev/null || git checkout -f meson.build 2>/dev/null || true
+
+# 🟢 SANACIÓN QUIRÚRGICA DE REPOSITORIO: Formateamos las líneas corruptas nativas de tu repositorio
+# Esto remueve los espacios en blanco fantasmas dentro de las comillas de default_options que hacían colapsar a Meson
+if [ -f "meson.build" ]; then
+    echo "-> [Host] Purificando la sintaxis del proyecto en meson.build..."
+    sed -i "s/' buildtype=/'buildtype=/g" meson.build
+    sed -i "s/' b_ndebug=/'b_ndebug=/g" meson.build
+    sed -i "s/' c_std=/'c_std=/g" meson.build
+    sed -i "s/' cpp_std=/'cpp_std=/g" meson.build
+    sed -i "s/' rust_std=/'rust_std=/g" meson.build
+    sed -i "s/' build.rust_std=/'build.rust_std=/g" meson.build
+    sed -i "s/' mesa'/'mesa'/g" meson.build
+    sed -i "s/' c', ' cpp'/'c', 'cpp'/g" meson.build
+    sed -i "s/' MIT'/'MIT'/g" meson.build
+fi
+
+# Aseguramos de forma preventiva la existencia inmaculada de las cabeceras nativas de Mesa
+if [ -d ".git" ]; then
+    git checkout HEAD -- include/ 2>/dev/null || true
+fi
+
+# 2. Invocamos la fase de preparación de fuentes y descompresión de zips (Módulo 1)
 chmod +x patch_mesa.sh
 ./patch_mesa.sh
 
-# 🟢 SANACIÓN QUIRÚRGICA EN EL HOST: Aplicamos las elusiones de dependencias legítimas en el Host sobre el archivo purificado
-if [ -f "meson.build" ]; then
-    echo "-> 1b. Aplicando parches regulatorios sobre meson.build inmaculado..."
-    sed -i "s/cc.find_library('dl'/dependency('', required : false) #/g" meson.build
-    sed -i "s/cc.find_library('rt'/dependency('', required : false) #/g" meson.build
-    sed -i "s/cc.find_library('atomic'/dependency('', required : false) #/g" meson.build
-    sed -i "s/dependency('libclc')/dependency('', required : false) #/g" meson.build
-fi
-
 # Otorgamos permisos de lectura universales al stub generado para que Clang dentro de Docker pueda leerlo sin Permission Denied bajo --user
 if [ -f "stub_logs.c" ]; then
+    echo "-> 1b. Inmunizando permisos de lectura para stub_logs.c..."
     chmod 644 stub_logs.c
 fi
 
-# Invocamos el generador de cross-files aislado en el Host (Módulo Intermedio)
+# 3. Invocamos el generador de cross-files aislado en el Host (Módulo Intermedio)
 chmod +x generate_cross.sh
 ./generate_cross.sh
 
-# Escribimos la receta entera de Docker limpia de comandos complejos de anidación
-echo "-> 1c. Estructurando receta interna compacta para la jaula de Docker..."
+# Escribimos la receta entera de Docker libre de volcados complejos
 cat << 'EOF' > docker_run_inside.sh
 #!/bin/bash
 set -e
@@ -67,7 +79,7 @@ fi
 echo "-> [Docker Internal] Compilando stubs duales legítivos para enlazado preferencial..."
 $NDK_BIN/aarch64-linux-android26-clang -c stub_logs.c -o stub_c.o
 $NDK_BIN/llvm-ar rcs shims_64/lib/liblog.a stub_c.o
-$NDK_BIN/shims_64/libvulkan_wrapper.a stub_c.o 2>/dev/null || $NDK_BIN/llvm-ar rcs shims_64/libvulkan_wrapper.a stub_c.o
+$NDK_BIN/llvm-ar rcs shims_64/libvulkan_wrapper.a stub_c.o
 
 $NDK_BIN/aarch64-linux-android26-clang++ -c stub_logs.c -o stub_cpp.o
 $NDK_BIN/llvm-ar rcs shims_64/lib/libandroid.a stub_cpp.o
@@ -77,6 +89,17 @@ $NDK_BIN/llvm-ar rcs shims_64/lib/libdl.a stub_cpp.o
 cp -fv shims_64/lib/libandroid.a "$NDK_SYSROOT_LIB_64/libandroid.a" 2>/dev/null || true
 cp -fv shims_64/lib/liblog.a "$NDK_SYSROOT_LIB_64/liblog.a" 2>/dev/null || true
 cp -fv shims_64/lib/libdl.a "$NDK_SYSROOT_LIB_64/libdl.a" 2>/dev/null || true
+
+if [ -n "$NDK_LLVM_LIB" ] && [ -d "$NDK_LLVM_LIB" ]; then
+    cp -fv shims_64/lib/libandroid.a "$NDK_LLVM_LIB/libandroid.a" 2>/dev/null || true
+    cp -fv shims_64/lib/liblog.a "$NDK_LLVM_LIB/liblog.a" 2>/dev/null || true
+    cp -fv shims_64/lib/libdl.a "$NDK_LLVM_LIB/libdl.a" 2>/dev/null || true
+fi
+
+# Compilación real e instalación de libdrm en su prefijo aislado
+python3 meson_src/meson.py setup build-libdrm libdrm_android --cross-file /workspace/cross_libdrm.txt --prefix="/workspace/shims_64" \
+  -Dintel=disabled -Dradeon=disabled -Damdgpu=disabled -Dnouveau=disabled -Dman-pages=disabled -Dvalgrind=disabled -Dtests=false
+python3 meson_src/meson.py install -C build-libdrm
 
 python3 -c '
 p="src/vulkan/wrapper/wrapper_log.c"
@@ -88,19 +111,19 @@ if os.path.exists(p):
         f=open(p,"w"); f.write(c); f.close()
 '
 
-# Compilación real e instalación de libdrm en su prefijo aislado leyendo la receta fija del Host
-python3 meson_src/meson.py setup build-libdrm libdrm_android --cross-file /workspace/cross_libdrm.txt --prefix="/workspace/shims_64" \
-  -Dintel=disabled -Dradeon=disabled -Damdgpu=disabled -Dnouveau=disabled -Dman-pages=disabled -Dvalgrind=disabled -Dtests=false
-python3 meson_src/meson.py install -C build-libdrm
+sed -i "s/cc.find_library('dl'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
+sed -i "s/cc.find_library('rt'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
+sed -i "s/cc.find_library('atomic'/dependency('', required : false) #/g" meson.build 2>/dev/null || true
+sed -i "s/dependency('libclc')/dependency('', required : false) #/g" meson.build 2>/dev/null || true
 
-# Meson Setup lee cross_64 de forma síncrona impecable e inmutable sobre el árbol purificado de Mesa 25
+# Meson Setup lee cross_64 utilizando las cabeceras Khronos inyectadas de forma limpia en el cross-file por generate_cross.sh
 python3 meson_src/meson.py setup build-64 --cross-file /workspace/cross_64.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=panfrost,wrapper
 python3 meson_src/meson.py compile -C build-64
 EOF
 
 chmod +x docker_run_inside.sh
 
-# 3. Invocación atómica directa al contenedor de LeeGao mapeado por hardware e identidad de usuario protegida
+# 5. Invocación atómica directa al contenedor de LeeGao mapeado por hardware e identidad de usuario protegida
 echo "-> 3. Lanzando entorno biónico aislado en Docker..."
 docker run --rm --entrypoint /bin/bash \
   --user "$(id -u):$(id -g)" \
@@ -108,7 +131,7 @@ docker run --rm --entrypoint /bin/bash \
   -v "/usr/local/lib/android:/usr/local/lib/android" \
   -w /workspace ghcr.io/leegao/mesa-wrapper-ci/wrapper-compiler:latest ./docker_run_inside.sh
 
-# 4. Maquetando empaque de proximidad biónica unificado en el Host de Actions
+# 6. Maquetando empaque de proximidad biónica unificado en el Host de Actions
 echo "-> 4. Maquetando empaque unificado de proximidad biónica..."
 mkdir -p pkg/usr/lib/aarch64-linux-android
 mkdir -p pkg/usr/share/vulkan/icd.d
@@ -156,6 +179,7 @@ echo "msf:315508" > pkg/version.txt && chmod -R 755 pkg/
 cd pkg && tar -I "zstd -19 -T0" -cf "../wrapper.tzst" usr version.txt
 cd "${WORKSPACE}"
 
+# Extirpamos de forma tajante el 'include/' de la purga final para blindar la idempotencia de cara a ejecuciones de pipeline consecutivas
 echo "-> 6. Purgando artefactos efímeros de forma transparente y segura..."
 rm -f docker_run_inside.sh cross_libdrm.txt cross_64.txt stub_logs.c stub_c.o stub_cpp.o generate_cross.sh
 rm -rf meson_src/
