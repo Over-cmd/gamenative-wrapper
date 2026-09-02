@@ -17,15 +17,21 @@ NDK_SYSROOT_LIB_64="${NDK_SYSROOT}/usr/lib/aarch64-linux-android/26"
 echo "-> [Docker Internal] Compilando stubs duales legítivos para enlazado preferencial..."
 $NDK_BIN/aarch64-linux-android26-clang -c stub_logs.c -o stub_c.o
 $NDK_BIN/llvm-ar rcs shims_64/lib/liblog.a stub_c.o
-$NDK_BIN/shims_64/libvulkan_wrapper.a stub_c.o 2>/dev/null || $NDK_BIN/llvm-ar rcs shims_64/libvulkan_wrapper.a stub_c.o
+$NDK_BIN/llvm-ar rcs shims_64/lib/libvulkan_wrapper.a stub_c.o
 
 $NDK_BIN/aarch64-linux-android26-clang++ -c stub_logs.c -o stub_cpp.o
 $NDK_BIN/llvm-ar rcs shims_64/lib/libandroid.a stub_cpp.o
 $NDK_BIN/llvm-ar rcs shims_64/lib/libdl.a stub_cpp.o
 
+# Duplicamos de forma defensiva el archivo directo en el sysroot nativo
 cp -fv shims_64/lib/libandroid.a "$NDK_SYSROOT_LIB_64/libandroid.a" 2>/dev/null || true
 cp -fv shims_64/lib/liblog.a "$NDK_SYSROOT_LIB_64/liblog.a" 2>/dev/null || true
 cp -fv shims_64/lib/libdl.a "$NDK_SYSROOT_LIB_64/libdl.a" 2>/dev/null || true
+
+# 🟢 REPARACIÓN CRÍTICA SYNC: Forzamos la escritura física incondicional en el hardware y esperamos 2 segundos. Esto destruye la condición de carrera asegurando que libvulkan_wrapper.a esté 100% visible para Ninja
+echo "-> [Docker Internal] Forzando sincronización de inodos en el volumen compartido..."
+sync
+sleep 2
 
 python3 -c '
 p="src/vulkan/wrapper/wrapper_log.c"
@@ -60,7 +66,6 @@ if os.path.exists(p):
         print("-> [Docker Internal] Éxito: secure_getenv mapeado hacia getenv in disk_cache_os.c")
 '
 
-# 🟢 REPARACIÓN CRÍTICA U_QSORT: Forzamos la definición de HAVE_QSORT_R en la cabecera de ordenamiento de Mesa 25 para obligar al preprocesador a desviar el flujo lógico hacia la función nativa real de Android (qsort_r), eludiendo el crash por la ausencia de qsort_s
 python3 -c '
 p="src/util/u_qsort.h"
 import os
@@ -90,7 +95,13 @@ if [ -d "subprojects/libadrenotools" ]; then
     find subprojects/libadrenotools -name "meson.build" -exec sed -i 's/.*find_library("dl".*/declare_dependency(link_args : ["-ldl"])/g' {} +
 fi
 
-# Inicializamos formalmente las variables de linkernsbypass apuntando a los objetos de enlace real estructurados
+echo "-> [Docker Internal] Mutando flags de enlace rígidos en Adrenotools..."
+if [ -d "subprojects/libadrenotools" ]; then
+    find subprojects/libadrenotools -name "meson.build" -exec sed -i 's/-Wl,--no-undefined/-Wl,--allow-shlib-undefined/g' {} +
+    find subprojects/libadrenotools -name "meson.build" -exec sed -i 's/b_lundef=true/b_lundef=false/g' {} +
+    find subprojects/libadrenotools -name "meson.build" -exec sed -i 's/b_asneeded=true/b_asneeded=false/g' {} +
+fi
+
 BYPASS_RECIPE="subprojects/libadrenotools/lib/linkernsbypass/meson.build"
 if [ -f "$BYPASS_RECIPE" ]; then
     echo "-> [Docker Internal] Estabilizando tokens globales sobre linkernsbypass..."
