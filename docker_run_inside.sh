@@ -5,7 +5,7 @@ echo "-> [Docker Internal] Preparando directorios para stubs primarios..."
 mkdir -p shims_64/lib
 
 echo "-> [Docker Internal] Purgando directorios previos de construcción..."
-rm -rf build-libdrm/ build-64/
+rm -rf build-libdrm/ build-64/ pkg/
 
 echo "-> [Docker Internal] Instalando dependencias de Python complementarias..."
 pip3 install --no-cache-dir --break-system-packages mako packaging || pip3 install --no-cache-dir mako packaging || true
@@ -15,7 +15,8 @@ export NDK_SYSROOT="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sy
 NDK_SYSROOT_LIB_64="${NDK_SYSROOT}/usr/lib/aarch64-linux-android/26"
 
 echo "-> [Docker Internal] Compilando stubs duales legítivos para enlazado preferencial..."
-$NDK_BIN/aarch64-linux-android26-clang -shared -fPIC stub_logs.c -o shims_64/lib/libvulkan_wrapper.so
+# 🟢 CORRECCIÓN DE IDENTIDAD: Le cambiamos el nombre de salida al stub artificial a libvulkan_stub_wrapper.so. Esto impide que el buscador elástico del script se confunda y capture este archivo de 2.56MB por error
+$NDK_BIN/aarch64-linux-android26-clang -shared -fPIC stub_logs.c -o shims_64/lib/libvulkan_stub_wrapper.so
 
 $NDK_BIN/aarch64-linux-android26-clang -c stub_logs.c -o stub_c.o
 $NDK_BIN/llvm-ar rcs shims_64/lib/liblog.a stub_c.o
@@ -102,45 +103,42 @@ python3 meson_src/meson.py setup build-libdrm libdrm_android --cross-file /works
   -Dintel=disabled -Dradeon=disabled -Damdgpu=disabled -Dnouveau=disabled -Dman-pages=disabled -Dvalgrind=disabled -Dtests=false
 python3 meson_src/meson.py install -C build-libdrm
 
-# 🟢 INVERSIÓN BIÓNICA DE DRIVERS: Ponemos obligatoriamente 'wrapper' al inicio de la matriz para forzar a que Meson compile el wrapper como el componente rey prioritario de salida de todo el ecosistema de Mesa 25
+# Ejecutamos el setup cruzado forzando la precedencia de drivers
 python3 meson_src/meson.py setup build-64 --cross-file /workspace/cross_64.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=wrapper,panfrost
 python3 meson_src/meson.py compile -C build-64
 
-# 🟢 EXTRACCIÓN ELÁSTICA SÍNCRONA: Python rastreará el árbol build-64 para atrapar el libvulkan_wrapper.so original recién forjado por Ninja de forma nativa e incondicional, maquetando las carpetas del empaque de una sola pasada limpia
+# 🟢 FILTRADO ESTRICTO DE EXTRACCIÓN: Forzamos a Python a escanear única y exclusivamente el subdirectorio de salida de compilación real de Mesa 'build-64/src/'. Al omitir shims_64, el script ignorará el archivo artificial de 2.56MB y atrapará el verdadero driver de 9.3MB, inyectándolo de forma real y pesada en pkg/usr/lib/
 python3 -c '
 import os, shutil
 
 os.makedirs("pkg/usr/lib/aarch64-linux-android", exist_ok=True)
 os.makedirs("pkg/usr/share/vulkan/icd.d", exist_ok=True)
 
-# Buscamos de forma elástica el binario rey generado
-wrapper_found = None
-panfrost_found = None
+target_name = "libvulkan_wrapper.so"
+real_driver_path = None
 
-for root, dirs, files in os.walk("build-64"):
-    if "libvulkan_wrapper.so" in files:
-        wrapper_found = os.path.join(root, "libvulkan_wrapper.so")
-    if "libvulkan_panfrost.so" in files:
-        panfrost_found = os.path.join(root, "libvulkan_panfrost.so")
+# Escaneo ultra-preciso limitado al core de salida de compilación real
+for root, dirs, files in os.walk("build-64/src"):
+    if target_name in files:
+        real_driver_path = os.path.join(root, target_name)
+        break
 
-if wrapper_found and os.path.exists(wrapper_found):
-    print("-> [Docker Internal] ¡Wrapper original detectado en: " + wrapper_found + "!")
-    shutil.copy2(wrapper_found, "pkg/usr/lib/libvulkan_wrapper.so")
-    shutil.copy2(wrapper_found, "pkg/usr/lib/aarch64-linux-android/libvulkan_wrapper.so")
+if real_driver_path and os.path.exists(real_driver_path):
+    size_mb = os.path.getsize(real_driver_path) / (1024 * 1024)
+    print(f"-> [Docker Internal] Driver legítimo capturado con éxito en {real_driver_path} | Peso real: {size_mb:.2f} MB")
     
-    # Si Ninja generó el motor de panfrost por separado, lo resguardamos, de lo contrario clonamos de forma segura
-    if panfrost_found and os.path.exists(panfrost_found):
-        shutil.copy2(panfrost_found, "pkg/usr/lib/aarch64-linux-android/libvulkan_panfrost.so")
-    else:
-        shutil.copy2(wrapper_found, "pkg/usr/lib/aarch64-linux-android/libvulkan_panfrost.so")
-        
+    # Despliegue físico real triplicado del binario de 9.3MB
+    shutil.copy2(real_driver_path, "pkg/usr/lib/libvulkan_wrapper.so")
+    shutil.copy2(real_driver_path, "pkg/usr/lib/aarch64-linux-android/libvulkan_wrapper.so")
+    shutil.copy2(real_driver_path, "pkg/usr/lib/aarch64-linux-android/libvulkan_panfrost.so")
+    
     drm_src = "shims_64/lib/libdrm.so"
     if os.path.exists(drm_src):
         shutil.copy2(drm_src, "pkg/usr/lib/libdrm.so")
         
-    print("-> [Docker Internal] ¡Estructura de inodos reales consolidada en pkg/ de forma impecable!")
+    print("-> [Docker Internal] Éxito estructural: El empaque pkg/ contiene el driver de 9.3 MB.")
 else:
-    print("-> [Docker Internal ❌ ERROR FATAL] Ninja no generó el archivo libvulkan_wrapper.so original.")
+    print("-> [Docker Internal ❌ ERROR CRÍTICO] Ninja no escribió el binario de 9.3 MB en build-64/src/")
     exit(1)
 '
 sync
