@@ -3,42 +3,45 @@ set -e
 
 BUILD_DIR="${1:-${BUILD_DIR:-build}}"
 
-# 🟢 REPARACIÓN MOLECULAR DEFINITIVA V13: En lugar de alterar wsi_common_x11.c corriendo el riesgo de romper cadenas de texto o comillas, inyectamos tu resolvedor elástico basado en dlopen directamente al final del archivo de cabecera hardware_buffer.h del sysroot de Android. Esto complace a Clang al procesar los atributos en el orden secuencial correcto, destruyendo todos los warnings y asegurando el enlace dinámico en verde total
+# 🟢 REPARACIÓN MOLECULAR DEFINITIVA V13.1 (Optimizada): Inyectamos el resolvedor elástico 
+# con caché estática al final de hardware_buffer.h. Esto complace a Clang, destruye los warnings,
+# corrige el comando print roto de Bash y blinda los FPS en Winlator evitando dlopen repetitivos.
 H_BUF="../include/android_stub/android/hardware_buffer.h"
 
 if [ -f "$H_BUF" ] && ! grep -q "pfn_AHardwareBuffer_sendHandleToUnixSocket" "$H_BUF"; then
-    echo "-> [Bypass Quirúrgico] Inyectando resolvedor dinámico elástico en hardware_buffer.h..."
+    echo "-> [Bypass Quirúrgico] Inyectando resolvedor dinámico elástico optimizado en hardware_buffer.h..."
     
-    # Restauramos de forma intacta tu impecable bloque elástico purificado
     cat << 'EOF' >> "$H_BUF"
 
-/* --- INYECCIÓN MAESTRA REAL DE CARGA DINÁMICA --- */
+/* --- INYECCIÓN MAESTRA REAL DE CARGA DINÁMICA CON CACHÉ --- */
 #define RTLD_NOW 2
 extern void* dlopen(const char* filename, int flag);
 extern void* dlsym(void* handle, const char* symbol);
-extern int dlclose(void* handle);
 
 typedef int (*pfn_AHardwareBuffer_sendHandleToUnixSocket)(const struct AHardwareBuffer*, int);
 
 static inline int AHardwareBuffer_sendHandleToUnixSocket(const struct AHardwareBuffer* b, int s) {
-    void* handle = dlopen("libandroid.so", RTLD_NOW);
-    if (!handle) {
-        handle = dlopen("libnativewindow.so", RTLD_NOW);
-    }
-    if (handle) {
-        pfn_AHardwareBuffer_sendHandleToUnixSocket func = 
-            (pfn_AHardwareBuffer_sendHandleToUnixSocket)dlsym(handle, "AHardwareBuffer_sendHandleToUnixSocket");
-        if (func) {
-            int result = func(b, s);
-            dlclose(handle);
-            return result;
+    static pfn_AHardwareBuffer_sendHandleToUnixSocket func = (pfn_AHardwareBuffer_sendHandleToUnixSocket)-2;
+
+    if (func == (pfn_AHardwareBuffer_sendHandleToUnixSocket)-2) {
+        void* handle = dlopen("libandroid.so", RTLD_NOW);
+        if (!handle) {
+            handle = dlopen("libnativewindow.so", RTLD_NOW);
         }
-        dlclose(handle);
+        if (handle) {
+            func = (pfn_AHardwareBuffer_sendHandleToUnixSocket)dlsym(handle, "AHardwareBuffer_sendHandleToUnixSocket");
+        } else {
+            func = 0;
+        }
+    }
+
+    if (func) {
+        return func(b, s);
     }
     return -1;
 }
 EOF
-    print "-> [Bypass Sysroot] ¡Resolvedor inyectado de forma inmaculada en las cabeceras!"
+    echo "-> [Bypass Sysroot] ¡Resolvedor inyectado de forma inmaculada en las cabeceras!"
 fi
 
 # 🟢 LIMPIEZA DE ARRASTRE: Si el archivo wsi_common_x11.c fue alterado en pasadas previas, lo restauramos a su estado original inmaculado de fábrica para purgar el error de la línea 421
