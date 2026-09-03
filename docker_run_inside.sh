@@ -12,7 +12,6 @@ pip3 install --no-cache-dir --break-system-packages mako packaging || pip3 insta
 
 export NDK_BIN="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin"
 export NDK_SYSROOT="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
-# 🟢 REPARACIÓN DOCKER NDK: Apuntamos la variable de copia directa hacia la raíz consolidada del sysroot del NDK r28, eliminando el subdirectorio muertol /26
 NDK_SYSROOT_LIB_64="${NDK_SYSROOT}/usr/lib/aarch64-linux-android"
 
 echo "-> [Docker Internal] Compilando stubs duales legítivos para enlazado preferencial..."
@@ -54,6 +53,7 @@ if os.path.exists(p):
         print("-> [Docker Internal] Éxito: SYS_memfd_create transmutado a la Syscall 279 de forma literal.")
 '
 
+# 🟢 REPARACIÓN DEFINITIVA DE COMILLAS CON CHR(39): Python forzará la escritura del archivo con comillas simples nativas puras, complaciendo a Meson y anulando el error léxico sin depender del sistema de archivos del Host
 python3 -c '
 p="src/c11/impl/meson.build"
 import os
@@ -118,47 +118,31 @@ python3 meson_src/meson.py install -C build-libdrm
 python3 meson_src/meson.py setup build-64 --cross-file /workspace/cross_64.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=wrapper,panfrost
 python3 meson_src/meson.py compile -C build-64
 
-# Escaneo elástico limitado a build-64/src para extraer única y exclusivamente el driver original real de 9.3 MB
+# Escaneo elástico absoluto por coordenadas rígidas internas de Mesa 25
 python3 -c '
 import os, shutil
 
 os.makedirs("pkg/usr/lib/aarch64-linux-android", exist_ok=True)
 os.makedirs("pkg/usr/share/vulkan/icd.d", exist_ok=True)
 
-target_name = "libvulkan_wrapper.so"
-real_driver_path = None
+real_wrapper = "build-64/src/vulkan/wrapper/libvulkan_wrapper.so"
+real_panfrost = "build-64/src/panfrost/vulkan/libvulkan_panfrost.so"
 
-for root, dirs, files in os.walk("build-64/src"):
-    if target_name in files:
-        real_driver_path = os.path.join(root, target_name)
-        break
-
-if real_driver_path and os.path.exists(real_driver_path):
-    size_mb = os.path.getsize(real_driver_path) / (1024 * 1024)
-    print(f"-> [Docker Internal] Driver legítimo capturado con éxito en {real_driver_path} | Peso real: {size_mb:.2f} MB")
+if os.path.exists(real_wrapper) and os.path.exists(real_panfrost):
+    size_wrap = os.path.getsize(real_wrapper) / (1024 * 1024)
+    print(f"-> [Docker Internal] Wrapper Original detectado | Peso real: {size_wrap:.2f} MB")
     
-    shutil.copy2(real_driver_path, "pkg/usr/lib/libvulkan_wrapper.so")
-    shutil.copy2(real_driver_path, "pkg/usr/lib/aarch64-linux-android/libvulkan_wrapper.so")
-    
-    # Buscamos también el driver real de panfrost de soporte
-    pan_driver = None
-    for r, d, fs in os.walk("build-64/src"):
-        if "libvulkan_panfrost.so" in fs:
-            pan_driver = os.path.join(r, "libvulkan_panfrost.so")
-            break
-            
-    if pan_driver and os.path.exists(pan_driver):
-        shutil.copy2(pan_driver, "pkg/usr/lib/aarch64-linux-android/libvulkan_panfrost.so")
-    else:
-        shutil.copy2(real_driver_path, "pkg/usr/lib/aarch64-linux-android/libvulkan_panfrost.so")
+    shutil.copy2(real_wrapper, "pkg/usr/lib/libvulkan_wrapper.so")
+    shutil.copy2(real_wrapper, "pkg/usr/lib/aarch64-linux-android/libvulkan_wrapper.so")
+    shutil.copy2(real_panfrost, "pkg/usr/lib/aarch64-linux-android/libvulkan_panfrost.so")
     
     drm_src = "shims_64/lib/libdrm.so"
     if os.path.exists(drm_src):
         shutil.copy2(drm_src, "pkg/usr/lib/libdrm.so")
         
-    print("-> [Docker Internal] Éxito estructural: El empaque pkg/ contiene el driver de 9.3 MB.")
+    print("-> [Docker Internal] Éxito: Jerarquía poblada con los binarios de 9.3 MB reales.")
 else:
-    print("-> [Docker Internal ❌ ERROR CRÍTICO] Ninja no escribió el binario de 9.3 MB en build-64/src/")
+    print("-> [Docker Internal ❌ ERROR CRÍTICO] Ninja no escribió los binarios esperados en build-64/src/")
     exit(1)
 '
 sync
