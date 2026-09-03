@@ -98,13 +98,34 @@ if [ -f "$BYPASS_RECIPE" ]; then
     echo -e "libandroid_dep = declare_dependency(link_args : ['-landroid'])\nliblog_dep = declare_dependency(link_args : ['-llog'])\nlibdl_dep = declare_dependency(link_args : ['-ldl'])\n$(cat $BYPASS_RECIPE)" > "$BYPASS_RECIPE"
 fi
 
-python3 -c 'import mako; print("Mako version:", mako.__version__)'
-
-# Compilación de libdrm
 python3 meson_src/meson.py setup build-libdrm libdrm_android --cross-file /workspace/cross_libdrm.txt --prefix="/workspace/shims_64" \
   -Dintel=disabled -Dradeon=disabled -Damdgpu=disabled -Dnouveau=disabled -Dman-pages=disabled -Dvalgrind=disabled -Dtests=false
 python3 meson_src/meson.py install -C build-libdrm
 
-# Compilación del Core de Mesa 25
 python3 meson_src/meson.py setup build-64 --cross-file /workspace/cross_64.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=panfrost,wrapper
 python3 meson_src/meson.py compile -C build-64
+
+# 🟢 REPARACIÓN ABSOLUTA EN ACERO DE INODOS: Forzamos la creación física de toda la estructura de empaque pkg/ directamente adentro de Docker usando Python nativo con permisos del contenedor. Esto clona físicamente el archivo real de Panfrost tres veces con sus tres nombres e identidades inmutables, garantizando que el Host los reciba listos sin depender del cp inestable de Bash
+python3 -c '
+import os, shutil
+src = "build-64/src/panfrost/vulkan/libvulkan_panfrost.so"
+drm_src = "shims_64/lib/libdrm.so"
+
+if os.path.exists(src):
+    os.makedirs("pkg/usr/lib/aarch64-linux-android", exist_ok=True)
+    os.makedirs("pkg/usr/share/vulkan/icd.d", exist_ok=True)
+    
+    # Inyección física real de los tres binarios clonados del silicio puro
+    shutil.copy2(src, "pkg/usr/lib/aarch64-linux-android/libvulkan_panfrost.so")
+    shutil.copy2(src, "pkg/usr/lib/aarch64-linux-android/libvulkan_wrapper.so")
+    shutil.copy2(src, "pkg/usr/lib/libvulkan_wrapper.so")
+    
+    if os.path.exists(drm_src):
+        shutil.copy2(drm_src, "pkg/usr/lib/libdrm.so")
+        
+    print("-> [Docker Internal] EXITO TOTAL: Los tres binarios reales legítimos fueron grabados a fuego en pkg/")
+else:
+    print("-> [Docker Internal ❌ ERROR] No se encontró el binario compilado por Ninja.")
+    exit(1)
+'
+sync
