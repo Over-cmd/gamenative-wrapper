@@ -3,14 +3,17 @@ set -e
 
 BUILD_DIR="${1:-${BUILD_DIR:-build}}"
 
-# 🟢 REPARACIÓN INDUSTRIAL TOTAL DE PROTOTIPO V11 (Carga Dinámica Real):
-# Reemplazamos el stub estático inútil (-1) por un resolvedor dinámico mediante dlopen/dlsym.
-# Si la función real existe en el sistema anfitrión (libandroid.so o libnativewindow.so),
-# se ejecutará con CERO COPIAS reales preservando el canal IPC. Si no, mitigará el error elegantemente.
+# 🟢 REPARACIÓN MOLECULAR DE CABECERAS DE GOOGLE V12: Usamos sed para renombrar la declaración oficial en el archivo hardware_buffer.h del sysroot antes del setup. Esto evita por completo la colisión con tu resolvedor elástico en wsi_common_x11.c, pulverizando el warning de atributos y el error -Werror=ignored-attributes en una fracción de milisegundo
+H_BUF="../include/android_stub/android/hardware_buffer.h"
+if [ -f "$H_BUF" ]; then
+    echo "-> [Bypass] Neutralizando colisión de atributos en hardware_buffer.h..."
+    sed -i 's/int AHardwareBuffer_sendHandleToUnixSocket/int AHardwareBuffer_sendHandleToUnixSocket_STUB/g' "$H_BUF" || true
+fi
+
 if [ -f "src/vulkan/wsi/wsi_common_x11.c" ]; then
     echo "-> [Bypass Quirúrgico] Inyectando resolvedor dinámico de HardwareBuffer para libandroid.so..."
     
-    # Creamos el bloque de código C que se inyectará al principio del archivo
+    # Mantenemos intacto tu impecable bloque elástico purificado
     PARCHE_DINAMICO=$(cat << 'EOF'
 struct AHardwareBuffer;
 typedef int (*pfn_AHardwareBuffer_sendHandleToUnixSocket)(const struct AHardwareBuffer*, int);
@@ -36,12 +39,11 @@ static inline int AHardwareBuffer_sendHandleToUnixSocket(const struct AHardwareB
         }
         dlclose(handle);
     }
-    return -1; /* Respaldo seguro si el entorno carece totalmente de la API */
+    return -1;
 }
 EOF
 )
 
-    # Inyectamos el parche al principio de wsi_common_x11.c evitando recursividad infinita
     if ! grep -q "pfn_AHardwareBuffer_sendHandleToUnixSocket" src/vulkan/wsi/wsi_common_x11.c; then
         echo -e "${PARCHE_DINAMICO}\n$(cat src/vulkan/wsi/wsi_common_x11.c)" > src/vulkan/wsi/wsi_common_x11.c
     fi
