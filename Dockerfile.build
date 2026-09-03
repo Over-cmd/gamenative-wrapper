@@ -6,11 +6,16 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends ninja-build && \
     pip3 install --break-system-packages --ignore-installed --no-cache-dir meson ninja mako pyyaml packaging
 
-# 🟢 REPARACIÓN INDUSTRIAL DE RED REPOSITORIO TERMUX: Cambiamos termux.dev por el espejo oficial central de Cloudflare packages-cf.termux.dev. Esto permite que curl descargue de forma limpia e incondicional el índice 'Packages' y todas las dependencias .deb del sysroot, pulverizando el Exit Code 2 de raíz
+# 🟢 REPARACIÓN INDUSTRIAL DE RED CON RETORNO DEFENSIVO: Configuramos la CDN central de Cloudflare (packages-cf) como ruta prioritaria. Agregamos un validador que, en caso de detectar un archivo Packages vacío, conmuta en caliente al espejo de Grimler (Suecia). Esto garantiza que las librerías .deb (libdrm, libandroid-shmem, etc.) se inyecten de forma síncrona en el sysroot, triturando el Exit Code 2 de raíz
 RUN mkdir -p /tmp/sysroot && \
     cd /tmp/sysroot && \
-    TERMUX_REPO="https://termux.dev/apt/termux-main" && \
-    curl -s "${TERMUX_REPO}/dists/stable/main/binary-aarch64/Packages" > Packages && \
+    TERMUX_REPO="https://packages-cf.termux.dev/apt/termux-main" && \
+    curl -sL "${TERMUX_REPO}/dists/stable/main/binary-aarch64/Packages" > Packages && \
+    if [ ! -s Packages ] || grep -q "<html>" Packages; then \
+        echo "-> [Bypass Red] CDN principal inaccesible. Conmutando al espejo secundario oficial..."; \
+        TERMUX_REPO="https://grimler.se"; \
+        curl -sL "${TERMUX_REPO}/dists/stable/main/binary-aarch64/Packages" > Packages; \
+    fi && \
     PACKAGES="libdrm libandroid-shmem libxcb libx11 libxshmfence libxext libxrandr libxrender xorgproto libxau libxdmcp" && \
     for pkg in $PACKAGES; do \
         pkg_path=$(awk -v p="Package: $pkg" '$0==p{flag=1} flag && /^Filename:/{print $2; exit}' Packages) && \
