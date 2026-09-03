@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO COMPLETO RECTIFICADO V94"
+echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO SEGURO CON CONEXIÓN REAL V95"
 echo "=========================================================="
 
 WORKSPACE="$(pwd)"
@@ -47,7 +47,7 @@ docker run --rm --entrypoint /bin/bash \
   -v "${ANDROID_NDK_HOME}:${ANDROID_NDK_HOME}" \
   -w /workspace ghcr.io/leegao/mesa-wrapper-ci/wrapper-compiler:latest ./docker_run_inside.sh
 
-echo "-> 4. EstABILIZANDO cabeceras de empaque con permisos plenos 755..."
+echo "-> 4. Estabilizando cabeceras de empaque con permisos plenos 755..."
 chmod -R 755 pkg/
 
 STRIP_HOST="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip"
@@ -60,17 +60,20 @@ if [ -f "$STRIP_HOST" ]; then
 fi
 
 echo "-> [Host] Aplicando sellado estructural con patchelf..."
+# 🟢 CABECERA DE LA RAÍZ GENERAL: Se queda buscando libdrm.so en su mismo nivel de piso ($ORIGIN)
 patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so || true
 patchelf --add-needed libdrm.so pkg/usr/lib/libvulkan_wrapper.so || true
 patchelf --set-rpath '$ORIGIN' pkg/usr/lib/libvulkan_wrapper.so || true
 
+# 🟢 CABECERA SUB-CARPETA PANFROST MOBILE: Corregimos el RPATH a $ORIGIN/.. para que suba un nivel a capturar libdrm.so, estabilizando el mapa de memoria
 patchelf --set-soname libvulkan_panfrost.so pkg/usr/lib/aarch64-linux-android/libvulkan_panfrost.so || true
 patchelf --add-needed libdrm.so pkg/usr/lib/aarch64-linux-android/libvulkan_panfrost.so || true
-patchelf --set-rpath '$ORIGIN' pkg/usr/lib/aarch64-linux-android/libvulkan_panfrost.so || true
+patchelf --set-rpath '$ORIGIN/..' pkg/usr/lib/aarch64-linux-android/libvulkan_panfrost.so || true
 
+# 🟢 CABECERA SUB-CARPETA WRAPPER MOBILE: Restauramos el SONAME legítimo exacto que exige Khronos y apuntamos el RPATH un piso arriba ($ORIGIN/..) para romper el bloqueo de conexión
 patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/aarch64-linux-android/libvulkan_wrapper.so || true
 patchelf --add-needed libdrm.so pkg/usr/lib/aarch64-linux-android/libvulkan_wrapper.so || true
-patchelf --set-rpath '$ORIGIN' pkg/usr/lib/aarch64-linux-android/libvulkan_wrapper.so || true
+patchelf --set-rpath '$ORIGIN/..' pkg/usr/lib/aarch64-linux-android/libvulkan_wrapper.so || true
 
 patchelf --set-soname libdrm.so pkg/usr/lib/libdrm.so
 
@@ -89,7 +92,6 @@ echo "-> [AUDITORÍA FINAL SANIDAD] Verificando presencia real antes del empaque
 ls -l pkg/usr/lib/libvulkan_wrapper.so
 ls -l pkg/usr/lib/aarch64-linux-android/libvulkan_wrapper.so
 
-# 🟢 EMPAQUETADOR DE ALTA PRECISIÓN PYTHON: Volcamos el árbol entero registrando directorios (DIRTYPE) y archivos puros (REGTYPE) con el modo visible 755, blindando la salida ante cualquier descarte del sistema de archivos de las Actions
 echo "-> 5. Forjando estructura física y carpetas lineales con Python Tar..."
 sync
 python3 -c '
@@ -121,7 +123,7 @@ with tarfile.open("wrapper.tar", "w") as tar:
                 tar.addfile(info, f)
 '
 
-echo "-> [Host] Aplicando súper-compresión industrial Zstd sobre el tarball estructurado..."
+echo "-> [Host] Applying super-compression on structured tarball..."
 zstd -19 -T0 --rm wrapper.tar -o wrapper.tzst
 
 rm -f docker_run_inside.sh cross_libdrm.txt cross_64.txt stub_logs.c stub_c.o stub_cpp.o generate_cross.sh 2>/dev/null || true
