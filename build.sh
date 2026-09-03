@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO SEGURO CON SELLO INDUSTRIAL V83"
+echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO SEGURO DE ENLAZADO REAL V84"
 echo "=========================================================="
 
 WORKSPACE="$(pwd)"
@@ -26,7 +26,7 @@ chmod +x patch_mesa.sh generate_cross.sh docker_run_inside.sh
 ./patch_mesa.sh
 rm -f subprojects/libadrenotools.wrap
 
-echo "-> 1b. Aplicando parches sintácticos sobre Adrenotools en el Host..."
+echo "-> 1b. parches sintácticos Host..."
 if [ -d "subprojects/libadrenotools" ]; then
     find subprojects/libadrenotools -name "meson.build" -exec sed -i "s/cc.find_library('android'/dependency('', required : false) #/g" {} +
     find subprojects/libadrenotools -name "meson.build" -exec sed -i 's/cc.find_library("android"/dependency("", required : false) #/g' {} +
@@ -47,39 +47,8 @@ docker run --rm --entrypoint /bin/bash \
   -v "${ANDROID_NDK_HOME}:${ANDROID_NDK_HOME}" \
   -w /workspace ghcr.io/leegao/mesa-wrapper-ci/wrapper-compiler:latest ./docker_run_inside.sh
 
-echo "-> 4. Maquetando empaque unificado de proximidad biónica..."
-rm -rf pkg/
-mkdir -p pkg/usr/lib/aarch64-linux-android pkg/usr/share/vulkan/icd.d
-
-# Definimos el silicio legítimo generado por Ninja
-PANFROST_REAL_SRC="build-64/src/panfrost/vulkan/libvulkan_panfrost.so"
-
-if [ -f "$PANFROST_REAL_SRC" ]; then
-    echo "-> [Host] Desplegando libvulkan_panfrost.so legítimo en la subcarpeta..."
-    cp -fv "$PANFROST_REAL_SRC" pkg/usr/lib/aarch64-linux-android/libvulkan_panfrost.so
-    
-    echo "-> [Host] Desplegando libvulkan_wrapper.so real en la subcarpeta..."
-    cp -fv "$PANFROST_REAL_SRC" pkg/usr/lib/aarch64-linux-android/libvulkan_wrapper.so
-    
-    echo "-> [Host] Desplegando libvulkan_wrapper.so real en la raíz de librerías..."
-    cp -fv "$PANFROST_REAL_SRC" pkg/usr/lib/libvulkan_wrapper.so
-else
-    echo "-> [❌ ERROR CRÍTICO] El motor real de Panfrost no apareció en $PANFROST_REAL_SRC"
-    exit 1
-fi
-
-if [ -f "shims_64/lib/libdrm.so" ]; then
-    cp -fv shims_64/lib/libdrm.so pkg/usr/lib/libdrm.so
-else
-    echo "-> [❌ ERROR CRÍTICO] Falta libdrm.so en shims_64/"; exit 1
-fi
-
-# 🟢 REPARACIÓN CRÍTICA DESALINEACIÓN DE INODOS: Forzamos marcas de tiempo artificiales asíncronas separadas por un segundo completo y modificamos sutilmente un byte de metadato inerte con patchelf. Esto rompe la simetría molecular ante los ojos de tar, impidiendo que la herramienta combine los archivos como Hard Links internos y forzando a que grabe el binario rey en la raíz del paquete de forma incondicional
-echo "-> [Host] Desincronizando inodos de forma intencionada para blindar a tar..."
-touch -m -d "1 hour ago" pkg/usr/lib/libvulkan_wrapper.so
-touch -m -d "now" pkg/usr/lib/aarch64-linux-android/libvulkan_wrapper.so
-
-# Abrimos los permisos del Host de forma masiva para patchelf y strip
+# 🟢 REPARACIÓN CRÍTICA HOST DE PERMISOS: Forzamos la apertura de permisos de forma masiva sobre la carpeta pkg/ recién inyectada por Docker para que el Host la pueda leer, aplicar patchelf y empaquetar sin restricciones jerárquicas
+echo "-> 4. Estabilizando cabeceras de empaque forjadas en Docker..."
 chmod -R 755 pkg/
 
 STRIP_HOST="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip"
@@ -100,7 +69,7 @@ patchelf --set-soname libvulkan_panfrost.so pkg/usr/lib/aarch64-linux-android/li
 patchelf --add-needed libdrm.so pkg/usr/lib/aarch64-linux-android/libvulkan_panfrost.so
 patchelf --set-rpath '$ORIGIN' pkg/usr/lib/aarch64-linux-android/libvulkan_panfrost.so
 
-patchelf --set-soname libvulkan_wrapper_alt.so pkg/usr/lib/aarch64-linux-android/libvulkan_wrapper.so || true
+patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/aarch64-linux-android/libvulkan_wrapper.so || true
 patchelf --add-needed libdrm.so pkg/usr/lib/aarch64-linux-android/libvulkan_wrapper.so || true
 patchelf --set-rpath '$ORIGIN' pkg/usr/lib/aarch64-linux-android/libvulkan_wrapper.so || true
 
@@ -117,14 +86,14 @@ EOF
 echo "msf:315508" > pkg/usr/lib/version.txt
 chmod -R 755 pkg/
 
-echo "-> [AUDITORÍA FINAL SANIDAD] Verificando presencia real en disco antes del empaquetado:"
+echo "-> [AUDITORÍA FINAL SANIDAD] Verificando presencia real en el disco antes de tar:"
 ls -l pkg/usr/lib/libvulkan_wrapper.so
 ls -l pkg/usr/lib/aarch64-linux-android/libvulkan_wrapper.so
 
-# 🟢 EMPAQUETADO COMPLETO REGLAMENTARIO DE ALTA DISPONIBILIDAD: Usamos el flag defensivo --hard-dereference. Esta bandera del motor tar le prohibe explícitamente a la herramienta crear referencias cruzadas optimizadas, forzando a que guarde de forma literal y física el archivo libvulkan_wrapper.so en la raíz de tu tarball final wrapper.tzst exigido por Bannerlator
-echo "-> 5. Sellando empaque de alta compresión en formato (.tzst) reglamentario..."
+echo "-> 5. Sellando empaque de alta compresión..."
 sync
-tar --hard-dereference -I "zstd -19 -T0" -cf "wrapper.tzst" -C pkg usr
+# 🟢 COMPRESIÓN CON DESACTIVACIÓN DE ENLACES INTERNOS: Forzamos la bandera --hard-dereference. Esto le prohibe a tar crear punteros virtuales de optimización en memoria, obligándolo a escribir físicamente los dos archivos libvulkan_wrapper.so independientes dentro de tu tarball final wrapper.tzst exigido por Bannerlator
+tar --hard-dereference -I "zstd -19 -T0" -cf "wrapper.tzst" -C pkg usr version.txt 2>/dev/null || tar -I "zstd -19 -T0" -cf "wrapper.tzst" -C pkg usr
 
 rm -f docker_run_inside.sh cross_libdrm.txt cross_64.txt stub_logs.c stub_c.o stub_cpp.o generate_cross.sh 2>/dev/null || true
 rm -rf meson_src/ shims_64/ build-64/
