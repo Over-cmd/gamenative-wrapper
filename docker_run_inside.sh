@@ -64,17 +64,18 @@ if os.path.exists(p):
         print("-> [Docker Internal] Éxito: dep_clock inyectado con comillas simples nativas puras.")
 '
 
-# 🟢 REPARACIÓN ALINEADA DE MATRIZ V98: Corregimos wrapper_args mutándolo al token real de Mesa 25: wrapper_flags. Esto inyecta las constantes de hardware de tu GPU Mali de forma legal y complace al parser de Meson sin levantar errores de variables desconocidas
+# 🟢 CIRUGÍA MAESTRA INYECTABLE EN SHARED_LIBRARY V102: Python leerá el meson.build real que nos acabas de mandar. Buscará de forma milimétrica la declaración de libvulkan_wrapper e inyectará de forma legal los argumentos c_args y cpp_args con comillas simples nativas de Meson usando chr(39). Esto funde las directivas de Bifrost adentro de la receta original sin crear variables rotas flotantes
 python3 -c '
 p="src/vulkan/wrapper/meson.build"
 import os
 if os.path.exists(p):
     f=open(p,"r"); c=f.read(); f.close()
-    if "panfrost" not in c:
-        patch = "\nwrapper_flags += [\x27-DCONFIG_MALI_BIFROST=1\x27, \x27-DVK_USE_PLATFORM_ANDROID_KHR\x27]\n"
-        c = c + patch
+    if "c_args:" not in c:
+        old_str = "  dependencies: [wrapper_deps, vulkan_wsi_deps],"
+        new_patch = "  dependencies: [wrapper_deps, vulkan_wsi_deps],\n  c_args: [" + chr(39) + "-DCONFIG_MALI_BIFROST=1" + chr(39) + ", " + chr(39) + "-DVK_USE_PLATFORM_ANDROID_KHR" + chr(39) + "],\n  cpp_args: [" + chr(39) + "-DCONFIG_MALI_BIFROST=1" + chr(39) + ", " + chr(39) + "-DVK_USE_PLATFORM_ANDROID_KHR" + chr(39) + "],"
+        c = c.replace(old_str, new_patch)
         f=open(p,"w"); f.write(c); f.close()
-        print("-> [Docker Internal] Éxito: ADN Gráfico unificado inyectado de forma legal en wrapper_flags.")
+        print("-> [Docker Internal] Éxito: Banderas Bifrost soldadas directamente dentro de la función shared_library.")
 '
 
 echo "-> [Docker Internal] Ejecutando barrido total recursivo de secure_getenv hacia getenv..."
@@ -130,7 +131,7 @@ python3 meson_src/meson.py install -C build-libdrm
 python3 meson_src/meson.py setup build-64 --cross-file /workspace/cross_64.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=wrapper
 python3 meson_src/meson.py compile -C build-64
 
-# Escaneo elástico estricto limitado al core de salida del wrapper para capturar tus 9.3 MB reales
+# Escaneo elástico limitado al core de salida del wrapper para capturar tus 9.3 MB reales
 python3 -c '
 import os, shutil
 
