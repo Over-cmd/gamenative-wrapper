@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO SEGURO CON PYTHON TAR V87"
+echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO SEGURO CON PERMISOS VISIBLES V88"
 echo "=========================================================="
 
 WORKSPACE="$(pwd)"
@@ -47,7 +47,8 @@ docker run --rm --entrypoint /bin/bash \
   -v "${ANDROID_NDK_HOME}:${ANDROID_NDK_HOME}" \
   -w /workspace ghcr.io/leegao/mesa-wrapper-ci/wrapper-compiler:latest ./docker_run_inside.sh
 
-echo "-> 4. Estabilizando cabeceras de empaque forjadas en Docker..."
+# 🟢 REPARACIÓN DE ALTA VISIBILIDAD V88: Forzamos la apertura de permisos plenos de lectura, escritura y EJECUCIÓN (755) de forma masiva sobre todo el árbol pkg/ ANTES de que actúen strip, patchelf o el compresor. Esto garantiza que libvulkan_wrapper.so viaje libre de candados 444, obligando a Android a extraerlo y pintarlo en disco sin restricciones ocultas
+echo "-> 4. Estabilizando cabeceras de empaque con permisos plenos 755..."
 chmod -R 755 pkg/
 
 STRIP_HOST="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip"
@@ -83,37 +84,34 @@ cat << 'EOF' > pkg/usr/share/vulkan/icd.d/panfrost_icd.aarch64.json
 EOF
 
 echo "msf:315508" > pkg/version.txt
+# Re-aseguramos la apertura total del inodo antes del empaquetador
 chmod -R 755 pkg/
 
-echo "-> [AUDITORÍA FINAL SANIDAD] Verificando presencia real en el disco antes de tar:"
+echo "-> [AUDITORÍA FINAL SANIDAD] Verificando presencia real y permisos en el disco:"
 ls -l pkg/usr/lib/libvulkan_wrapper.so
 ls -l pkg/usr/lib/aarch64-linux-android/libvulkan_wrapper.so
 
-# 🟢 REPARACIÓN SUPREMA EMPAQUETADOR PYTHON: Tiramos un script inline de Python que abre un flujo tarfile con compresión zstd de forma binaria pura. Python añade obligatoriamente cada archivo como una entidad física independiente con sus propios bytes, burlando de raíz cualquier descarte o enlace duro invisible que aplique el binario tar de Linux
 echo "-> 5. Sellando empaque de alta compresión mediante script biónico de Python..."
 sync
 python3 -c '
 import tarfile, os
 
 with tarfile.open("wrapper.tzst", "w:zstd") as tar:
-    # Cambiamos el directorio de trabajo a pkg/ de forma interna en el hilo
     os.chdir("pkg")
-    
-    # Escaneamos de forma lineal e inyectamos los archivos obligatorios uno a uno
     for root, dirs, files in os.walk("."):
         for file in files:
             file_path = os.path.join(root, file)
-            # Limpiamos el prefijo "./" para que quede idéntico al estándar unix
             archive_name = os.path.normpath(file_path)
             
-            # Forzamos la creación como archivo regular de datos físicos puros
+            # Forzamos la creación como archivo de datos físicos reales regulares
             info = tar.gettarinfo(file_path, arcname=archive_name)
-            info.type = tarfile.REGTYPE # Aplasta cualquier optimización de enlace duro
+            info.type = tarfile.REGTYPE 
+            info.mode = 0o755 # 🟢 ASIGNACIÓN MÁXIMA DE PERMISOS: Grabamos a fuego el permiso de ejecución visible rwxr-xr-x en las cabeceras internas de cada binario dentro del tarball, impidiendo que Android aborte su extracción
             
             with open(file_path, "rb") as f:
                 tar.addfile(info, f)
                 
-print("-> [Python Tar] ¡Éxito absoluto! wrapper.tzst generado con todos sus binarios físicos pesados intactos.")
+print("-> [Python Tar] ¡Éxito absoluto! wrapper.tzst generado con permisos visibles 755 intactos.")
 '
 
 rm -f docker_run_inside.sh cross_libdrm.txt cross_64.txt stub_logs.c stub_c.o stub_cpp.o generate_cross.sh 2>/dev/null || true
