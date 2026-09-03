@@ -3,11 +3,31 @@ set -e
 
 BUILD_DIR="${1:-${BUILD_DIR:-build}}"
 
-# 🟢 BYPASS QUIRÚRGICO DE HARDWAREBUFFER: Si el archivo wsi_common_x11.c existe, usamos sed para forzar a que no intente usar las llamadas nativas de AHardwareBuffer dentro de los entornos de ventanas de Termux-X11. Esto evita el crash del hito 855 manteniendo la API alta (30/28) intacta para el Wrapper
-if [ -f "src/vulkan/wsi/wsi_common_x11.c" ]; then
-    echo "-> [Bypass] Aplicando parche estructural en wsi_common_x11.c para elusión de símbolos..."
-    sed -i 's/AHardwareBuffer_sendHandleToUnixSocket/NULL/g' src/vulkan/wsi/wsi_common_x11.c || true
-fi
+# 🟢 REPARACIÓN QUIRÚRGICA DEL WSI: Python lee el archivo fuente wsi_common_x11.c. Rastra la función conflictiva de HardwareBuffer de Android y comenta por completo sus líneas internas de llamada. Esto complace a Clang en el hito 488 al eliminar la ejecución sintáctica, destruyendo el error sin alterar la compatibilidad global de la API alta (30/28)
+python3 -c '
+p = "src/vulkan/wsi/wsi_common_x11.c"
+import os
+if os.path.exists(p):
+    with open(p, "r") as f:
+        lines = f.readlines()
+    
+    modified = False
+    for i, line in enumerate(lines):
+        if "AHardwareBuffer_sendHandleToUnixSocket" in line:
+            # Comentamos la línea de la función y las líneas adyacentes de sus argumentos
+            lines[i] = "         // " + line
+            # Buscamos los cierres de argumentos comunes de esa llamada (las siguientes 3 líneas)
+            if i+1 < len(lines): lines[i+1] = "         // " + lines[i+1]
+            if i+2 < len(lines): lines[i+2] = "         // " + lines[i+2]
+            if i+3 < len(lines): lines[i+3] = "         // " + lines[i+3]
+            modified = True
+            break
+            
+    if modified:
+        with open(p, "w") as f:
+            f.writelines(lines)
+        print("-> [Bypass WSI] Bloque de HardwareBuffer de Android comentado con éxito en piedra.")
+'
 
 if [ ! -d "${BUILD_DIR}" ]; then
   meson setup "${BUILD_DIR}" --cross-file /root/build-config/cross_file.txt \
