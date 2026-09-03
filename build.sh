@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO DEFINITIVO COMPLETO V78"
+echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO CON EMPEQUETADO RÍGIDO TZST V80"
 echo "=========================================================="
 
 WORKSPACE="$(pwd)"
@@ -109,19 +109,17 @@ cat << 'EOF' > pkg/usr/share/vulkan/icd.d/panfrost_icd.aarch64.json
 { "ICD": { "api_version": "1.3.289", "library_path": "aarch64-linux-android/libvulkan_panfrost.so" }, "file_format_version": "1.0.0" }
 EOF
 
+echo "msf:315508" > pkg/version.txt
 chmod -R 755 pkg/
 
-# 🟢 REPARACIÓN CRÍTICA UBICACIÓN VERSION: Escribimos el token de versión directamente en la raíz de librerías pkg/usr/lib/ para evitar errores de desalineación en el comando tar posterior
-echo "msf:315508" > pkg/usr/lib/version.txt
-
-echo "-> [AUDITORÍA FINAL SANIDAD] Verificando presencia real en disco:"
+echo "-> [AUDITORÍA FINAL SANIDAD] Verificando presencia real en disco antes del empaquetado:"
 ls -l pkg/usr/lib/libvulkan_wrapper.so
 ls -l pkg/usr/lib/aarch64-linux-android/libvulkan_wrapper.so
 
-echo "-> 5. Sellando empaque de alta compresión..."
+# 🟢 REPARACIÓN INDUSTRIAL INDESTRUCTIBLE TZST: Forzamos la compresión por ruta absoluta sin cambiar de directorio relativo. Listamos de forma explícita los inodos del mapa de memoria para obligar a tar a meter los drivers reales y generar el tarball wrapper.tzst legítimo que exige Bannerlator
+echo "-> 5. Sellando empaque de alta compresión en formato (.tzst) reglamentario..."
 sync
-# 🟢 COMPRESIÓN ABSOLUTA REORDENADA: Empaquetamos la subcarpeta usr completa. Como version.txt ahora vive de forma interna bajo usr/lib/version.txt, tar la asimilará de forma lineal sin atascos de sintaxis
-cd pkg && tar -I "zstd -19 -T0" -cf "../wrapper.tzst" usr && cd "${WORKSPACE}"
+tar -I "zstd -19 -T0" -cf "wrapper.tzst" -C pkg usr version.txt
 
 rm -f docker_run_inside.sh cross_libdrm.txt cross_64.txt stub_logs.c stub_c.o stub_cpp.o generate_cross.sh 2>/dev/null || true
 rm -rf meson_src/ shims_64/ build-64/
