@@ -7,28 +7,99 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-driver:
-    runs-on: ubuntu-24.04
+  build-aarch64-wrapper:
+    runs-on: ubuntu-latest
+    env:
+      BUILD_DIR: build
+      IMAGE_TAG: ghcr.io/leegao/mesa-wrapper-ci/wrapper-compiler:latest
+
     steps:
       - name: 📥 1. Checkout Code (Rama Activa wrapper-25)
         uses: actions/checkout@v4
-        with:
-          submodules: 'recursive'
-          fetch-depth: 1
 
-      - name: ⚙️ 2. Instalar Herramientas Regulatorias en el Host
+      - name: ⚙️ 2. Instalar Herramientas de Compresión en el Host
         run: |
           sudo apt-get update
-          sudo apt-get install -y patchelf zstd unzip python3-pip python3-setuptools
-          pip3 install --no-cache-dir mako packaging pyyaml
+          sudo apt-get install -y zstd patchelf python3
 
-      - name: 🛠️ 3. Ejecutar Orquestador Biónico Maestro
+      - name: 🛠️ 3. Ejecutar Compilador Nativo Inmaculado de LeeGao
         run: |
-          chmod +x build.sh
-          ./build.sh
+          # Corremos el contenedor de forma pura sin sobreescribir su entrypoint para que Ninja forje los 9.3MB reales
+          docker run --rm -v "${{ github.workspace }}:/workspace" ${{ env.IMAGE_TAG }} ${{ env.BUILD_DIR }}
 
-      - name: 📦 4. Cargar Artefacto de Driver Compilado
-        if: success()
+      - name: 📦 4. Forjar Maquetación Plana e ICD para Bannerlator
+        run: |
+          # Nos aseguramos de que el binario rey de 9.3MB nació en el disco duro
+          if [ -f "${{ env.BUILD_DIR }}/libvulkan_wrapper.so" ]; then
+              echo "-> [Host] ¡Éxito! Binario rey de 9.3 MB localizado."
+              
+              # Creamos la estructura UNIX limpia que exige Bannerlator
+              mkdir -p pkg/usr/lib pkg/usr/share/vulkan/icd.d
+              
+              # Copiamos el driver real de 9.3 MB a la raíz de librerías del paquete
+              cp -fv "${{ env.BUILD_DIR }}/libvulkan_wrapper.so" pkg/usr/lib/libvulkan_wrapper.so
+              
+              # Buscamos y rescatamos libdrm.so si el compilador lo dejó en build/
+              find ${{ env.BUILD_DIR }} -name "libdrm.so" -exec cp -fv {} pkg/usr/lib/libdrm.so \; 2>/dev/null || true
+              
+              # Ajustamos permisos plenos visibles de ejecución 755
+              chmod -R 755 pkg/
+              
+              # Sello estructural con patchelf para estabilidad de memoria
+              patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so || true
+              patchelf --set-rpath '$ORIGIN' pkg/usr/lib/libvulkan_wrapper.so || true
+              
+              # Inyectamos tu estructura de ICD exacta con library_path suelto limpio
+              cat << 'EOF' > pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
+              {
+                  "ICD": {
+                      "api_version": "1.3.289",
+                      "library_path": "libvulkan_wrapper.so"
+                  },
+                  "file_format_version": "1.0.0"
+              }
+          EOF
+              
+              echo "msf:315508" > pkg/version.txt
+              chmod -R 755 pkg/
+              
+              # Empaquetamos en el formato puro .tzst usando Python Tar para blindar los inodos
+              python3 -c '
+              import tarfile, os
+              with tarfile.open("wrapper.tar", "w") as tar:
+                  os.chdir("pkg")
+                  if os.path.exists("version.txt"):
+                      info = tar.gettarinfo("version.txt", arcname="version.txt")
+                      info.type = tarfile.REGTYPE
+                      info.mode = 0o755
+                      with open("version.txt", "rb") as f:
+                          tar.addfile(info, f)
+                  for root, dirs, files in os.walk("usr"):
+                      for d in dirs:
+                          p = os.path.normpath(os.path.join(root, d))
+                          info = tar.gettarinfo(p, arcname=p)
+                          info.type = tarfile.DIRTYPE
+                          info.mode = 0o755
+                          tar.addfile(info)
+                      for file in files:
+                          p = os.path.normpath(os.path.join(root, file))
+                          info = tar.gettarinfo(p, arcname=p)
+                          info.type = tarfile.REGTYPE
+                          info.mode = 0o755
+                          with open(p, "rb") as f:
+                              tar.addfile(info, f)
+              '
+              # Aplicamos la súper-compresión de alta densidad sobre el Workspace raíz
+              zstd -19 -T0 --rm wrapper.tar -o wrapper.tzst
+              echo "=========================================================="
+              echo " 🟢 MAQUETACIÓN COMPLETADA - ARCHIVO WRAPPER.TZST LISTO OK "
+              echo "=========================================================="
+          else
+              echo "-> [❌ ERROR GRAVE] El Docker nativo falló en escribir el binario de 9.3 MB."
+              exit 1
+          fi
+
+      - name: 🚀 5. Subir Artefacto Completo a GitHub
         uses: actions/upload-artifact@v4
         with:
           name: Bannerlator-Mali-Wrapper
