@@ -5,7 +5,7 @@ echo "-> [Docker Internal] Preparando directorios para stubs primarios..."
 mkdir -p shims_64/lib
 
 echo "-> [Docker Internal] Purgando directorios previos de construcción..."
-rm -rf build-libdrm/ build-64/ pkg/
+rm -rf build-libdrm/ build-64/ pkg/ pkg_internal/
 
 echo "-> [Docker Internal] Instalando dependencias de Python complementarias..."
 pip3 install --no-cache-dir --break-system-packages mako packaging || pip3 install --no-cache-dir mako packaging || true
@@ -15,7 +15,7 @@ export NDK_SYSROOT="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sy
 NDK_SYSROOT_LIB_64="${NDK_SYSROOT}/usr/lib/aarch64-linux-android"
 
 echo "-> [Docker Internal] Compilando stubs duales legítivos para enlazado preferencial..."
-$NDK_BIN/aarch64-linux-android26-clang -shared -fPIC stub_logs.c -o shims_64/lib/libvulkan_wrapper.so
+$NDK_BIN/aarch64-linux-android26-clang -shared -fPIC stub_logs.c -o shims_64/lib/libpasaporte_vulkan.so
 
 $NDK_BIN/aarch64-linux-android26-clang -c stub_logs.c -o stub_c.o
 $NDK_BIN/llvm-ar rcs shims_64/lib/liblog.a stub_c.o
@@ -53,7 +53,6 @@ if os.path.exists(p):
         print("-> [Docker Internal] Éxito: SYS_memfd_create transmutado a la Syscall 279 de forma literal.")
 '
 
-# 🟢 REPARACIÓN DEFINITIVA DE COMILLAS CON CHR(39): Python forzará la escritura del archivo con comillas simples nativas puras, complaciendo a Meson y anulando el error léxico sin depender del sistema de archivos del Host
 python3 -c '
 p="src/c11/impl/meson.build"
 import os
@@ -114,35 +113,26 @@ python3 meson_src/meson.py setup build-libdrm libdrm_android --cross-file /works
   -Dintel=disabled -Dradeon=disabled -Damdgpu=disabled -Dnouveau=disabled -Dman-pages=disabled -Dvalgrind=disabled -Dtests=false
 python3 meson_src/meson.py install -C build-libdrm
 
-# Compilación prioritaria invertida
 python3 meson_src/meson.py setup build-64 --cross-file /workspace/cross_64.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=wrapper,panfrost
 python3 meson_src/meson.py compile -C build-64
 
-# Escaneo elástico absoluto por coordenadas rígidas internas de Mesa 25
+# Extracción rígida directa por coordenadas absolutas de Mesa 25 hacia una recámara de intercambio limpia
 python3 -c '
 import os, shutil
 
-os.makedirs("pkg/usr/lib/aarch64-linux-android", exist_ok=True)
-os.makedirs("pkg/usr/share/vulkan/icd.d", exist_ok=True)
-
+os.makedirs("pkg_internal/usr/lib", exist_ok=True)
 real_wrapper = "build-64/src/vulkan/wrapper/libvulkan_wrapper.so"
-real_panfrost = "build-64/src/panfrost/vulkan/libvulkan_panfrost.so"
 
-if os.path.exists(real_wrapper) and os.path.exists(real_panfrost):
-    size_wrap = os.path.getsize(real_wrapper) / (1024 * 1024)
-    print(f"-> [Docker Internal] Wrapper Original detectado | Peso real: {size_wrap:.2f} MB")
-    
-    shutil.copy2(real_wrapper, "pkg/usr/lib/libvulkan_wrapper.so")
-    shutil.copy2(real_wrapper, "pkg/usr/lib/aarch64-linux-android/libvulkan_wrapper.so")
-    shutil.copy2(real_panfrost, "pkg/usr/lib/aarch64-linux-android/libvulkan_panfrost.so")
+if os.path.exists(real_wrapper):
+    size_mb = os.path.getsize(real_wrapper) / (1024 * 1024)
+    print(f"-> [Docker Internal] ¡Wrapper legítimo verificado de Mesa 25! Peso: {size_mb:.2f} MB")
+    shutil.copy2(real_wrapper, "pkg_internal/usr/lib/libvulkan_wrapper.so")
     
     drm_src = "shims_64/lib/libdrm.so"
     if os.path.exists(drm_src):
-        shutil.copy2(drm_src, "pkg/usr/lib/libdrm.so")
-        
-    print("-> [Docker Internal] Éxito: Jerarquía poblada con los binarios de 9.3 MB reales.")
+        shutil.copy2(drm_src, "pkg_internal/usr/lib/libdrm.so")
 else:
-    print("-> [Docker Internal ❌ ERROR CRÍTICO] Ninja no escribió los binarios esperados en build-64/src/")
+    print("-> [Docker Internal ❌ ERROR REAL] No apareció el binario de 9.3 MB en " + real_wrapper)
     exit(1)
 '
 sync
