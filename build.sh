@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO CON DOBLE ICD (PANFROST + WRAPPER) OK"
+echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO CON EXTRACCIÓN DE ENTORNO V69"
 echo "=========================================================="
 
 WORKSPACE="$(pwd)"
@@ -50,14 +50,16 @@ docker run --rm --entrypoint /bin/bash \
 echo "-> 4. Maquetando empaque unificado de proximidad biónica..."
 mkdir -p pkg/usr/lib/aarch64-linux-android pkg/usr/share/vulkan/icd.d
 
-WRAPPER_REAL_SRC="build-64/src/vulkan/wrapper/libvulkan_wrapper.so"
+# 🟢 REPARACIÓN CRÍTICA EXTRACCIÓN EXTRA: Mapeamos de forma explícita y forzada la ruta interna exacta de generación de Ninja para extraer el binario rey original del wrapper sin pérdidas sintácticas
+MESA_WRAPPER_OUTPUT="build-64/src/vulkan/wrapper/libvulkan_wrapper.so"
 
-if [ -f "$WRAPPER_REAL_SRC" ]; then
-    cp -v "$WRAPPER_REAL_SRC" pkg/usr/lib/libvulkan_wrapper.so
+if [ -f "$MESA_WRAPPER_OUTPUT" ]; then
+    echo "-> [Host] Extrayendo libvulkan_wrapper.so legítimo desde las fuentes de Mesa..."
+    cp -v "$MESA_WRAPPER_OUTPUT" pkg/usr/lib/libvulkan_wrapper.so
 elif [ -f "libvulkan_wrapper.so" ]; then
     cp -v libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
 else
-    echo "-> [❌ ERROR CRÍTICO] No se localizó el archivo físico real libvulkan_wrapper.so en $WRAPPER_REAL_SRC"
+    echo "-> [❌ ERROR CRÍTICO] El binario rey libvulkan_wrapper.so no apareció en su ruta de compilación."
     exit 1
 fi
 
@@ -82,7 +84,7 @@ if [ -f "$STRIP_HOST" ]; then
     $STRIP_HOST --strip-unneeded pkg/usr/lib/aarch64-linux-android/libvulkan_panfrost.so 2>/dev/null || true
 fi
 
-# Fabricamos de forma segura el enlace de acoplamiento para Termux
+# Fabricamos de forma segura el enlace de acoplamiento virtual simétrico para Termux
 echo "-> [Host] Inicializando enlace de acoplamiento para Panfrost..."
 cd pkg/usr/lib/aarch64-linux-android && ln -sf ../libvulkan_panfrost.so libvulkan_wrapper.so && cd "${WORKSPACE}"
 
@@ -95,19 +97,12 @@ patchelf --add-needed libdrm.so pkg/usr/lib/aarch64-linux-android/libvulkan_panf
 patchelf --set-rpath '$ORIGIN' pkg/usr/lib/aarch64-linux-android/libvulkan_panfrost.so
 patchelf --set-soname libdrm.so pkg/usr/lib/libdrm.so
 
-# 🟢 INYECCIÓN MAESTRA DOBLE ICD: Fabricamos los dos descriptores JSON reglamentarios exigidos por el estándar Khronos para mapear simétricamente tanto el Wrapper como el núcleo real de Panfrost
 cat << 'EOF' > pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
-{
-    "ICD": { "api_version": "1.3.289", "library_path": "libvulkan_wrapper.so" },
-    "file_format_version": "1.0.0"
-}
+{ "ICD": { "api_version": "1.3.289", "library_path": "libvulkan_wrapper.so" }, "file_format_version": "1.0.0" }
 EOF
 
 cat << 'EOF' > pkg/usr/share/vulkan/icd.d/panfrost_icd.aarch64.json
-{
-    "ICD": { "api_version": "1.3.289", "library_path": "aarch64-linux-android/libvulkan_panfrost.so" },
-    "file_format_version": "1.0.0"
-}
+{ "ICD": { "api_version": "1.3.289", "library_path": "aarch64-linux-android/libvulkan_panfrost.so" }, "file_format_version": "1.0.0" }
 EOF
 
 echo "-> 5. Sellando empaque de alta compresión..."
