@@ -38,7 +38,7 @@ import os
 if os.path.exists(p):
     f=open(p,"r"); c=f.read(); f.close()
     if "fcntl.h" not in c:
-        c = "#include <fcntl.h>\\n#include <unistd.h>\\n" + c
+        c = "#include <fcntl.h>\n#include <unistd.h>\n" + c
         f=open(p,"w"); f.write(c); f.close()
 '
 
@@ -62,7 +62,7 @@ import os
 if os.path.exists(p):
     f=open(p,"r"); c=f.read(); f.close()
     c = c.replace("#define HAVE_QSORT_R 1", "")
-    patch = "#ifndef HAVE_QSORT_R\\n#define HAVE_QSORT_R 1\\n#endif\\n#undef HAVE_QSORT_S\\n"
+    patch = "#ifndef HAVE_QSORT_R\n#define HAVE_QSORT_R 1\n#endif\n#undef HAVE_QSORT_S\n"
     c = patch + c
     f=open(p,"w"); f.write(c); f.close()
     print("-> [Docker Internal] Éxito: Control incondicional de ordenamiento inyectado en u_qsort.h")
@@ -70,19 +70,19 @@ if os.path.exists(p):
 
 echo "-> [Docker Internal] Aplicando parches sintácticos atómicos in-situ..."
 if [ -f "meson.build" ]; then
-    sed -i "s/.*find_library('dl'.*/declare_dependency(link_args : ['-ldl'])/g" meson.build
-    sed -i "s/.*find_library('rt'.*/declare_dependency(link_args : ['-lc'])/g" meson.build
-    sed -i "s/.*find_library('atomic'.*/declare_dependency(link_args : ['-latomic'])/g" meson.build
-    sed -i "s/dependency('libclc')/declare_dependency()/g" meson.build
+    sed -i "s#.*find_library('dl'.*#declare_dependency(link_args : ['-ldl'])#g" meson.build
+    sed -i "s#.*find_library('rt'.*#declare_dependency(link_args : ['-lc'])#g" meson.build
+    sed -i "s#.*find_library('atomic'.*#declare_dependency(link_args : ['-latomic'])#g" meson.build
+    sed -i "s#dependency('libclc')#declare_dependency()#g" meson.build
 fi
 
 if [ -d "subprojects/libadrenotools" ]; then
-    find subprojects/libadrenotools -name "meson.build" -exec sed -i "s/.*find_library('android'.*/declare_dependency(link_args : ['-landroid'])/g" {} +
-    find subprojects/libadrenotools -name "meson.build" -exec sed -i 's/.*find_library("android".*/declare_dependency(link_args : ["-landroid"])/g' {} +
-    find subprojects/libadrenotools -name "meson.build" -exec sed -i "s/.*find_library('log'.*/declare_dependency(link_args : ['-llog'])/g" {} +
-    find subprojects/libadrenotools -name "meson.build" -exec sed -i 's/.*find_library("log".*/declare_dependency(link_args : ["-llog"])/g' {} +
-    find subprojects/libadrenotools -name "meson.build" -exec sed -i "s/.*find_library('dl'.*/declare_dependency(link_args : ['-ldl'])/g" {} +
-    find subprojects/libadrenotools -name "meson.build" -exec sed -i 's/.*find_library("dl".*/declare_dependency(link_args : ["-ldl"])/g' {} +
+    find subprojects/libadrenotools -name "meson.build" -exec sed -i "s#.*find_library('android'.*#declare_dependency(link_args : ['-landroid'])#g" {} +
+    find subprojects/libadrenotools -name "meson.build" -exec sed -i 's#.*find_library("android".*#declare_dependency(link_args : ["-landroid"])#g' {} +
+    find subprojects/libadrenotools -name "meson.build" -exec sed -i "s#.*find_library('log'.*#declare_dependency(link_args : ['-llog'])#g" {} +
+    find subprojects/libadrenotools -name "meson.build" -exec sed -i 's#.*find_library("log".*#declare_dependency(link_args : ["-llog"])#g' {} +
+    find subprojects/libadrenotools -name "meson.build" -exec sed -i "s#.*find_library('dl'.*#declare_dependency(link_args : ['-ldl'])#g" {} +
+    find subprojects/libadrenotools -name "meson.build" -exec sed -i 's#.*find_library("dl".*#declare_dependency(link_args : ["-ldl"])#g' {} +
 fi
 
 echo "-> [Docker Internal] Mutando flags de enlace rígidos en Adrenotools..."
@@ -95,7 +95,7 @@ fi
 BYPASS_RECIPE="subprojects/libadrenotools/lib/linkernsbypass/meson.build"
 if [ -f "$BYPASS_RECIPE" ]; then
     echo "-> [Docker Internal] Estabilizando tokens globales sobre linkernsbypass..."
-    echo -e "libandroid_dep = declare_dependency(link_args : ['-landroid'])\\nliblog_dep = declare_dependency(link_args : ['-llog'])\\nlibdl_dep = declare_dependency(link_args : ['-ldl'])\\n$(cat $BYPASS_RECIPE)" > "$BYPASS_RECIPE"
+    echo -e "libandroid_dep = declare_dependency(link_args : ['-landroid'])\nliblog_dep = declare_dependency(link_args : ['-llog'])\nlibdl_dep = declare_dependency(link_args : ['-ldl'])\n$(cat $BYPASS_RECIPE)" > "$BYPASS_RECIPE"
 fi
 
 python3 meson_src/meson.py setup build-libdrm libdrm_android --cross-file /workspace/cross_libdrm.txt --prefix="/workspace/shims_64" \
@@ -121,7 +121,7 @@ if os.path.exists(src):
     if os.path.exists(drm_src):
         shutil.copy2(drm_src, "pkg/usr/lib/libdrm.so")
         
-    print("-> [Docker Internal] EXITO TOTAL: Los tres binarios reales legítimos fueron grabados a fuego en pkg/")
+    print("-> [Docker Internal] EXITO TOTAL: Los tres binarios reales legítivos fueron grabados a fuego en pkg/")
 else:
     print("-> [Docker Internal ❌ ERROR] No se encontró el binario compilado por Ninja.")
     exit(1)
