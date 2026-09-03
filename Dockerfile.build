@@ -24,7 +24,7 @@ RUN mkdir -p /tmp/sysroot && \
     for f in *.deb; do dpkg-deb -x "$f" /; done && \
     rm -rf /tmp/sysroot
 
-# 🟢 REPARACIÓN INDUSTRIAL TOTAL DE CABECERAS: Eliminamos el eco -e problemático. Escribimos la receta usando saltos de línea literales integrados en comillas simples de Docker (\). Esto garantiza que cross_file.txt empiece estrictamente con la cabecera [binaries] limpia y legal, aniquilando el error 'Malformed machine file' al instante
+# Mantenemos el compilador en el Target API moderno (30 o 28) como exige el Wrapper original
 RUN NDK_DIR=$(find /home/builder/lib -maxdepth 2 -name "android-ndk*" 2>/dev/null | head -n 1) && \
     NDK_BIN="${NDK_DIR}/toolchains/llvm/prebuilt/linux-x86_64/bin" && \
     mkdir -p /root/build-config && \
