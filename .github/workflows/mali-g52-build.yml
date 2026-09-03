@@ -19,7 +19,7 @@ jobs:
       - name: ⚙️ 2. Instalar Herramientas Regulatorias en el Host
         run: |
           sudo apt-get update
-          sudo apt-get install -y patchelf zstd unzip python3-pip python3-setuptools
+          sudo apt-get install -y patchelf zip unzip python3-pip python3-setuptools
           pip3 install --no-cache-dir mako packaging pyyaml
 
       - name: 🛠️ 3. Ejecutar Orquestador Biónico Maestro
@@ -32,5 +32,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Bannerlator-Mali-Wrapper
-          path: wrapper.tzst
+          path: wrapper.zip
           retention-days: 7
