@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO SEGURO COMPLETO V86"
+echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO SEGURO CON PYTHON TAR V87"
 echo "=========================================================="
 
 WORKSPACE="$(pwd)"
@@ -89,12 +89,33 @@ echo "-> [AUDITORÍA FINAL SANIDAD] Verificando presencia real en el disco antes
 ls -l pkg/usr/lib/libvulkan_wrapper.so
 ls -l pkg/usr/lib/aarch64-linux-android/libvulkan_wrapper.so
 
-# 🟢 EMPAQUETADO SIN RIESGOS CON DETECCION DE DUPLICADOS: Mantenemos --hard-dereference pero nos aseguramos de que no haya ninguna limpieza posterior que toque los inodos compartidos en caliente. tar escribira tus dos libvulkan_wrapper.so reales en tu tarball final wrapper.tzst exigido por Bannerlator de forma incondicional
-echo "-> 5. Sellando empaque de alta compresión..."
+# 🟢 REPARACIÓN SUPREMA EMPAQUETADOR PYTHON: Tiramos un script inline de Python que abre un flujo tarfile con compresión zstd de forma binaria pura. Python añade obligatoriamente cada archivo como una entidad física independiente con sus propios bytes, burlando de raíz cualquier descarte o enlace duro invisible que aplique el binario tar de Linux
+echo "-> 5. Sellando empaque de alta compresión mediante script biónico de Python..."
 sync
-cd pkg && tar --hard-dereference -I "zstd -19 -T0" -cf "../wrapper.tzst" * && cd "${WORKSPACE}"
+python3 -c '
+import tarfile, os
 
-# 🟢 CORRECCIÓN DE LIMPIEZA ADELANTADA: Removemos de forma estricta cualquier referencia a libvulkan_wrapper.so de este rm. Protegemos el archivo para que tar termine de bajar el flujo a disco sin interferencias
+with tarfile.open("wrapper.tzst", "w:zstd") as tar:
+    # Cambiamos el directorio de trabajo a pkg/ de forma interna en el hilo
+    os.chdir("pkg")
+    
+    # Escaneamos de forma lineal e inyectamos los archivos obligatorios uno a uno
+    for root, dirs, files in os.walk("."):
+        for file in files:
+            file_path = os.path.join(root, file)
+            # Limpiamos el prefijo "./" para que quede idéntico al estándar unix
+            archive_name = os.path.normpath(file_path)
+            
+            # Forzamos la creación como archivo regular de datos físicos puros
+            info = tar.gettarinfo(file_path, arcname=archive_name)
+            info.type = tarfile.REGTYPE # Aplasta cualquier optimización de enlace duro
+            
+            with open(file_path, "rb") as f:
+                tar.addfile(info, f)
+                
+print("-> [Python Tar] ¡Éxito absoluto! wrapper.tzst generado con todos sus binarios físicos pesados intactos.")
+'
+
 rm -f docker_run_inside.sh cross_libdrm.txt cross_64.txt stub_logs.c stub_c.o stub_cpp.o generate_cross.sh 2>/dev/null || true
 rm -rf meson_src/ shims_64/ build-64/
 
