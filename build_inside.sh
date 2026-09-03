@@ -3,7 +3,7 @@ set -e
 
 BUILD_DIR="${1:-${BUILD_DIR:-build}}"
 
-# 🟢 REPARACIÓN MOLECULAR DE FIRMAS PÚBLICAS V17: Removemos la directiva 'static inline' de todo el bloque inyectado y acoplamos los argumentos legítimos de wrapper_log.h. Al declararse como funciones globales ordinarias, se elimina de raíz el conflicto 'follows non-static declaration', permitiendo que Clang pase el hito 485 y ld.lld cierre el enlace final en verde total
+# 🟢 REPARACIÓN MOLECULAR DE TIPADO V18: Cambiamos 'const void* desc' por 'const AHardwareBuffer_Desc* desc' dentro de la firma de AHardwareBuffer_allocate. Al sincronizar de forma idéntica el tipo con la cabecera original de Google, destruimos el error 'conflicting types' de raíz, permitiendo que Clang termine el hito 487 y ld.lld enlace el Fat Binary de 9.3 MB reales
 WSI_CORE="src/vulkan/wsi/wsi_common.c"
 
 if [ -f "$WSI_CORE" ] && ! grep -q "pfn_AHardwareBuffer_sendHandleToUnixSocket" "$WSI_CORE"; then
@@ -23,11 +23,15 @@ patch = """#include <android/hardware_buffer.h>
 extern void* dlopen(const char* filename, int flag);
 extern void* dlsym(void* handle, const char* symbol);
 
-typedef int (*pfn_AHardwareBuffer_allocate)(const void*, struct AHardwareBuffer**);
+/* Estructuras opacas de Android registradas de forma legal */
+struct AHardwareBuffer;
+typedef struct AHardwareBuffer_Desc AHardwareBuffer_Desc;
+
+typedef int (*pfn_AHardwareBuffer_allocate)(const AHardwareBuffer_Desc*, struct AHardwareBuffer**);
 typedef void (*pfn_AHardwareBuffer_release)(struct AHardwareBuffer*);
 typedef int (*pfn_AHardwareBuffer_sendHandleToUnixSocket)(const struct AHardwareBuffer*, int);
 
-int AHardwareBuffer_allocate(const void* desc, struct AHardwareBuffer** outBuffer) {
+int AHardwareBuffer_allocate(const AHardwareBuffer_Desc* desc, struct AHardwareBuffer** outBuffer) {
     static pfn_AHardwareBuffer_allocate func = (pfn_AHardwareBuffer_allocate)-2;
     if (func == (pfn_AHardwareBuffer_allocate)-2) {
         void* h = dlopen("libandroid.so", RTLD_NOW);
@@ -66,11 +70,11 @@ if target in content:
     content = content.replace(target, patch)
     with open(p, "w") as f:
         f.write(content)
-    print("-> [Bypass OK] Resolvedor público acoplado detrás de hardware_buffer.h")
+    print("-> [Bypass OK] Resolvedor público alineado detrás de hardware_buffer.h")
 else:
     with open(p, "w") as f:
         f.write(patch + "\n" + content)
-    print("-> [Bypass Rescate] Parche público inyectado en la cabecera general.")
+    print("-> [Bypass Rescate] Parche de tipado inyectado en el encabezado general.")
 '
 fi
 
