@@ -105,15 +105,17 @@ python3 meson_src/meson.py install -C build-libdrm
 python3 meson_src/meson.py setup build-64 --cross-file /workspace/cross_64.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=panfrost,wrapper
 python3 meson_src/meson.py compile -C build-64
 
+# 🟢 REPARACIÓN CRÍTICA SUPREMA MESA_PANFROST: Rectificamos el path dinámico de extracción apuntando al binario legítimo 'libvulkan_mesa_panfrost.so' que genera Ninja por defecto en Mesa 25. Python tomará este silicio puro fundido y lo inyectará con sus nombres correctos en la raíz de empaque para que tar no deje huecos vacíos
 python3 -c '
 import os, shutil
-src = "build-64/src/panfrost/vulkan/libvulkan_panfrost.so"
+src = "build-64/src/panfrost/vulkan/libvulkan_mesa_panfrost.so"
 drm_src = "shims_64/lib/libdrm.so"
 
 if os.path.exists(src):
     os.makedirs("pkg/usr/lib/aarch64-linux-android", exist_ok=True)
     os.makedirs("pkg/usr/share/vulkan/icd.d", exist_ok=True)
     
+    # Clonación e inyección real incondicional en las carpetas de salida
     shutil.copy2(src, "pkg/usr/lib/aarch64-linux-android/libvulkan_panfrost.so")
     shutil.copy2(src, "pkg/usr/lib/aarch64-linux-android/libvulkan_wrapper.so")
     shutil.copy2(src, "pkg/usr/lib/libvulkan_wrapper.so")
@@ -121,9 +123,9 @@ if os.path.exists(src):
     if os.path.exists(drm_src):
         shutil.copy2(drm_src, "pkg/usr/lib/libdrm.so")
         
-    print("-> [Docker Internal] EXITO TOTAL: Los tres binarios reales legítivos fueron grabados a fuego en pkg/")
+    print("-> [Docker Internal] EXITO RECTIFICADO: ¡libvulkan_mesa_panfrost.so clonado y renombrado a wrapper con éxito!")
 else:
-    print("-> [Docker Internal ❌ ERROR] No se encontró el binario compilado por Ninja.")
+    print("-> [Docker Internal ❌ ERROR FATAL] No se localizó el archivo físico real en " + src)
     exit(1)
 '
 sync
