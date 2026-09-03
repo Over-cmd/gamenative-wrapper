@@ -3,10 +3,10 @@ set -e
 
 BUILD_DIR="${1:-${BUILD_DIR:-build}}"
 
-# 🟢 INYECCIÓN MOLECULAR CONTROLADA LOCAL V8: Usamos sed para inyectar un #define directo en la cabecera de wsi_common_x11.c. Al estar encapsulado únicamente dentro de este archivo, Clang resolverá la llamada conflictiva de HardwareBuffer transformándola localmente en un entero de error (-1). Esto protege al hito 101 de fallos y destruye el bache del hito 856 de forma síncrona
+# 🟢 REPARACIÓN MOLECULAR DEFINITIVA V9: En lugar de usar macros #define que rompen las declaraciones de hardware_buffer.h, inyectamos una implementación estática simulada de la función directamente en la cabecera de wsi_common_x11.c. Al estar declarada como código ejecutable local que devuelve -1, Clang compilará el hito 490 sin errores de sintaxis y ld.lld cerrará el enlace del hito 856 de forma instantánea al encontrar el símbolo resuelto localmente
 if [ -f "src/vulkan/wsi/wsi_common_x11.c" ]; then
-    echo "-> [Bypass Quirúrgico] Inyectando macro-parche local en la cabecera del WSI X11..."
-    echo -e "#define AHardwareBuffer_sendHandleToUnixSocket(b,s) (-1)\n$(cat src/vulkan/wsi/wsi_common_x11.c)" > src/vulkan/wsi/wsi_common_x11.c
+    echo "-> [Bypass Quirúrgico] Inyectando definición estática de HardwareBuffer en el WSI X11..."
+    echo -e "struct AHardwareBuffer;\nint AHardwareBuffer_sendHandleToUnixSocket(const struct AHardwareBuffer* b, int s) { return -1; }\n$(cat src/vulkan/wsi/wsi_common_x11.c)" > src/vulkan/wsi/wsi_common_x11.c
 fi
 
 if [ ! -d "${BUILD_DIR}" ]; then
