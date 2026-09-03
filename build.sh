@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO SEGURO CON PERMISOS VISIBLES V88"
+echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO SEGURO CON EMPEQUETADO RÍGIDO COMPLETO V89"
 echo "=========================================================="
 
 WORKSPACE="$(pwd)"
@@ -47,7 +47,6 @@ docker run --rm --entrypoint /bin/bash \
   -v "${ANDROID_NDK_HOME}:${ANDROID_NDK_HOME}" \
   -w /workspace ghcr.io/leegao/mesa-wrapper-ci/wrapper-compiler:latest ./docker_run_inside.sh
 
-# 🟢 REPARACIÓN DE ALTA VISIBILIDAD V88: Forzamos la apertura de permisos plenos de lectura, escritura y EJECUCIÓN (755) de forma masiva sobre todo el árbol pkg/ ANTES de que actúen strip, patchelf o el compresor. Esto garantiza que libvulkan_wrapper.so viaje libre de candados 444, obligando a Android a extraerlo y pintarlo en disco sin restricciones ocultas
 echo "-> 4. Estabilizando cabeceras de empaque con permisos plenos 755..."
 chmod -R 755 pkg/
 
@@ -84,35 +83,35 @@ cat << 'EOF' > pkg/usr/share/vulkan/icd.d/panfrost_icd.aarch64.json
 EOF
 
 echo "msf:315508" > pkg/version.txt
-# Re-aseguramos la apertura total del inodo antes del empaquetador
 chmod -R 755 pkg/
 
-echo "-> [AUDITORÍA FINAL SANIDAD] Verificando presencia real y permisos en el disco:"
+echo "-> [AUDITORÍA FINAL SANIDAD] Verificando presencia real y permisos en el disco antes de empacar:"
 ls -l pkg/usr/lib/libvulkan_wrapper.so
 ls -l pkg/usr/lib/aarch64-linux-android/libvulkan_wrapper.so
 
-echo "-> 5. Sellando empaque de alta compresión mediante script biónico de Python..."
+# 🟢 REPARACIÓN INDUSTRIAL TOTAL DE COMPRESIÓN: Python genera el archivo .tar ordinario inyectando cada inodo regular de 9.3 MB de forma física e independiente con su permiso de alta visibilidad 755 de Khronos. Justo después, el binario zstd nativo del Host comprime el bloque de forma atómica a máxima densidad, entregando el tarball wrapper.tzst legítimo para Bannerlator libre de caídas léxicas
+echo "-> 5. Forjando estructura física lineal con Python Tar..."
 sync
 python3 -c '
 import tarfile, os
 
-with tarfile.open("wrapper.tzst", "w:zstd") as tar:
+with tarfile.open("wrapper.tar", "w") as tar:
     os.chdir("pkg")
     for root, dirs, files in os.walk("."):
         for file in files:
             file_path = os.path.join(root, file)
             archive_name = os.path.normpath(file_path)
             
-            # Forzamos la creación como archivo de datos físicos reales regulares
             info = tar.gettarinfo(file_path, arcname=archive_name)
             info.type = tarfile.REGTYPE 
-            info.mode = 0o755 # 🟢 ASIGNACIÓN MÁXIMA DE PERMISOS: Grabamos a fuego el permiso de ejecución visible rwxr-xr-x en las cabeceras internas de cada binario dentro del tarball, impidiendo que Android aborte su extracción
+            info.mode = 0o755 
             
             with open(file_path, "rb") as f:
                 tar.addfile(info, f)
-                
-print("-> [Python Tar] ¡Éxito absoluto! wrapper.tzst generado con permisos visibles 755 intactos.")
 '
+
+echo "-> [Host] Aplicando súper-compresión industrial Zstd sobre el tarball..."
+zstd -19 -T0 --rm wrapper.tar -o wrapper.tzst
 
 rm -f docker_run_inside.sh cross_libdrm.txt cross_64.txt stub_logs.c stub_c.o stub_cpp.o generate_cross.sh 2>/dev/null || true
 rm -rf meson_src/ shims_64/ build-64/
