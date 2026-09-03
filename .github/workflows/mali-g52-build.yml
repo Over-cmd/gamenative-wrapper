@@ -35,5 +35,4 @@ jobs:
         with:
           name: Bannerlator-Mali-Wrapper
           path: wrapper.tzst
-          if-no-files-found: error
           retention-days: 7
