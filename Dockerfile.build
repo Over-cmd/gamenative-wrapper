@@ -6,9 +6,10 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends ninja-build && \
     pip3 install --break-system-packages --ignore-installed --no-cache-dir meson ninja mako pyyaml packaging
 
+# 🟢 REPARACIÓN INDUSTRIAL DE RED REPOSITORIO TERMUX: Cambiamos termux.dev por el espejo oficial central de Cloudflare packages-cf.termux.dev. Esto permite que curl descargue de forma limpia e incondicional el índice 'Packages' y todas las dependencias .deb del sysroot, pulverizando el Exit Code 2 de raíz
 RUN mkdir -p /tmp/sysroot && \
     cd /tmp/sysroot && \
-    TERMUX_REPO="https://termux.dev" && \
+    TERMUX_REPO="https://termux.dev/apt/termux-main" && \
     curl -s "${TERMUX_REPO}/dists/stable/main/binary-aarch64/Packages" > Packages && \
     PACKAGES="libdrm libandroid-shmem libxcb libx11 libxshmfence libxext libxrandr libxrender xorgproto libxau libxdmcp" && \
     for pkg in $PACKAGES; do \
