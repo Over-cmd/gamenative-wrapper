@@ -53,16 +53,16 @@ if os.path.exists(p):
         print("-> [Docker Internal] Éxito: SYS_memfd_create transmutado a la Syscall 279 de forma literal.")
 '
 
-# 🟢 REPARACIÓN CRÍTICA PARADOJA DEP_CLOCK: Inyectamos una inicialización local y segura para dep_clock en la raíz del submódulo c11 antes del setup. Esto elude el error de Meson por precedencia invertida de drivers sin alterar las firmas globales
+# 🟢 REPARACIÓN INDUSTRIAL TOTAL DE COMILLAS V88: Usamos comillas dobles internas en Python para inyectar \"-lc\" de forma balanceada. Esto destruye el fallo léxico de Meson sobre variables desconocidas en el acto
 python3 -c '
 p="src/c11/impl/meson.build"
 import os
 if os.path.exists(p):
     f=open(p,"r"); c=f.read(); f.close()
-    if "dep_clock =" not in c.split("\n")[0]:
-        c = "dep_clock = declare_dependency(link_args : ['-lc'])\n" + c
+    if "dep_clock =" not in c:
+        c = "dep_clock = declare_dependency(link_args : [\"-lc\"])\n" + c
         f=open(p,"w"); f.write(c); f.close()
-        print("-> [Docker Internal] Éxito: dep_clock estabilizado de forma local en c11/impl/meson.build")
+        print("-> [Docker Internal] Éxito: dep_clock estabilizado de forma local con comillas puras.")
 '
 
 echo "-> [Docker Internal] Ejecutando barrido total recursivo de secure_getenv hacia getenv..."
@@ -114,9 +114,11 @@ python3 meson_src/meson.py setup build-libdrm libdrm_android --cross-file /works
   -Dintel=disabled -Dradeon=disabled -Damdgpu=disabled -Dnouveau=disabled -Dman-pages=disabled -Dvalgrind=disabled -Dtests=false
 python3 meson_src/meson.py install -C build-libdrm
 
+# Ejecutamos la precedencia cruzada invertida de drivers
 python3 meson_src/meson.py setup build-64 --cross-file /workspace/cross_64.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=wrapper,panfrost
 python3 meson_src/meson.py compile -C build-64
 
+# Escaneo elástico exclusivo en build-64/src para asegurar el archivo de 9.3 MB real
 python3 -c '
 import os, shutil
 
