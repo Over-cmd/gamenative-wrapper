@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO SEGURO PARA BANNERLATOR V97"
+echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO COMPLETO INTEGRADO V98"
 echo "=========================================================="
 
 WORKSPACE="$(pwd)"
@@ -16,13 +16,14 @@ if [ -z "$ANDROID_NDK_HOME" ] || [ ! -d "$ANDROID_NDK_HOME" ]; then
     exit 1
 fi
 echo "-> [OK] Android NDK detectado físicamente en: $ANDROID_NDK_HOME"
+SYSROOT="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
 
 if [ -f "meson.build" ] && grep -q "WORKSPACE=" "meson.build"; then
     rm -f meson.build
 fi
 git checkout HEAD -- meson.build 2>/dev/null || git checkout -f meson.build 2>/dev/null || true
 
-chmod +x patch_mesa.sh generate_cross.sh docker_run_inside.sh
+chmod +x patch_mesa.sh docker_run_inside.sh
 ./patch_mesa.sh
 rm -f subprojects/libadrenotools.wrap
 
@@ -35,7 +36,54 @@ if [ -d "subprojects/libadrenotools" ]; then
 fi
 
 if [ -f "stub_logs.c" ]; then chmod 644 stub_logs.c; fi
-./generate_cross.sh
+
+# 🟢 INYECCIÓN MAESTRA DE CROSS-FILES INTEGRADOS: Escribimos las recetas de forma directa desde build.sh usando la variable expandida del NDK detectada de forma síncrona. Esto elimina por completo el error del compilador fantasma o desalineaciones en la máquina virtual
+echo "-> Generando cross_libdrm.txt legítimo con Sysroot expandido..."
+cat << EOF > cross_libdrm.txt
+[binaries]
+c = '${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android26-clang'
+cpp = '${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android26-clang++'
+ar = '${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar'
+strip = '${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip'
+ninja = '/usr/bin/ninja'
+[host_machine]
+system = 'android'
+cpu_family = 'aarch64'
+cpu = 'aarch64'
+endian = 'little'
+[properties]
+sys_root = '${SYSROOT}'
+[built-in options]
+c_args = ['--sysroot=${SYSROOT}', '-I${SYSROOT}/usr/include/aarch64-linux-android', '-DANDROID', '-D_GNU_SOURCE']
+cpp_args = ['--sysroot=${SYSROOT}', '-I${SYSROOT}/usr/include/aarch64-linux-android', '-DANDROID', '-D_GNU_SOURCE']
+EOF
+
+echo "-> Generando cross_64.txt de Mesa 25 con enlace de pasaporte simétrico..."
+cat << EOF > cross_64.txt
+[binaries]
+c = '${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android26-clang'
+cpp = '${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android26-clang++'
+ar = '${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar'
+strip = '${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip'
+pkg-config = '/usr/bin/pkg-config'
+ninja = '/usr/bin/ninja'
+[host_machine]
+system = 'android'
+cpu_family = 'aarch64'
+cpu = 'aarch64'
+endian = 'little'
+[properties]
+needs_exe_wrapper = true
+sys_root = '${SYSROOT}'
+libdir = ['/workspace/shims_64/lib', '${SYSROOT}/usr/lib/aarch64-linux-android']
+pkg_config_path = '/workspace/shims_64/lib/pkgconfig'
+pkg_config_libdir = '/workspace/shims_64/lib/pkgconfig'
+[built-in options]
+c_args = ['--sysroot=${SYSROOT}', '-I${SYSROOT}/usr/include/aarch64-linux-android', '-D__TERMUX__', '-B/workspace/shims_64/lib', '-I/workspace', '-I/workspace/src', '-I/workspace/shims_64/include', '-I/workspace/shims_64/include/libdrm']
+cpp_args = ['--sysroot=${SYSROOT}', '-I${SYSROOT}/usr/include/aarch64-linux-android', '-D__TERMUX__', '-B/workspace/shims_64/lib', '-I/workspace', '-I/workspace/src', '-I/workspace/shims_64/include', '-I/workspace/shims_64/include/libdrm']
+c_link_args = ['-Wl,-z,undefs', '-Wl,--allow-shlib-undefined', '-L/workspace/shims_64/lib', '-L${SYSROOT}/usr/lib/aarch64-linux-android', '-landroid', '-llog', '-ldl', '-lsync', '-lvulkan_wrapper', '-latomic', '-lm']
+cpp_link_args = ['-Wl,-z,undefs', '-Wl,--allow-shlib-undefined', '-L/workspace/shims_64/lib', '-L${SYSROOT}/usr/lib/aarch64-linux-android', '-landroid', '-llog', '-ldl', '-lsync', '-lvulkan_wrapper', '-latomic', '-lm']
+EOF
 
 chmod -R 777 "$WORKSPACE"
 
@@ -74,7 +122,6 @@ patchelf --set-rpath '$ORIGIN/..' pkg/usr/lib/aarch64-linux-android/libvulkan_wr
 
 patchelf --set-soname libdrm.so pkg/usr/lib/libdrm.so
 
-# Configuración ICD absoluta para Bannerlator apuntando al binario rey original
 cat << 'EOF' > pkg/usr/share/vulkan/icd.d/panfrost_icd.aarch64.json
 {
     "ICD": { "api_version": "1.3.289", "library_path": "/data/data/com.termux/files/usr/lib/libvulkan_wrapper.so" },
@@ -89,7 +136,6 @@ echo "-> [AUDITORÍA FINAL SANIDAD] Verificando presencia real antes del empaque
 ls -l pkg/usr/lib/libvulkan_wrapper.so
 ls -l pkg/usr/lib/aarch64-linux-android/libvulkan_wrapper.so
 
-# Empaquetado por inyección lineal de inodos con Python Tar plano
 echo "-> 5. Forjando estructura física y carpetas lineales con Python Tar..."
 sync
 python3 -c '
