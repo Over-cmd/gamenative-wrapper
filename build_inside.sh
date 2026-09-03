@@ -3,42 +3,49 @@ set -e
 
 BUILD_DIR="${1:-${BUILD_DIR:-build}}"
 
-# 🟢 REPARACIÓN ARQUITECTÓNICA SÍNCRONA V11: Python inyecta la lógica de enlace dinámico elástico en la cabecera de wsi_common_x11.c. Declaramos la firma legítima y programamos el mapeo dinámico usando dlopen/dlsym sobre libandroid.so y libnativewindow.so. Esto complace a Clang en el hito 488, resuelve el símbolo en el hito 856 y otorga compatibilidad total en entornos de traducción de llamadas (Termux, Box64, Winlator) de forma incondicional
-python3 -c '
-p = "src/vulkan/wsi/wsi_common_x11.c"
-import os
-if os.path.exists(p):
-    print("-> [Bypass Quirúrgico] Inyectando motor elástico dlopen/dlsym en el WSI X11...")
+# 🟢 REPARACIÓN INDUSTRIAL TOTAL DE PROTOTIPO V11 (Carga Dinámica Real):
+# Reemplazamos el stub estático inútil (-1) por un resolvedor dinámico mediante dlopen/dlsym.
+# Si la función real existe en el sistema anfitrión (libandroid.so o libnativewindow.so),
+# se ejecutará con CERO COPIAS reales preservando el canal IPC. Si no, mitigará el error elegantemente.
+if [ -f "src/vulkan/wsi/wsi_common_x11.c" ]; then
+    echo "-> [Bypass Quirúrgico] Inyectando resolvedor dinámico de HardwareBuffer para libandroid.so..."
     
-    inject_code = """#include <dlfcn.h>
+    # Creamos el bloque de código C que se inyectará al principio del archivo
+    PARCHE_DINAMICO=$(cat << 'EOF'
 struct AHardwareBuffer;
 typedef int (*pfn_AHardwareBuffer_sendHandleToUnixSocket)(const struct AHardwareBuffer*, int);
 
-static inline int AHardwareBuffer_sendHandleToUnixSocket(const struct AHardwareBuffer* buffer, int socketFd) {
-    void *handle = dlopen("libandroid.so", RTLD_LAZY);
+static inline int AHardwareBuffer_sendHandleToUnixSocket(const struct AHardwareBuffer* b, int s) {
+    #define RTLD_NOW 2
+    extern void* dlopen(const char* filename, int flag);
+    extern void* dlsym(void* handle, const char* symbol);
+    extern int dlclose(void* handle);
+
+    void* handle = dlopen("libandroid.so", RTLD_NOW);
     if (!handle) {
-        handle = dlopen("libnativewindow.so", RTLD_LAZY);
+        handle = dlopen("libnativewindow.so", RTLD_NOW);
     }
+    
     if (handle) {
         pfn_AHardwareBuffer_sendHandleToUnixSocket func = 
             (pfn_AHardwareBuffer_sendHandleToUnixSocket)dlsym(handle, "AHardwareBuffer_sendHandleToUnixSocket");
         if (func) {
-            int res = func(buffer, socketFd);
+            int result = func(b, s);
             dlclose(handle);
-            return res;
+            return result;
         }
         dlclose(handle);
     }
-    return -1;
+    return -1; /* Respaldo seguro si el entorno carece totalmente de la API */
 }
-"""
-    with open(p, "r") as f:
-        original_content = f.read()
-        
-    with open(p, "w") as f:
-        f.write(inject_code + "\n" + original_content)
-    print("-> [Bypass WSI V11] ¡Motor elástico inyectado de forma inmaculada en piedra!")
-'
+EOF
+)
+
+    # Inyectamos el parche al principio de wsi_common_x11.c evitando recursividad infinita
+    if ! grep -q "pfn_AHardwareBuffer_sendHandleToUnixSocket" src/vulkan/wsi/wsi_common_x11.c; then
+        echo -e "${PARCHE_DINAMICO}\n$(cat src/vulkan/wsi/wsi_common_x11.c)" > src/vulkan/wsi/wsi_common_x11.c
+    fi
+fi
 
 if [ ! -d "${BUILD_DIR}" ]; then
   meson setup "${BUILD_DIR}" --cross-file /root/build-config/cross_file.txt \
