@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO SEGURO CON BLINDAJE DE TAR V73"
+echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO SEGURO CON ENLACES REALES V74"
 echo "=========================================================="
 
 WORKSPACE="$(pwd)"
@@ -48,6 +48,8 @@ docker run --rm --entrypoint /bin/bash \
   -w /workspace ghcr.io/leegao/mesa-wrapper-ci/wrapper-compiler:latest ./docker_run_inside.sh
 
 echo "-> 4. Maquetando empaque unificado de proximidad biónica..."
+# Limpiamos con furia cualquier residuo previo de empaques fallidos antes de estructurar
+rm -rf pkg/
 mkdir -p pkg/usr/lib/aarch64-linux-android pkg/usr/share/vulkan/icd.d
 
 PANFROST_REAL_SRC="build-64/src/panfrost/vulkan/libvulkan_panfrost.so"
@@ -56,11 +58,8 @@ if [ -f "$PANFROST_REAL_SRC" ]; then
     echo "-> [Host] Desplegando libvulkan_panfrost.so legítimo..."
     cp -v "$PANFROST_REAL_SRC" pkg/usr/lib/aarch64-linux-android/libvulkan_panfrost.so
     
-    echo "-> [Host] Generando libvulkan_wrapper.so mediante clonación de silicio real..."
+    echo "-> [Host] Generando libvulkan_wrapper.so en la raíz de empaque..."
     cp -v "$PANFROST_REAL_SRC" pkg/usr/lib/libvulkan_wrapper.so
-    
-    # Congelamos temporalmente el archivo clonado para protegerlo durante el strip inicial
-    chmod 444 pkg/usr/lib/libvulkan_wrapper.so
 else
     echo "-> [❌ ERROR CRÍTICO] El motor real de Panfrost no apareció en $PANFROST_REAL_SRC"
     exit 1
@@ -72,29 +71,36 @@ else
     echo "-> [❌ ERROR CRÍTICO] Falta libdrm.so en shims_64/"; exit 1
 fi
 
+# 🟢 REPARACIÓN INDUSTRIAL ENLACES REALES V74: Reemplazamos el 'ln -sf' blando conflictivo por una clonación física directa mediante enlace duro en disco. Al ser inodos reales consolidados, el comando tar los procesará y meterá al paquete de forma obligatoria e incondicional
+echo "-> [Host] Inicializando enlace de acoplamiento físico real para Panfrost..."
+rm -f pkg/usr/lib/aarch64-linux-android/libvulkan_wrapper.so || true
+ln pkg/usr/lib/libvulkan_wrapper.so pkg/usr/lib/aarch64-linux-android/libvulkan_wrapper.so
+
+# Abrimos los permisos del Host de forma masiva para patchelf y strip
+chmod -R 755 pkg/
+
 STRIP_HOST="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip"
 if [ -f "$STRIP_HOST" ]; then
     echo "-> [Host] Aligerando binarios reales con llvm-strip de forma explícita..."
-    chmod 644 pkg/usr/lib/libvulkan_wrapper.so || true
     $STRIP_HOST --strip-unneeded pkg/usr/lib/libvulkan_wrapper.so 2>/dev/null || true
     $STRIP_HOST --strip-unneeded pkg/usr/lib/libdrm.so 2>/dev/null || true
     $STRIP_HOST --strip-unneeded pkg/usr/lib/aarch64-linux-android/libvulkan_panfrost.so 2>/dev/null || true
+    $STRIP_HOST --strip-unneeded pkg/usr/lib/aarch64-linux-android/libvulkan_wrapper.so 2>/dev/null || true
 fi
-
-echo "-> [Host] Inicializando enlace de acoplamiento para Panfrost..."
-cd pkg/usr/lib/aarch64-linux-android && ln -sf ../libvulkan_panfrost.so libvulkan_wrapper.so && cd "${WORKSPACE}"
-
-# 🟢 REPARACIÓN CRÍTICA RESTAURACIÓN PREFERENCIAL: Abrimos los permisos de lectura, escritura y ejecución al 100% sobre todo el empaque pkg/ ANTES de ejecutar patchelf. Esto destruye el fallo de "Permission denied" permitiendo el sellado binario incondicional
-echo "-> [Host] Abriendo permisos plenos para patchelf y empaquetado..."
-chmod -R 755 pkg/
 
 echo "-> [Host] Aplicando sellado estructural con patchelf..."
 patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so || true
 patchelf --add-needed libdrm.so pkg/usr/lib/libvulkan_wrapper.so || true
 patchelf --set-rpath '$ORIGIN' pkg/usr/lib/libvulkan_wrapper.so || true
+
 patchelf --set-soname libvulkan_panfrost.so pkg/usr/lib/aarch64-linux-android/libvulkan_panfrost.so
 patchelf --add-needed libdrm.so pkg/usr/lib/aarch64-linux-android/libvulkan_panfrost.so
 patchelf --set-rpath '$ORIGIN' pkg/usr/lib/aarch64-linux-android/libvulkan_panfrost.so
+
+patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/aarch64-linux-android/libvulkan_wrapper.so || true
+patchelf --add-needed libdrm.so pkg/usr/lib/aarch64-linux-android/libvulkan_wrapper.so || true
+patchelf --set-rpath '$ORIGIN' pkg/usr/lib/aarch64-linux-android/libvulkan_wrapper.so || true
+
 patchelf --set-soname libdrm.so pkg/usr/lib/libdrm.so
 
 cat << 'EOF' > pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
@@ -105,12 +111,15 @@ cat << 'EOF' > pkg/usr/share/vulkan/icd.d/panfrost_icd.aarch64.json
 { "ICD": { "api_version": "1.3.289", "library_path": "aarch64-linux-android/libvulkan_panfrost.so" }, "file_format_version": "1.0.0" }
 EOF
 
+# Forzamos la apertura total de permisos reglamentarios antes del empaquetado final
+chmod -R 755 pkg/
+
 echo "-> 5. Sellando empaque de alta compresión..."
 echo "msf:315508" > pkg/version.txt
 cd pkg && tar -I "zstd -19 -T0" -cf "../wrapper.tzst" usr version.txt && cd "${WORKSPACE}"
 
-# Limpieza profiláctica estricta libre de comodines peligrosos que toquen pkg/
-rm -f docker_run_inside.sh cross_libdrm.txt cross_64.txt stub_logs.c stub_c.o stub_cpp.o generate_cross.sh libvulkan_wrapper.so 2>/dev/null || true
+# Limpieza profiláctica estricta libre de comodines peligrosos que puedan tocar la carpeta pkg/
+rm -f docker_run_inside.sh cross_libdrm.txt cross_64.txt stub_logs.c stub_c.o stub_cpp.o generate_cross.sh 2>/dev/null || true
 rm -rf meson_src/ shims_64/ build-64/
 
 echo "=========================================================="
