@@ -13,12 +13,17 @@ RUN mkdir -p /tmp/sysroot && \
     if [ ! -s Packages ] || grep -q "<html>" Packages; then \
         echo "-> [Bypass Red] CDN principal inaccesible. Conmutando al espejo secundario oficial..."; \
         TERMUX_REPO="https://grimler.se"; \
-        curl -sL "${TERMUX_REPO}/dists/stable/main/binary-aarch64/Packages" > Packages; \
+        curl -sL "${TERMUX_REPO}/termux/termux-main/dists/stable/main/binary-aarch64/Packages" > Packages; \
     fi && \
     PACKAGES="libdrm libandroid-shmem libxcb libx11 libxshmfence libxext libxrandr libxrender xorgproto libxau libxdmcp" && \
     for pkg in $PACKAGES; do \
         pkg_path=$(awk -v p="Package: $pkg" '$0==p{flag=1} flag && /^Filename:/{print $2; exit}' Packages) && \
-        curl -L -O "${TERMUX_REPO}/${pkg_path}"; \
+        # 🟢 CORRECCIÓN: Si estamos usando Grimler, inyectamos la ruta del repositorio antes del archivo .deb
+        if [ "$TERMUX_REPO" = "https://grimler.se" ]; then \
+            curl -L -O "${TERMUX_REPO}/termux/termux-main/${pkg_path}"; \
+        else \
+            curl -L -O "${TERMUX_REPO}/${pkg_path}"; \
+        fi \
     done && \
     mkdir -p /data/data/com.termux/files/usr && \
     for f in *.deb; do dpkg-deb -x "$f" /; done && \
