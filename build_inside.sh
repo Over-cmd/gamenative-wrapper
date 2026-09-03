@@ -3,6 +3,12 @@ set -e
 
 BUILD_DIR="${1:-${BUILD_DIR:-build}}"
 
+# 🟢 BYPASS QUIRÚRGICO DE HARDWAREBUFFER: Si el archivo wsi_common_x11.c existe, usamos sed para forzar a que no intente usar las llamadas nativas de AHardwareBuffer dentro de los entornos de ventanas de Termux-X11. Esto evita el crash del hito 855 manteniendo la API alta (30/28) intacta para el Wrapper
+if [ -f "src/vulkan/wsi/wsi_common_x11.c" ]; then
+    echo "-> [Bypass] Aplicando parche estructural en wsi_common_x11.c para elusión de símbolos..."
+    sed -i 's/AHardwareBuffer_sendHandleToUnixSocket/NULL/g' src/vulkan/wsi/wsi_common_x11.c || true
+fi
+
 if [ ! -d "${BUILD_DIR}" ]; then
   meson setup "${BUILD_DIR}" --cross-file /root/build-config/cross_file.txt \
       -Dcpp_rtti=false \
