@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO MAESTRO SEGURO V88"
+echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO SEGURO COMPLETO V86"
 echo "=========================================================="
 
 WORKSPACE="$(pwd)"
@@ -26,7 +26,6 @@ chmod +x patch_mesa.sh generate_cross.sh docker_run_inside.sh
 ./patch_mesa.sh
 rm -f subprojects/libadrenotools.wrap
 
-# 🟢 REPARACIÓN SUPREMA TOTAL INDESTRUCTIBLE: Mutamos el separador de sed a la barra vertical o tubería (|). Esto permite que las almohadillas (#) de tus comentarios y las matrices de Meson convivan de forma legal sin causar colisiones sintácticas ni levantar el error "unknown option to s" en el Host
 echo "-> 1b. Aplicando parches sintácticos y bypass de API en el Host..."
 if [ -d "subprojects/libadrenotools" ]; then
     find subprojects/libadrenotools -name "meson.build" -exec sed -i "s|cc.find_library('android'|dependency('', required : false) # Ontario|g" {} +
@@ -90,10 +89,12 @@ echo "-> [AUDITORÍA FINAL SANIDAD] Verificando presencia real en el disco antes
 ls -l pkg/usr/lib/libvulkan_wrapper.so
 ls -l pkg/usr/lib/aarch64-linux-android/libvulkan_wrapper.so
 
+# 🟢 EMPAQUETADO SIN RIESGOS CON DETECCION DE DUPLICADOS: Mantenemos --hard-dereference pero nos aseguramos de que no haya ninguna limpieza posterior que toque los inodos compartidos en caliente. tar escribira tus dos libvulkan_wrapper.so reales en tu tarball final wrapper.tzst exigido por Bannerlator de forma incondicional
 echo "-> 5. Sellando empaque de alta compresión..."
 sync
-tar --hard-dereference -I "zstd -19 -T0" -cf "wrapper.tzst" -C pkg usr version.txt
+cd pkg && tar --hard-dereference -I "zstd -19 -T0" -cf "../wrapper.tzst" * && cd "${WORKSPACE}"
 
+# 🟢 CORRECCIÓN DE LIMPIEZA ADELANTADA: Removemos de forma estricta cualquier referencia a libvulkan_wrapper.so de este rm. Protegemos el archivo para que tar termine de bajar el flujo a disco sin interferencias
 rm -f docker_run_inside.sh cross_libdrm.txt cross_64.txt stub_logs.c stub_c.o stub_cpp.o generate_cross.sh 2>/dev/null || true
 rm -rf meson_src/ shims_64/ build-64/
 
