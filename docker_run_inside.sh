@@ -15,7 +15,6 @@ export NDK_SYSROOT="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sy
 NDK_SYSROOT_LIB_64="${NDK_SYSROOT}/usr/lib/aarch64-linux-android/26"
 
 echo "-> [Docker Internal] Compilando stubs duales legítivos para enlazado preferencial..."
-# 🟢 CORRECCIÓN DE IDENTIDAD: Le cambiamos el nombre de salida al stub artificial a libvulkan_stub_wrapper.so. Esto impide que el buscador elástico del script se confunda y capture este archivo de 2.56MB por error
 $NDK_BIN/aarch64-linux-android26-clang -shared -fPIC stub_logs.c -o shims_64/lib/libvulkan_stub_wrapper.so
 
 $NDK_BIN/aarch64-linux-android26-clang -c stub_logs.c -o stub_c.o
@@ -52,6 +51,18 @@ if os.path.exists(p):
         c = c.replace("SYS_memfd_create", "279")
         f=open(p,"w"); f.write(c); f.close()
         print("-> [Docker Internal] Éxito: SYS_memfd_create transmutado a la Syscall 279 de forma literal.")
+'
+
+# 🟢 REPARACIÓN CRÍTICA PARADOJA DEP_CLOCK: Inyectamos una inicialización local y segura para dep_clock en la raíz del submódulo c11 antes del setup. Esto elude el error de Meson por precedencia invertida de drivers sin alterar las firmas globales
+python3 -c '
+p="src/c11/impl/meson.build"
+import os
+if os.path.exists(p):
+    f=open(p,"r"); c=f.read(); f.close()
+    if "dep_clock =" not in c.split("\n")[0]:
+        c = "dep_clock = declare_dependency(link_args : ['-lc'])\n" + c
+        f=open(p,"w"); f.write(c); f.close()
+        print("-> [Docker Internal] Éxito: dep_clock estabilizado de forma local en c11/impl/meson.build")
 '
 
 echo "-> [Docker Internal] Ejecutando barrido total recursivo de secure_getenv hacia getenv..."
@@ -103,11 +114,9 @@ python3 meson_src/meson.py setup build-libdrm libdrm_android --cross-file /works
   -Dintel=disabled -Dradeon=disabled -Damdgpu=disabled -Dnouveau=disabled -Dman-pages=disabled -Dvalgrind=disabled -Dtests=false
 python3 meson_src/meson.py install -C build-libdrm
 
-# Ejecutamos el setup cruzado forzando la precedencia de drivers
 python3 meson_src/meson.py setup build-64 --cross-file /workspace/cross_64.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=wrapper,panfrost
 python3 meson_src/meson.py compile -C build-64
 
-# 🟢 FILTRADO ESTRICTO DE EXTRACCIÓN: Forzamos a Python a escanear única y exclusivamente el subdirectorio de salida de compilación real de Mesa 'build-64/src/'. Al omitir shims_64, el script ignorará el archivo artificial de 2.56MB y atrapará el verdadero driver de 9.3MB, inyectándolo de forma real y pesada en pkg/usr/lib/
 python3 -c '
 import os, shutil
 
@@ -117,7 +126,6 @@ os.makedirs("pkg/usr/share/vulkan/icd.d", exist_ok=True)
 target_name = "libvulkan_wrapper.so"
 real_driver_path = None
 
-# Escaneo ultra-preciso limitado al core de salida de compilación real
 for root, dirs, files in os.walk("build-64/src"):
     if target_name in files:
         real_driver_path = os.path.join(root, target_name)
@@ -127,7 +135,6 @@ if real_driver_path and os.path.exists(real_driver_path):
     size_mb = os.path.getsize(real_driver_path) / (1024 * 1024)
     print(f"-> [Docker Internal] Driver legítimo capturado con éxito en {real_driver_path} | Peso real: {size_mb:.2f} MB")
     
-    # Despliegue físico real triplicado del binario de 9.3MB
     shutil.copy2(real_driver_path, "pkg/usr/lib/libvulkan_wrapper.so")
     shutil.copy2(real_driver_path, "pkg/usr/lib/aarch64-linux-android/libvulkan_wrapper.so")
     shutil.copy2(real_driver_path, "pkg/usr/lib/aarch64-linux-android/libvulkan_panfrost.so")
