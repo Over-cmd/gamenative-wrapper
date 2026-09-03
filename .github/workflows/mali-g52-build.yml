@@ -22,10 +22,8 @@ jobs:
           sudo apt-get install -y patchelf zstd unzip python3-pip python3-setuptools
           pip3 install --no-cache-dir mako packaging pyyaml
 
-      - name: 🛠️ 3. Ejecutar Orquestador Biónico Unificado
+      - name: 🛠️ 3. Ejecutar Orquestador Biónico Maestro
         run: |
-          chmod +x patch_mesa.sh
-          chmod +x generate_cross.sh
           chmod +x build.sh
           ./build.sh
 
