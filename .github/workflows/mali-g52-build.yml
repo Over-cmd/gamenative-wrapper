@@ -27,26 +27,23 @@ jobs:
       - name: ⚙️ 3. Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # 🟢 PASO CLAVE REVOLUCIONARIO: En lugar de descargar la imagen vieja e incompleta de LeeGao de la nube, le ordenamos a las Actions que compilen tu propio Dockerfile reestructurado de forma local en el Host. Esto forjará el contenedor biónico puro con soporte real para tu GPU Mali de fábrica
+      # 🟢 REPARACIÓN INDUSTRIAL TOTAL DE RECETA: Apuntamos de forma rígida y explícita al nombre exacto de tu archivo: -f Dockerfile.build. Esto pulveriza el error de "no such file or directory" de raíz en el Host de las Actions
       - name: 🐳 4. Construir Contenedor Gráfico Local con Panfrost
         run: |
-          docker build -t local-wrapper-compiler:latest .
+          docker build -f Dockerfile.build -t local-wrapper-compiler:latest .
 
-      # 🟢 INVOCACIÓN DEL SILICIO EN CALIENTE: Corremos tu contenedor local recién forjado pasándole el volumen compartido de trabajo. Ninja procesará las 800 tareas y escribirá el Fat Binary de 9.3 MB real visible
       - name: 🛠️ 5. Ejecutar Compilador Local Unificado
         run: |
           docker run --rm -v "${{ github.workspace }}:/workspace" local-wrapper-compiler:latest ${{ env.BUILD_DIR }}
 
       - name: 📦 6. Forjar Maquetación Plana e ICD para Bannerlator
         run: |
-          # Localizamos el silicio legítimo unificado forjado dentro de la carpeta build
           REAL_SO=$(find ${{ env.BUILD_DIR }} -name "libvulkan_wrapper.so" | head -n 1)
           
           if [ -f "$REAL_SO" ]; then
               size_mb=$(os_size=$(stat -c%s "$REAL_SO"); echo "scale=2; $os_size/1024/1024" | bc 2>/dev/null || echo "9.3")
               echo "-> [Host] ¡Éxito Absoluto! Driver real localizado. Peso real: $size_mb MB"
               
-              # Maquetamos la estructura UNIX limpia que Bannerlator exige
               mkdir -p pkg/usr/lib pkg/usr/share/vulkan/icd.d
               cp -fv "$REAL_SO" pkg/usr/lib/libvulkan_wrapper.so
               find ${{ env.BUILD_DIR }} -name "libdrm.so" -exec cp -fv {} pkg/usr/lib/libdrm.so \; 2>/dev/null || true
@@ -55,7 +52,6 @@ jobs:
               patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so || true
               patchelf --set-rpath '$ORIGIN' pkg/usr/lib/libvulkan_wrapper.so || true
               
-              # Inyectamos tu bloque estructural ICD exacto con library_path suelto limpio
               cat << 'EOF' > pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
           {
               "ICD": {
@@ -69,7 +65,6 @@ jobs:
               echo "msf:315508" > pkg/version.txt
               chmod -R 755 pkg/
               
-              # Empaquetamos mediante inyección lineal limpia libre de IndentationError
               python3 -c 'import tarfile, os; tar = tarfile.open("wrapper.tar", "w"); os.chdir("pkg"); tar.addfile(tar.gettarinfo("version.txt", arcname="version.txt"), open("version.txt", "rb")) if os.path.exists("version.txt") else None; [(tar.addfile(tar.gettarinfo(os.path.normpath(os.path.join(r, d)), arcname=os.path.normpath(os.path.join(r, d)))) for d in dirs) for r, dirs, files in os.walk("usr")]; [(tar.addfile(tar.gettarinfo(os.path.normpath(os.path.join(r, f)), arcname=os.path.normpath(os.path.join(r, f))), open(os.path.normpath(os.path.join(r, f)), "rb")) for f in files) for r, dirs, files in os.walk("usr")]; tar.close()'
               
               zstd -19 -T0 --rm wrapper.tar -o wrapper.tzst
