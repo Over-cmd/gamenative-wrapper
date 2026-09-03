@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO SEGURO DE ENLAZADO REAL V84"
+echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO DEFINITIVO COMPLETO V85"
 echo "=========================================================="
 
 WORKSPACE="$(pwd)"
@@ -26,7 +26,7 @@ chmod +x patch_mesa.sh generate_cross.sh docker_run_inside.sh
 ./patch_mesa.sh
 rm -f subprojects/libadrenotools.wrap
 
-echo "-> 1b. parches sintácticos Host..."
+echo "-> 1b. Aplicando parches sintácticos sobre Adrenotools en el Host..."
 if [ -d "subprojects/libadrenotools" ]; then
     find subprojects/libadrenotools -name "meson.build" -exec sed -i "s/cc.find_library('android'/dependency('', required : false) #/g" {} +
     find subprojects/libadrenotools -name "meson.build" -exec sed -i 's/cc.find_library("android"/dependency("", required : false) #/g' {} +
@@ -47,7 +47,6 @@ docker run --rm --entrypoint /bin/bash \
   -v "${ANDROID_NDK_HOME}:${ANDROID_NDK_HOME}" \
   -w /workspace ghcr.io/leegao/mesa-wrapper-ci/wrapper-compiler:latest ./docker_run_inside.sh
 
-# 🟢 REPARACIÓN CRÍTICA HOST DE PERMISOS: Forzamos la apertura de permisos de forma masiva sobre la carpeta pkg/ recién inyectada por Docker para que el Host la pueda leer, aplicar patchelf y empaquetar sin restricciones jerárquicas
 echo "-> 4. Estabilizando cabeceras de empaque forjadas en Docker..."
 chmod -R 755 pkg/
 
@@ -83,17 +82,18 @@ cat << 'EOF' > pkg/usr/share/vulkan/icd.d/panfrost_icd.aarch64.json
 { "ICD": { "api_version": "1.3.289", "library_path": "aarch64-linux-android/libvulkan_panfrost.so" }, "file_format_version": "1.0.0" }
 EOF
 
-echo "msf:315508" > pkg/usr/lib/version.txt
+# 🟢 REPARACIÓN CRÍTICA UBICACIÓN: Escribimos version.txt en la raíz del nido de empaque temporal (pkg/version.txt) para que quede alineado al 100% con las exigencias del instalador Bannerlator
+echo "msf:315508" > pkg/version.txt
 chmod -R 755 pkg/
 
 echo "-> [AUDITORÍA FINAL SANIDAD] Verificando presencia real en el disco antes de tar:"
 ls -l pkg/usr/lib/libvulkan_wrapper.so
 ls -l pkg/usr/lib/aarch64-linux-android/libvulkan_wrapper.so
 
+# 🟢 JUGADA MAESTRA INDESTRUCTIBLE TZST V85: Entramos físicamente a pkg/ y ejecutamos tar con el comodín asterisco (*) bajo la directiva --hard-dereference. Esto destruye la optimización del enlazador, forzando a tar a grabar el archivo físico libvulkan_wrapper.so de 9.3 MB en su sitio reglamentario sin dejar huecos vacíos
 echo "-> 5. Sellando empaque de alta compresión..."
 sync
-# 🟢 COMPRESIÓN CON DESACTIVACIÓN DE ENLACES INTERNOS: Forzamos la bandera --hard-dereference. Esto le prohibe a tar crear punteros virtuales de optimización en memoria, obligándolo a escribir físicamente los dos archivos libvulkan_wrapper.so independientes dentro de tu tarball final wrapper.tzst exigido por Bannerlator
-tar --hard-dereference -I "zstd -19 -T0" -cf "wrapper.tzst" -C pkg usr version.txt 2>/dev/null || tar -I "zstd -19 -T0" -cf "wrapper.tzst" -C pkg usr
+cd pkg && tar --hard-dereference -I "zstd -19 -T0" -cf "../wrapper.tzst" * && cd "${WORKSPACE}"
 
 rm -f docker_run_inside.sh cross_libdrm.txt cross_64.txt stub_logs.c stub_c.o stub_cpp.o generate_cross.sh 2>/dev/null || true
 rm -rf meson_src/ shims_64/ build-64/
