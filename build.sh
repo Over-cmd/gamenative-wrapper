@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO PURIFICADO MINIMALISTA V101"
+echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO MAESTRO INTEGRADO V102"
 echo "=========================================================="
 
 WORKSPACE="$(pwd)"
@@ -80,8 +80,8 @@ pkg_config_libdir = '/workspace/shims_64/lib/pkgconfig'
 [built-in options]
 c_args = ['--sysroot=${SYSROOT}', '-I${SYSROOT}/usr/include/aarch64-linux-android', '-D__TERMUX__', '-B/workspace/shims_64/lib', '-I/workspace', '-I/workspace/src', '-I/workspace/shims_64/include', '-I/workspace/shims_64/include/libdrm']
 cpp_args = ['--sysroot=${SYSROOT}', '-I${SYSROOT}/usr/include/aarch64-linux-android', '-D__TERMUX__', '-B/workspace/shims_64/lib', '-I/workspace', '-I/workspace/src', '-I/workspace/shims_64/include', '-I/workspace/shims_64/include/libdrm']
-c_link_args = ['-Wl,-z,undefs', '-Wl,--allow-shlib-undefined', '-L/workspace/shims_64/lib', '-L${SYSROOT}/usr/lib/aarch64-linux-android', '-landroid', '-llog', '-ldl', '-lsync', '-lpasaporte_vulkan', '-latomic', '-lm']
-cpp_link_args = ['-Wl,-z,undefs', '-Wl,--allow-shlib-undefined', '-L/workspace/shims_64/lib', '-L${SYSROOT}/usr/lib/aarch64-linux-android', '-landroid', '-llog', '-ldl', '-lsync', '-lpasaporte_vulkan', '-latomic', '-lm']
+c_link_args = ['-Wl,-z,undefs', '-Wl,--allow-shlib-undefined', '-L/workspace/shims_64/lib', '-L${SYSROOT}/usr/lib/aarch64-linux-android', '-landroid', '-llog', '-ldl', '-lsync', '-lvulkan_pasaporte_stub', '-latomic', '-lm']
+cpp_link_args = ['-Wl,-z,undefs', '-Wl,--allow-shlib-undefined', '-L/workspace/shims_64/lib', '-L${SYSROOT}/usr/lib/aarch64-linux-android', '-landroid', '-llog', '-ldl', '-lsync', '-lvulkan_pasaporte_stub', '-latomic', '-lm']
 EOF
 
 chmod -R 777 "$WORKSPACE"
@@ -94,36 +94,35 @@ docker run --rm --entrypoint /bin/bash \
   -v "${ANDROID_NDK_HOME}:${ANDROID_NDK_HOME}" \
   -w /workspace ghcr.io/leegao/mesa-wrapper-ci/wrapper-compiler:latest ./docker_run_inside.sh
 
-# 🟢 REPARACIÓN PURISTA ABSOLUTA V101: Eliminamos por completo las subcarpetas móviles intermedias que causaban el fallo de Bannerlator. Maquetamos la jerarquía UNIX de forma plana y limpia
-echo "-> 4. Estructurando árbol purista de librerías..."
+# 🟢 ACOPLAMIENTO SÍNCRONO DE LA RECÁMARA DOCKER: Limpiamos la raíz temporal. Traemos los binarios puros de 9.3MB rescatados de la recámara pkg_internal que Docker dejó escrita de forma segura antes de ser destruido
+echo "-> 4. Extrayendo binarios reales de 9.3 MB forjados en Docker..."
 rm -rf pkg/
 mkdir -p pkg/usr/lib pkg/usr/share/vulkan/icd.d
 
-# Recuperamos la forja real inyectada por Docker en el paso compartido
-if [ -d "pkg_internal/usr/lib" ]; then
+if [ -f "pkg_internal/usr/lib/libvulkan_wrapper.so" ]; then
     cp -fv pkg_internal/usr/lib/libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
     cp -fv pkg_internal/usr/lib/libdrm.so pkg/usr/lib/libdrm.so
 else
-    # Rescate elástico directo de inodos por si acaso
-    cp -fv pkg/usr/lib/aarch64-linux-android/libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so || true
+    echo "-> [❌ ERROR RESCATE] La recámara pkg_internal no fue escrita en disco."
+    exit 1
 fi
 
 chmod -R 755 pkg/
 
 STRIP_HOST="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip"
 if [ -f "$STRIP_HOST" ]; then
-    echo "-> [Host] Aligerando binarios de forma explícita..."
+    echo "-> [Host] Aligerando binarios reales con llvm-strip de forma explícita..."
     $STRIP_HOST --strip-unneeded pkg/usr/lib/libvulkan_wrapper.so 2>/dev/null || true
     $STRIP_HOST --strip-unneeded pkg/usr/lib/libdrm.so 2>/dev/null || true
 fi
 
-echo "-> [Host] Aplicando sellado estructural plano con patchelf..."
+echo "-> [Host] Aplicando sellado estructural con patchelf..."
 patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so || true
 patchelf --add-needed libdrm.so pkg/usr/lib/libvulkan_wrapper.so || true
 patchelf --set-rpath '$ORIGIN' pkg/usr/lib/libvulkan_wrapper.so || true
 patchelf --set-soname libdrm.so pkg/usr/lib/libdrm.so
 
-# 🟢 INYECCIÓN TU ICD EXACTO REGLAMENTARIO: Estampamos de forma literal tu código sin desvíos absolutos. Al apuntar de forma suelta a 'libvulkan_wrapper.so', Bannerlator enganchará las extensiones DXVK a la perfección
+# Inyectamos tu bloque exacto ICD minimalista puro sin desvíos absolutos
 cat << 'EOF' > pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
 {
     "ICD": {
@@ -137,11 +136,11 @@ EOF
 echo "msf:315508" > pkg/version.txt
 chmod -R 755 pkg/
 
-echo "-> [AUDITORÍA FINAL SANIDAD] Verificando presencia de tu driver real purificado:"
+echo "-> [AUDITORÍA FINAL SANIDAD] Verificando presencia real de tu driver purificado:"
 ls -lh pkg/usr/lib/libvulkan_wrapper.so
 
-# Empaquetado lineal sin pérdidas con Python Tar
-echo "-> 5. Sellar empaque definitivo (.tzst) exigido por Bannerlator..."
+# Sello del tarball plano lineal mediante Python Tar
+echo "-> 5. Sellando empaque de alta densidad wrapper.tar..."
 sync
 python3 -c '
 import tarfile, os
@@ -172,6 +171,8 @@ with tarfile.open("wrapper.tar", "w") as tar:
                 tar.addfile(info, f)
 '
 
+# 🟢 COMPRESIÓN INDUSTRIAL COMPATIBLE CON TU YAML: Comprimimos wrapper.tar generando wrapper.tzst directamente en el Workspace raíz del Host. Esto se empalma al 100% con tu comando 'path: wrapper.tzst' del YAML de Actions, impidiendo baches de subida
+echo "-> [Host] Aplicando súper-compresión industrial Zstd sobre el tarball..."
 zstd -19 -T0 --rm wrapper.tar -o wrapper.tzst
 
 rm -f docker_run_inside.sh cross_libdrm.txt cross_64.txt stub_logs.c stub_c.o stub_cpp.o generate_cross.sh 2>/dev/null || true
