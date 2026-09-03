@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO COMPLETO INTEGRADO V98"
+echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO PURIFICADO MINIMALISTA V101"
 echo "=========================================================="
 
 WORKSPACE="$(pwd)"
@@ -37,7 +37,6 @@ fi
 
 if [ -f "stub_logs.c" ]; then chmod 644 stub_logs.c; fi
 
-# 🟢 INYECCIÓN MAESTRA DE CROSS-FILES INTEGRADOS: Escribimos las recetas de forma directa desde build.sh usando la variable expandida del NDK detectada de forma síncrona. Esto elimina por completo el error del compilador fantasma o desalineaciones en la máquina virtual
 echo "-> Generando cross_libdrm.txt legítimo con Sysroot expandido..."
 cat << EOF > cross_libdrm.txt
 [binaries]
@@ -81,8 +80,8 @@ pkg_config_libdir = '/workspace/shims_64/lib/pkgconfig'
 [built-in options]
 c_args = ['--sysroot=${SYSROOT}', '-I${SYSROOT}/usr/include/aarch64-linux-android', '-D__TERMUX__', '-B/workspace/shims_64/lib', '-I/workspace', '-I/workspace/src', '-I/workspace/shims_64/include', '-I/workspace/shims_64/include/libdrm']
 cpp_args = ['--sysroot=${SYSROOT}', '-I${SYSROOT}/usr/include/aarch64-linux-android', '-D__TERMUX__', '-B/workspace/shims_64/lib', '-I/workspace', '-I/workspace/src', '-I/workspace/shims_64/include', '-I/workspace/shims_64/include/libdrm']
-c_link_args = ['-Wl,-z,undefs', '-Wl,--allow-shlib-undefined', '-L/workspace/shims_64/lib', '-L${SYSROOT}/usr/lib/aarch64-linux-android', '-landroid', '-llog', '-ldl', '-lsync', '-lvulkan_wrapper', '-latomic', '-lm']
-cpp_link_args = ['-Wl,-z,undefs', '-Wl,--allow-shlib-undefined', '-L/workspace/shims_64/lib', '-L${SYSROOT}/usr/lib/aarch64-linux-android', '-landroid', '-llog', '-ldl', '-lsync', '-lvulkan_wrapper', '-latomic', '-lm']
+c_link_args = ['-Wl,-z,undefs', '-Wl,--allow-shlib-undefined', '-L/workspace/shims_64/lib', '-L${SYSROOT}/usr/lib/aarch64-linux-android', '-landroid', '-llog', '-ldl', '-lsync', '-lpasaporte_vulkan', '-latomic', '-lm']
+cpp_link_args = ['-Wl,-z,undefs', '-Wl,--allow-shlib-undefined', '-L/workspace/shims_64/lib', '-L${SYSROOT}/usr/lib/aarch64-linux-android', '-landroid', '-llog', '-ldl', '-lsync', '-lpasaporte_vulkan', '-latomic', '-lm']
 EOF
 
 chmod -R 777 "$WORKSPACE"
@@ -95,36 +94,42 @@ docker run --rm --entrypoint /bin/bash \
   -v "${ANDROID_NDK_HOME}:${ANDROID_NDK_HOME}" \
   -w /workspace ghcr.io/leegao/mesa-wrapper-ci/wrapper-compiler:latest ./docker_run_inside.sh
 
-echo "-> 4. EstABILIZANDO cabeceras de empaque con permisos plenos 755..."
+# 🟢 REPARACIÓN PURISTA ABSOLUTA V101: Eliminamos por completo las subcarpetas móviles intermedias que causaban el fallo de Bannerlator. Maquetamos la jerarquía UNIX de forma plana y limpia
+echo "-> 4. Estructurando árbol purista de librerías..."
+rm -rf pkg/
+mkdir -p pkg/usr/lib pkg/usr/share/vulkan/icd.d
+
+# Recuperamos la forja real inyectada por Docker en el paso compartido
+if [ -d "pkg_internal/usr/lib" ]; then
+    cp -fv pkg_internal/usr/lib/libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so
+    cp -fv pkg_internal/usr/lib/libdrm.so pkg/usr/lib/libdrm.so
+else
+    # Rescate elástico directo de inodos por si acaso
+    cp -fv pkg/usr/lib/aarch64-linux-android/libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so || true
+fi
+
 chmod -R 755 pkg/
 
 STRIP_HOST="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip"
 if [ -f "$STRIP_HOST" ]; then
-    echo "-> [Host] Aligerando binarios reales con llvm-strip de forma explícita..."
+    echo "-> [Host] Aligerando binarios de forma explícita..."
     $STRIP_HOST --strip-unneeded pkg/usr/lib/libvulkan_wrapper.so 2>/dev/null || true
     $STRIP_HOST --strip-unneeded pkg/usr/lib/libdrm.so 2>/dev/null || true
-    $STRIP_HOST --strip-unneeded pkg/usr/lib/aarch64-linux-android/libvulkan_panfrost.so 2>/dev/null || true
-    $STRIP_HOST --strip-unneeded pkg/usr/lib/aarch64-linux-android/libvulkan_wrapper.so 2>/dev/null || true
 fi
 
-echo "-> [Host] Aplicando sellado estructural con patchelf..."
+echo "-> [Host] Aplicando sellado estructural plano con patchelf..."
 patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so || true
 patchelf --add-needed libdrm.so pkg/usr/lib/libvulkan_wrapper.so || true
 patchelf --set-rpath '$ORIGIN' pkg/usr/lib/libvulkan_wrapper.so || true
-
-patchelf --set-soname libvulkan_panfrost.so pkg/usr/lib/aarch64-linux-android/libvulkan_panfrost.so || true
-patchelf --add-needed libdrm.so pkg/usr/lib/aarch64-linux-android/libvulkan_panfrost.so || true
-patchelf --set-rpath '$ORIGIN/..' pkg/usr/lib/aarch64-linux-android/libvulkan_panfrost.so || true
-
-patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/aarch64-linux-android/libvulkan_wrapper.so || true
-patchelf --add-needed libdrm.so pkg/usr/lib/aarch64-linux-android/libvulkan_wrapper.so || true
-patchelf --set-rpath '$ORIGIN/..' pkg/usr/lib/aarch64-linux-android/libvulkan_wrapper.so || true
-
 patchelf --set-soname libdrm.so pkg/usr/lib/libdrm.so
 
-cat << 'EOF' > pkg/usr/share/vulkan/icd.d/panfrost_icd.aarch64.json
+# 🟢 INYECCIÓN TU ICD EXACTO REGLAMENTARIO: Estampamos de forma literal tu código sin desvíos absolutos. Al apuntar de forma suelta a 'libvulkan_wrapper.so', Bannerlator enganchará las extensiones DXVK a la perfección
+cat << 'EOF' > pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
 {
-    "ICD": { "api_version": "1.3.289", "library_path": "/data/data/com.termux/files/usr/lib/libvulkan_wrapper.so" },
+    "ICD": {
+        "api_version": "1.3.289",
+        "library_path": "libvulkan_wrapper.so"
+    },
     "file_format_version": "1.0.0"
 }
 EOF
@@ -132,11 +137,11 @@ EOF
 echo "msf:315508" > pkg/version.txt
 chmod -R 755 pkg/
 
-echo "-> [AUDITORÍA FINAL SANIDAD] Verificando presencia real antes del empaquetado:"
-ls -l pkg/usr/lib/libvulkan_wrapper.so
-ls -l pkg/usr/lib/aarch64-linux-android/libvulkan_wrapper.so
+echo "-> [AUDITORÍA FINAL SANIDAD] Verificando presencia de tu driver real purificado:"
+ls -lh pkg/usr/lib/libvulkan_wrapper.so
 
-echo "-> 5. Forjando estructura física y carpetas lineales con Python Tar..."
+# Empaquetado lineal sin pérdidas con Python Tar
+echo "-> 5. Sellar empaque definitivo (.tzst) exigido por Bannerlator..."
 sync
 python3 -c '
 import tarfile, os
@@ -167,11 +172,10 @@ with tarfile.open("wrapper.tar", "w") as tar:
                 tar.addfile(info, f)
 '
 
-echo "-> [Host] Aplicando súper-compresión industrial Zstd sobre el tarball estructurado..."
 zstd -19 -T0 --rm wrapper.tar -o wrapper.tzst
 
 rm -f docker_run_inside.sh cross_libdrm.txt cross_64.txt stub_logs.c stub_c.o stub_cpp.o generate_cross.sh 2>/dev/null || true
-rm -rf meson_src/ shims_64/ build-64/
+rm -rf meson_src/ shims_64/ build-64/ pkg_internal/
 
 echo "=========================================================="
 echo "  778/778 COMPLETO - REGISTROS ENLAZADOS CORRECTAMENTE OK "
