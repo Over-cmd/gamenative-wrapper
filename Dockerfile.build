@@ -24,7 +24,7 @@ RUN mkdir -p /tmp/sysroot && \
     for f in *.deb; do dpkg-deb -x "$f" /; done && \
     rm -rf /tmp/sysroot
 
-# 🟢 JUGADA MAESTRA DE PREPROCESADO V9: Inyectamos una macro de sustitución directa para AHardwareBuffer_sendHandleToUnixSocket en c_args y cpp_args. Esto transmuta la llamada conflictiva en un entero de error controlado (-1) en tiempo de preprocesado. Clang y el linker ld.lld procesarán el hito 856 en verde brillante absoluto al primer intento sin buscar símbolos externos
+# 🟢 REPARACIÓN INDUSTRIAL TOTAL V10: Limpiamos los c_args y cpp_args removiendo la macro global destructiva. Dejamos el cross_file.txt puro y legal. Esto permite que las cabeceras nativas de Android del hito 101 se compilen en verde absoluto sin errores de parseo
 RUN NDK_DIR=$(find /home/builder/lib -maxdepth 2 -name "android-ndk*" 2>/dev/null | head -n 1) && \
     NDK_BIN="${NDK_DIR}/toolchains/llvm/prebuilt/linux-x86_64/bin" && \
     mkdir -p /root/build-config && \
@@ -43,8 +43,8 @@ RUN NDK_DIR=$(find /home/builder/lib -maxdepth 2 -name "android-ndk*" 2>/dev/nul
     "pkg_config_libdir = termux_dir + '/lib/pkgconfig:' + termux_dir + '/share/pkgconfig'" \
     "" \
     "[built-in options]" \
-    "c_args = ['-D__TERMUX__', '-D__USE_GNU', '-U__ANDROID__', '-I' + termux_dir + '/include', '-include', 'fcntl.h', '-include', 'unistd.h', '-DAHardwareBuffer_sendHandleToUnixSocket(b,s)=-1']" \
-    "cpp_args = ['-D__TERMUX__', '-D__USE_GNU', '-U__ANDROID__', '-I' + termux_dir + '/include', '-include', 'fcntl.h', '-include', 'unistd.h', '-DAHardwareBuffer_sendHandleToUnixSocket(b,s)=-1']" \
+    "c_args = ['-D__TERMUX__', '-D__USE_GNU', '-U__ANDROID__', '-I' + termux_dir + '/include', '-include', 'fcntl.h', '-include', 'unistd.h']" \
+    "cpp_args = ['-D__TERMUX__', '-D__USE_GNU', '-U__ANDROID__', '-I' + termux_dir + '/include', '-include', 'fcntl.h', '-include', 'unistd.h']" \
     "c_link_args = ['-L' + termux_dir + '/lib', '-landroid-shmem']" \
     "cpp_link_args = ['-L' + termux_dir + '/lib', '-landroid-shmem']" \
     "" \
