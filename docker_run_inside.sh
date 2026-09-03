@@ -15,7 +15,6 @@ export NDK_SYSROOT="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sy
 NDK_SYSROOT_LIB_64="${NDK_SYSROOT}/usr/lib/aarch64-linux-android/26"
 
 echo "-> [Docker Internal] Compilando stubs duales legítivos para enlazado preferencial..."
-# 🟢 ANZUELO SÍNCRONO DE INODOS: Compilamos el stub artificial bajo el nombre exacto libvulkan_wrapper.so aquí al principio. Esto actúa como un pasaporte sintáctico para que ld.lld pase de largo en el hito 77 sin abortar. Al final de la compilación, este stub será machacado por el driver real de 9.3MB, manteniendo tu empaque puro
 $NDK_BIN/aarch64-linux-android26-clang -shared -fPIC stub_logs.c -o shims_64/lib/libvulkan_wrapper.so
 
 $NDK_BIN/aarch64-linux-android26-clang -c stub_logs.c -o stub_c.o
@@ -54,15 +53,16 @@ if os.path.exists(p):
         print("-> [Docker Internal] Éxito: SYS_memfd_create transmutado a la Syscall 279 de forma literal.")
 '
 
+# 🟢 REPARACIÓN INDUSTRIAL INDESTRUCTIBLE DE COMILLAS: Usamos la función chr(39) de Python para inyectar comillas simples puras de forma incondicional en el archivo meson.build. Esto destruye el bug sintáctico de Meson y estabiliza dep_clock sin colisionar con Bash
 python3 -c '
 p="src/c11/impl/meson.build"
 import os
 if os.path.exists(p):
     f=open(p,"r"); c=f.read(); f.close()
     if "dep_clock =" not in c:
-        c = "dep_clock = declare_dependency(link_args : [\"-lc\"])\n" + c
+        c = "dep_clock = declare_dependency(link_args : [" + chr(39) + "-lc" + chr(39) + "])\n" + c
         f=open(p,"w"); f.write(c); f.close()
-        print("-> [Docker Internal] Éxito: dep_clock estabilizado de forma local con comillas puras.")
+        print("-> [Docker Internal] Éxito: dep_clock inyectado con comillas simples nativas puras.")
 '
 
 echo "-> [Docker Internal] Ejecutando barrido total recursivo de secure_getenv hacia getenv..."
@@ -80,7 +80,7 @@ if os.path.exists(p):
     print("-> [Docker Internal] Éxito: Control incondicional de ordenamiento inyectado en u_qsort.h")
 '
 
-echo "-> [Docker Internal] Aplicando parches sintácticos Atómicos in-situ..."
+echo "-> [Docker Internal] Aplicando parches sintácticos atómicos in-situ..."
 if [ -f "meson.build" ]; then
     sed -i "s#.*find_library('dl'.*#declare_dependency(link_args : ['-ldl'])#g" meson.build
     sed -i "s#.*find_library('rt'.*#declare_dependency(link_args : ['-lc'])#g" meson.build
@@ -114,11 +114,11 @@ python3 meson_src/meson.py setup build-libdrm libdrm_android --cross-file /works
   -Dintel=disabled -Dradeon=disabled -Damdgpu=disabled -Dnouveau=disabled -Dman-pages=disabled -Dvalgrind=disabled -Dtests=false
 python3 meson_src/meson.py install -C build-libdrm
 
-# Compilación prioritaria invertida
+# Compilación prioritaria invertida reglamentaria
 python3 meson_src/meson.py setup build-64 --cross-file /workspace/cross_64.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=wrapper,panfrost
 python3 meson_src/meson.py compile -C build-64
 
-# Escaneo elástico limitado a build-64/src para extraer única y exclusivamente el driver real de 9.3 MB
+# Escaneo elástico limitado a build-64/src para extraer de forma obligatoria el driver real de 9.3 MB
 python3 -c '
 import os, shutil
 
@@ -137,7 +137,6 @@ if real_driver_path and os.path.exists(real_driver_path):
     size_mb = os.path.getsize(real_driver_path) / (1024 * 1024)
     print(f"-> [Docker Internal] Driver legítimo capturado con éxito en {real_driver_path} | Peso real: {size_mb:.2f} MB")
     
-    # 🟢 SOBREESCRITURA TOTAL: Inyectamos el binario real de 9.3MB machacando cualquier residuo previo
     shutil.copy2(real_driver_path, "pkg/usr/lib/libvulkan_wrapper.so")
     shutil.copy2(real_driver_path, "pkg/usr/lib/aarch64-linux-android/libvulkan_wrapper.so")
     shutil.copy2(real_driver_path, "pkg/usr/lib/aarch64-linux-android/libvulkan_panfrost.so")
