@@ -38,7 +38,7 @@ import os
 if os.path.exists(p):
     f=open(p,"r"); c=f.read(); f.close()
     if "fcntl.h" not in c:
-        c = "#include <fcntl.h>\n#include <unistd.h>\n" + c
+        c = "#include <fcntl.h>\\n#include <unistd.h>\\n" + c
         f=open(p,"w"); f.write(c); f.close()
 '
 
@@ -62,7 +62,7 @@ import os
 if os.path.exists(p):
     f=open(p,"r"); c=f.read(); f.close()
     c = c.replace("#define HAVE_QSORT_R 1", "")
-    patch = "#ifndef HAVE_QSORT_R\n#define HAVE_QSORT_R 1\n#endif\n#undef HAVE_QSORT_S\n"
+    patch = "#ifndef HAVE_QSORT_R\\n#define HAVE_QSORT_R 1\\n#endif\\n#undef HAVE_QSORT_S\\n"
     c = patch + c
     f=open(p,"w"); f.write(c); f.close()
     print("-> [Docker Internal] Éxito: Control incondicional de ordenamiento inyectado en u_qsort.h")
@@ -95,7 +95,7 @@ fi
 BYPASS_RECIPE="subprojects/libadrenotools/lib/linkernsbypass/meson.build"
 if [ -f "$BYPASS_RECIPE" ]; then
     echo "-> [Docker Internal] Estabilizando tokens globales sobre linkernsbypass..."
-    echo -e "libandroid_dep = declare_dependency(link_args : ['-landroid'])\nliblog_dep = declare_dependency(link_args : ['-llog'])\nlibdl_dep = declare_dependency(link_args : ['-ldl'])\n$(cat $BYPASS_RECIPE)" > "$BYPASS_RECIPE"
+    echo -e "libandroid_dep = declare_dependency(link_args : ['-landroid'])\\nliblog_dep = declare_dependency(link_args : ['-llog'])\\nlibdl_dep = declare_dependency(link_args : ['-ldl'])\\n$(cat $BYPASS_RECIPE)" > "$BYPASS_RECIPE"
 fi
 
 python3 meson_src/meson.py setup build-libdrm libdrm_android --cross-file /workspace/cross_libdrm.txt --prefix="/workspace/shims_64" \
@@ -105,7 +105,6 @@ python3 meson_src/meson.py install -C build-libdrm
 python3 meson_src/meson.py setup build-64 --cross-file /workspace/cross_64.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=panfrost,wrapper
 python3 meson_src/meson.py compile -C build-64
 
-# 🟢 REPARACIÓN ABSOLUTA EN ACERO DE INODOS: Forzamos la creación física de toda la estructura de empaque pkg/ directamente adentro de Docker usando Python nativo con permisos del contenedor. Esto clona físicamente el archivo real de Panfrost tres veces con sus tres nombres e identidades inmutables, garantizando que el Host los reciba listos sin depender del cp inestable de Bash
 python3 -c '
 import os, shutil
 src = "build-64/src/panfrost/vulkan/libvulkan_panfrost.so"
@@ -115,7 +114,6 @@ if os.path.exists(src):
     os.makedirs("pkg/usr/lib/aarch64-linux-android", exist_ok=True)
     os.makedirs("pkg/usr/share/vulkan/icd.d", exist_ok=True)
     
-    # Inyección física real de los tres binarios clonados del silicio puro
     shutil.copy2(src, "pkg/usr/lib/aarch64-linux-android/libvulkan_panfrost.so")
     shutil.copy2(src, "pkg/usr/lib/aarch64-linux-android/libvulkan_wrapper.so")
     shutil.copy2(src, "pkg/usr/lib/libvulkan_wrapper.so")
