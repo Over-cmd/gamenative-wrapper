@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO SEGURO CON BLINDAJE DE TAR V72"
+echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO SEGURO CON BLINDAJE DE TAR V73"
 echo "=========================================================="
 
 WORKSPACE="$(pwd)"
@@ -59,7 +59,7 @@ if [ -f "$PANFROST_REAL_SRC" ]; then
     echo "-> [Host] Generando libvulkan_wrapper.so mediante clonación de silicio real..."
     cp -v "$PANFROST_REAL_SRC" pkg/usr/lib/libvulkan_wrapper.so
     
-    # 🟢 BLINDAJE ANTI-BORRADO: Congelamos el archivo clonado poniéndolo temporalmente en Solo Lectura (444). Esto impide que scripts o comandos posteriores lo trituren del volumen de empaquetado de forma silenciosa
+    # Congelamos temporalmente el archivo clonado para protegerlo durante el strip inicial
     chmod 444 pkg/usr/lib/libvulkan_wrapper.so
 else
     echo "-> [❌ ERROR CRÍTICO] El motor real de Panfrost no apareció en $PANFROST_REAL_SRC"
@@ -75,11 +75,8 @@ fi
 STRIP_HOST="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip"
 if [ -f "$STRIP_HOST" ]; then
     echo "-> [Host] Aligerando binarios reales con llvm-strip de forma explícita..."
-    # Quitamos el candado momentáneamente para el strip y lo volvemos a congelar
     chmod 644 pkg/usr/lib/libvulkan_wrapper.so || true
     $STRIP_HOST --strip-unneeded pkg/usr/lib/libvulkan_wrapper.so 2>/dev/null || true
-    chmod 444 pkg/usr/lib/libvulkan_wrapper.so || true
-    
     $STRIP_HOST --strip-unneeded pkg/usr/lib/libdrm.so 2>/dev/null || true
     $STRIP_HOST --strip-unneeded pkg/usr/lib/aarch64-linux-android/libvulkan_panfrost.so 2>/dev/null || true
 fi
@@ -87,6 +84,11 @@ fi
 echo "-> [Host] Inicializando enlace de acoplamiento para Panfrost..."
 cd pkg/usr/lib/aarch64-linux-android && ln -sf ../libvulkan_panfrost.so libvulkan_wrapper.so && cd "${WORKSPACE}"
 
+# 🟢 REPARACIÓN CRÍTICA RESTAURACIÓN PREFERENCIAL: Abrimos los permisos de lectura, escritura y ejecución al 100% sobre todo el empaque pkg/ ANTES de ejecutar patchelf. Esto destruye el fallo de "Permission denied" permitiendo el sellado binario incondicional
+echo "-> [Host] Abriendo permisos plenos para patchelf y empaquetado..."
+chmod -R 755 pkg/
+
+echo "-> [Host] Aplicando sellado estructural con patchelf..."
 patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so || true
 patchelf --add-needed libdrm.so pkg/usr/lib/libvulkan_wrapper.so || true
 patchelf --set-rpath '$ORIGIN' pkg/usr/lib/libvulkan_wrapper.so || true
@@ -102,9 +104,6 @@ EOF
 cat << 'EOF' > pkg/usr/share/vulkan/icd.d/panfrost_icd.aarch64.json
 { "ICD": { "api_version": "1.3.289", "library_path": "aarch64-linux-android/libvulkan_panfrost.so" }, "file_format_version": "1.0.0" }
 EOF
-
-# 🟢 RESTAURACIÓN DE PERMISOS PARA COMPRESIÓN: Devolvemos los permisos 755 reglamentarios a todo el árbol de empaque justo un milisegundo antes de que actúe tar, asegurando que el archivo entre con integridad total al tarball
-chmod -R 755 pkg/
 
 echo "-> 5. Sellando empaque de alta compresión..."
 echo "msf:315508" > pkg/version.txt
