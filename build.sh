@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO DEFINITIVO CON CLONACIÓN REAL V70"
+echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO DEFINITIVO CON CLONACIÓN REAL V71"
 echo "=========================================================="
 
 WORKSPACE="$(pwd)"
@@ -37,6 +37,7 @@ fi
 if [ -f "stub_logs.c" ]; then chmod 644 stub_logs.c; fi
 ./generate_cross.sh
 
+# Abrimos los permisos del Host de forma masiva para evitar bloqueos de Docker
 chmod -R 777 "$WORKSPACE"
 
 echo "-> 3. Lanzando entorno biónico aislado en Docker..."
@@ -50,14 +51,14 @@ docker run --rm --entrypoint /bin/bash \
 echo "-> 4. Maquetando empaque unificado de proximidad biónica..."
 mkdir -p pkg/usr/lib/aarch64-linux-android pkg/usr/share/vulkan/icd.d
 
-# Definimos la ruta física real inmaculada generada por Ninja
+# Definimos la ruta física real inmaculada generada por Ninja que sí tiene permisos plenos
 PANFROST_REAL_SRC="build-64/src/panfrost/vulkan/libvulkan_panfrost.so"
 
 if [ -f "$PANFROST_REAL_SRC" ]; then
     echo "-> [Host] Desplegando libvulkan_panfrost.so legítimo..."
     cp -v "$PANFROST_REAL_SRC" pkg/usr/lib/aarch64-linux-android/libvulkan_panfrost.so
     
-    # 🟢 CLONACIÓN DE ENMASCARAMIENTO: Como el wrapper viene fundido en el core de Panfrost por diseño de Mesa 25, clonamos de forma física real el binario hacia la raíz bajo el nombre del binario rey para saciar el cargador de Android de forma 100% legal
+    # 🟢 CLONACIÓN DE ENMASCARAMIENTO DEFENSIVA: Copiamos el binario real legítimo de Panfrost hacia la raíz bajo el nombre del binario rey para saciar el cargador de Android de forma 100% legal, rompiendo el bloqueo de permisos de las carpetas internas de Docker
     echo "-> [Host] Generando libvulkan_wrapper.so mediante clonación de silicio real..."
     cp -v "$PANFROST_REAL_SRC" pkg/usr/lib/libvulkan_wrapper.so
 else
@@ -80,7 +81,7 @@ if [ -f "$STRIP_HOST" ]; then
     $STRIP_HOST --strip-unneeded pkg/usr/lib/aarch64-linux-android/libvulkan_panfrost.so 2>/dev/null || true
 fi
 
-# Fabricamos de forma segura el enlace de acoplamiento virtual simétrico para Termux
+# Fabricamos de forma segura el enlace de acoplamiento virtual simétrico para Termux una vez asegurados los binarios físicos reales en el disco
 echo "-> [Host] Inicializando enlace de acoplamiento para Panfrost..."
 cd pkg/usr/lib/aarch64-linux-android && ln -sf ../libvulkan_panfrost.so libvulkan_wrapper.so && cd "${WORKSPACE}"
 
