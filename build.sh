@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO MAESTRO SEGURO V87"
+echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO MAESTRO SEGURO V88"
 echo "=========================================================="
 
 WORKSPACE="$(pwd)"
@@ -26,13 +26,13 @@ chmod +x patch_mesa.sh generate_cross.sh docker_run_inside.sh
 ./patch_mesa.sh
 rm -f subprojects/libadrenotools.wrap
 
-# 🟢 REPARACIÓN CRÍTICA DELIMITADOR: Usamos '#' como separador en sed para que las comillas y corchetes de Meson no causen colisiones sintácticas en el Host
+# 🟢 REPARACIÓN SUPREMA TOTAL INDESTRUCTIBLE: Mutamos el separador de sed a la barra vertical o tubería (|). Esto permite que las almohadillas (#) de tus comentarios y las matrices de Meson convivan de forma legal sin causar colisiones sintácticas ni levantar el error "unknown option to s" en el Host
 echo "-> 1b. Aplicando parches sintácticos y bypass de API en el Host..."
 if [ -d "subprojects/libadrenotools" ]; then
-    find subprojects/libadrenotools -name "meson.build" -exec sed -i "s#cc.find_library('android'#dependency('', required : false) # Ontario#g" {} +
-    find subprojects/libadrenotools -name "meson.build" -exec sed -i 's#cc.find_library("android"#dependency("", required : false) # Ontario#g' {} +
-    find subprojects/libadrenotools -name "meson.build" -exec sed -i "s#cc.find_library('log'#dependency('', required : false) # Ontario#g" {} +
-    find subprojects/libadrenotools -name "meson.build" -exec sed -i 's#cc.find_library("log"#dependency("", required : false) # Ontario#g' {} +
+    find subprojects/libadrenotools -name "meson.build" -exec sed -i "s|cc.find_library('android'|dependency('', required : false) # Ontario|g" {} +
+    find subprojects/libadrenotools -name "meson.build" -exec sed -i 's|cc.find_library("android"|dependency("", required : false) # Ontario|g' {} +
+    find subprojects/libadrenotools -name "meson.build" -exec sed -i "s|cc.find_library('log'|dependency('', required : false) # Ontario|g" {} +
+    find subprojects/libadrenotools -name "meson.build" -exec sed -i 's|cc.find_library("log"|dependency("", required : false) # Ontario|g' {} +
 fi
 
 if [ -f "stub_logs.c" ]; then chmod 644 stub_logs.c; fi
@@ -69,7 +69,7 @@ patchelf --set-soname libvulkan_panfrost.so pkg/usr/lib/aarch64-linux-android/li
 patchelf --add-needed libdrm.so pkg/usr/lib/aarch64-linux-android/libvulkan_panfrost.so
 patchelf --set-rpath '$ORIGIN' pkg/usr/lib/aarch64-linux-android/libvulkan_panfrost.so
 
-patchelf --set-soname libvulkan_wrapper_android.so pkg/usr/lib/aarch64-linux-android/libvulkan_wrapper.so || true
+patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/aarch64-linux-android/libvulkan_wrapper.so || true
 patchelf --add-needed libdrm.so pkg/usr/lib/aarch64-linux-android/libvulkan_wrapper.so || true
 patchelf --set-rpath '$ORIGIN' pkg/usr/lib/aarch64-linux-android/libvulkan_wrapper.so || true
 
