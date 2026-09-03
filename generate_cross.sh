@@ -50,7 +50,6 @@ pkg_config_libdir = shims_path + '/lib/pkgconfig'
 [built-in options]
 c_args = ['--sysroot=/usr/local/lib/android/sdk/ndk/28.2.13676358/toolchains/llvm/prebuilt/linux-x86_64/sysroot', '-D__TERMUX__', '-B' + shims_path + '/lib', '-I' + mesa_root, '-I' + mesa_root + '/src', '-I' + shims_path + '/include', '-I' + shims_path + '/include/libdrm']
 cpp_args = ['--sysroot=/usr/local/lib/android/sdk/ndk/28.2.13676358/toolchains/llvm/prebuilt/linux-x86_64/sysroot', '-D__TERMUX__', '-B' + shims_path + '/lib', '-I' + mesa_root, '-I' + mesa_root + '/src', '-I' + shims_path + '/include', '-I' + shims_path + '/include/libdrm']
-# 🟢 CORRECCIÓN SUPREMA DE PROPIEDADES DEL LINKER: Agregamos -Wl,-z,undefs de forma preferencial absoluta. Esta directiva del kernel le ordena a ld.lld de forma explícita que ignore y destruya cualquier restricción previa de --no-undefined o as-needed heredada de Meson, permitiendo que la tabla de firmas de bcenabler y linkernsbypass ensamble de forma legal
 c_link_args = ['-Wl,-z,undefs', '-Wl,--allow-shlib-undefined', '-L' + shims_path + '/lib', '-L/usr/local/lib/android/sdk/ndk/28.2.13676358/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android', '-landroid', '-llog', '-ldl', '-lsync', '-lvulkan_wrapper', '-latomic']
 cpp_link_args = ['-Wl,-z,undefs', '-Wl,--allow-shlib-undefined', '-L' + shims_path + '/lib', '-L/usr/local/lib/android/sdk/ndk/28.2.13676358/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android', '-landroid', '-llog', '-ldl', '-lsync', '-lvulkan_wrapper', '-latomic']
 EOF
