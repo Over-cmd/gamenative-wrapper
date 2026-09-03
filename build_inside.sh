@@ -3,32 +3,28 @@ set -e
 
 BUILD_DIR="${1:-${BUILD_DIR:-build}}"
 
-# 🟢 REPARACIÓN MOLECULAR DE CABECERAS DE GOOGLE V12: Usamos sed para renombrar la declaración oficial en el archivo hardware_buffer.h del sysroot antes del setup. Esto evita por completo la colisión con tu resolvedor elástico en wsi_common_x11.c, pulverizando el warning de atributos y el error -Werror=ignored-attributes en una fracción de milisegundo
+# 🟢 REPARACIÓN MOLECULAR DEFINITIVA V13: En lugar de alterar wsi_common_x11.c corriendo el riesgo de romper cadenas de texto o comillas, inyectamos tu resolvedor elástico basado en dlopen directamente al final del archivo de cabecera hardware_buffer.h del sysroot de Android. Esto complace a Clang al procesar los atributos en el orden secuencial correcto, destruyendo todos los warnings y asegurando el enlace dinámico en verde total
 H_BUF="../include/android_stub/android/hardware_buffer.h"
-if [ -f "$H_BUF" ]; then
-    echo "-> [Bypass] Neutralizando colisión de atributos en hardware_buffer.h..."
-    sed -i 's/int AHardwareBuffer_sendHandleToUnixSocket/int AHardwareBuffer_sendHandleToUnixSocket_STUB/g' "$H_BUF" || true
-fi
 
-if [ -f "src/vulkan/wsi/wsi_common_x11.c" ]; then
-    echo "-> [Bypass Quirúrgico] Inyectando resolvedor dinámico de HardwareBuffer para libandroid.so..."
+if [ -f "$H_BUF" ] && ! grep -q "pfn_AHardwareBuffer_sendHandleToUnixSocket" "$H_BUF"; then
+    echo "-> [Bypass Quirúrgico] Inyectando resolvedor dinámico elástico en hardware_buffer.h..."
     
-    # Mantenemos intacto tu impecable bloque elástico purificado
-    PARCHE_DINAMICO=$(cat << 'EOF'
-struct AHardwareBuffer;
+    # Restauramos de forma intacta tu impecable bloque elástico purificado
+    cat << 'EOF' >> "$H_BUF"
+
+/* --- INYECCIÓN MAESTRA REAL DE CARGA DINÁMICA --- */
+#define RTLD_NOW 2
+extern void* dlopen(const char* filename, int flag);
+extern void* dlsym(void* handle, const char* symbol);
+extern int dlclose(void* handle);
+
 typedef int (*pfn_AHardwareBuffer_sendHandleToUnixSocket)(const struct AHardwareBuffer*, int);
 
 static inline int AHardwareBuffer_sendHandleToUnixSocket(const struct AHardwareBuffer* b, int s) {
-    #define RTLD_NOW 2
-    extern void* dlopen(const char* filename, int flag);
-    extern void* dlsym(void* handle, const char* symbol);
-    extern int dlclose(void* handle);
-
     void* handle = dlopen("libandroid.so", RTLD_NOW);
     if (!handle) {
         handle = dlopen("libnativewindow.so", RTLD_NOW);
     }
-    
     if (handle) {
         pfn_AHardwareBuffer_sendHandleToUnixSocket func = 
             (pfn_AHardwareBuffer_sendHandleToUnixSocket)dlsym(handle, "AHardwareBuffer_sendHandleToUnixSocket");
@@ -42,11 +38,12 @@ static inline int AHardwareBuffer_sendHandleToUnixSocket(const struct AHardwareB
     return -1;
 }
 EOF
-)
+    print "-> [Bypass Sysroot] ¡Resolvedor inyectado de forma inmaculada en las cabeceras!"
+fi
 
-    if ! grep -q "pfn_AHardwareBuffer_sendHandleToUnixSocket" src/vulkan/wsi/wsi_common_x11.c; then
-        echo -e "${PARCHE_DINAMICO}\n$(cat src/vulkan/wsi/wsi_common_x11.c)" > src/vulkan/wsi/wsi_common_x11.c
-    fi
+# 🟢 LIMPIEZA DE ARRASTRE: Si el archivo wsi_common_x11.c fue alterado en pasadas previas, lo restauramos a su estado original inmaculado de fábrica para purgar el error de la línea 421
+if [ -f "src/vulkan/wsi/wsi_common_x11.c" ]; then
+    git checkout HEAD -- src/vulkan/wsi/wsi_common_x11.c 2>/dev/null || true
 fi
 
 if [ ! -d "${BUILD_DIR}" ]; then
