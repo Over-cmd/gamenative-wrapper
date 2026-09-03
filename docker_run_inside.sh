@@ -16,7 +16,6 @@ NDK_SYSROOT_LIB_64="${NDK_SYSROOT}/usr/lib/aarch64-linux-android/26"
 
 echo "-> [Docker Internal] Compilando stubs duales legítivos para enlazado preferencial..."
 $NDK_BIN/aarch64-linux-android26-clang -shared -fPIC stub_logs.c -o shims_64/lib/libvulkan_wrapper.so
-$NDK_BIN/aarch64-linux-android26-clang -shared -fPIC stub_logs.c -o libvulkan_wrapper.so
 
 $NDK_BIN/aarch64-linux-android26-clang -c stub_logs.c -o stub_c.o
 $NDK_BIN/llvm-ar rcs shims_64/lib/liblog.a stub_c.o
@@ -31,7 +30,7 @@ cp -fv shims_64/lib/libdl.a "$NDK_SYSROOT_LIB_64/libdl.a" 2>/dev/null || true
 
 echo "-> [Docker Internal] Sincronizando inodos físicos en el hardware..."
 sync
-sleep 2
+sleep 1
 
 python3 -c '
 p="src/vulkan/wrapper/wrapper_log.c"
@@ -54,7 +53,6 @@ if os.path.exists(p):
         print("-> [Docker Internal] Éxito: SYS_memfd_create transmutado a la Syscall 279 de forma literal.")
 '
 
-# 🟢 REPARACIÓN CRÍTICA BARRIDO SECURE_GETENV: Ejecutamos un reemplazo masivo recursivo con sed sobre TODO el árbol de fuentes 'src/' de Mesa 25 para transmutar de raíz cualquier llamada residual a secure_getenv hacia la función estándar getenv() de bionic. Esto neutraliza de forma preventiva futuros bloqueos en spirv_to_nir.c o cualquier otro sub-módulo
 echo "-> [Docker Internal] Ejecutando barrido total recursivo de secure_getenv hacia getenv..."
 find src/ -type f \( -name "*.c" -o -name "*.cpp" -o -name "*.h" \) -exec sed -i 's/secure_getenv/getenv/g' {} +
 
@@ -100,11 +98,13 @@ if [ -f "$BYPASS_RECIPE" ]; then
     echo -e "libandroid_dep = declare_dependency(link_args : ['-landroid'])\nliblog_dep = declare_dependency(link_args : ['-llog'])\nlibdl_dep = declare_dependency(link_args : ['-ldl'])\n$(cat $BYPASS_RECIPE)" > "$BYPASS_RECIPE"
 fi
 
-# Compilación de libdrm en su prefijo aislado
+python3 -c 'import mako; print("Mako version:", mako.__version__)'
+
+# Compilación de libdrm
 python3 meson_src/meson.py setup build-libdrm libdrm_android --cross-file /workspace/cross_libdrm.txt --prefix="/workspace/shims_64" \
   -Dintel=disabled -Dradeon=disabled -Damdgpu=disabled -Dnouveau=disabled -Dman-pages=disabled -Dvalgrind=disabled -Dtests=false
 python3 meson_src/meson.py install -C build-libdrm
 
-# Compilación del Core de Mesa 25 con las banderas de enlazado de sistema re-acopladas de forma impecable
+# Compilación del Core de Mesa 25
 python3 meson_src/meson.py setup build-64 --cross-file /workspace/cross_64.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=panfrost,wrapper
 python3 meson_src/meson.py compile -C build-64
