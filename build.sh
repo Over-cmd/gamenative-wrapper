@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO PURIFICADO SIN BORRADOS V77"
+echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO DEFINITIVO COMPLETO V78"
 echo "=========================================================="
 
 WORKSPACE="$(pwd)"
@@ -111,13 +111,17 @@ EOF
 
 chmod -R 755 pkg/
 
+# 🟢 REPARACIÓN CRÍTICA UBICACIÓN VERSION: Escribimos el token de versión directamente en la raíz de librerías pkg/usr/lib/ para evitar errores de desalineación en el comando tar posterior
+echo "msf:315508" > pkg/usr/lib/version.txt
+
 echo "-> [AUDITORÍA FINAL SANIDAD] Verificando presencia real en disco:"
 ls -l pkg/usr/lib/libvulkan_wrapper.so
 ls -l pkg/usr/lib/aarch64-linux-android/libvulkan_wrapper.so
 
 echo "-> 5. Sellando empaque de alta compresión..."
 sync
-tar -I "zstd -19 -T0" -cf "wrapper.tzst" -C pkg usr version.txt
+# 🟢 COMPRESIÓN ABSOLUTA REORDENADA: Empaquetamos la subcarpeta usr completa. Como version.txt ahora vive de forma interna bajo usr/lib/version.txt, tar la asimilará de forma lineal sin atascos de sintaxis
+cd pkg && tar -I "zstd -19 -T0" -cf "../wrapper.tzst" usr && cd "${WORKSPACE}"
 
 rm -f docker_run_inside.sh cross_libdrm.txt cross_64.txt stub_logs.c stub_c.o stub_cpp.o generate_cross.sh 2>/dev/null || true
 rm -rf meson_src/ shims_64/ build-64/
