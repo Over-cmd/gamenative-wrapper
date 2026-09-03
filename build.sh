@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO SEGURO CON EMPEQUETADO RÍGIDO COMPLETO V89"
+echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO DEFINITIVO CON ÁRBOL COMPLETO V90"
 echo "=========================================================="
 
 WORKSPACE="$(pwd)"
@@ -85,32 +85,49 @@ EOF
 echo "msf:315508" > pkg/version.txt
 chmod -R 755 pkg/
 
-echo "-> [AUDITORÍA FINAL SANIDAD] Verificando presencia real y permisos en el disco antes de empacar:"
+echo "-> [AUDITORÍA FINAL SANIDAD] Verificando presencia real antes del empaquetado:"
 ls -l pkg/usr/lib/libvulkan_wrapper.so
 ls -l pkg/usr/lib/aarch64-linux-android/libvulkan_wrapper.so
+ls -l pkg/usr/lib/aarch64-linux-android/libvulkan_panfrost.so
 
-# 🟢 REPARACIÓN INDUSTRIAL TOTAL DE COMPRESIÓN: Python genera el archivo .tar ordinario inyectando cada inodo regular de 9.3 MB de forma física e independiente con su permiso de alta visibilidad 755 de Khronos. Justo después, el binario zstd nativo del Host comprime el bloque de forma atómica a máxima densidad, entregando el tarball wrapper.tzst legítimo para Bannerlator libre de caídas léxicas
-echo "-> 5. Forjando estructura física lineal con Python Tar..."
+# 🟢 REPARACIÓN INDUSTRIAL TOTAL DE ESTRUCTURA: Rediseñamos el script de Python para que indexe e inyecte primero las carpetas físicas (DIRTYPE) y luego los archivos (REGTYPE). Esto garantiza que el árbol unix completo 'usr/lib/aarch64-linux-android/' quede grabado a fuego en las cabeceras internas, impidiendo que Panfrost se quede fuera del tarball final wrapper.tzst
+echo "-> 5. Forjando estructura física y carpetas lineales con Python Tar..."
 sync
 python3 -c '
 import tarfile, os
 
 with tarfile.open("wrapper.tar", "w") as tar:
     os.chdir("pkg")
-    for root, dirs, files in os.walk("."):
+    
+    # Registramos de forma incondicional el archivo de version.txt primario
+    if os.path.exists("version.txt"):
+        info = tar.gettarinfo("version.txt", arcname="version.txt")
+        info.type = tarfile.REGTYPE
+        info.mode = 0o755
+        with open("version.txt", "rb") as f:
+            tar.addfile(info, f)
+
+    # Escaneamos de forma estructurada registrando directorios y luego archivos
+    for root, dirs, files in os.walk("usr"):
+        # A: Primero inyectamos las carpetas físicas reales en el índice
+        for d in dirs:
+            dir_path = os.path.normpath(os.path.join(root, d))
+            info = tar.gettarinfo(dir_path, arcname=dir_path)
+            info.type = tarfile.DIRTYPE
+            info.mode = 0o755
+            tar.addfile(info)
+            
+        # B: Luego inyectamos los archivos de datos dentro de esas carpetas
         for file in files:
-            file_path = os.path.join(root, file)
-            archive_name = os.path.normpath(file_path)
-            
-            info = tar.gettarinfo(file_path, arcname=archive_name)
-            info.type = tarfile.REGTYPE 
-            info.mode = 0o755 
-            
+            file_path = os.path.normpath(os.path.join(root, file))
+            info = tar.gettarinfo(file_path, arcname=file_path)
+            info.type = tarfile.REGTYPE
+            info.mode = 0o755
             with open(file_path, "rb") as f:
                 tar.addfile(info, f)
 '
 
-echo "-> [Host] Aplicando súper-compresión industrial Zstd sobre el tarball..."
+echo "-> [Host] Aplicando súper-compresión industrial Zstd sobre el tarball estructurado..."
 zstd -19 -T0 --rm wrapper.tar -o wrapper.tzst
 
 rm -f docker_run_inside.sh cross_libdrm.txt cross_64.txt stub_logs.c stub_c.o stub_cpp.o generate_cross.sh 2>/dev/null || true
