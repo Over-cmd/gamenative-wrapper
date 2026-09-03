@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO COMPLETO EN RAÍZ PLANA V91"
+echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO CON ANATOMÍA DE TURNIP V92"
 echo "=========================================================="
 
 WORKSPACE="$(pwd)"
@@ -47,8 +47,8 @@ docker run --rm --entrypoint /bin/bash \
   -v "${ANDROID_NDK_HOME}:${ANDROID_NDK_HOME}" \
   -w /workspace ghcr.io/leegao/mesa-wrapper-ci/wrapper-compiler:latest ./docker_run_inside.sh
 
-# 🟢 MAQUETACIÓN SUPREMA TOTAL EN RAÍZ COMÚN: Limpiamos las subcarpetas complejas. Desplegamos todos los binarios físicos reales y los descriptores ICD juntos en la raíz del empaque temporal, garantizando una arquitectura plana inmune a caídas jerárquicas
-echo "-> 4. Estabilizando cabeceras de empaque en un plano unificado..."
+# 🟢 MAQUETACIÓN SUPREMA TURNIP MASK: Limpiamos la raíz. Copiamos el silicio unificado de Panfrost renombrándolo estrictamente como vulkan.adreno.so para que el cargador de Termux/Móvil lo asimile bajo las reglas rígidas de Turnip
+echo "-> 4. Estabilizando cabeceras de empaque bajo anatomía Turnip..."
 rm -rf pkg/
 mkdir -p pkg/
 
@@ -56,8 +56,8 @@ mkdir -p pkg/
 PANFROST_REAL_SRC="build-64/src/panfrost/vulkan/libvulkan_panfrost.so"
 
 if [ -f "$PANFROST_REAL_SRC" ]; then
-    echo "-> [Host] Desplegando binarios reales sueltos en la raíz de empaque..."
-    cp -fv "$PANFROST_REAL_SRC" pkg/libvulkan_panfrost.so
+    echo "-> [Host] Forzando clonación y renombrado a las firmas de Turnip..."
+    cp -fv "$PANFROST_REAL_SRC" pkg/vulkan.adreno.so
     cp -fv "$PANFROST_REAL_SRC" pkg/libvulkan_wrapper.so
 else
     echo "-> [❌ ERROR CRÍTICO] El motor real de Panfrost no apareció en $PANFROST_REAL_SRC"
@@ -75,40 +75,45 @@ chmod -R 755 pkg/
 
 STRIP_HOST="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip"
 if [ -f "$STRIP_HOST" ]; then
-    echo "-> [Host] Aligerando binarios reales con llvm-strip de forma explícita..."
+    echo "-> [Host] Aligerando binarios de Turnip con llvm-strip de forma explícita..."
+    $STRIP_HOST --strip-unneeded pkg/vulkan.adreno.so 2>/dev/null || true
     $STRIP_HOST --strip-unneeded pkg/libvulkan_wrapper.so 2>/dev/null || true
     $STRIP_HOST --strip-unneeded pkg/libdrm.so 2>/dev/null || true
-    $STRIP_HOST --strip-unneeded pkg/libvulkan_panfrost.so 2>/dev/null || true
 fi
 
-echo "-> [Host] Aplicando sellado estructural plano con patchelf..."
+echo "-> [Host] Aplicando sellado estructural Turnip con patchelf..."
+patchelf --set-soname vulkan.adreno.so pkg/vulkan.adreno.so || true
+patchelf --add-needed libdrm.so pkg/vulkan.adreno.so || true
+patchelf --set-rpath '$ORIGIN' pkg/vulkan.adreno.so || true
+
 patchelf --set-soname libvulkan_wrapper.so pkg/libvulkan_wrapper.so || true
 patchelf --add-needed libdrm.so pkg/libvulkan_wrapper.so || true
 patchelf --set-rpath '$ORIGIN' pkg/libvulkan_wrapper.so || true
 
-patchelf --set-soname libvulkan_panfrost.so pkg/libvulkan_panfrost.so || true
-patchelf --add-needed libdrm.so pkg/libvulkan_panfrost.so || true
-patchelf --set-rpath '$ORIGIN' pkg/libvulkan_panfrost.so || true
-
 patchelf --set-soname libdrm.so pkg/libdrm.so
 
-# Redirigimos los descriptores JSON ICD para que lean las librerías sueltas de la raíz
-cat << 'EOF' > pkg/wrapper_icd.aarch64.json
-{ "ICD": { "api_version": "1.3.289", "library_path": "libvulkan_wrapper.so" }, "file_format_version": "1.0.0" }
+# Fabricamos el mapa ICD de Turnip apuntando de forma literal al nuevo binario suelto de la raíz
+cat << 'EOF' > pkg/turnip_icd.aarch64.json
+{
+    "ICD": { "api_version": "1.3.289", "library_path": "vulkan.adreno.so" },
+    "file_format_version": "1.0.0"
+}
 EOF
 
-cat << 'EOF' > pkg/panfrost_icd.aarch64.json
-{ "ICD": { "api_version": "1.3.289", "library_path": "libvulkan_panfrost.so" }, "file_format_version": "1.0.0" }
+cat << 'EOF' > pkg/wrapper_icd.aarch64.json
+{
+    "ICD": { "api_version": "1.3.289", "library_path": "libvulkan_wrapper.so" },
+    "file_format_version": "1.0.0"
+}
 EOF
 
 echo "msf:315508" > pkg/version.txt
 chmod -R 755 pkg/
 
-echo "-> [AUDITORÍA FINAL SANIDAD] Verificando presencia real en el plano raíz de pkg/:"
+echo "-> [AUDITORÍA FINAL SANIDAD] Verificando presencia real en el plano Turnip:"
 ls -lh pkg/
 
-# 🟢 GRABACIÓN INDESTRUCTIBLE EN FORMATO ZIP COMPLETO: Eliminamos tar y zstd por completo del flujo. Entramos a pkg y ejecutamos la compresión zip de todo el plano de inodos de forma literal. Esto incrustará de forma física real tu binario de Panfrost y el Wrapper en la raíz sin pérdidas
-echo "-> 5. Sellando empaque de alta densidad en formato (.zip) unificado..."
+echo "-> 5. Sellando empaque de alta densidad en formato (.zip) Turnip..."
 sync
 cd pkg && zip -r ../wrapper.zip * && cd "${WORKSPACE}"
 
