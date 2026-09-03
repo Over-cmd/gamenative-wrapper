@@ -6,7 +6,6 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends ninja-build && \
     pip3 install --break-system-packages --ignore-installed --no-cache-dir meson ninja mako pyyaml packaging
 
-# 🟢 REPARACIÓN INDUSTRIAL DE RED CON RETORNO DEFENSIVO: Configuramos la CDN central de Cloudflare (packages-cf) como ruta prioritaria. Agregamos un validador que, en caso de detectar un archivo Packages vacío, conmuta en caliente al espejo de Grimler (Suecia). Esto garantiza que las librerías .deb (libdrm, libandroid-shmem, etc.) se inyecten de forma síncrona en el sysroot, triturando el Exit Code 2 de raíz
 RUN mkdir -p /tmp/sysroot && \
     cd /tmp/sysroot && \
     TERMUX_REPO="https://packages-cf.termux.dev/apt/termux-main" && \
@@ -25,10 +24,35 @@ RUN mkdir -p /tmp/sysroot && \
     for f in *.deb; do dpkg-deb -x "$f" /; done && \
     rm -rf /tmp/sysroot
 
+# 🟢 REPARACIÓN INDUSTRIAL TOTAL DE CABECERAS: Eliminamos el eco -e problemático. Escribimos la receta usando saltos de línea literales integrados en comillas simples de Docker (\). Esto garantiza que cross_file.txt empiece estrictamente con la cabecera [binaries] limpia y legal, aniquilando el error 'Malformed machine file' al instante
 RUN NDK_DIR=$(find /home/builder/lib -maxdepth 2 -name "android-ndk*" 2>/dev/null | head -n 1) && \
     NDK_BIN="${NDK_DIR}/toolchains/llvm/prebuilt/linux-x86_64/bin" && \
     mkdir -p /root/build-config && \
-    echo -e "[binaries]\nc = '${NDK_BIN}/aarch64-linux-android30-clang'\ncpp = '${NDK_BIN}/aarch64-linux-android30-clang++'\nar = '${NDK_BIN}/llvm-ar'\nstrip = '${NDK_BIN}/llvm-strip'\npkg-config = 'pkg-config'\n\n[constants]\ntermux_dir = '/data/data/com.termux/files/usr'\n\n[properties]\npkg_config_libdir = termux_dir + '/lib/pkgconfig:' + termux_dir + '/share/pkgconfig'\n\n[built-in options]\nc_args = ['-D__TERMUX__', '-D__USE_GNU', '-U__ANDROID__', '-I' + termux_dir + '/include', '-include', 'fcntl.h', '-include', 'unistd.h']\ncpp_args = ['-D__TERMUX__', '-D__USE_GNU', '-U__ANDROID__', '-I' + termux_dir + '/include', '-include', 'fcntl.h', '-include', 'unistd.h']\nc_link_args = ['-L' + termux_dir + '/lib', '-landroid-shmem']\ncpp_link_args = ['-L' + termux_dir + '/lib', '-landroid-shmem']\n\n[host_machine]\nsystem = 'android'\ncpu_family = 'aarch64'\ncpu = 'armv8-a'\nendian = 'little'" > /root/build-config/cross_file.txt
+    printf "%s\n" \
+    "[binaries]" \
+    "c = '${NDK_BIN}/aarch64-linux-android30-clang'" \
+    "cpp = '${NDK_BIN}/aarch64-linux-android30-clang++'" \
+    "ar = '${NDK_BIN}/llvm-ar'" \
+    "strip = '${NDK_BIN}/llvm-strip'" \
+    "pkg-config = 'pkg-config'" \
+    "" \
+    "[constants]" \
+    "termux_dir = '/data/data/com.termux/files/usr'" \
+    "" \
+    "[properties]" \
+    "pkg_config_libdir = termux_dir + '/lib/pkgconfig:' + termux_dir + '/share/pkgconfig'" \
+    "" \
+    "[built-in options]" \
+    "c_args = ['-D__TERMUX__', '-D__USE_GNU', '-U__ANDROID__', '-I' + termux_dir + '/include', '-include', 'fcntl.h', '-include', 'unistd.h']" \
+    "cpp_args = ['-D__TERMUX__', '-D__USE_GNU', '-U__ANDROID__', '-I' + termux_dir + '/include', '-include', 'fcntl.h', '-include', 'unistd.h']" \
+    "c_link_args = ['-L' + termux_dir + '/lib', '-landroid-shmem']" \
+    "cpp_link_args = ['-L' + termux_dir + '/lib', '-landroid-shmem']" \
+    "" \
+    "[host_machine]" \
+    "system = 'android'" \
+    "cpu_family = 'aarch64'" \
+    "cpu = 'armv8-a'" \
+    "endian = 'little'" > /root/build-config/cross_file.txt
 
 COPY build_inside.sh /root/build.sh
 RUN chmod +x /root/build.sh
