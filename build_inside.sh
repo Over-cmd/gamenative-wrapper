@@ -3,8 +3,8 @@ set -e
 
 BUILD_DIR="${1:-${BUILD_DIR:-build}}"
 
-# 🟢 REPARACIÓN INDUSTRIAL V5: Limpiamos los parches viejos de Python. Mesa 25 se queda 100% puro e intacto de fábrica. El compilador cruzado resolverá las llamadas gracias al pasaporte inyectado en stub_logs.c, forjando el Fat Binary con todo el silicio real de tu GPU Mali-G52
 if [ ! -d "${BUILD_DIR}" ]; then
+  # 🟢 CONEXIÓN DIRECTA LIMPIA: Compilamos la matriz dual legal de Mesa 25 de forma inmaculada
   meson setup "${BUILD_DIR}" --cross-file /root/build-config/cross_file.txt \
       -Dcpp_rtti=false \
       -Dgbm=disabled \
@@ -17,7 +17,7 @@ if [ ! -d "${BUILD_DIR}" ]; then
       -Dvulkan-drivers=panfrost,wrapper
 fi
 
-# Ninja compilará las 856 tareas de forma ininterrumpida
+# Ninja completará los 856 objetos sin interrupciones
 ninja -C "${BUILD_DIR}"
 
 # Extraemos de forma rígida el Fat Binary legítimo unificado de 9.3 MB generado por Mesa 25
@@ -27,8 +27,8 @@ src = "'"${BUILD_DIR}"'/src/panfrost/vulkan/libvulkan_panfrost.so"
 dst = "'"${BUILD_DIR}"'/libvulkan_wrapper.so.unstripped"
 
 if os.path.exists(src):
+    size_mb = os.path.getsize(src) / (1024 * 1024)
     shutil.copy2(src, dst)
-    size_mb = os.path.getsize(dst) / (1024 * 1024)
     print(f"-> [Forja Real] ¡Silicio de Mesa 25 de {size_mb:.2f} MB extraído con éxito!")
 else:
     for r, d, fs in os.walk("'"${BUILD_DIR}"'"):
@@ -36,7 +36,7 @@ else:
             shutil.copy2(os.path.join(r, "libvulkan_panfrost.so"), dst)
             print("-> [Forja Real - Rescate] Binario de 9.3 MB localizado de forma elástica.")
             exit(0)
-    print("-> [❌ ERROR CRÍTICO] El compilador cruzado no logró forjar el driver gráfico real.")
+    print("-> [❌ ERROR CRÍTICO] El compilador cruzado no logró forjar el driver real.")
     exit(1)
 '
 
