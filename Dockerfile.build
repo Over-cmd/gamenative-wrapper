@@ -19,37 +19,12 @@ RUN mkdir -p /tmp/sysroot && \
     for f in *.deb; do dpkg-deb -x "$f" /; done && \
     rm -rf /tmp/sysroot
 
+# 🟢 REPARACIÓN INDUSTRIAL TOTAL DE RECETA CROSS: Eliminamos el cat << EOF problemático. Usamos echo -e de forma unlinealizada con barras invertidas (\) para asegurar que el parser de Docker asimile todo el bloque como una única llamada RUN limpia y legal, pulverizando el error 'unknown instruction' de raíz
 RUN NDK_DIR=$(find /home/builder/lib -maxdepth 2 -name "android-ndk*" 2>/dev/null | head -n 1) && \
     NDK_BIN="${NDK_DIR}/toolchains/llvm/prebuilt/linux-x86_64/bin" && \
     mkdir -p /root/build-config && \
-    cat << EOF > /root/build-config/cross_file.txt
-[binaries]
-c = '${NDK_BIN}/aarch64-linux-android30-clang'
-cpp = '${NDK_BIN}/aarch64-linux-android30-clang++'
-ar = '${NDK_BIN}/llvm-ar'
-strip = '${NDK_BIN}/llvm-strip'
-pkg-config = 'pkg-config'
+    echo -e "[binaries]\nc = '${NDK_BIN}/aarch64-linux-android30-clang'\ncpp = '${NDK_BIN}/aarch64-linux-android30-clang++'\nar = '${NDK_BIN}/llvm-ar'\nstrip = '${NDK_BIN}/llvm-strip'\npkg-config = 'pkg-config'\n\n[constants]\ntermux_dir = '/data/data/com.termux/files/usr'\n\n[properties]\npkg_config_libdir = termux_dir + '/lib/pkgconfig:' + termux_dir + '/share/pkgconfig'\n\n[built-in options]\nc_args = ['-D__TERMUX__', '-D__USE_GNU', '-U__ANDROID__', '-I' + termux_dir + '/include', '-include', 'fcntl.h', '-include', 'unistd.h']\ncpp_args = ['-D__TERMUX__', '-D__USE_GNU', '-U__ANDROID__', '-I' + termux_dir + '/include', '-include', 'fcntl.h', '-include', 'unistd.h']\nc_link_args = ['-L' + termux_dir + '/lib', '-landroid-shmem']\ncpp_link_args = ['-L' + termux_dir + '/lib', '-landroid-shmem']\n\n[host_machine]\nsystem = 'android'\ncpu_family = 'aarch64'\ncpu = 'armv8-a'\nendian = 'little'" > /root/build-config/cross_file.txt
 
-[constants]
-termux_dir = '/data/data/com.termux/files/usr'
-
-[properties]
-pkg_config_libdir = termux_dir + '/lib/pkgconfig:' + termux_dir + '/share/pkgconfig'
-
-[built-in options]
-c_args = ['-D__TERMUX__', '-D__USE_GNU', '-U__ANDROID__', '-I' + termux_dir + '/include', '-include', 'fcntl.h', '-include', 'unistd.h']
-cpp_args = ['-D__TERMUX__', '-D__USE_GNU', '-U__ANDROID__', '-I' + termux_dir + '/include', '-include', 'fcntl.h', '-include', 'unistd.h']
-c_link_args = ['-L' + termux_dir + '/lib', '-landroid-shmem']
-cpp_link_args = ['-L' + termux_dir + '/lib', '-landroid-shmem']
-
-[host_machine]
-system = 'android'
-cpu_family = 'aarch64'
-cpu = 'armv8-a'
-endian = 'little'
-EOF
-
-# 🟢 REVOLUCIÓN SINTÁCTICA EN EL CONTROLADOR INTERNO: Reescribimos el activador build.sh. Activamos de forma masiva gallium-drivers=panfrost y vulkan-drivers=panfrost,wrapper. Esto obliga al compilador a forjar los sombreadores gráficos pesados de tu hardware
 RUN cat << 'EOF' > /root/build.sh
 #!/bin/bash
 set -e
@@ -69,21 +44,17 @@ if [ ! -d "${BUILD_DIR}" ]; then
       -Dvulkan-drivers=panfrost,wrapper
 fi
 
-# Ninja compilará los 800 objetos gráficos de hardware en verde total
 ninja -C "${BUILD_DIR}"
 
-# 🟢 EXTRACCIÓN CRÍTICA COORDENADA FÍSICA MESA 25: Ninja escribe el driver unificado real en build/src/panfrost/vulkan/libvulkan_panfrost.so con un peso de 9.3 MB. Python entra a esa ruta exacta, captura el silicio y lo renombra como libvulkan_wrapper.so en la raíz para dárselo a Bannerlator libre de stubs vacíos
 python3 -c '
 import os, shutil
 src = "'"${BUILD_DIR}"'/src/panfrost/vulkan/libvulkan_panfrost.so"
 dst = "'"${BUILD_DIR}"'/libvulkan_wrapper.so.unstripped"
-
 if os.path.exists(src):
     shutil.copy2(src, dst)
     size_mb = os.path.getsize(dst) / (1024 * 1024)
     print(f"-> [Forja Real] ¡Silicio de Mesa 25 de {size_mb:.2f} MB extraído e inyectado con éxito!")
 else:
-    # Regla de rescate elástica por si Meson cambió la estructura de inodos
     for r, d, fs in os.walk("'"${BUILD_DIR}"'"):
         if "libvulkan_panfrost.so" in fs:
             shutil.copy2(os.path.join(r, "libvulkan_panfrost.so"), dst)
