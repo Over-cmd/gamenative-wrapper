@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO CON EMPEQUETADO RÍGIDO TZST V80"
+echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO CON INYECCIÓN RÍGIDA TZST V82"
 echo "=========================================================="
 
 WORKSPACE="$(pwd)"
@@ -61,6 +61,7 @@ if [ -f "$PANFROST_REAL_SRC" ]; then
     echo "-> [Host] Desplegando libvulkan_wrapper.so real en la subcarpeta..."
     cp -fv "$PANFROST_REAL_SRC" pkg/usr/lib/aarch64-linux-android/libvulkan_wrapper.so
     
+    # 🟢 NO SE QUITA: Aseguramos el Binario Rey físico legítimo de 9.3MB en la raíz de librerías de forma imperativa
     echo "-> [Host] Desplegando libvulkan_wrapper.so real en la raíz de librerías..."
     cp -fv "$PANFROST_REAL_SRC" pkg/usr/lib/libvulkan_wrapper.so
 else
@@ -109,17 +110,18 @@ cat << 'EOF' > pkg/usr/share/vulkan/icd.d/panfrost_icd.aarch64.json
 { "ICD": { "api_version": "1.3.289", "library_path": "aarch64-linux-android/libvulkan_panfrost.so" }, "file_format_version": "1.0.0" }
 EOF
 
-echo "msf:315508" > pkg/version.txt
+# Movemos la firma de versión directo adentro del árbol
+echo "msf:315508" > pkg/usr/share/vulkan/icd.d/version.txt
 chmod -R 755 pkg/
 
 echo "-> [AUDITORÍA FINAL SANIDAD] Verificando presencia real en disco antes del empaquetado:"
 ls -l pkg/usr/lib/libvulkan_wrapper.so
 ls -l pkg/usr/lib/aarch64-linux-android/libvulkan_wrapper.so
 
-# 🟢 REPARACIÓN INDUSTRIAL INDESTRUCTIBLE TZST: Forzamos la compresión por ruta absoluta sin cambiar de directorio relativo. Listamos de forma explícita los inodos del mapa de memoria para obligar a tar a meter los drivers reales y generar el tarball wrapper.tzst legítimo que exige Bannerlator
+# 🟢 REPARACIÓN INDUSTRIAL REORDENADA: Obligamos a tar a empacar pasándole la ruta explícita del árbol estructurado desde la raíz de pkg/. Al no aislar argumentos cruzados, el indexador de tar inyectará incondicionalmente el archivo real libvulkan_wrapper.so de la raíz en tu tarball final wrapper.tzst exigido por Bannerlator
 echo "-> 5. Sellando empaque de alta compresión en formato (.tzst) reglamentario..."
 sync
-tar -I "zstd -19 -T0" -cf "wrapper.tzst" -C pkg usr version.txt
+tar -I "zstd -19 -T0" -cf "wrapper.tzst" -C pkg usr
 
 rm -f docker_run_inside.sh cross_libdrm.txt cross_64.txt stub_logs.c stub_c.o stub_cpp.o generate_cross.sh 2>/dev/null || true
 rm -rf meson_src/ shims_64/ build-64/
