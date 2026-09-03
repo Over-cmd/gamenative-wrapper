@@ -2,13 +2,22 @@
 set -e
 
 echo "=========================================================="
-echo "🎯 MODULO INTERMEDIO: GENERACIÓN DE RECETAS EN EL HOST V38"
+echo "🎯 MODULO INTERMEDIO: GENERACIÓN DE RECETAS EN EL HOST V39"
 echo "=========================================================="
 
-NDK_ROOT="/usr/local/lib/android/sdk/ndk"
-SYSROOT="${NDK_ROOT}/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
+# 🟢 REPARACIÓN DINÁMICA DE RUTA REAL NDK: Usamos find para localizar la coordenada física exacta de la versión de desarrollo del NDK r28 en el Host de las Actions. Esto inyectará el número de compilación legítimo (/28.2.13676358) dentro de los cross-files, pulverizando el error de "No such file or directory" de raíz
+NDK_BASE_SEARCH="/usr/local/lib/android/sdk/ndk"
+NDK_ROOT=$(find "$NDK_BASE_SEARCH" -maxdepth 1 -type d -name "28.*" | head -n 1 || echo "")
 
-echo "-> Generando cross_libdrm.txt legítimo con Sysroot expandido..."
+if [ -z "$NDK_ROOT" ] || [ ! -d "$NDK_ROOT" ]; then
+    echo "-> [⚠️ ERROR CRÍTICO] No se localizó ninguna instalación real del NDK r28 en $NDK_BASE_SEARCH"
+    exit 1
+fi
+
+SYSROOT="${NDK_ROOT}/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
+echo "-> [OK] Inyectando NDK de silicio detectado en: $NDK_ROOT"
+
+echo "-> Generando cross_libdrm.txt legítimo..."
 cat << EOF > cross_libdrm.txt
 [binaries]
 c = '${NDK_ROOT}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android26-clang'
@@ -29,7 +38,6 @@ cpp_args = ['--sysroot=${SYSROOT}', '-I${SYSROOT}/usr/include/aarch64-linux-andr
 EOF
 
 echo "-> Generando cross_64.txt de Mesa 25 con enlace de pasaporte simétrico..."
-# 🟢 SINCRONIZACIÓN SUPREMA DE NOMBRE DE STUB: Modificamos -lvulkan_stub_wrapper volviendo al token clásico -lvulkan_wrapper. Esto encaja de forma milimétrica con el archivo físico que escribe tu docker_run_inside.sh en la carpeta shims_64/lib/ al arrancar, destruyendo el error del hito 77 en un parpadeo
 cat << EOF > cross_64.txt
 [binaries]
 c = '${NDK_ROOT}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android26-clang'
@@ -57,5 +65,5 @@ cpp_link_args = ['-Wl,-z,undefs', '-Wl,--allow-shlib-undefined', '-L/workspace/s
 EOF
 
 echo "=========================================================="
-echo "🟢 RECETAS COMPILACIÓN GENERADAS INDESTRUCTIBLES V38 OK"
+echo "🟢 RECETAS COMPILACIÓN GENERADAS INDESTRUCTIBLES V39 OK"
 echo "=========================================================="
