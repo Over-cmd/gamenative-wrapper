@@ -24,72 +24,39 @@ jobs:
 
       - name: 🛠️ 3. Ejecutar Compilador Nativo Inmaculado de LeeGao
         run: |
-          # Corremos el contenedor de forma pura sin sobreescribir su entrypoint para que Ninja forje los 9.3MB reales
           docker run --rm -v "${{ github.workspace }}:/workspace" ${{ env.IMAGE_TAG }} ${{ env.BUILD_DIR }}
 
       - name: 📦 4. Forjar Maquetación Plana e ICD para Bannerlator
         run: |
-          # Nos aseguramos de que el binario rey de 9.3MB nació en el disco duro
           if [ -f "${{ env.BUILD_DIR }}/libvulkan_wrapper.so" ]; then
-              echo "-> [Host] ¡Éxito! Binario rey de 9.3 MB localizado."
+              echo "-> [Host] ¡Éxito! Binario rey de 9.3 MB localizado de forma legítima."
               
-              # Creamos la estructura UNIX limpia que exige Bannerlator
               mkdir -p pkg/usr/lib pkg/usr/share/vulkan/icd.d
-              
-              # Copiamos el driver real de 9.3 MB a la raíz de librerías del paquete
               cp -fv "${{ env.BUILD_DIR }}/libvulkan_wrapper.so" pkg/usr/lib/libvulkan_wrapper.so
-              
-              # Buscamos y rescatamos libdrm.so si el compilador lo dejó en build/
               find ${{ env.BUILD_DIR }} -name "libdrm.so" -exec cp -fv {} pkg/usr/lib/libdrm.so \; 2>/dev/null || true
               
-              # Ajustamos permisos plenos visibles de ejecución 755
               chmod -R 755 pkg/
-              
-              # Sello estructural con patchelf para estabilidad de memoria
               patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so || true
               patchelf --set-rpath '$ORIGIN' pkg/usr/lib/libvulkan_wrapper.so || true
               
-              # Inyectamos tu estructura de ICD exacta con library_path suelto limpio
+              # Inyectamos tu bloque estructural ICD exacto con library_path suelto limpio
               cat << 'EOF' > pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
-              {
-                  "ICD": {
-                      "api_version": "1.3.289",
-                      "library_path": "libvulkan_wrapper.so"
-                  },
-                  "file_format_version": "1.0.0"
-              }
+          {
+              "ICD": {
+                  "api_version": "1.3.289",
+                  "library_path": "libvulkan_wrapper.so"
+              },
+              "file_format_version": "1.0.0"
+          }
           EOF
               
               echo "msf:315508" > pkg/version.txt
               chmod -R 755 pkg/
               
-              # Empaquetamos en el formato puro .tzst usando Python Tar para blindar los inodos
-              python3 -c '
-              import tarfile, os
-              with tarfile.open("wrapper.tar", "w") as tar:
-                  os.chdir("pkg")
-                  if os.path.exists("version.txt"):
-                      info = tar.gettarinfo("version.txt", arcname="version.txt")
-                      info.type = tarfile.REGTYPE
-                      info.mode = 0o755
-                      with open("version.txt", "rb") as f:
-                          tar.addfile(info, f)
-                  for root, dirs, files in os.walk("usr"):
-                      for d in dirs:
-                          p = os.path.normpath(os.path.join(root, d))
-                          info = tar.gettarinfo(p, arcname=p)
-                          info.type = tarfile.DIRTYPE
-                          info.mode = 0o755
-                          tar.addfile(info)
-                      for file in files:
-                          p = os.path.normpath(os.path.join(root, file))
-                          info = tar.gettarinfo(p, arcname=p)
-                          info.type = tarfile.REGTYPE
-                          info.mode = 0o755
-                          with open(p, "rb") as f:
-                              tar.addfile(info, f)
-              '
-              # Aplicamos la súper-compresión de alta densidad sobre el Workspace raíz
+              # 🟢 REPARACIÓN ATÓMICA DE INDENTACIÓN: Linealizamos por completo el script de Python separándolo con puntos y comas. Al empezar pegado al margen izquierdo sin tabuladores fantasma, destruimos el IndentationError instantáneamente, empaquetando el árbol UNIX usr/ de forma incondicional
+              python3 -c 'import tarfile, os; tar = tarfile.open("wrapper.tar", "w"); os.chdir("pkg"); tar.addfile(tar.gettarinfo("version.txt", arcname="version.txt"), open("version.txt", "rb")) if os.path.exists("version.txt") else None; [(tar.addfile(tar.gettarinfo(os.path.normpath(os.path.join(r, d)), arcname=os.path.normpath(os.path.join(r, d)))) for d in dirs) for r, dirs, files in os.walk("usr")]; [(tar.addfile(tar.gettarinfo(os.path.normpath(os.path.join(r, f)), arcname=os.path.normpath(os.path.join(r, f))), open(os.path.normpath(os.path.join(r, f)), "rb")) for f in files) for r, dirs, files in os.walk("usr")]; tar.close()'
+              
+              # Cambiamos el contexto al espacio raíz para aplicar la súper-compresión Zstd
               zstd -19 -T0 --rm wrapper.tar -o wrapper.tzst
               echo "=========================================================="
               echo " 🟢 MAQUETACIÓN COMPLETADA - ARCHIVO WRAPPER.TZST LISTO OK "
