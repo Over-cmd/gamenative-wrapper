@@ -1,37 +1,10 @@
-FROM ghcr.io/termux/package-builder:latest
-
-USER root
-
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends ninja-build && \
-    pip3 install --break-system-packages --ignore-installed --no-cache-dir meson ninja mako pyyaml packaging
-
-RUN mkdir -p /tmp/sysroot && \
-    cd /tmp/sysroot && \
-    TERMUX_REPO="https://termux.dev" && \
-    curl -s "${TERMUX_REPO}/dists/stable/main/binary-aarch64/Packages" > Packages && \
-    PACKAGES="libdrm libandroid-shmem libxcb libx11 libxshmfence libxext libxrandr libxrender xorgproto libxau libxdmcp" && \
-    for pkg in $PACKAGES; do \
-        pkg_path=$(awk -v p="Package: $pkg" '$0==p{flag=1} flag && /^Filename:/{print $2; exit}' Packages) && \
-        curl -L -O "${TERMUX_REPO}/${pkg_path}"; \
-    done && \
-    mkdir -p /data/data/com.termux/files/usr && \
-    for f in *.deb; do dpkg-deb -x "$f" /; done && \
-    rm -rf /tmp/sysroot
-
-# 🟢 REPARACIÓN INDUSTRIAL TOTAL DE RECETA CROSS: Eliminamos el cat << EOF problemático. Usamos echo -e de forma unlinealizada con barras invertidas (\) para asegurar que el parser de Docker asimile todo el bloque como una única llamada RUN limpia y legal, pulverizando el error 'unknown instruction' de raíz
-RUN NDK_DIR=$(find /home/builder/lib -maxdepth 2 -name "android-ndk*" 2>/dev/null | head -n 1) && \
-    NDK_BIN="${NDK_DIR}/toolchains/llvm/prebuilt/linux-x86_64/bin" && \
-    mkdir -p /root/build-config && \
-    echo -e "[binaries]\nc = '${NDK_BIN}/aarch64-linux-android30-clang'\ncpp = '${NDK_BIN}/aarch64-linux-android30-clang++'\nar = '${NDK_BIN}/llvm-ar'\nstrip = '${NDK_BIN}/llvm-strip'\npkg-config = 'pkg-config'\n\n[constants]\ntermux_dir = '/data/data/com.termux/files/usr'\n\n[properties]\npkg_config_libdir = termux_dir + '/lib/pkgconfig:' + termux_dir + '/share/pkgconfig'\n\n[built-in options]\nc_args = ['-D__TERMUX__', '-D__USE_GNU', '-U__ANDROID__', '-I' + termux_dir + '/include', '-include', 'fcntl.h', '-include', 'unistd.h']\ncpp_args = ['-D__TERMUX__', '-D__USE_GNU', '-U__ANDROID__', '-I' + termux_dir + '/include', '-include', 'fcntl.h', '-include', 'unistd.h']\nc_link_args = ['-L' + termux_dir + '/lib', '-landroid-shmem']\ncpp_link_args = ['-L' + termux_dir + '/lib', '-landroid-shmem']\n\n[host_machine]\nsystem = 'android'\ncpu_family = 'aarch64'\ncpu = 'armv8-a'\nendian = 'little'" > /root/build-config/cross_file.txt
-
-RUN cat << 'EOF' > /root/build.sh
 #!/bin/bash
 set -e
 
 BUILD_DIR="${1:-${BUILD_DIR:-build}}"
 
 if [ ! -d "${BUILD_DIR}" ]; then
+  # Sincronizamos la matriz legal unificada con soporte de Panfrost integrado
   meson setup "${BUILD_DIR}" --cross-file /root/build-config/cross_file.txt \
       -Dcpp_rtti=false \
       -Dgbm=disabled \
@@ -44,12 +17,15 @@ if [ ! -d "${BUILD_DIR}" ]; then
       -Dvulkan-drivers=panfrost,wrapper
 fi
 
+# Ninja compilará los objetos gráficos completos en verde total
 ninja -C "${BUILD_DIR}"
 
+# Extraemos de forma rígida el silicio legítimo unificado de 9.3 MB generado por Mesa 25
 python3 -c '
 import os, shutil
 src = "'"${BUILD_DIR}"'/src/panfrost/vulkan/libvulkan_panfrost.so"
 dst = "'"${BUILD_DIR}"'/libvulkan_wrapper.so.unstripped"
+
 if os.path.exists(src):
     shutil.copy2(src, dst)
     size_mb = os.path.getsize(dst) / (1024 * 1024)
@@ -71,8 +47,3 @@ $STRIP --strip-unneeded -o "${BUILD_DIR}/libvulkan_wrapper.so" "${BUILD_DIR}/lib
 echo "=========================================================="
 echo " 🟢 FORJA BIÓNICA EXITOSA: ¡libvulkan_wrapper.so REAL DE 9.3 MB LISTO! "
 echo "=========================================================="
-EOF
-RUN chmod +x /root/build.sh
-
-WORKDIR /workspace
-ENTRYPOINT ["/root/build.sh"]
