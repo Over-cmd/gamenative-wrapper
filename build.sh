@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================================="
-echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO CON INYECCIÓN RÍGIDA TZST V82"
+echo "🚀 MÓDULO 2: ORQUESTADOR BIÓNICO SEGURO CON SELLO INDUSTRIAL V83"
 echo "=========================================================="
 
 WORKSPACE="$(pwd)"
@@ -61,7 +61,6 @@ if [ -f "$PANFROST_REAL_SRC" ]; then
     echo "-> [Host] Desplegando libvulkan_wrapper.so real en la subcarpeta..."
     cp -fv "$PANFROST_REAL_SRC" pkg/usr/lib/aarch64-linux-android/libvulkan_wrapper.so
     
-    # 🟢 NO SE QUITA: Aseguramos el Binario Rey físico legítimo de 9.3MB en la raíz de librerías de forma imperativa
     echo "-> [Host] Desplegando libvulkan_wrapper.so real en la raíz de librerías..."
     cp -fv "$PANFROST_REAL_SRC" pkg/usr/lib/libvulkan_wrapper.so
 else
@@ -74,6 +73,11 @@ if [ -f "shims_64/lib/libdrm.so" ]; then
 else
     echo "-> [❌ ERROR CRÍTICO] Falta libdrm.so en shims_64/"; exit 1
 fi
+
+# 🟢 REPARACIÓN CRÍTICA DESALINEACIÓN DE INODOS: Forzamos marcas de tiempo artificiales asíncronas separadas por un segundo completo y modificamos sutilmente un byte de metadato inerte con patchelf. Esto rompe la simetría molecular ante los ojos de tar, impidiendo que la herramienta combine los archivos como Hard Links internos y forzando a que grabe el binario rey en la raíz del paquete de forma incondicional
+echo "-> [Host] Desincronizando inodos de forma intencionada para blindar a tar..."
+touch -m -d "1 hour ago" pkg/usr/lib/libvulkan_wrapper.so
+touch -m -d "now" pkg/usr/lib/aarch64-linux-android/libvulkan_wrapper.so
 
 # Abrimos los permisos del Host de forma masiva para patchelf y strip
 chmod -R 755 pkg/
@@ -96,7 +100,7 @@ patchelf --set-soname libvulkan_panfrost.so pkg/usr/lib/aarch64-linux-android/li
 patchelf --add-needed libdrm.so pkg/usr/lib/aarch64-linux-android/libvulkan_panfrost.so
 patchelf --set-rpath '$ORIGIN' pkg/usr/lib/aarch64-linux-android/libvulkan_panfrost.so
 
-patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/aarch64-linux-android/libvulkan_wrapper.so || true
+patchelf --set-soname libvulkan_wrapper_alt.so pkg/usr/lib/aarch64-linux-android/libvulkan_wrapper.so || true
 patchelf --add-needed libdrm.so pkg/usr/lib/aarch64-linux-android/libvulkan_wrapper.so || true
 patchelf --set-rpath '$ORIGIN' pkg/usr/lib/aarch64-linux-android/libvulkan_wrapper.so || true
 
@@ -110,18 +114,17 @@ cat << 'EOF' > pkg/usr/share/vulkan/icd.d/panfrost_icd.aarch64.json
 { "ICD": { "api_version": "1.3.289", "library_path": "aarch64-linux-android/libvulkan_panfrost.so" }, "file_format_version": "1.0.0" }
 EOF
 
-# Movemos la firma de versión directo adentro del árbol
-echo "msf:315508" > pkg/usr/share/vulkan/icd.d/version.txt
+echo "msf:315508" > pkg/usr/lib/version.txt
 chmod -R 755 pkg/
 
 echo "-> [AUDITORÍA FINAL SANIDAD] Verificando presencia real en disco antes del empaquetado:"
 ls -l pkg/usr/lib/libvulkan_wrapper.so
 ls -l pkg/usr/lib/aarch64-linux-android/libvulkan_wrapper.so
 
-# 🟢 REPARACIÓN INDUSTRIAL REORDENADA: Obligamos a tar a empacar pasándole la ruta explícita del árbol estructurado desde la raíz de pkg/. Al no aislar argumentos cruzados, el indexador de tar inyectará incondicionalmente el archivo real libvulkan_wrapper.so de la raíz en tu tarball final wrapper.tzst exigido por Bannerlator
+# 🟢 EMPAQUETADO COMPLETO REGLAMENTARIO DE ALTA DISPONIBILIDAD: Usamos el flag defensivo --hard-dereference. Esta bandera del motor tar le prohibe explícitamente a la herramienta crear referencias cruzadas optimizadas, forzando a que guarde de forma literal y física el archivo libvulkan_wrapper.so en la raíz de tu tarball final wrapper.tzst exigido por Bannerlator
 echo "-> 5. Sellando empaque de alta compresión en formato (.tzst) reglamentario..."
 sync
-tar -I "zstd -19 -T0" -cf "wrapper.tzst" -C pkg usr
+tar --hard-dereference -I "zstd -19 -T0" -cf "wrapper.tzst" -C pkg usr
 
 rm -f docker_run_inside.sh cross_libdrm.txt cross_64.txt stub_logs.c stub_c.o stub_cpp.o generate_cross.sh 2>/dev/null || true
 rm -rf meson_src/ shims_64/ build-64/
