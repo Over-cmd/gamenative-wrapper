@@ -36,7 +36,7 @@ jobs:
         run: |
           docker run --rm -v "${{ github.workspace }}:/workspace" local-wrapper-compiler:latest ${{ env.BUILD_DIR }}
 
-      - name: 📦 6. Forjar Maquetación Plana e ICD para Bannerlator
+            - name: 📦 6. Forjar Maquetación Plana e ICD para Bannerlator
         run: |
           REAL_SO=$(find ${{ env.BUILD_DIR }} -name "libvulkan_wrapper.so" | head -n 1)
           
@@ -44,6 +44,7 @@ jobs:
               size_mb=$(os_size=$(stat -c%s "$REAL_SO"); echo "scale=2; $os_size/1024/1024" | bc 2>/dev/null || echo "9.3")
               echo "-> [Host] ¡Éxito Absoluto! Driver real localizado. Peso real: $size_mb MB"
               
+              # 🟢 Estructuramos el árbol rígido dentro de la carpeta pkg/
               mkdir -p pkg/usr/lib pkg/usr/share/vulkan/icd.d
               cp -fv "$REAL_SO" pkg/usr/lib/libvulkan_wrapper.so
               find ${{ env.BUILD_DIR }} -name "libdrm.so" -exec cp -fv {} pkg/usr/lib/libdrm.so \; 2>/dev/null || true
@@ -52,6 +53,7 @@ jobs:
               patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so || true
               patchelf --set-rpath '$ORIGIN' pkg/usr/lib/libvulkan_wrapper.so || true
               
+              # Generamos el manifiesto con el nombre wrapper_icd.aarch64.json
               cat << 'EOF' > pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
           {
               "ICD": {
@@ -65,9 +67,14 @@ jobs:
               echo "msf:315508" > pkg/version.txt
               chmod -R 755 pkg/
               
-              python3 -c 'import tarfile, os; tar = tarfile.open("wrapper.tar", "w"); os.chdir("pkg"); tar.addfile(tar.gettarinfo("version.txt", arcname="version.txt"), open("version.txt", "rb")) if os.path.exists("version.txt") else None; [(tar.addfile(tar.gettarinfo(os.path.normpath(os.path.join(r, d)), arcname=os.path.normpath(os.path.join(r, d)))) for d in dirs) for r, dirs, files in os.walk("usr")]; [(tar.addfile(tar.gettarinfo(os.path.normpath(os.path.join(r, f)), arcname=os.path.normpath(os.path.join(r, f))), open(os.path.normpath(os.path.join(r, f)), "rb")) for f in files) for r, dirs, files in os.walk("usr")]; tar.close()'
+              # 🟢 EL CAMBIO CLAVE: Reemplazamos el script de Python por comandos nativos de Linux. 
+              # Entramos a pkg/, empaquetamos version.txt y toda la estructura usr/ completa 
+              # en un tarball y lo comprimimos directamente a ZSTD de máxima potencia (-19).
+              echo "-> Forjando el archivo comprimido wrapper.tzst..."
+              cd pkg
+              tar -cvf - version.txt usr | zstd -19 -T0 > ../wrapper.tzst
+              cd ..
               
-              zstd -19 -T0 --rm wrapper.tar -o wrapper.tzst
               echo "=========================================================="
               echo " 🟢 MAQUETACIÓN COMPLETADA - ARCHIVO WRAPPER.TZST LISTO OK "
               echo "=========================================================="
