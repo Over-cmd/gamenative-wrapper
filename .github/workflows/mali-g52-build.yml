@@ -43,46 +43,53 @@ jobs:
               size_mb=$(os_size=$(stat -c%s "$REAL_SO"); echo "scale=2; $os_size/1024/1024" | bc 2>/dev/null || echo "9.3")
               echo "-> [Host] ¡Éxito Absoluto! Driver real localizado. Peso real: $size_mb MB"
               
-              # 1. Limpieza y creación del árbol de directorios de raíz rígido
-              rm -rf pkg
-              mkdir -p pkg/usr/lib
-              mkdir -p pkg/usr/share/vulkan/icd.d
+              # 🟢 1. LIMPIEZA ABSOLUTA Y CREACIÓN DIRECTA DEL ÁRBOLES EN EL HOME
+              rm -rf pkg_export
+              mkdir -p pkg_export/usr/lib
+              mkdir -p pkg_export/usr/share/vulkan/icd.d
               
-              # 2. Inyectar tu driver de 58 MB reales en su celda destino
-              cp -fv "$REAL_SO" pkg/usr/lib/libvulkan_wrapper.so
+              # 🟢 2. INYECTAR EL DRIVER EN USR/LIB
+              cp -fv "$REAL_SO" pkg_export/usr/lib/libvulkan_wrapper.so
               
-              # 3. RESCATE DE LIBDRM: Buscamos cualquier libdrm.so de más de 10KB compilado en el workspace o extraído por Docker
-              find . -name "libdrm.so" -type f -size +10k -exec cp -fv {} pkg/usr/lib/libdrm.so \; 2>/dev/null || true
+              # 🟢 3. ESCÁNER TOTAL Y COPIA DE LIBDRM REAL COMPILADA (Filtra archivos de más de 10 Kilobytes)
+              echo "=========================================================="
+              echo " 🔍 INICIANDO ESCÁNER DE LIBDRM EN TODO EL DISCO... "
+              echo "=========================================================="
+              find . -name "libdrm.so" -type f -exec ls -lh {} \;
               
-              # Si no lo encuentra, lo extraemos síncronamente desde el sysroot de dependencias generado en la carpeta build
-              if [ ! -s "pkg/usr/lib/libdrm.so" ]; then
-                  find ${{ env.BUILD_DIR }} -name "libdrm.so" -exec cp -fv {} pkg/usr/lib/libdrm.so \; 2>/dev/null || true
+              # Intentamos jalar la versión real con peso que se encuentre en build
+              find ${{ env.BUILD_DIR }} -name "libdrm.so" -type f -size +10k -exec cp -fv {} pkg_export/usr/lib/libdrm.so \; 2>/dev/null || true
+              
+              # Si no hay ninguna pesada en build, jalamos la que encuentre en el sistema completo
+              if [ ! -s "pkg_export/usr/lib/libdrm.so" ]; then
+                  find . -name "libdrm.so" -type f -exec cp -fv {} pkg_export/usr/lib/libdrm.so \; 2>/dev/null || true
               fi
               
-              # 4. Modificar el binario wrapper con patchelf
-              patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so || true
-              patchelf --set-rpath '$ORIGIN' pkg/usr/lib/libvulkan_wrapper.so || true
+              # 🟢 4. APLICAR PATCHELF AL WRAPPER
+              patchelf --set-soname libvulkan_wrapper.so pkg_export/usr/lib/libvulkan_wrapper.so || true
+              patchelf --set-rpath '$ORIGIN' pkg_export/usr/lib/libvulkan_wrapper.so || true
               
-              # 5. ESCRITURA ABSOLUTA DEL MANIFIESTO ICD VULKAN
-              echo '{"ICD": {"api_version": "1.3.289", "library_path": "/usr/lib/libvulkan_wrapper.so"}, "file_format_version": "1.0.0"}' > pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
+              # 🟢 5. ESCRITURA FORZADA DEL ACTIVADOR JSON
+              echo '{"ICD": {"api_version": "1.3.289", "library_path": "/usr/lib/libvulkan_wrapper.so"}, "file_format_version": "1.0.0"}' > pkg_export/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
               
-              # Sello síncronizado forzado de escritura
+              # Obligamos al disco a guardar síncronamente
               sync && sleep 2
               
-              # 6. MONITOREO DE SEGURIDAD EN LA CONSOLA: Listamos recursivamente para verificar la existencia antes del empaque
-              echo "-> Verificando estructura física completa en el Host:"
-              ls -R pkg/
+              # 🟢 6. EL ESCÁNER PRE-EMPAQUE DEFINITIVO: Muestra el mapa real de lo que va a entrar en el saco
+              echo "=========================================================="
+              echo " 🔍 MAPA DE INODOS DEL PAQUETE FINAL (MIRA AQUÍ LOS PESOS): "
+              echo "=========================================================="
+              find pkg_export/ -type f -exec ls -lh {} \;
               
-              # 🟢 REPARACIÓN INDUSTRIAL TOTAL DE EMPAQUE: Forzamos a tar a capturar recursivamente TODO el árbol desde el directorio pkg/
-              # sin usar comandos cd relativos que confunden al Host de GitHub Actions.
+              # 🟢 7. EMPAQUETADO COMPACTO DIRECTO SIN CAMBIOS DE RUTA EXTRAÑOS
               echo "-> Forjando el archivo comprimido definitivo wrapper.tzst..."
-              tar -C pkg -cvf - usr | zstd -19 -T0 > wrapper.tzst
+              tar -C pkg_export -cvf - usr | zstd -19 -T0 > wrapper.tzst
               
               echo "=========================================================="
               echo " 🟢 MAQUETACIÓN COMPLETADA - ARCHIVO WRAPPER.TZST LISTO OK "
               echo "=========================================================="
           else
-              echo "-> [❌ ERROR GRAVE] El compilador local falló en escribir el binario de 9.3 MB."
+              echo "-> [❌ ERROR GRAVE] El compilador local falló en escribir el binario de 58 MB."
               exit 1
           fi
 
