@@ -53,10 +53,11 @@ rm -rf "${ROOTFS_DIR}"
 mkdir -p "${ROOTFS_DIR}/usr/lib"
 mkdir -p "${ROOTFS_DIR}/usr/share/vulkan/icd.d"
 
-# 🟢 5. COPIAR BINARIO Y GENERAR MANIFIESTO ACTIVADOR JSON DE VULKAN
+# 🟢 5. COPIAR BINARIO Y GENERAR MANIFIESTO ACTIVADOR JSON CON NOMBRE DE WRAPPER
 cp "${BUILD_DIR}/libvulkan_wrapper.so" "${ROOTFS_DIR}/usr/lib/libvulkan_wrapper.so"
 
-cat << 'EOF' > "${ROOTFS_DIR}/usr/share/vulkan/icd.d/panfrost_icd.aarch64.json"
+# 🛠️ CORRECCIÓN DIRECTA: Cambiamos el nombre del manifiesto a wrapper_icd.aarch64.json
+cat << 'EOF' > "${ROOTFS_DIR}/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json"
 {
     "file_format_version": "1.0.0",
     "ICD": {
@@ -76,5 +77,5 @@ cd - > /dev/null
 cp "${BUILD_DIR}/gamenative_driver_rootfs.tar.zst" ./gamenative_driver_rootfs.tar.zst
 
 echo "=========================================================="
-echo " 🟢 FORJA EXITOSA v43: ¡ESTRUCTURA DE RAÍZ COMPLETA Y SELLADA! "
+echo " 🟢 FORJA EXITOSA v44: ¡MANIFIESTO WRAPPER JSON Y TAR.ZST LISTOS! "
 echo "=========================================================="
