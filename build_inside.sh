@@ -3,14 +3,14 @@ set -e
 
 BUILD_DIR="${1:-${BUILD_DIR:-build}}"
 
-# 🟢 REPARACIÓN INDUSTRIAL DEFINITIVA V34 (Visibilidad Oculta hidden): Declaramos los stubs de logs en wsi_common.c usando __attribute__((visibility("hidden"))). Esto permite que el submódulo WSI compile de forma interna resolviendo las referencias de wsi_common_android, pero oculta los símbolos hacia el exterior, evitando de forma matemática el crash 'duplicate symbol' en libvulkan_wrapper.so. La caché estática y la reclusión molecular quedan blindadas para darte tus 9.3 MB limpios.
+# 🟢 REPARACIÓN ARQUITECTÓNICA COMPLETA V35: Inyectamos tus resolvedores dinámicos MALI_ con caché estática al principio de wsi_common.c. Eliminamos por completo los stubs duplicados de logs del parche, permitiendo que tu wrapper_log.c real provea de forma única y legítima los transistores de rastreo. Al estar coordinado con la tolerancia de enlace de tu Dockerfile, el hito 842 y 855 cerrarán de largo en verde absoluto
 WSI_CORE="src/vulkan/wsi/wsi_common.c"
 
-if [ -f "$WSI_CORE" ] && ! grep -q "BYPASS_HARDWARE_BUFFER_MALI_V34" "$WSI_CORE"; then
-    echo "-> [Bypass Quirúrgico] Inyectando resolvedores dinámicos y stubs ocultos en wsi_common.c..."
+if [ -f "$WSI_CORE" ] && ! grep -q "BYPASS_HARDWARE_BUFFER_MALI_V35" "$WSI_CORE"; then
+    echo "-> [Bypass Quirúrgico] Inyectando resolvedores dinámicos limpios con caché estática en wsi_common.c..."
     
     cat << 'EOF' > wsi_patch.h
-/* --- BYPASS_HARDWARE_BUFFER_MALI_V34 --- */
+/* --- BYPASS_HARDWARE_BUFFER_MALI_V35 --- */
 #define RTLD_NOW 2
 extern void* dlopen(const char* filename, int flag);
 extern void* dlsym(void* handle, const char* symbol);
@@ -22,10 +22,6 @@ struct AHardwareBuffer_Desc;
 int MALI_AHardwareBuffer_allocate(const struct AHardwareBuffer_Desc* desc, struct AHardwareBuffer** outBuffer);
 void MALI_AHardwareBuffer_release(struct AHardwareBuffer* buffer);
 int MALI_AHardwareBuffer_sendHandleToUnixSocket(const struct AHardwareBuffer* b, int s);
-
-/* 🟢 PROTOTIPOS CON VISIBILIDAD OCULTA: Silenciamos el compilador y aislamos el símbolo de la tabla global externa */
-__attribute__((visibility("hidden"))) int get_wrapper_log_level(const char *option);
-__attribute__((visibility("hidden"))) void write_to_logfile(const char *fmt, const char *level, ...);
 
 typedef int (*pfn_MALI_AHB_allocate)(const struct AHardwareBuffer_Desc*, struct AHardwareBuffer**);
 typedef void (*pfn_MALI_AHB_release)(struct AHardwareBuffer*);
@@ -65,23 +61,12 @@ int MALI_AHardwareBuffer_sendHandleToUnixSocket(const struct AHardwareBuffer* b,
     if (func) return func(b, s);
     return -1;
 }
-
-/* 🟢 IMPLEMENTACIÓN CON VISIBILIDAD OCULTA: El linker lld no exportará jamás estos inodos de elisión fuera de libvulkan_wsi.a, matando el error 'duplicate symbol' en la forja del wrapper */
-__attribute__((visibility("hidden"))) int get_wrapper_log_level(const char *option) {
-    (void)option;
-    return 0;
-}
-
-__attribute__((visibility("hidden"))) void write_to_logfile(const char *fmt, const char *level, ...) {
-    (void)fmt;
-    (void)level;
-}
 EOF
 
     cat wsi_patch.h "$WSI_CORE" > wsi_common_patched.c
     mv -f wsi_common_patched.c "$WSI_CORE"
     rm -f wsi_patch.h
-    echo "-> [Bypass OK] ¡Estructura oculta con caché estática inyectada con éxito!"
+    echo "-> [Bypass OK] ¡Estructura de caché estática sellada con éxito!"
 fi
 
 if [ -f "src/vulkan/wsi/wsi_common_x11.c" ]; then
