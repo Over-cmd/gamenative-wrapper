@@ -43,34 +43,36 @@ jobs:
               size_mb=$(os_size=$(stat -c%s "$REAL_SO"); echo "scale=2; $os_size/1024/1024" | bc 2>/dev/null || echo "9.3")
               echo "-> [Host] ¡Éxito Absoluto! Driver real localizado. Peso real: $size_mb MB"
               
-              # Limpiamos y estructuramos la carpeta pkg/ desde cero en el Host de las Actions
+              # 🟢 LIMPIEZA Y CREACIÓN PASO A PASO: Forzamos la creación del árbol rígido de forma explícita
               rm -rf pkg
-              mkdir -p pkg/usr/lib pkg/usr/share/vulkan/icd.d
+              mkdir -p pkg/usr/lib
+              mkdir -p pkg/usr/share
+              mkdir -p pkg/usr/share/vulkan
+              mkdir -p pkg/usr/share/vulkan/icd.d
+              
+              # Copiamos el binario a usr/lib
               cp -fv "$REAL_SO" pkg/usr/lib/libvulkan_wrapper.so
               find ${{ env.BUILD_DIR }} -name "libdrm.so" -exec cp -fv {} pkg/usr/lib/libdrm.so \; 2>/dev/null || true
               
-              chmod -R 755 pkg/
+              # Aplicamos patchelf
               patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so || true
               patchelf --set-rpath '$ORIGIN' pkg/usr/lib/libvulkan_wrapper.so || true
               
-              # Sello de manifiesto con la ruta exacta e identidad del Wrapper
-              cat << 'EOF' > pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
-          {
-              "ICD": {
-                  "api_version": "1.3.289",
-                  "library_path": "/usr/lib/libvulkan_wrapper.so"
-              },
-              "file_format_version": "1.0.0"
-          }
-          EOF
+              # 🟢 ESCRITURA INMUTABLE DIRECTA: Creamos el manifiesto JSON asegurando la ruta de salida
+              echo '{"ICD": {"api_version": "1.3.289", "library_path": "/usr/lib/libvulkan_wrapper.so"}, "file_format_version": "1.0.0"}' > pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
               
-              echo "msf:315508" > pkg/version.txt
-              chmod -R 755 pkg/
+              # Validamos en la consola del Host si el archivo realmente existe físicamente antes de empaquetar
+              if [ -f "pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json" ]; then
+                  echo "-> [Host] ¡Confirmado! wrapper_icd.aarch64.json creado físicamente en el disco."
+              else
+                  echo "-> [❌ ERROR CRÍTICO] No se pudo escribir el archivo JSON de manifiesto."
+                  exit 1
+              fi
               
-              # 🟢 EMPAQUE NATIVO INDESTRUCTIBLE DE LINUX: Entramos físicamente a pkg/, metemos version.txt y toda la estructura usr/ con sus subcarpetas lib/ e icd.d/ en un stream puro y lo blindamos a ZSTD
+              # 🟢 EMPAQUE NATIVO COMPLETO: Sincronizamos tar para que capture todo el árbol de usr/ de forma recursiva
               echo "-> Forjando el archivo comprimido definitivo wrapper.tzst..."
               cd pkg
-              tar -cvf - version.txt usr | zstd -19 -T0 > ../wrapper.tzst
+              tar -cvf - usr | zstd -19 -T0 > ../wrapper.tzst
               cd ..
               
               echo "=========================================================="
