@@ -101,12 +101,12 @@ int MALI_AHardwareBuffer_sendHandleToUnixSocket(const struct AHardwareBuffer* b,
 }
 
 /* 🟢 AISLAMIENTO ESTÁTICO LOCAL: Declaramos los stubs de logs de elisión como static inline. Al ser locales de esta unidad de traducción, sacian las referencias del WSI de Panfrost internamente, pero no se exportan al mapa global de símbolos públicos, destruyendo el error 'duplicate symbol' en libvulkan_wrapper.so para siempre */
-static inline int Mesa_get_wrapper_log_level(const char *option) {
+int Mesa_get_wrapper_log_level(const char *option) {
     (void)option;
     return 0;
 }
 
-static inline void Mesa_write_to_logfile(const char *fmt, const char *level, ...) {
+void Mesa_write_to_logfile(const char *fmt, const char *level, ...) {
     (void)fmt;
     (void)level;
 }
