@@ -48,38 +48,30 @@ jobs:
               mkdir -p pkg/usr/lib
               mkdir -p pkg/usr/share/vulkan/icd.d
               
-              # 🟢 CORRECCIÓN DE REGLA: Forzamos el renombrado plano directo hacia libvulkan_wrapper.so
-              echo "-> Inyectando y renombrando binario legítimo a libvulkan_wrapper.so..."
+              # 2. Copiar y renombrar de forma estricta hacia libvulkan_wrapper.so original
+              echo "-> Copiando el driver original compilado a libvulkan_wrapper.so..."
               cp -fv "$REAL_SO" pkg/usr/lib/libvulkan_wrapper.so
               
-              # Copiamos opcionalmente una copia secundaria con el nombre original por compatibilidad interna de Mesa
-              cp -fv "$REAL_SO" pkg/usr/lib/libvulkan_panfrost.so
-              
-              # Jalar de forma complementaria libdrm.so de soporte si existe en el build
-              find ${{ env.BUILD_DIR }} -name "libdrm.so" -exec cp -fv {} pkg/usr/lib/libdrm.so \; 2>/dev/null || true
-              
-              # Sellar identidades binarias y dependencias internas con patchelf
+              # Sellar identidades binarias y dependencias con patchelf
               patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so || true
               patchelf --set-rpath '$ORIGIN' pkg/usr/lib/libvulkan_wrapper.so || true
-              if [ -f "pkg/usr/lib/libvulkan_panfrost.so" ]; then
-                  patchelf --set-soname libvulkan_panfrost.so pkg/usr/lib/libvulkan_panfrost.so || true
-                  patchelf --set-rpath '$ORIGIN' pkg/usr/lib/libvulkan_panfrost.so || true
-              fi
               
-              # 2. Inyección del manifiesto JSON ICD oficial de 64 bits (AArch64) en una línea plana
+              # 3. Inyección del manifiesto JSON ICD oficial de 64 bits (AArch64) para Box64
+              echo "-> Inyectando manifiesto JSON ICD oficial de 64 bits (AArch64)..."
               echo '{"ICD": {"api_version": "1.3.289", "library_path": "/usr/lib/libvulkan_wrapper.so"}, "file_format_version": "1.0.0"}' > pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
               
-              # 3. Inyección del manifiesto JSON ICD oficial de 32 bits (ARM) para Box86
+              # 4. Inyección del manifiesto JSON ICD oficial de 32 bits (ARM) para salvar Box86
+              echo "-> Inyectando manifiesto JSON ICD oficial de 32 bits (ARM)..."
               echo '{"ICD": {"api_version": "1.3.289", "library_path": "/usr/lib/libvulkan_wrapper.so"}, "file_format_version": "1.0.0"}' > pkg/usr/share/vulkan/icd.d/wrapper_icd.arm.json
               
-              # Congelamos el hilo para obligar al disco duro del Host a escribir físicamente cada byte
+              # Sincronización de escritura en disco duro
               sync && sleep 3
               
-              # 4. ESCÁNER DE CONFIRMACIÓN: Listamos el paquete en la consola para certificar la existencia real
-              echo "-> Verificando estructura física unificada antes de la compresión:"
+              # 5. ESCÁNER DE CONTROL EN CONSOLA
+              echo "-> Verificando estructura física final en el Host:"
               find pkg/ -type f -exec ls -lh {} \;
               
-              # 5. EMPAQUETADO COMPACTO CON FILTRO NATIVO DESDE EL ENTORNO ABSOLUTO
+              # 6. EMPAQUETADO COMPACTO CON FILTRO NATIVO SIN ERRORES DE RUTA RELATIVA
               echo "-> Forjando el archivo comprimido definitivo wrapper.tzst..."
               tar -C pkg -I 'zstd -19 -T0' -cf wrapper.tzst usr
               
