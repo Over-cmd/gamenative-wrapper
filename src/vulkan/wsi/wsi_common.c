@@ -48,13 +48,20 @@
 #include <unistd.h>
 #endif
 
-/* --- INYECCIÓN MAESTRA REAL DE CARGA DINÁMICA CON CACHÉ ESTÁTICA --- */
+/* --- INYECCIÓN MAESTRA REAL DE CARGA DINÁMICA CON PROTOTIPOS ANTE-CUEPO Y CACHÉ ESTÁTICA --- */
 #define RTLD_NOW 2
 extern void* dlopen(const char* filename, int flag);
 extern void* dlsym(void* handle, const char* symbol);
 
 struct AHardwareBuffer;
 struct AHardwareBuffer_Desc;
+
+/* 🟢 LOS PROTOTIPOS ANTE-CUERPO: Forzamos la declaración global previa para destruir el flag -Werror=missing-prototypes de raíz */
+int MALI_AHardwareBuffer_allocate(const struct AHardwareBuffer_Desc* desc, struct AHardwareBuffer** outBuffer);
+void MALI_AHardwareBuffer_release(struct AHardwareBuffer* buffer);
+int MALI_AHardwareBuffer_sendHandleToUnixSocket(const struct AHardwareBuffer* b, int s);
+int Mesa_get_wrapper_log_level(const char *option);
+void Mesa_write_to_logfile(const char *fmt, const char *level, ...);
 
 typedef int (*pfn_MALI_AHB_allocate)(const struct AHardwareBuffer_Desc*, struct AHardwareBuffer**);
 typedef void (*pfn_MALI_AHB_release)(struct AHardwareBuffer*);
@@ -95,7 +102,7 @@ int MALI_AHardwareBuffer_sendHandleToUnixSocket(const struct AHardwareBuffer* b,
     return -1;
 }
 
-/* 4. Stubs de Elisión unificados para get_wrapper_log_level y write_to_logfile */
+/* 4. Stubs de Elisión públicos globales tradicionales */
 int Mesa_get_wrapper_log_level(const char *option) {
     (void)option;
     return 0;
