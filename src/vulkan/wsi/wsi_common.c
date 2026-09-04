@@ -114,6 +114,7 @@ void Mesa_write_to_logfile(const char *fmt, const char *level, ...) {
     (void)level;
 }
 
+#define WRAPPER_LOG(level, fmt, ...) do { } while(0)
 uint64_t WSI_DEBUG;
 
 static const struct debug_control debug_control[] = {
