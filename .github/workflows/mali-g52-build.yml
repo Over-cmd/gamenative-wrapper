@@ -22,7 +22,7 @@ jobs:
       - name: ⚙️ 2. Instalar Herramientas de Compresión y patchelf
         run: |
           sudo apt-get update
-          sudo apt-get install -y zstd patchelf python3 bc
+          sudo apt-get install -y zip zstd patchelf python3 bc
 
       - name: ⚙️ 3. Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -48,7 +48,7 @@ jobs:
               mkdir -p pkg_export/usr/lib
               mkdir -p pkg_export/usr/share/vulkan/icd.d
               
-              # 2. Inyectar tu driver real de 9.2 MB
+              # 2. Inyectar tu driver de 9.2 MB reales
               cp -fv "$REAL_SO" pkg_export/usr/lib/libvulkan_wrapper.so
               
               # 3. Rescatar libdrm.so de forma complementaria si existe
@@ -58,20 +58,22 @@ jobs:
               patchelf --set-soname libvulkan_wrapper.so pkg_export/usr/lib/libvulkan_wrapper.so || true
               patchelf --set-rpath '$ORIGIN' pkg_export/usr/lib/libvulkan_wrapper.so || true
               
-              # 5. Escritura plana inmutable del manifiesto ICD Vulkan
+              # 5. Escritura plana del manifiesto ICD Vulkan
               echo '{"ICD": {"api_version": "1.3.289", "library_path": "/usr/lib/libvulkan_wrapper.so"}, "file_format_version": "1.0.0"}' > pkg_export/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
               
-              # Aseguramos el asentamiento físico en el disco duro del Host
+              # Aseguramos el asentamiento en el disco
               sync && sleep 2
               
-              # 🟢 EL CAMBIO INDUSTRIAL: Usamos tar apuntando a la carpeta raíz de forma absoluta (-C pkg_export).
-              # Esto empaqueta de corrido el árbol completo usr/ y lo comprime directamente con ZSTD 
-              # a máxima potencia (-19) generando el archivo wrapper.tzst que necesitas para Bannerlator.
-              echo "-> Forjando el archivo comprimido definitivo wrapper.tzst..."
-              tar -C pkg_export -cvf - usr | zstd -19 -T0 > wrapper.tzst
+              # 🟢 EL CAMBIO CLAVE MUNDIAL: Cambiamos tar por ZIP. Entramos a pkg_export/ 
+              # y empaquetamos de forma recursiva la carpeta usr/ completa en un archivo wrapper.zip 
+              # que Android decodifica de forma nativa sin perder subcarpetas con puntos.
+              echo "-> Forjando el archivo comprimido definitivo wrapper.zip..."
+              cd pkg_export
+              zip -r ../wrapper.zip usr
+              cd ..
               
               echo "=========================================================="
-              echo " 🟢 MAQUETACIÓN COMPLETADA - ARCHIVO WRAPPER.TZST LISTO OK  "
+              echo " 🟢 MAQUETACIÓN COMPLETADA - ARCHIVO WRAPPER.ZIP LISTO OK  "
               echo "=========================================================="
           else
               echo "-> [❌ ERROR GRAVE] El compilador local falló en escribir el binario."
@@ -82,5 +84,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Bannerlator-Mali-Wrapper
-          path: wrapper.tzst
+          path: wrapper.zip
           retention-days: 7
