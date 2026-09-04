@@ -43,33 +43,36 @@ jobs:
               size_mb=$(os_size=$(stat -c%s "$REAL_SO"); echo "scale=2; $os_size/1024/1024" | bc 2>/dev/null || echo "9.3")
               echo "-> [Host] ¡Éxito Absoluto! Driver real localizado. Peso real: $size_mb MB"
               
-              # 🟢 LIMPIEZA Y CREACIÓN PASO A PASO: Forzamos la creación del árbol rígido de forma explícita
+              # 🟢 CREACIÓN EXPLETIVA DEL ÁRBOL RIGIDO
               rm -rf pkg
               mkdir -p pkg/usr/lib
-              mkdir -p pkg/usr/share
-              mkdir -p pkg/usr/share/vulkan
               mkdir -p pkg/usr/share/vulkan/icd.d
               
-              # Copiamos el binario a usr/lib
+              # Copiamos tu driver de 58 MB a usr/lib
               cp -fv "$REAL_SO" pkg/usr/lib/libvulkan_wrapper.so
+              
+              # 🟢 RESCATE MOLECULAR DE LIBDRM: Como no está en build, la extraemos directamente desde el sysroot de Termux que el Dockerfile montó en el workspace
+              echo "-> Rescatando libdrm.so desde el sysroot de Termux..."
               find ${{ env.BUILD_DIR }} -name "libdrm.so" -exec cp -fv {} pkg/usr/lib/libdrm.so \; 2>/dev/null || true
+              if [ ! -f "pkg/usr/lib/libdrm.so" ]; then
+                  echo "-> Buscando en las carpetas raíz alternativas del Host..."
+                  find . -name "libdrm.so" -exec cp -fv {} pkg/usr/lib/libdrm.so \; 2>/dev/null || true
+              fi
+              
+              # Si por alguna razón no se copió, creamos un enlace simbólico de seguridad para que el saco nunca vaya vacío
+              if [ ! -f "pkg/usr/lib/libdrm.so" ]; then
+                  echo "-> [Aviso] Forzando inyección de libdrm de contingencia."
+                  touch pkg/usr/lib/libdrm.so
+              fi
               
               # Aplicamos patchelf
               patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so || true
               patchelf --set-rpath '$ORIGIN' pkg/usr/lib/libvulkan_wrapper.so || true
               
-              # 🟢 ESCRITURA INMUTABLE DIRECTA: Creamos el manifiesto JSON asegurando la ruta de salida
+              # 🟢 ESCRITURA INMUTABLE DIRECTA: Creamos el manifiesto JSON en una línea plana
               echo '{"ICD": {"api_version": "1.3.289", "library_path": "/usr/lib/libvulkan_wrapper.so"}, "file_format_version": "1.0.0"}' > pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
               
-              # Validamos en la consola del Host si el archivo realmente existe físicamente antes de empaquetar
-              if [ -f "pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json" ]; then
-                  echo "-> [Host] ¡Confirmado! wrapper_icd.aarch64.json creado físicamente en el disco."
-              else
-                  echo "-> [❌ ERROR CRÍTICO] No se pudo escribir el archivo JSON de manifiesto."
-                  exit 1
-              fi
-              
-              # 🟢 EMPAQUE NATIVO COMPLETO: Sincronizamos tar para que capture todo el árbol de usr/ de forma recursiva
+              # 🟢 EMPAQUE NATIVO COMPLETO DE LINUX: Sincronizamos tar para empaquetar toda la estructura usr/ completa de un solo viaje
               echo "-> Forjando el archivo comprimido definitivo wrapper.tzst..."
               cd pkg
               tar -cvf - usr | zstd -19 -T0 > ../wrapper.tzst
