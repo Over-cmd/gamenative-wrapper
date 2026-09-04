@@ -3,7 +3,7 @@
 #include "vk_log.h"
 
 /* 🟢 ELISIÓN ATÓMICA DE LOGS LOCALES: Redefinimos la macro WRAPPER_LOG para que se expanda en una estructura vacía que no genera código binario. Esto aisla por completo las llamadas de este archivo del mapa de símbolos globales públicos, destruyendo el error 'undefined symbol' en Panfrost y el 'duplicate symbol' en tu wrapper para siempre */
-#define WRAPPER_LOG(level, fmt, ...) do { (void)(level); } while(0)
+#define WRAPPER_LOG(level, fmt, ...) do { } while(0)
 
 #include <android/hardware_buffer.h>
 
