@@ -48,9 +48,63 @@
 #include <unistd.h>
 #endif
 
-#ifdef __TERMUX__
-#include <android/hardware_buffer.h>
-#endif
+/* --- INYECCIÓN MAESTRA REAL DE CARGA DINÁMICA CON CACHÉ ESTÁTICA --- */
+#define RTLD_NOW 2
+extern void* dlopen(const char* filename, int flag);
+extern void* dlsym(void* handle, const char* symbol);
+
+struct AHardwareBuffer;
+struct AHardwareBuffer_Desc;
+
+typedef int (*pfn_MALI_AHB_allocate)(const struct AHardwareBuffer_Desc*, struct AHardwareBuffer**);
+typedef void (*pfn_MALI_AHB_release)(struct AHardwareBuffer*);
+typedef int (*pfn_MALI_AHB_send)(const struct AHardwareBuffer*, int);
+
+/* 1. Resolvedor Público Global con Caché Estática (60 FPS Protegidos en Winlator) */
+int MALI_AHardwareBuffer_allocate(const struct AHardwareBuffer_Desc* desc, struct AHardwareBuffer** outBuffer) {
+    static pfn_MALI_AHB_allocate func = (pfn_MALI_AHB_allocate)-2;
+    if (func == (pfn_MALI_AHB_allocate)-2) {
+        void* h = dlopen("libandroid.so", RTLD_NOW);
+        if (!h) h = dlopen("libnativewindow.so", RTLD_NOW);
+        func = h ? (pfn_MALI_AHB_allocate)dlsym(h, "AHardwareBuffer_allocate") : 0;
+    }
+    if (func) return func(desc, outBuffer);
+    return -1;
+}
+
+/* 2. Resolvedor Público Global con Caché Estática */
+void MALI_AHardwareBuffer_release(struct AHardwareBuffer* buffer) {
+    static pfn_MALI_AHB_release func = (pfn_MALI_AHB_release)-2;
+    if (func == (pfn_MALI_AHB_release)-2) {
+        void* h = dlopen("libandroid.so", RTLD_NOW);
+        if (!h) h = dlopen("libnativewindow.so", RTLD_NOW);
+        func = h ? (pfn_MALI_AHB_release)dlsym(h, "AHardwareBuffer_release") : 0;
+    }
+    if (func) func(buffer);
+}
+
+/* 3. Resolvedor Público Global con Caché Estática */
+int MALI_AHardwareBuffer_sendHandleToUnixSocket(const struct AHardwareBuffer* b, int s) {
+    static pfn_MALI_AHB_send func = (pfn_MALI_AHB_send)-2;
+    if (func == (pfn_MALI_AHB_send)-2) {
+        void* h = dlopen("libandroid.so", RTLD_NOW);
+        if (!h) h = dlopen("libnativewindow.so", RTLD_NOW);
+        func = h ? (pfn_MALI_AHB_send)dlsym(h, "AHardwareBuffer_sendHandleToUnixSocket") : 0;
+    }
+    if (func) return func(b, s);
+    return -1;
+}
+
+/* 4. Stubs de Elisión unificados para get_wrapper_log_level y write_to_logfile */
+int Mesa_get_wrapper_log_level(const char *option) {
+    (void)option;
+    return 0;
+}
+
+void Mesa_write_to_logfile(const char *fmt, const char *level, ...) {
+    (void)fmt;
+    (void)level;
+}
 
 uint64_t WSI_DEBUG;
 
