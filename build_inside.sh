@@ -5,10 +5,11 @@ BUILD_DIR="${1:-${BUILD_DIR:-build}}"
 WSI_CORE="src/vulkan/wsi/wsi_common.c"
 WSI_ANDR="src/vulkan/wsi/wsi_common_android.c"
 
+# 🟢 LIMPIEZA FORZADA RADICAL: Obligamos a Git a descartar cualquier modificación manual previa
 git reset --hard HEAD 2>/dev/null || true
 git clean -fd 2>/dev/null || true
 
-# 🟢 PARCHE DE ANULACIÓN DE LOGS Y CACHÉ EN WSI_COMMON (v42)
+# 🟢 PARCHE DE ANULACIÓN DE LOGS Y CACHÉ EN WSI_COMMON
 if [ -f "$WSI_CORE" ]; then
     echo "-> Aplicando parches dinámicos en wsi_common.c..."
     echo '#define RTLD_NOW 2' > wsi_patch.h
@@ -35,7 +36,6 @@ if [ -f "$WSI_CORE" ]; then
     echo '    return f ? f(b, s) : -1;' >> wsi_patch.h
     echo '}' >> wsi_patch.h
     
-    # 🟢 HACK DE LÍNEA 70: Metemos el macro de elisión después de las cabeceras para que pise wrapper_log.h con total autoridad matemática
     cat wsi_patch.h "$WSI_CORE" > wsi_patched.c
     echo '#undef WRAPPER_LOG' >> wsi_patched.c
     echo '#define WRAPPER_LOG(level, fmt, ...) do { } while(0)' >> wsi_patched.c
