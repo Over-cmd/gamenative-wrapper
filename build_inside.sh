@@ -7,7 +7,7 @@ WSI_ANDR="src/vulkan/wsi/wsi_common_android.c"
 
 git checkout HEAD -- "$WSI_CORE" "$WSI_ANDR" 2>/dev/null || true
 
-# 🟢 PARCHE DE ANULACIÓN DE LOGS Y CACHÉ EN WSI_COMMON
+# 🟢 PARCHE DE ANULACIÓN DE LOGS Y CACHÉ EN WSI_COMMON (v42)
 if [ -f "$WSI_CORE" ]; then
     echo "-> Aplicando parches dinámicos en wsi_common.c..."
     echo '#define RTLD_NOW 2' > wsi_patch.h
@@ -33,8 +33,11 @@ if [ -f "$WSI_CORE" ]; then
     echo '    if (f == (void*)-2) { void* h = dlopen("libandroid.so", 2); if(!h) h=dlopen("libnativewindow.so", 2); f = h ? dlsym(h, "AHardwareBuffer_sendHandleToUnixSocket") : 0; }' >> wsi_patch.h
     echo '    return f ? f(b, s) : -1;' >> wsi_patch.h
     echo '}' >> wsi_patch.h
-    echo '#define WRAPPER_LOG(level, fmt, ...) do { } while(0)' >> wsi_patch.h
+    
+    # 🟢 HACK DE LÍNEA 70: Metemos el macro de elisión después de las cabeceras para que pise wrapper_log.h con total autoridad matemática
     cat wsi_patch.h "$WSI_CORE" > wsi_patched.c
+    echo '#undef WRAPPER_LOG' >> wsi_patched.c
+    echo '#define WRAPPER_LOG(level, fmt, ...) do { } while(0)' >> wsi_patched.c
     mv -f wsi_patched.c "$WSI_CORE"
     rm -f wsi_patch.h
 fi
@@ -49,7 +52,6 @@ if [ -f "$WSI_ANDR" ]; then
     rm -f andr_patch.h
 fi
 
-# 🟢 CONFIGURACIÓN MAESTRA DE MESON Y CONSTRUCCIÓN NINJA
 if [ ! -d "${BUILD_DIR}" ]; then
   meson setup "${BUILD_DIR}" --cross-file /root/build-config/cross_file.txt \
       -Dcpp_rtti=false -Dgbm=disabled -Dopengl=false -Dllvm=disabled \
@@ -58,10 +60,7 @@ if [ ! -d "${BUILD_DIR}" ]; then
 fi
 ninja -C "${BUILD_DIR}"
 
-# 🟢 PARTE 2: EXTRACCIÓN, ESTRUCTURACIÓN DEL ÁRBOL DE RAÍZ Y EMPAQUETADO TAR.ZST
 echo "-> Iniciando extracción y empaque de la estructura de raíz..."
-
-# 1. Localizar y extraer el binario real forjado
 python3 -c '
 import os, shutil
 src = "'"${BUILD_DIR}"'/src/panfrost/vulkan/libvulkan_panfrost.so"
@@ -77,22 +76,17 @@ else:
     exit(1)
 '
 
-# 2. Aplicar llvm-strip para limpiar el archivo
 NDK_DIR=$(find /home/builder/lib -maxdepth 2 -name "android-ndk*" 2>/dev/null | head -n 1)
 STRIP="${NDK_DIR}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip"
 if [ ! -f "$STRIP" ]; then STRIP=$(find "${NDK_DIR}" -name "llvm-strip" | head -n 1); fi
 $STRIP --strip-unneeded -o "${BUILD_DIR}/libvulkan_wrapper.so" "${BUILD_DIR}/libvulkan_wrapper.so.unstripped"
 
-# 3. Crear el árbol de directorios de raíz rígido (usr/lib y usr/share/vulkan/icd.d)
 ROOTFS_DIR="${BUILD_DIR}/rootfs_export"
 rm -rf "${ROOTFS_DIR}"
 mkdir -p "${ROOTFS_DIR}/usr/lib"
 mkdir -p "${ROOTFS_DIR}/usr/share/vulkan/icd.d"
-
-# 4. Mover el driver .so a la carpeta destino usr/lib
 cp "${BUILD_DIR}/libvulkan_wrapper.so" "${ROOTFS_DIR}/usr/lib/libvulkan_wrapper.so"
 
-# 5. Generar el archivo JSON de manifiesto ICD de Vulkan en share/vulkan/icd.d
 cat << 'EOF' > "${ROOTFS_DIR}/usr/share/vulkan/icd.d/panfrost_icd.aarch64.json"
 {
     "file_format_version": "1.0.0",
@@ -103,13 +97,10 @@ cat << 'EOF' > "${ROOTFS_DIR}/usr/share/vulkan/icd.d/panfrost_icd.aarch64.json"
 }
 EOF
 
-# 6. Forjar el paquete comprimido definitivo tar.zst manteniendo la estructura intacta
 echo "-> Forjando el paquete comprimido gamenative_driver_rootfs.tar.zst..."
 cd "${ROOTFS_DIR}"
 tar -cvf - usr | zstd -o "../gamenative_driver_rootfs.tar.zst"
 cd - > /dev/null
-
-# 7. Copiar el paquete al directorio raíz para que lo capture la Action
 cp "${BUILD_DIR}/gamenative_driver_rootfs.tar.zst" ./gamenative_driver_rootfs.tar.zst
 
 echo "=========================================================="
