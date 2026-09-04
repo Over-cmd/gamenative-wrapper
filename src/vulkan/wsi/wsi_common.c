@@ -48,7 +48,7 @@
 #include <unistd.h>
 #endif
 
-/* --- INYECCIÓN MAESTRA REAL DE CARGA DINÁMICA CON PROTOTIPOS ANTE-CUEPO Y CACHÉ ESTÁTICA --- */
+/* --- INYECCIÓN MAESTRA REAL DE CARGA DINÁMICA CON CACHÉ ESTÁTICA Y LOGS AISLADOS V38 --- */
 #define RTLD_NOW 2
 extern void* dlopen(const char* filename, int flag);
 extern void* dlsym(void* handle, const char* symbol);
@@ -56,12 +56,10 @@ extern void* dlsym(void* handle, const char* symbol);
 struct AHardwareBuffer;
 struct AHardwareBuffer_Desc;
 
-/* 🟢 LOS PROTOTIPOS ANTE-CUERPO: Forzamos la declaración global previa para destruir el flag -Werror=missing-prototypes de raíz */
+/* Prototipos obligatorios públicos globales para silenciar el flag -Werror=missing-prototypes */
 int MALI_AHardwareBuffer_allocate(const struct AHardwareBuffer_Desc* desc, struct AHardwareBuffer** outBuffer);
 void MALI_AHardwareBuffer_release(struct AHardwareBuffer* buffer);
 int MALI_AHardwareBuffer_sendHandleToUnixSocket(const struct AHardwareBuffer* b, int s);
-int Mesa_get_wrapper_log_level(const char *option);
-void Mesa_write_to_logfile(const char *fmt, const char *level, ...);
 
 typedef int (*pfn_MALI_AHB_allocate)(const struct AHardwareBuffer_Desc*, struct AHardwareBuffer**);
 typedef void (*pfn_MALI_AHB_release)(struct AHardwareBuffer*);
@@ -102,13 +100,13 @@ int MALI_AHardwareBuffer_sendHandleToUnixSocket(const struct AHardwareBuffer* b,
     return -1;
 }
 
-/* 4. Stubs de Elisión públicos globales tradicionales */
-int Mesa_get_wrapper_log_level(const char *option) {
+/* 🟢 AISLAMIENTO ESTÁTICO LOCAL: Declaramos los stubs de logs de elisión como static inline. Al ser locales de esta unidad de traducción, sacian las referencias del WSI de Panfrost internamente, pero no se exportan al mapa global de símbolos públicos, destruyendo el error 'duplicate symbol' en libvulkan_wrapper.so para siempre */
+static inline int Mesa_get_wrapper_log_level(const char *option) {
     (void)option;
     return 0;
 }
 
-void Mesa_write_to_logfile(const char *fmt, const char *level, ...) {
+static inline void Mesa_write_to_logfile(const char *fmt, const char *level, ...) {
     (void)fmt;
     (void)level;
 }
