@@ -61,6 +61,9 @@ int MALI_AHardwareBuffer_allocate(const struct AHardwareBuffer_Desc* desc, struc
 void MALI_AHardwareBuffer_release(struct AHardwareBuffer* buffer);
 int MALI_AHardwareBuffer_sendHandleToUnixSocket(const struct AHardwareBuffer* b, int s);
 
+int Mesa_get_wrapper_log_level(const char *option);
+void Mesa_write_to_logfile(const char *fmt, const char *level, ...);
+
 typedef int (*pfn_MALI_AHB_allocate)(const struct AHardwareBuffer_Desc*, struct AHardwareBuffer**);
 typedef void (*pfn_MALI_AHB_release)(struct AHardwareBuffer*);
 typedef int (*pfn_MALI_AHB_send)(const struct AHardwareBuffer*, int);
