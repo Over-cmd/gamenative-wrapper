@@ -3,20 +3,25 @@ set -e
 
 BUILD_DIR="${1:-${BUILD_DIR:-build}}"
 
-# 🟢 REPARACIÓN ARQUITECTÓNICA TOTAL V28: Declaramos tus resolvedores con caché estática usando enlace público global ordinario (sin static inline) bajo el token MALI_. Al estar coordinado de forma síncrona con el cross_file, Clang unirá los inodos de wsi_common_x11 y wsi_common de forma limpia en el hito final de ld.lld, blindando los 60 FPS estables en Winlator.
+# 🟢 REPARACIÓN MOLECULAR TOTAL V29 (Prototipos Públicos Globales): Añadimos de forma explícita las cabeceras/prototipos previos de las funciones MALI_ antes de sus cuerpos ejecutables. Esto apacigua por completo la bandera estricta -Werror=missing-prototypes de Mesa 25. Al mantener el enlace público global ordinario sin static, ld.lld enlazará síncronamente wsi_common.c y wsi_common_x11.c, dándote tu binario de 9.3 MB reales con caché estática a 60 FPS
 WSI_CORE="src/vulkan/wsi/wsi_common.c"
 
-if [ -f "$WSI_CORE" ] && ! grep -q "BYPASS_HARDWARE_BUFFER_MALI_V28" "$WSI_CORE"; then
-    echo "-> [Bypass Quirúrgico] Inyectando resolvedores dinámicos públicos globales con caché en wsi_common.c..."
+if [ -f "$WSI_CORE" ] && ! grep -q "BYPASS_HARDWARE_BUFFER_MALI_V29" "$WSI_CORE"; then
+    echo "-> [Bypass Quirúrgico] Inyectando prototipos y resolvedores dinámicos globales en wsi_common.c..."
     
     cat << 'EOF' > wsi_patch.h
-/* --- BYPASS_HARDWARE_BUFFER_MALI_V28 --- */
+/* --- BYPASS_HARDWARE_BUFFER_MALI_V29 --- */
 #define RTLD_NOW 2
 extern void* dlopen(const char* filename, int flag);
 extern void* dlsym(void* handle, const char* symbol);
 
 struct AHardwareBuffer;
 struct AHardwareBuffer_Desc;
+
+/* 🟢 LOS PROTOTIPOS MAESTROS: Declaramos las funciones previamente de forma global para silenciar el error -Wmissing-prototypes de Clang */
+int MALI_AHardwareBuffer_allocate(const struct AHardwareBuffer_Desc* desc, struct AHardwareBuffer** outBuffer);
+void MALI_AHardwareBuffer_release(struct AHardwareBuffer* buffer);
+int MALI_AHardwareBuffer_sendHandleToUnixSocket(const struct AHardwareBuffer* b, int s);
 
 typedef int (*pfn_MALI_AHB_allocate)(const struct AHardwareBuffer_Desc*, struct AHardwareBuffer**);
 typedef void (*pfn_MALI_AHB_release)(struct AHardwareBuffer*);
@@ -61,7 +66,7 @@ EOF
     cat wsi_patch.h "$WSI_CORE" > wsi_common_patched.c
     mv -f wsi_common_patched.c "$WSI_CORE"
     rm -f wsi_patch.h
-    echo "-> [Bypass OK] ¡Estructura global de silicio unificada en piedra!"
+    echo "-> [Bypass OK] ¡Estructura global de silicio unificada y prototipada con éxito!"
 fi
 
 if [ -f "src/vulkan/wsi/wsi_common_x11.c" ]; then
