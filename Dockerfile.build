@@ -18,7 +18,6 @@ RUN mkdir -p /tmp/sysroot && \
     PACKAGES="libdrm libandroid-shmem libxcb libx11 libxshmfence libxext libxrandr libxrender xorgproto libxau libxdmcp" && \
     for pkg in $PACKAGES; do \
         pkg_path=$(awk -v p="Package: $pkg" '$0==p{flag=1} flag && /^Filename:/{print $2; exit}' Packages) && \
-        # 🟢 CORRECCIÓN: Si estamos usando Grimler, inyectamos la ruta del repositorio antes del archivo .deb
         if [ "$TERMUX_REPO" = "https://grimler.se" ]; then \
             curl -L -O "${TERMUX_REPO}/termux/termux-main/${pkg_path}"; \
         else \
@@ -29,7 +28,7 @@ RUN mkdir -p /tmp/sysroot && \
     for f in *.deb; do dpkg-deb -x "$f" /; done && \
     rm -rf /tmp/sysroot
 
-# 🟢 REPARACIÓN INDUSTRIAL TOTAL DE SANIDAD V12: Removemos el flag -include del cross_file.txt para que la prueba inicial de Meson pase en verde brillante. Dejamos el entorno limpio de configuraciones globales flotantes
+# 🟢 REPARACIÓN INDUSTRIAL TOTAL GLOBAL V14: Pasamos el redireccionamiento plano sin argumentos en las banderas del compilador. Esto muta de forma síncrona todas las llamadas de wsi_common_x11 y wsi_common_android hacia tus resolvedores públicos globales MALI_, unificando los inodos del linker sin causar colisiones en las cabeceras de Google
 RUN NDK_DIR=$(find /home/builder/lib -maxdepth 2 -name "android-ndk*" 2>/dev/null | head -n 1) && \
     NDK_BIN="${NDK_DIR}/toolchains/llvm/prebuilt/linux-x86_64/bin" && \
     mkdir -p /root/build-config && \
@@ -48,8 +47,8 @@ RUN NDK_DIR=$(find /home/builder/lib -maxdepth 2 -name "android-ndk*" 2>/dev/nul
     "pkg_config_libdir = termux_dir + '/lib/pkgconfig:' + termux_dir + '/share/pkgconfig'" \
     "" \
     "[built-in options]" \
-    "c_args = ['-D__TERMUX__', '-D__USE_GNU', '-U__ANDROID__', '-I' + termux_dir + '/include', '-include', 'fcntl.h', '-include', 'unistd.h']" \
-    "cpp_args = ['-D__TERMUX__', '-D__USE_GNU', '-U__ANDROID__', '-I' + termux_dir + '/include', '-include', 'fcntl.h', '-include', 'unistd.h']" \
+    "c_args = ['-D__TERMUX__', '-D__USE_GNU', '-U__ANDROID__', '-I' + termux_dir + '/include', '-include', 'fcntl.h', '-include', 'unistd.h', '-DAHardwareBuffer_allocate=MALI_AHardwareBuffer_allocate', '-DAHardwareBuffer_release=MALI_AHardwareBuffer_release', '-DAHardwareBuffer_sendHandleToUnixSocket=MALI_AHardwareBuffer_sendHandleToUnixSocket']" \
+    "cpp_args = ['-D__TERMUX__', '-D__USE_GNU', '-U__ANDROID__', '-I' + termux_dir + '/include', '-include', 'fcntl.h', '-include', 'unistd.h', '-DAHardwareBuffer_allocate=MALI_AHardwareBuffer_allocate', '-DAHardwareBuffer_release=MALI_AHardwareBuffer_release', '-DAHardwareBuffer_sendHandleToUnixSocket=MALI_AHardwareBuffer_sendHandleToUnixSocket']" \
     "c_link_args = ['-L' + termux_dir + '/lib', '-landroid-shmem']" \
     "cpp_link_args = ['-L' + termux_dir + '/lib', '-landroid-shmem']" \
     "" \
