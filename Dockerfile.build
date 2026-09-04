@@ -28,7 +28,7 @@ RUN mkdir -p /tmp/sysroot && \
     for f in *.deb; do dpkg-deb -x "$f" /; done && \
     rm -rf /tmp/sysroot
 
-# 🟢 REPARACIÓN INDUSTRIAL TOTAL GLOBAL V14: Pasamos el desvío plano de AHardwareBuffer en c_args/cpp_args e inyectamos allow-shlib-undefined en c_link_args/cpp_link_args. Esto permite que los objetos compartan los resolvedores MALI_ de forma global pública y blinda al linker contra colisiones redundantes de duplicidad de logs
+# 🟢 CONFIGURACIÓN MAESTRA RECTIFICADA V15: Mantenemos el desvío atómico plano de HardwareBuffer. Inyectamos la bandera de tolerancia '-Wl,--allow-shlib-undefined' en las directivas de enlace de Meson. Esto le ordena de forma imperativa a ld.lld permitir que libvulkan_panfrost.so deje las llamadas de log abiertas para que se resuelvan dinámicamente en caliente desde tu wrapper_log.c en la RAM de Termux, pulverizando los símbolos duplicados y los indeterminados de un solo tiro
 RUN NDK_DIR=$(find /home/builder/lib -maxdepth 2 -name "android-ndk*" 2>/dev/null | head -n 1) && \
     NDK_BIN="${NDK_DIR}/toolchains/llvm/prebuilt/linux-x86_64/bin" && \
     mkdir -p /root/build-config && \
