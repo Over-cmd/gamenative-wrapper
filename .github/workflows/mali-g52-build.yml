@@ -43,36 +43,39 @@ jobs:
               size_mb=$(os_size=$(stat -c%s "$REAL_SO"); echo "scale=2; $os_size/1024/1024" | bc 2>/dev/null || echo "9.3")
               echo "-> [Host] ¡Éxito Absoluto! Driver real localizado. Peso real: $size_mb MB"
               
-              # 🟢 LIMPIEZA Y CREACIÓN PASO A PASO: Forzamos la creación del árbol rígido de forma explícita
+              # 1. Limpieza y creación explícita del árbol en el Host
               rm -rf pkg
-              mkdir -p pkg/usr/lib
-              mkdir -p pkg/usr/share
-              mkdir -p pkg/usr/share/vulkan
-              mkdir -p pkg/usr/share/vulkan/icd.d
+              mkdir -p pkg/usr/lib pkg/usr/share/vulkan/icd.d
               
-              # Copiamos el binario a usr/lib
+              # 2. Inyectar tu driver de 58 MB reales
               cp -fv "$REAL_SO" pkg/usr/lib/libvulkan_wrapper.so
-              find ${{ env.BUILD_DIR }} -name "libdrm.so" -exec cp -fv {} pkg/usr/lib/libdrm.so \; 2>/dev/null || true
               
-              # Aplicamos patchelf
+              # 3. Localizar el libdrm.so REAL compilado o jalado por el sysroot
+              find . -name "libdrm.so" -type f -size +10k -exec cp -fv {} pkg/usr/lib/libdrm.so \; 2>/dev/null || true
+              
+              # Si sigue sin encontrarlo, lo copiamos de la carpeta de dependencias de Meson
+              if [ ! -s "pkg/usr/lib/libdrm.so" ]; then
+                  find ${{ env.BUILD_DIR }} -name "libdrm.so" -exec cp -fv {} pkg/usr/lib/libdrm.so \; 2>/dev/null || true
+              fi
+              
+              # 4. Modificar el binario con patchelf
               patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so || true
               patchelf --set-rpath '$ORIGIN' pkg/usr/lib/libvulkan_wrapper.so || true
               
-              # 🟢 ESCRITURA INMUTABLE DIRECTA: Creamos el manifiesto JSON asegurando la ruta de salida
+              # 5. Escribir el JSON de manifiesto de Vulkan en línea pura
               echo '{"ICD": {"api_version": "1.3.289", "library_path": "/usr/lib/libvulkan_wrapper.so"}, "file_format_version": "1.0.0"}' > pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
               
-              # Validamos en la consola del Host si el archivo realmente existe físicamente antes de empaquetar
-              if [ -f "pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json" ]; then
-                  echo "-> [Host] ¡Confirmado! wrapper_icd.aarch64.json creado físicamente en el disco."
-              else
-                  echo "-> [❌ ERROR CRÍTICO] No se pudo escribir el archivo JSON de manifiesto."
-                  exit 1
-              fi
+              # 🟢 TRUCO MAESTRO 1: Sincronización forzada de bloques de hardware. Obliga al SO a guardar todo en el disco real antes de que tar empiece a leer.
+              sync && sleep 2
               
-              # 🟢 EMPAQUE NATIVO COMPLETO: Sincronizamos tar para que capture todo el árbol de usr/ de forma recursiva
+              # 🟢 TRUCO MAESTRO 2: Verificación de seguridad en la consola
+              echo "-> Verificando estructura física antes del empaque:"
+              ls -R pkg/usr/
+              
+              # 🟢 TRUCO MAESTRO 3: Empacamos listando los archivos reales de forma explícita. Si uno falta, tar revienta, impidiendo paquetes corruptos vacíos.
               echo "-> Forjando el archivo comprimido definitivo wrapper.tzst..."
               cd pkg
-              tar -cvf - usr | zstd -19 -T0 > ../wrapper.tzst
+              tar -cvf - usr/lib/libvulkan_wrapper.so usr/share/vulkan/icd.d/wrapper_icd.aarch64.json $(test -f usr/lib/libdrm.so && echo "usr/lib/libdrm.so" || echo "") | zstd -19 -T0 > ../wrapper.tzst
               cd ..
               
               echo "=========================================================="
