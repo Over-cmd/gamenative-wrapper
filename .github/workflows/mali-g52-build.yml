@@ -17,7 +17,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: 'recursive'
-          fetch-depth: 0  # 🟢 CAMBIO CLAVE: Jalamos el historial de inodos completo para asegurar que adrenotools no baje vacío
+          fetch-depth: 0
 
       - name: ⚙️ 2. Instalar Herramientas de Compresión y patchelf
         run: |
@@ -37,19 +37,19 @@ jobs:
 
       - name: 📦 6. Forjar Maquetación Plana e ICD para Bannerlator
         run: |
-          REAL_SO=$(find ${{ env.BUILD_DIR }} -name "libvulkan_panfrost.so" -o -name "libvulkan_wrapper.so" | head -n 1)
+          # 🟢 CORRECCIÓN DE FILTRO: Buscamos única y exclusivamente el binario libvulkan_wrapper.so original
+          REAL_SO=$(find ${{ env.BUILD_DIR }} -name "libvulkan_wrapper.so" | head -n 1)
           
           if [ -f "$REAL_SO" ]; then
               size_mb=$(os_size=$(stat -c%s "$REAL_SO"); echo "scale=2; $os_size/1024/1024" | bc 2>/dev/null || echo "58.10")
-              echo "-> [Host] ¡Éxito! Driver real localizado con bypass Mali integrado. Peso: $size_mb MB"
+              echo "-> [Host] ¡Éxito! Driver wrapper original localizado. Peso: $size_mb MB"
               
               # 1. Creación limpia paso a paso del árbol rígido en la raíz de trabajo
               rm -rf pkg
               mkdir -p pkg/usr/lib
               mkdir -p pkg/usr/share/vulkan/icd.d
               
-              # 2. Copiar y renombrar de forma estricta hacia libvulkan_wrapper.so original con ganchos adrenotools
-              echo "-> Copiando el driver original compilado a libvulkan_wrapper.so..."
+              # 2. Copiar tu driver del wrapper modificado directo a su celda de destino
               cp -fv "$REAL_SO" pkg/usr/lib/libvulkan_wrapper.so
               
               # Intentar jalar la librería de soporte libdrm
@@ -82,7 +82,7 @@ jobs:
               echo " 🟢 MAQUETACIÓN COMPLETADA - ARCHIVO WRAPPER.TZST LISTO OK  "
               echo "=========================================================="
           else
-              echo "-> [❌ ERROR GRAVE] El compilador local falló en escribir el binario base de Mesa."
+              echo "-> [❌ ERROR GRAVE] El compilador local falló en escribir el binario del wrapper original."
               exit 1
           fi
 
