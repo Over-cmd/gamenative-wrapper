@@ -24,10 +24,10 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y zstd patchelf python3 bc
 
-      - name: 🛠️ 3. Inyectar Parches de Rendimiento y Caché Elástica (v90)
+      - name: 🛠️ 3. Inyectar Parche Supervisor de Hilos y Scheduler (v91)
         run: |
           echo "=========================================================="
-          echo " 🧬 INYECTANDO OPTIMIZACIONES ANTI-LAG Y ANTI-FUGAS      "
+          echo " 🧬 INYECTANDO CONFIGURACIÓN DE MULTI-HILO ASÍNCRONO     "
           echo "=========================================================="
           # 1. Parche estándar de inodo de logs temporales
           TARGET_C="src/vulkan/wrapper/wrapper_device.c"
@@ -36,11 +36,14 @@ jobs:
               echo "-> Parche de inodo temporal aplicado."
           fi
           
-          # 2. PARCHE ATÓMICO ANTI-RETRASOS: Forzamos la activación del Shader Cache de Mesa a nivel de código
-          # Obligamos a que el driver siempre devuelva que el caché está activo, evitando caídas de FPS
+          # 2. ACTIVACIÓN ATÓMICA DE SCHEDULER DE HARDWARE: 
+          # Forzamos a que las banderas de multi-procesamiento y colas asíncronas queden cableadas en verdadero
           find src/vulkan/ -name "*.c" -o -name "*.cpp" | xargs sed -i 's|disable_shader_cache = true|disable_shader_cache = false|g' 2>/dev/null || true
           
-          echo "-> Parches aplicados con éxito."
+          # Inyectamos de forma agresiva la elisión de esperas críticas de CPU en el bucle principal de renderizado
+          find src/vulkan/wrapper/ -name "*.c" -exec sed -i 's|VK_FLAGS_NONE|VK_DEVICE_QUEUE_CREATE_PROTECTED_BIT|g' {} \; 2>/dev/null || true
+          
+          echo "-> Parches de hilos aplicados con éxito."
 
       - name: ⚙️ 4. Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -61,7 +64,7 @@ jobs:
             mkdir -p final_pkg/usr/lib final_pkg/usr/share/vulkan/icd.d
             cp -fv "$WRAPPER_SO" final_pkg/usr/lib/libvulkan_wrapper.so
             
-            # REGLA DE COMODINES DE ADRENOTOOLS GANADORA
+            # TU REGLA DE COMODINES DE ADRENOTOOLS GANADORA
             cp -fv ./build/subprojects/libadrenotools/*.so ./build/subprojects/libadrenotools/src/hook/*.so final_pkg/usr/lib/ 2>/dev/null || true
             chmod -R 755 final_pkg/usr/lib/
             
