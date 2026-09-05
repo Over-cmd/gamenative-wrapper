@@ -33,12 +33,12 @@ pkg_config_libdir = '/home/runner/work/gamenative-wrapper/gamenative-wrapper/shi
 c_args = ['--sysroot=' + ndk_sysroot, '-fno-emulated-tls',
         '-I/home/runner/work/gamenative-wrapper/gamenative-wrapper/shims_target/include', '-isystem' + ndk_sysroot / 'usr/include',
         '-DHAVE_STRUCT_TIMESPEC', '-DHAVE_DLFCN_H', '-UHAVE_SECURE_GETENV', '-UHAVE_QSORT_S',
-        '-include', 'fcntl.h', '-include', 'time.h', '-Wl,-llog', '-Wl,-lsync', '-fvisibility=default']
+        '-include', 'fcntl.h', '-include', 'time.h']
 cpp_args = ['--sysroot=' + ndk_sysroot,
             '-fno-emulated-tls', '-I/home/runner/work/gamenative-wrapper/gamenative-wrapper/shims_target/include',
             '-isystem' + ndk_sysroot / 'usr/include',
             '-DHAVE_STRUCT_TIMESPEC', '-DHAVE_DLFCN_H', '-UHAVE_SECURE_GETENV', '-UHAVE_QSORT_S',
-            '-include', 'fcntl.h', '-include', 'time.h', '-include', 'dlfcn.h', '-Wl,-llog', '-Wl,-lsync', '-fvisibility=default',
+            '-include', 'fcntl.h', '-include', 'time.h', '-include', 'dlfcn.h',
             '-D_LIBCPP_ABI_NAMESPACE=__1']
 c_link_args = ['--sysroot=' + ndk_sysroot, '-Wl,--allow-shlib-undefined',
                 '-L/home/runner/work/gamenative-wrapper/gamenative-wrapper/shims_target',
