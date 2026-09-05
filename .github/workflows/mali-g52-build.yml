@@ -43,46 +43,49 @@ jobs:
           if [ -f "$WRAPPER_SO" ]; then
               size_bytes=$(stat -c%s "$WRAPPER_SO")
               size_mb=$(echo "scale=2; $size_bytes/1024/1024" | bc 2>/dev/null || echo "19.00")
-              echo "-> [Host] ¡Éxito Total! Driver wrapper original localizado. Peso: $size_mb MB"
+              echo "-> [Host] ¡Éxito! Wrapper original localizado. Peso: $size_mb MB"
               
-              # 1. Creación limpia paso a paso del árbol rígido
-              rm -rf final_pkg
-              mkdir -p final_pkg/usr/lib
-              mkdir -p final_pkg/usr/share/vulkan/icd.d
+              # 1. Creación limpia paso a paso del árbol rígido en el Host
+              rm -rf pkg
+              mkdir -p pkg/usr/lib
+              mkdir -p pkg/usr/share/vulkan/icd.d
               
-              # 2. Copiamos tu driver original de 19 MB directamente a usr/lib
-              cp -fv "$WRAPPER_SO" final_pkg/usr/lib/libvulkan_wrapper.so
+              # 2. Inyección del binario manteniendo el nombre estricto del wrapper
+              echo "-> Guardando binario como libvulkan_wrapper.so..."
+              cp -fv "$WRAPPER_SO" pkg/usr/lib/libvulkan_wrapper.so
               
-              # 3. COMPLEMENTO LIBDRM: Buscamos si existe alguna librería real de soporte con peso en el disco
-              find . -name "libdrm.so" -type f -size +10k -exec cp -fv {} final_pkg/usr/lib/libdrm.so \; 2>/dev/null || true
+              # Intentar jalar la librería de soporte libdrm si existiera
+              find ${{ env.BUILD_DIR }} -name "libdrm.so" -type f -size +10k -exec cp -fv {} pkg/usr/lib/libdrm.so \; 2>/dev/null || true
               
-              # 4. Sellar identidades binarias y dependencias con patchelf
-              patchelf --set-soname libvulkan_wrapper.so final_pkg/usr/lib/libvulkan_wrapper.so || true
-              patchelf --set-rpath '$ORIGIN' final_pkg/usr/lib/libvulkan_wrapper.so || true
+              # 🟢 EL AJUSTE SOLICITADO: Forzamos de forma explícita los permisos de lectura y ejecución en el árbol
+              echo "-> Aplicando permisos de ejecución binaria rígidos (chmod 755)..."
+              chmod -v 755 pkg/usr/lib/libvulkan_wrapper.so
+              if [ -f "pkg/usr/lib/libdrm.so" ]; then chmod -v 755 pkg/usr/lib/libdrm.so; fi
               
-              # 5. 🟢 CORRECCIÓN CLAVE DE CONEXIÓN: Inyección de manifiestos con "library_path" plano y relativo
-              # Esto destruye el error de rutas virtuales e impide que el cargador de Vulkan se quede a oscuras.
+              # Sellar identidades binarias y dependencias internas con patchelf
+              patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so || true
+              patchelf --set-rpath '$ORIGIN' pkg/usr/lib/libvulkan_wrapper.so || true
+              
+              # 3. Inyección de manifiestos con ruta relativa plana sin barras diagonales
               echo "-> Inyectando manifiesto JSON ICD oficial de 64 bits (AArch64)..."
-              echo '{"ICD": {"api_version": "1.3.289", "library_path": "libvulkan_wrapper.so"}, "file_format_version": "1.0.0"}' > final_pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
+              echo '{"ICD": {"api_version": "1.3.289", "library_path": "libvulkan_wrapper.so"}, "file_format_version": "1.0.0"}' > pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
               
               echo "-> Inyectando manifiesto JSON ICD oficial de 32 bits (ARM) para salvar Box86..."
-              echo '{"ICD": {"api_version": "1.3.289", "library_path": "libvulkan_wrapper.so"}, "file_format_version": "1.0.0"}' > final_pkg/usr/share/vulkan/icd.d/wrapper_icd.arm.json
+              echo '{"ICD": {"api_version": "1.3.289", "library_path": "libvulkan_wrapper.so"}, "file_format_version": "1.0.0"}' > pkg/usr/share/vulkan/icd.d/wrapper_icd.arm.json
               
-              # Asentamiento físico en el almacenamiento virtual
+              # Forzamos el asentamiento físico inmediato en las celdas del disco virtual
               sync && sleep 3
               
-              # Escáner de control preventivo
-              echo "-> Estructura física final en el Host justo antes de empaquetar:"
-              find final_pkg/ -type f -exec ls -lh {} \;
+              # Escáner preventivo en el log para verificar la integridad antes de empaquetar
+              echo "-> Estructura física final unificada en el Host:"
+              find pkg/ -type f -exec ls -lh {} \;
               
-              # 6. Tu receta de compresión nativa indestructible
-              echo "-> Comprimiendo la estructura dual en formato wrapper.tzst..."
-              cd final_pkg
-              tar -I 'zstd -19 -T0' -cf ../wrapper.tzst usr/
-              cd ..
+              # 4. EMPAQUETADO INDUSTRIAL SEGURO
+              echo "-> Forjando el archivo comprimido definitivo wrapper.tzst..."
+              tar -C pkg -I 'zstd -19 -T0' -cf wrapper.tzst usr
               echo "-> ¡Empaquetado unificado completado con éxito!"
           else
-              echo "-> [❌ ERROR GRAVE] El binario del wrapper original no existe en la ruta esperada."
+              echo "-> [❌ ERROR GRAVE] El binario del wrapper original de 19MB no existe en la ruta esperada."
               exit 1
           fi
 
