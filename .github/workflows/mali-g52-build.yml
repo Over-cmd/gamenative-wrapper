@@ -37,13 +37,13 @@ jobs:
 
       - name: 📦 6. Forjar Paquete Esencial Puro para Bannerlator
         run: |
-          # Coordenada del binario original del wrapper
+          # Coordenada del binario original del wrapper de 19 MB
           WRAPPER_SO="build/src/vulkan/wrapper/libvulkan_wrapper.so"
           
           if [ -f "$WRAPPER_SO" ]; then
-              echo "-> [Host] ¡Éxito! Estructurando solo tus archivos esenciales legítimos..."
+              echo "-> [Host] ¡Éxito! Estructurando paquete puro idéntico al original..."
               
-              # 1. Creación limpia paso a paso del árbol rígido
+              # 1. Creación limpia paso a paso del árbol de directorios rígido
               rm -rf final_pkg
               mkdir -p final_pkg/usr/lib
               mkdir -p final_pkg/usr/share/vulkan/icd.d
@@ -58,34 +58,37 @@ jobs:
               cp -fv ./build/subprojects/libadrenotools/src/hook/libhook_impl.so final_pkg/usr/lib/
               cp -fv ./build/subprojects/libadrenotools/src/hook/libfile_redirect_hook.so final_pkg/usr/lib/
               
-              # 4. RESCATE INDUSTRIAL DEL LIBDRM.SO REAL DE TERMUX (CON PESO REAL)
-              echo "-> Extrayendo libdrm.so legítimo del sysroot de Termux..."
-              # Primero buscamos en build de forma profunda un archivo real de más de 20KB
-              find . -name "libdrm.so" -type f -size +20k -exec cp -fv {} final_pkg/usr/lib/libdrm.so \; 2>/dev/null || true
-              
-              # Si no lo encuentra, lo extraemos del volumen de Termux inyectado por Docker en build/rootfs_export si existe
-              if [ ! -s "final_pkg/usr/lib/libdrm.so" ]; then
-                  find build/ -name "libdrm.so" -type f -exec cp -fv {} final_pkg/usr/lib/libdrm.so \; 2>/dev/null || true
-              fi
-              
-              # Si por una locura del host sigue vacío, jalamos una copia de respaldo del sistema ubuntu
-              if [ ! -s "final_pkg/usr/lib/libdrm.so" ]; then
-                  echo "-> Usando libdrm de respaldo del Host..."
-                  find /usr/lib/ -name "libdrm.so*" -type f -head -n 1 -exec cp -fv {} final_pkg/usr/lib/libdrm.so \; 2>/dev/null || true
-              fi
-              
-              # 5. ASENTAMIENTO DE PERMISOS RÍGIDOS 755
+              # 4. ASENTAMIENTO DE PERMISOS RÍGIDOS DE REGLA
               chmod -R -v 755 final_pkg/usr/lib/
               
-              # 6. CONSOLIDACIÓN DE ENLACES DINÁMICOS CON PATCHELF
+              # 5. CONSOLIDACIÓN DE ENLACES CON PATCHELF MANTENIENDO TU NOMBRE ORIGINAL
               patchelf --set-soname libvulkan_wrapper.so final_pkg/usr/lib/libvulkan_wrapper.so || true
               find final_pkg/usr/lib/ -name "*.so" -exec patchelf --set-rpath '$ORIGIN' {} \; 2>/dev/null || true
               
-              # 7. INYECCIÓN DE MANIFIESTOS ICD CON RUTA ABSOLUTA AL WRAPPER
-              echo '{"ICD": {"api_version": "1.3.289", "library_path": "/usr/lib/libvulkan_wrapper.so"}, "file_format_version": "1.0.0"}' > final_pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
-              echo '{"ICD": {"api_version": "1.3.289", "library_path": "/usr/lib/libvulkan_wrapper.so"}, "file_format_version": "1.0.0"}' > final_pkg/usr/share/vulkan/icd.d/wrapper_icd.arm.json
+              # 6. 🟢 INYECCIÓN DEL MANIFIESTO JSON ICD ORIGINAL EXACTO (Ruta relativa limpia)
+              echo "-> Inyectando manifiesto original exacto de 64 bits (AArch64)..."
+              cat << 'EOF' > final_pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
+{
+    "ICD": {
+        "api_version": "1.3.289",
+        "library_path": "libvulkan_wrapper.so"
+    },
+    "file_format_version": "1.0.0"
+}
+EOF
               
-              # Sincronización estricta de escritura en disco
+              echo "-> Inyectando manifiesto original exacto de 32 bits (ARM) para salvar Box86..."
+              cat << 'EOF' > final_pkg/usr/share/vulkan/icd.d/wrapper_icd.arm.json
+{
+    "ICD": {
+        "api_version": "1.3.289",
+        "library_path": "libvulkan_wrapper.so"
+    },
+    "file_format_version": "1.0.0"
+}
+EOF
+              
+              # Sincronización estricta de escritura física en disco virtual
               sync && sleep 3
               
               # Escáner de confirmación pura en el log antes de empaquetar
@@ -94,14 +97,14 @@ jobs:
               echo "=========================================================="
               find final_pkg/ -type f -exec ls -lh {} \;
               
-              # 8. TU COMPRESIÓN GANADORA NATIVO SÍNCRONA
+              # 7. TU RECETA DE COMPRESIÓN GANADORA NATIVO SÍNCRONA
               echo "-> Forjando el archivo comprimido definitivo wrapper.tzst..."
               cd final_pkg
               tar -I 'zstd -19 -T0' -cf ../wrapper.tzst usr/
               cd ..
-              echo "-> ¡Paquete esencial forjado con éxito!"
+              echo "-> ¡Paquete esencial purificado completado con éxito!"
           else
-              echo "-> [❌ ERROR GRAVE] No se localizó el libvulkan_wrapper.so en la carpeta del wrapper."
+              echo "-> [❌ ERROR GRAVE] No se localizó el libvulkan_wrapper.so original en su celda."
               exit 1
           fi
 
