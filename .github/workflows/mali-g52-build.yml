@@ -24,24 +24,29 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y zstd patchelf python3 bc
 
-      - name: 🛠️ 3. Forzar Plataforma Gráfica Pura de Android en Mesa (v87)
+      - name: 🛠️ 3. Aplicar Parche de Inodo Temporal Limpio (v88)
         run: |
           echo "=========================================================="
-          echo " 🧬 ELIMINANDO PLATAFORMAS DE PC X11/XCB EN EL CÓDIGO      "
+          echo " 🧬 PURIFICANDO RUTA DE LOGS TEMPORALES EN EL CÓDIGO      "
           echo "=========================================================="
-          # 1. Parcheamos el inodo de logs temporales en wrapper_device.c
           TARGET_C="src/vulkan/wrapper/wrapper_device.c"
+          
           if [ -f "$TARGET_C" ]; then
+              echo "-> Corrigiendo ruta fantasma de app.gamenative por la ruta estándar universal /tmp/"
               sed -i 's|/data/data/app.gamenative/files/imagefs/usr/tmp/|/tmp/|g' "$TARGET_C"
-              echo "-> Parche de inodo temporal aplicado."
+              echo "-> Parche de inodo aplicado con éxito de forma segura."
+          else
+              echo "-> [❌ ERROR CRÍTICO] No se localizó el archivo wrapper_device.c"
+              exit 1
           fi
           
-          # 2. EL AJUSTE INTEGRAL: Modificamos las directivas de meson para forzar plataforma android pura
-          # Esto destruye el bucle X11 y obliga a Clang a compilar solo con VK_USE_PLATFORM_ANDROID_KHR
-          find . -name "meson.build" -exec sed -i "s|'x11'|'android'|g" {} \; 2>/dev/null || true
-          find . -name "meson.build" -exec sed -i "s|'xcb'|'android'|g" {} \; 2>/dev/null || true
-          
-          echo "-> Configuración de plataformas purificada de forma exitosa para Android."
+          # 🟢 EL COMPLEMENTO DE VISIBILIDAD: Forzamos a que el archivo de símbolos de Mesa exponga la función ICD
+          # Esto rompe el candado de -fvisibility=hidden y hace que Bannerlator vea el driver al vuelo.
+          SYM_FILE="src/vulkan/wrapper/wrapper.sym"
+          if [ -f "$SYM_FILE" ]; then
+              echo "-> Asegurando visibilidad pública global de vk_icdGetInstanceProcAddr..."
+              echo -e "{\nglobal:\n    vk_icdGetInstanceProcAddr;\nlocal: *;\n};" > "$SYM_FILE"
+          fi
 
       - name: ⚙️ 4. Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
