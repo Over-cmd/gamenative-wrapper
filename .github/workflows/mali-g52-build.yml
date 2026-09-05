@@ -24,10 +24,10 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y zstd patchelf python3 bc
 
-      - name: 🛠️ 3. Adaptar wrapper_device.c e Inyectar Bypass Sólido (v80)
+      - name: 🛠️ 3. Adaptar wrapper_device.c e Inyectar Puente Interno de Mesa (v81)
         run: |
           echo "=========================================================="
-          echo " 🧬 APLICANDO COMPILACIÓN COMPATIBLE PANFROST/WRAPPER     "
+          echo " 🧬 INYECTANDO ENLACE DINÁMICO INTERNO PANFROST/MESA      "
           echo "=========================================================="
           TARGET_C="src/vulkan/wrapper/wrapper_device.c"
           
@@ -35,11 +35,11 @@ jobs:
               echo "-> 1. Parcheando inodo de logs temporales para Bannerlator..."
               sed -i 's|/data/data/app.gamenative/files/imagefs/usr/tmp/|/tmp/|g' "$TARGET_C"
               
-              echo "-> 2. Inyectando llamada vkCreateDevice nativa de Mesa (Evita error undeclared)..."
-              # Usamos vkCreateDevice oficial de Vulkan Core para enganchar el puente gráfico sin que Clang tire error
-              sed -i 's|physical_device->dispatch_table.CreateDevice|vkCreateDevice|g' "$TARGET_C"
+              echo "-> 2. Inyectando llamada vk.dispatch_table nativa interna de Mesa..."
+              # Redirigimos de forma segura hacia la tabla interna de Vulkan Runtime de Mesa para saltar el blob de Android sin romper el linker
+              sed -i 's|physical_device->dispatch_table.CreateDevice|physical_device->vk.dispatch_table.CreateDevice|g' "$TARGET_C"
               
-              echo "-> Bypass molecular inyectado de forma compatible con Clang."
+              echo "-> Bypass de hardware inyectado de forma compatible con ld.lld."
           else
               echo "-> [❌ ERROR CRÍTICO] No se localizó el archivo wrapper_device.c para aplicar la fusión."
               exit 1
