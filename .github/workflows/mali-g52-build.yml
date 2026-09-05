@@ -24,21 +24,25 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y zstd patchelf python3 bc
 
-      - name: 🛠️ 3. Adaptar wrapper_device.c dinámicamente para Bannerlator
+      - name: 🛠️ 3. Fusionar Panfrost e Inyectar Bypass en wrapper_device.c
         run: |
           echo "=========================================================="
-          echo " 🛡️ ELIMINANDO COMPORTAMIENTO RÍGIDO DE CAMINO EN C        "
+          echo " 🧬 INYECTANDO FUSIÓN PANFROST/WRAPPER EN EL CÓDIGO       "
           echo "=========================================================="
-          # Localizamos el archivo wrapper_device.c que delató el escáner
           TARGET_C="src/vulkan/wrapper/wrapper_device.c"
           
           if [ -f "$TARGET_C" ]; then
-              echo "-> Corrigiendo ruta fantasma de app.gamenative por la ruta estándar de inodo /tmp/"
-              # Cambiamos la ruta bloqueada por una ruta interna universal del rootfs de Bannerlator
+              echo "-> 1. Parcheando inodo de logs temporales bloqueados por Android..."
               sed -i 's|/data/data/app.gamenative/files/imagefs/usr/tmp/|/tmp/|g' "$TARGET_C"
-              echo "-> Parche aplicado con éxito sobre el código fuente."
+              
+              echo "-> 2. Inyectando llamada directa a panvk_CreateDevice para bypass de blob..."
+              # Reemplazamos la llamada al dispatch_table del blob de Android por la inicialización directa de Panfrost
+              sed -i 's|physical_device->dispatch_table.CreateDevice|panvk_CreateDevice|g' "$TARGET_C"
+              
+              echo "-> Fusión y bypass inyectados con éxito en el archivo fuente."
           else
-              echo "-> [Aviso] No se encontró wrapper_device.c en la ruta estándar, saltando."
+              echo "-> [❌ ERROR CRÍTICO] No se localizó el archivo wrapper_device.c para aplicar la fusión."
+              exit 1
           fi
 
       - name: ⚙️ 4. Set up Docker Buildx
@@ -75,7 +79,7 @@ jobs:
             cd final_pkg && tar -I 'zstd -19 -T0' -cf ../wrapper.tzst usr/ && cd ..
             echo "-> ¡Paquete forjado con éxito con tu lógica maestra!"
           else
-            echo "-> [❌ ERROR CRÍTICO] El compilador no dejó el archivo libvulkan_wrapper.so"
+            echo "-> [❌ ERROR GRAVE] El compilador no dejó el archivo libvulkan_wrapper.so"
             exit 1
           fi
 
