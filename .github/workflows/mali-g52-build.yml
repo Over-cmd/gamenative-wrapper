@@ -24,22 +24,22 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y zstd patchelf python3 bc
 
-      - name: 🛠️ 3. Fusionar Panfrost e Inyectar Bypass en wrapper_device.c
+      - name: 🛠️ 3. Adaptar wrapper_device.c e Inyectar Bypass Sólido (v80)
         run: |
           echo "=========================================================="
-          echo " 🧬 INYECTANDO FUSIÓN PANFROST/WRAPPER EN EL CÓDIGO       "
+          echo " 🧬 APLICANDO COMPILACIÓN COMPATIBLE PANFROST/WRAPPER     "
           echo "=========================================================="
           TARGET_C="src/vulkan/wrapper/wrapper_device.c"
           
           if [ -f "$TARGET_C" ]; then
-              echo "-> 1. Parcheando inodo de logs temporales bloqueados por Android..."
+              echo "-> 1. Parcheando inodo de logs temporales para Bannerlator..."
               sed -i 's|/data/data/app.gamenative/files/imagefs/usr/tmp/|/tmp/|g' "$TARGET_C"
               
-              echo "-> 2. Inyectando llamada directa a panvk_CreateDevice para bypass de blob..."
-              # Reemplazamos la llamada al dispatch_table del blob de Android por la inicialización directa de Panfrost
-              sed -i 's|physical_device->dispatch_table.CreateDevice|panvk_CreateDevice|g' "$TARGET_C"
+              echo "-> 2. Inyectando llamada vkCreateDevice nativa de Mesa (Evita error undeclared)..."
+              # Usamos vkCreateDevice oficial de Vulkan Core para enganchar el puente gráfico sin que Clang tire error
+              sed -i 's|physical_device->dispatch_table.CreateDevice|vkCreateDevice|g' "$TARGET_C"
               
-              echo "-> Fusión y bypass inyectados con éxito en el archivo fuente."
+              echo "-> Bypass molecular inyectado de forma compatible con Clang."
           else
               echo "-> [❌ ERROR CRÍTICO] No se localizó el archivo wrapper_device.c para aplicar la fusión."
               exit 1
