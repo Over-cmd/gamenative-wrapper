@@ -24,7 +24,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y zstd patchelf python3 bc
 
-      - name: 🛠️ 3. Aplicar Parche de Inodo Temporal Limpio (v88)
+      - name: 🛠️ 3. Aplicar Parche de Inodo Temporal Limpio (v89)
         run: |
           echo "=========================================================="
           echo " 🧬 PURIFICANDO RUTA DE LOGS TEMPORALES EN EL CÓDIGO      "
@@ -38,14 +38,6 @@ jobs:
           else
               echo "-> [❌ ERROR CRÍTICO] No se localizó el archivo wrapper_device.c"
               exit 1
-          fi
-          
-          # 🟢 EL COMPLEMENTO DE VISIBILIDAD: Forzamos a que el archivo de símbolos de Mesa exponga la función ICD
-          # Esto rompe el candado de -fvisibility=hidden y hace que Bannerlator vea el driver al vuelo.
-          SYM_FILE="src/vulkan/wrapper/wrapper.sym"
-          if [ -f "$SYM_FILE" ]; then
-              echo "-> Asegurando visibilidad pública global de vk_icdGetInstanceProcAddr..."
-              echo -e "{\nglobal:\n    vk_icdGetInstanceProcAddr;\nlocal: *;\n};" > "$SYM_FILE"
           fi
 
       - name: ⚙️ 4. Set up Docker Buildx
