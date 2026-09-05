@@ -37,57 +37,61 @@ jobs:
 
       - name: 📦 6. Forjar Maquetación Plana e ICD para Bannerlator
         run: |
-          # 🟢 RUTA COORDENADA COMPLETA DE TU WRAPPER ORIGINAL EN EL HOST
-          WRAPPER_SO="build/src/vulkan/wrapper/libvulkan_wrapper.so"
+          # 🟢 COORDENADA RÍGIDA DIRECTA: Capturamos el binario real recortado y purificado por el script
+          WRAPPER_SO="gamenative_driver_rootfs.tar.zst"
           
-          if [ -f "$WRAPPER_SO" ]; then
-              size_bytes=$(stat -c%s "$WRAPPER_SO")
-              size_mb=$(echo "scale=2; $size_bytes/1024/1024" | bc 2>/dev/null || echo "19.00")
-              echo "-> [Host] ¡Éxito! Driver wrapper original localizado en su celda. Peso: $size_mb MB"
+          # Buscador elástico en build si el script lo dejó suelto en otra celda
+          if [ ! -f "$WRAPPER_SO" ]; then
+              WRAPPER_SO=$(find . -name "gamenative_driver_rootfs.tar.zst" -o -name "libvulkan_wrapper.so" | head -n 1)
+          fi
+          
+          echo "-> [Host] Extrayendo y estructurando paquete legítimo definitivo..."
+          
+          # 1. Creación limpia paso a paso del árbol rígido en la raíz de trabajo
+          rm -rf final_pkg
+          mkdir -p final_pkg/usr/lib
+          mkdir -p final_pkg/usr/share/vulkan/icd.d
+          
+          # 2. Localizamos el binario interno real de 9.09 MiB (18.6 MB original sin depurar)
+          INTERNAL_SO=$(find ${{ env.BUILD_DIR }} -name "libvulkan_wrapper.so" -type f -size +5M | head -n 1)
+          if [ ! -f "$INTERNAL_SO" ]; then
+              INTERNAL_SO=$(find . -name "libvulkan_wrapper.so" -type f -size +5M | head -n 1)
+          fi
+          
+          if [ -f "$INTERNAL_SO" ]; then
+              echo "-> [Host] ¡Éxito! Inyectando binario del wrapper unificado: $INTERNAL_SO"
+              cp -fv "$INTERNAL_SO" final_pkg/usr/lib/libvulkan_wrapper.so
               
-              # 1. Creación limpia paso a paso del árbol rígido en la raíz de trabajo
-              rm -rf pkg
-              mkdir -p pkg/usr/lib
-              mkdir -p pkg/usr/share/vulkan/icd.d
-              
-              # 2. INYECCIÓN EXCLUSIVA: Copiamos tu driver original manteniendo intacto su nombre legítimo
-              echo "-> Guardando binario como libvulkan_wrapper.so..."
-              cp -fv "$WRAPPER_SO" pkg/usr/lib/libvulkan_wrapper.so
-              
-              # Intentar jalar la librería de soporte libdrm si hiciera falta
-              find ${{ env.BUILD_DIR }} -name "libdrm.so" -type f -size +10k -exec cp -fv {} pkg/usr/lib/libdrm.so \; 2>/dev/null || true
+              # Intentar jalar la librería de soporte libdrm
+              find ${{ env.BUILD_DIR }} -name "libdrm.so" -type f -size +10k -exec cp -fv {} final_pkg/usr/lib/libdrm.so \; 2>/dev/null || true
               
               # Forzamos permisos de ejecución rígidos 755 grabados de fábrica para Bannerlator
-              chmod -v 755 pkg/usr/lib/libvulkan_wrapper.so
-              if [ -f "pkg/usr/lib/libdrm.so" ]; then chmod -v 755 pkg/usr/lib/libdrm.so; fi
+              chmod -v 755 final_pkg/usr/lib/libvulkan_wrapper.so
+              if [ -f "final_pkg/usr/lib/libdrm.so" ]; then chmod -v 755 final_pkg/usr/lib/libdrm.so; fi
               
-              # 3. CONSOLIDACIÓN DE IDENTIDAD INTERNA (patchelf)
-              # Fijamos el SONAME estrictamente como libvulkan_wrapper.so tal y como exige tu emulador
-              patchelf --set-soname libvulkan_wrapper.so pkg/usr/lib/libvulkan_wrapper.so || true
-              patchelf --set-rpath '$ORIGIN' pkg/usr/lib/libvulkan_wrapper.so || true
+              # Consolidación de identidad interna con patchelf
+              patchelf --set-soname libvulkan_wrapper.so final_pkg/usr/lib/libvulkan_wrapper.so || true
+              patchelf --set-rpath '$ORIGIN' final_pkg/usr/lib/libvulkan_wrapper.so || true
               
-              # 4. INYECCIÓN DE MANIFIESTOS CON RUTA ABSOLUTA RÍGIDA
-              # Al apuntar fijamente a /usr/lib/libvulkan_wrapper.so, el cargador de Vulkan de Bannerlator 
-              # amarrará el driver al instante, rompiendo el congelamiento de la pantalla negra.
-              echo "-> Inyectando manifiestos ICD oficiales para Box86/Box64..."
-              echo '{"ICD": {"api_version": "1.3.289", "library_path": "/usr/lib/libvulkan_wrapper.so"}, "file_format_version": "1.0.0"}' > pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
-              echo '{"ICD": {"api_version": "1.3.289", "library_path": "/usr/lib/libvulkan_wrapper.so"}, "file_format_version": "1.0.0"}' > pkg/usr/share/vulkan/icd.d/wrapper_icd.arm.json
+              # 3. Inyección de manifiestos JSON ICD duales en líneas planas con ruta absoluta rígida
+              echo '{"ICD": {"api_version": "1.3.289", "library_path": "/usr/lib/libvulkan_wrapper.so"}, "file_format_version": "1.0.0"}' > final_pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
+              echo '{"ICD": {"api_version": "1.3.289", "library_path": "/usr/lib/libvulkan_wrapper.so"}, "file_format_version": "1.0.0"}' > final_pkg/usr/share/vulkan/icd.d/wrapper_icd.arm.json
               
               # Forzamos el asentamiento físico inmediato en las celdas del disco virtual
               sync && sleep 3
               
-              # Escáner preventivo en el log para verificar la integridad antes de empaquetar
-              echo "-> Estructura física final unificada en el Host:"
-              find pkg/ -type f -exec ls -lh {} \;
+              # Escáner preventivo en el log para verificar la integridad del rootfs
+              echo "-> Estructura física final en el Host antes del empaquetado definitivo:"
+              find final_pkg/ -type f -exec ls -lh {} \;
               
-              # 5. TU RECETA DE COMPRESIÓN GANADORA NATIVO SÍNCRONA
+              # 4. TU RECETA DE COMPRESIÓN GANADORA SÍNCRONA COMPLETA
               echo "-> Forjando el archivo comprimido definitivo wrapper.tzst..."
-              cd pkg
+              cd final_pkg
               tar -I 'zstd -19 -T0' -cf ../wrapper.tzst usr/
               cd ..
               echo "-> ¡Empaquetado unificado completado con éxito!"
           else
-              echo "-> [❌ ERROR GRAVE] El binario de tu wrapper original de 19MB no existe en la ruta especada."
+              echo "-> [❌ ERROR GRAVE] No se localizó el binario libvulkan_wrapper.so en ninguna celda del Host."
               exit 1
           fi
 
