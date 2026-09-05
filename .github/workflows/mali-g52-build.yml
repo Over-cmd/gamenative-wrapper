@@ -24,7 +24,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y zstd patchelf python3 bc
 
-      - name: 🛠️ 3. Aplicar Parche de Inodo Temporal Limpio (v93)
+      - name: 🛠️ 3. Aplicar Parche de Inodo Temporal Limpio (v94)
         run: |
           echo "=========================================================="
           echo " 🧬 PURIFICANDO RUTA DE LOGS TEMPORALES EN EL CÓDIGO      "
