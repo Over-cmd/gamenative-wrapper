@@ -35,72 +35,73 @@ jobs:
         run: |
           docker run --rm -v "${{ github.workspace }}:/workspace" local-wrapper-compiler:latest ${{ env.BUILD_DIR }}
 
-      - name: 📦 6. Forjar Maquetación Total e ICD en usr/lib
+      - name: 📦 6. Forjar Paquete Esencial Puro para Bannerlator
         run: |
-          # Coordenada del binario real del wrapper unificado
+          # Coordenada del binario original del wrapper
           WRAPPER_SO="build/src/vulkan/wrapper/libvulkan_wrapper.so"
           
           if [ -f "$WRAPPER_SO" ]; then
-              echo "-> [Host] ¡Éxito! Iniciando inyección masiva de dependencias en usr/lib..."
+              echo "-> [Host] ¡Éxito! Estructurando solo tus archivos esenciales legítimos..."
               
               # 1. Creación limpia paso a paso del árbol rígido
               rm -rf final_pkg
               mkdir -p final_pkg/usr/lib
               mkdir -p final_pkg/usr/share/vulkan/icd.d
               
-              # 2. INYECCIÓN DEL WRAPPER ORIGINAL Y EL ARBOL DE DRIVERS DE MESA
+              # 2. INYECTAR EL WRAPPER ORIGINAL DE 19 MB
               cp -fv "$WRAPPER_SO" final_pkg/usr/lib/libvulkan_wrapper.so
-              if [ -f "build/src/panfrost/vulkan/libvulkan_panfrost.so" ]; then
-                  cp -fv "build/src/panfrost/vulkan/libvulkan_panfrost.so" final_pkg/usr/lib/libvulkan_panfrost.so
-              fi
               
-              # 3. INYECCIÓN DEL KIT DE ADRENOTOOLS COMPLETO
-              find build/subprojects/libadrenotools/ -name "*.so" -exec cp -fv {} final_pkg/usr/lib/ \; 2>/dev/null || true
+              # 3. INYECTAR EXCLUSIVAMENTE TU KIT DE ADRENOTOOLS DE 5 ARCHIVOS
+              cp -fv ./build/subprojects/libadrenotools/libadrenotools.so final_pkg/usr/lib/
+              cp -fv ./build/subprojects/libadrenotools/src/hook/libmain_hook.so final_pkg/usr/lib/
+              cp -fv ./build/subprojects/libadrenotools/src/hook/libgsl_alloc_hook.so final_pkg/usr/lib/
+              cp -fv ./build/subprojects/libadrenotools/src/hook/libhook_impl.so final_pkg/usr/lib/
+              cp -fv ./build/subprojects/libadrenotools/src/hook/libfile_redirect_hook.so final_pkg/usr/lib/
               
-              # 4. INYECCIÓN DE LIBRERÍAS DE ACCESO GRÁFICO (mapi, shared-glapi, expat, stubs)
-              find build/src/mapi/ -name "*.so" -exec cp -fv {} final_pkg/usr/lib/ \; 2>/dev/null || true
-              find build/subprojects/expat-2.5.0/ -name "*.so" -exec cp -fv {} final_pkg/usr/lib/ \; 2>/dev/null || true
-              find build/src/android_stub/ -name "*.so" -exec cp -fv {} final_pkg/usr/lib/ \; 2>/dev/null || true
+              # 4. RESCATE INDUSTRIAL DEL LIBDRM.SO REAL DE TERMUX (CON PESO REAL)
+              echo "-> Extrayendo libdrm.so legítimo del sysroot de Termux..."
+              # Primero buscamos en build de forma profunda un archivo real de más de 20KB
+              find . -name "libdrm.so" -type f -size +20k -exec cp -fv {} final_pkg/usr/lib/libdrm.so \; 2>/dev/null || true
               
-              # 5. RESCATE Y BÚSQUEDA DEL REQUERIDO LIBDRM.SO
-              find . -name "libdrm.so" -type f -size +10k -exec cp -fv {} final_pkg/usr/lib/libdrm.so \; 2>/dev/null || true
+              # Si no lo encuentra, lo extraemos del volumen de Termux inyectado por Docker en build/rootfs_export si existe
               if [ ! -s "final_pkg/usr/lib/libdrm.so" ]; then
-                  find ${{ env.BUILD_DIR }} -name "libdrm.so" -exec cp -fv {} final_pkg/usr/lib/libdrm.so \; 2>/dev/null || true
-              fi
-              # Si no aparece por ningún lado, generamos un inodo de contingencia de seguridad
-              if [ ! -f "final_pkg/usr/lib/libdrm.so" ]; then
-                  echo "-> Creando libdrm.so de contingencia."
-                  touch final_pkg/usr/lib/libdrm.so
+                  find build/ -name "libdrm.so" -type f -exec cp -fv {} final_pkg/usr/lib/libdrm.so \; 2>/dev/null || true
               fi
               
-              # 6. ASENTAMIENTO DE PERMISOS RÍGIDOS 755 DE EJECUCIÓN
+              # Si por una locura del host sigue vacío, jalamos una copia de respaldo del sistema ubuntu
+              if [ ! -s "final_pkg/usr/lib/libdrm.so" ]; then
+                  echo "-> Usando libdrm de respaldo del Host..."
+                  find /usr/lib/ -name "libdrm.so*" -type f -head -n 1 -exec cp -fv {} final_pkg/usr/lib/libdrm.so \; 2>/dev/null || true
+              fi
+              
+              # 5. ASENTAMIENTO DE PERMISOS RÍGIDOS 755
               chmod -R -v 755 final_pkg/usr/lib/
               
-              # 7. CORRECCIÓN DE ENLACES CRUZADOS DINÁMICOS CON PATCHELF
+              # 6. CONSOLIDACIÓN DE ENLACES DINÁMICOS CON PATCHELF
               patchelf --set-soname libvulkan_wrapper.so final_pkg/usr/lib/libvulkan_wrapper.so || true
               find final_pkg/usr/lib/ -name "*.so" -exec patchelf --set-rpath '$ORIGIN' {} \; 2>/dev/null || true
               
-              # 8. INYECCIÓN DE MANIFIESTOS ICD CON RUTA ABSOLUTA AL WRAPPER
+              # 7. INYECCIÓN DE MANIFIESTOS ICD CON RUTA ABSOLUTA AL WRAPPER
               echo '{"ICD": {"api_version": "1.3.289", "library_path": "/usr/lib/libvulkan_wrapper.so"}, "file_format_version": "1.0.0"}' > final_pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
               echo '{"ICD": {"api_version": "1.3.289", "library_path": "/usr/lib/libvulkan_wrapper.so"}, "file_format_version": "1.0.0"}' > final_pkg/usr/share/vulkan/icd.d/wrapper_icd.arm.json
               
-              # Forzamos asentamiento físico en el almacenamiento del Host
+              # Sincronización estricta de escritura en disco
               sync && sleep 3
               
-              # Escáner preventivo en el log para cantar victoria
+              # Escáner de confirmación pura en el log antes de empaquetar
               echo "=========================================================="
-              echo " 🔍 REVISIÓN DEL CONTENIDO FINAL DENTRO DE USR/LIB:       "
+              echo " 🔍 REVISIÓN DE TU PAQUETE PURO EN EL HOST (USR/LIB):    "
               echo "=========================================================="
               find final_pkg/ -type f -exec ls -lh {} \;
               
-              # 9. COMPRESIÓN MAESTRA GANADORA CON CAMBIO DE ENTORNO ABSOLUTO
+              # 8. TU COMPRESIÓN GANADORA NATIVO SÍNCRONA
               echo "-> Forjando el archivo comprimido definitivo wrapper.tzst..."
               cd final_pkg
               tar -I 'zstd -19 -T0' -cf ../wrapper.tzst usr/
               cd ..
-              echo "-> ¡Empaquetado unificado completado con éxito!"
+              echo "-> ¡Paquete esencial forjado con éxito!"
           else
-              echo "-> [❌ ERROR GRAVE] Faltan los binarios del wrapper original en build/."
+              echo "-> [❌ ERROR GRAVE] No se localizó el libvulkan_wrapper.so en la carpeta del wrapper."
               exit 1
           fi
 
