@@ -37,11 +37,11 @@ jobs:
 
       - name: 📦 6. Forjar Paquete Esencial Puro para Bannerlator
         run: |
-          # Coordenada del binario original del wrapper de 19 MB
+          # Coordenada del binario original del wrapper de 19 MB generado en build
           WRAPPER_SO="build/src/vulkan/wrapper/libvulkan_wrapper.so"
           
           if [ -f "$WRAPPER_SO" ]; then
-              echo "-> [Host] ¡Éxito! Estructurando paquete puro idéntico al original..."
+              echo "-> [Host] ¡Éxito! Estructurando paquete puro usando tu android.toml legítimo..."
               
               # 1. Creación limpia paso a paso del árbol de directorios rígido
               rm -rf final_pkg
@@ -58,14 +58,15 @@ jobs:
               cp -fv ./build/subprojects/libadrenotools/src/hook/libhook_impl.so final_pkg/usr/lib/
               cp -fv ./build/subprojects/libadrenotools/src/hook/libfile_redirect_hook.so final_pkg/usr/lib/
               
-              # 4. ASENTAMIENTO DE PERMISOS RÍGIDOS DE REGLA
+              # 4. ASENTAMIENTO DE PERMISOS RÍGIDOS DE REGLA EN EL HOST
               chmod -R -v 755 final_pkg/usr/lib/
               
               # 5. CONSOLIDACIÓN DE ENLACES CON PATCHELF MANTENIENDO TU NOMBRE ORIGINAL
               patchelf --set-soname libvulkan_wrapper.so final_pkg/usr/lib/libvulkan_wrapper.so || true
               find final_pkg/usr/lib/ -name "*.so" -exec patchelf --set-rpath '$ORIGIN' {} \; 2>/dev/null || true
               
-              # 6. 🟢 INYECCIÓN INDUSTRIAL SUPREMA: Escribimos tus manifiestos JSON originales exactos en una sola línea plana indestructible
+              # 6. INYECCIÓN DEL MANIFIESTO JSON ICD ORIGINAL EXACTO (Ruta relativa limpia)
+              echo "-> Inyectando manifiestos originales planos exactos..."
               echo '{"ICD": {"api_version": "1.3.289", "library_path": "libvulkan_wrapper.so"}, "file_format_version": "1.0.0"}' > final_pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
               echo '{"ICD": {"api_version": "1.3.289", "library_path": "libvulkan_wrapper.so"}, "file_format_version": "1.0.0"}' > final_pkg/usr/share/vulkan/icd.d/wrapper_icd.arm.json
               
@@ -83,9 +84,9 @@ jobs:
               cd final_pkg
               tar -I 'zstd -19 -T0' -cf ../wrapper.tzst usr/
               cd ..
-              echo "-> ¡Paquete esencial purificado completado con éxito!"
+              echo "-> ¡Paquete esencial completado con éxito con tu configuración!"
           else
-              echo "-> [❌ ERROR GRAVE] No se localizó el libvulkan_wrapper.so original en su celda."
+              echo "-> [❌ ERROR GRAVE] El compilador local falló. libvulkan_wrapper.so no aparece en build/src/vulkan/wrapper/"
               exit 1
           fi
 
