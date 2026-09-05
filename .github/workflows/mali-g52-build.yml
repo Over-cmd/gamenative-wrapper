@@ -24,10 +24,10 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y zstd patchelf python3 bc
 
-      - name: 🛠️ 3. Inyectar Puente Dinámico dlsym en wrapper_device.c (v83)
+      - name: 🛠️ 3. Inyectar Puente Dinámico dlsym Seguro en wrapper_device.c (v84)
         run: |
           echo "=========================================================="
-          echo " 🧬 APLICANDO PARCHE DE CARGA DINÁMICA DE ENLACE DE MESA  "
+          echo " 🧬 APLICANDO PARCHE DE CARGA DINÁMICA POST-CABECERAS     "
           echo "=========================================================="
           TARGET_C="src/vulkan/wrapper/wrapper_device.c"
           
@@ -35,15 +35,22 @@ jobs:
               echo "-> 1. Parcheando inodo de logs temporales para Bannerlator..."
               sed -i 's|/data/data/app.gamenative/files/imagefs/usr/tmp/|/tmp/|g' "$TARGET_C"
               
-              echo "-> 2. Inyectando tipo de función y puente dinámico dlsym para evitar fallas de linker..."
-              # Declaramos el puntero de función dinámico compatible arriba del archivo
-              sed -i '1i #include <dlfcn.h>\ntypedef VkResult (*PFN_panvk_CreateDevice)(VkPhysicalDevice, const VkDeviceCreateInfo*, const VkAllocationCallbacks*, VkDevice*);\nstatic PFN_panvk_CreateDevice get_panvk_create_device(void) {\n    void* handle = dlopen(NULL, RTLD_NOW | RTLD_GLOBAL);\n    if(!handle) handle = dlopen("libvulkan_panfrost.so", RTLD_NOW);\n    return handle ? (PFN_panvk_CreateDevice)dlsym(handle, "panvk_CreateDevice") : NULL;\n}' "$TARGET_C"
+              echo "-> 2. Inyectando tipo de función y puente dlsym justo antes de wrapper_CreateDevice..."
+              # Inyectamos el bloque dinámico en una coordenada segura donde los tipos VkResult ya existen en el preprocesador
+              sed -i '/VKAPI_ATTR VkResult VKAPI_CALL/i \
+              #include <dlfcn.h>\n\
+              typedef VkResult (*PFN_panvk_CreateDevice)(VkPhysicalDevice, const VkDeviceCreateInfo*, const VkAllocationCallbacks*, VkDevice*);\n\
+              static PFN_panvk_CreateDevice get_panvk_create_device(void) {\n\
+                  void* handle = dlopen(NULL, RTLD_NOW | RTLD_GLOBAL);\n\
+                  if(!handle) handle = dlopen("libvulkan_panfrost.so", RTLD_NOW);\n\
+                  return handle ? (PFN_panvk_CreateDevice)dlsym(handle, "panvk_CreateDevice") : NULL;\n\
+              }' "$TARGET_C"
               
-              echo "-> 3. Redirigiendo la creación hacia el despachador dinámico elástico..."
-              # Reemplazamos la llamada al dispatch_table por una llamada al puntero resuelto en caliente
-              sed -i 's|physical_device->dispatch_table.CreateDevice|({ PFN_panvk_CreateDevice pfn = get_panvk_create_device(); pfn ? pfn : (void*)physical_device->dispatch_table.CreateDevice; })|g' "$TARGET_C"
+              echo "-> 3. Redirigiendo la creación hacia el puntero elástico dinámico..."
+              # Hacemos el reemplazo plano directo del inodo de llamada dinámico
+              sed -i 's|physical_device->dispatch_table.CreateDevice|({ PFN_panvk_CreateDevice pfn = get_panvk_create_device(); pfn ? pfn(physicalDevice, pCreateInfo, pAllocator, pDevice) : physical_device->dispatch_table.CreateDevice(physicalDevice, pCreateInfo, pAllocator, pDevice); })|g' "$TARGET_C"
               
-              echo "-> Puente de memoria compatible con ld.lld inyectado correctamente."
+              echo "-> Puente de memoria compatible inyectado de forma segura en las venas del C."
           else
               echo "-> [❌ ERROR CRÍTICO] No se localizó el archivo wrapper_device.c para aplicar el puente."
               exit 1
