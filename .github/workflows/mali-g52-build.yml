@@ -24,10 +24,10 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y zstd patchelf python3 bc
 
-      - name: 🛠️ 3. Forzar Declaración e Inyectar Fusión Real panvk_CreateDevice (v82)
+      - name: 🛠️ 3. Inyectar Puente Dinámico dlsym en wrapper_device.c (v83)
         run: |
           echo "=========================================================="
-          echo " 🧬 INYECTANDO DECLARACIÓN Y BYPASS REAL DE PANFROST      "
+          echo " 🧬 APLICANDO PARCHE DE CARGA DINÁMICA DE ENLACE DE MESA  "
           echo "=========================================================="
           TARGET_C="src/vulkan/wrapper/wrapper_device.c"
           
@@ -35,17 +35,17 @@ jobs:
               echo "-> 1. Parcheando inodo de logs temporales para Bannerlator..."
               sed -i 's|/data/data/app.gamenative/files/imagefs/usr/tmp/|/tmp/|g' "$TARGET_C"
               
-              echo "-> 2. Inyectando Declaración Avanzada (Forward Declaration) para evitar error de Clang..."
-              # Inyectamos la firma oficial de VkResult panvk_CreateDevice en la parte superior del archivo C
-              sed -i '1i #include <vulkan/vulkan.h>\nVkResult panvk_CreateDevice(VkPhysicalDevice physicalDevice, const VkDeviceCreateInfo* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkDevice* pDevice);' "$TARGET_C"
+              echo "-> 2. Inyectando tipo de función y puente dinámico dlsym para evitar fallas de linker..."
+              # Declaramos el puntero de función dinámico compatible arriba del archivo
+              sed -i '1i #include <dlfcn.h>\ntypedef VkResult (*PFN_panvk_CreateDevice)(VkPhysicalDevice, const VkDeviceCreateInfo*, const VkAllocationCallbacks*, VkDevice*);\nstatic PFN_panvk_CreateDevice get_panvk_create_device(void) {\n    void* handle = dlopen(NULL, RTLD_NOW | RTLD_GLOBAL);\n    if(!handle) handle = dlopen("libvulkan_panfrost.so", RTLD_NOW);\n    return handle ? (PFN_panvk_CreateDevice)dlsym(handle, "panvk_CreateDevice") : NULL;\n}' "$TARGET_C"
               
-              echo "-> 3. Redirigiendo la creación de hardware directamente hacia panvk_CreateDevice..."
-              # Hacemos el bypass real que pide el informe: saltamos del dispatch del blob de Android al motor real de Panfrost
-              sed -i 's|physical_device->dispatch_table.CreateDevice|panvk_CreateDevice|g' "$TARGET_C"
+              echo "-> 3. Redirigiendo la creación hacia el despachador dinámico elástico..."
+              # Reemplazamos la llamada al dispatch_table por una llamada al puntero resuelto en caliente
+              sed -i 's|physical_device->dispatch_table.CreateDevice|({ PFN_panvk_CreateDevice pfn = get_panvk_create_device(); pfn ? pfn : (void*)physical_device->dispatch_table.CreateDevice; })|g' "$TARGET_C"
               
-              echo "-> Fusión y bypass inyectados con éxito de forma 100% compatible con Clang."
+              echo "-> Puente de memoria compatible con ld.lld inyectado correctamente."
           else
-              echo "-> [❌ ERROR CRÍTICO] No se localizó el archivo wrapper_device.c para aplicar la fusión."
+              echo "-> [❌ ERROR CRÍTICO] No se localizó el archivo wrapper_device.c para aplicar el puente."
               exit 1
           fi
 
