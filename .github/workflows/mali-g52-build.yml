@@ -24,7 +24,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y zstd patchelf python3 bc
 
-      - name: 🛠️ 3. Purificar Cabeceras y Desactivar Conflictos de Sincronización (v110)
+      - name: 🛠️ 3. Forzar Identidad de Android en libsync.h y Limpiar Entorno (v111)
         run: |
           echo "=========================================================="
           echo " 🧬 PURIFICANDO CABECERAS Y ENTORNO DE COMPILACIÓN        "
@@ -50,14 +50,14 @@ jobs:
               echo "-> panvk_android.c parchado con éxito."
           fi
           
-          # 4. 🟢 EL REMATE ANTICOLISIONES ELF: Neutralizamos las funciones estáticas de libsync.h de Mesa
-          # para que no choquen con tus declaraciones legítimas de sync.h de Android Stub.
+          # 4. 🟢 EL REMATE ANTICOLISIONES: Forzamos a libsync.h a ver la constante __ANDROID__ 
+          # para desactivar la elisión parásita que dejaba la estructura incompleta en la línea 170.
           LIBSYNC_H="src/util/libsync.h"
           if [ -f "$LIBSYNC_H" ]; then
-              echo "-> Aplicando macro de elisión en libsync.h para evitar redefiniciones estáticas..."
-              # Metemos un bypass en la parte superior del archivo que anula la compilación de las inline repetidas
-              sed -i '1i #define sync_wait MESA_SYNC_WAIT_UNUSED\n#define sync_merge MESA_SYNC_MERGE_UNUSED\n#define sync_file_info MESA_SYNC_FILE_INFO_UNUSED' "$LIBSYNC_H"
-              echo "-> libsync.h purificado correctamente."
+              echo "-> Inyectando bandera de identidad forzada de Android en libsync.h..."
+              # Rompemos el candado del -U__ANDROID__ inyectando la macro directo en la línea 1
+              sed -i '1i #ifndef __ANDROID__\n#define __ANDROID__ 1\n#endif' "$LIBSYNC_H"
+              echo "-> libsync.h parchado con éxito con estructuras completas."
           fi
 
       - name: ⚙️ 4. Set up Docker Buildx
