@@ -14,10 +14,7 @@ if [ ! -d "${BUILD_DIR}" ]; then
       -Dplatforms=x11,android \
       -Dgallium-drivers=panfrost \
       -Dxmlconfig=disabled \
-      -Dvulkan-drivers=panfrost,wrapper \
-      -Dandroid-stub=true \
-      -Degl=disabled \
-      -Dglx=disabled
+      -Dvulkan-drivers=panfrost,wrapper 
 fi
 
 ninja -C "${BUILD_DIR}"
