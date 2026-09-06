@@ -24,10 +24,10 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y zstd patchelf python3 bc
 
-      - name: 🛠️ 3. Inyectar Puente Dinámico dlsym Seguro en wrapper_device.c (v142)
+      - name: 🛠️ 3. Forzar Ruta Absoluta del Enlace de Panfrost en wrapper_device.c (v143)
         run: |
           echo "=========================================================="
-          echo " 🧬 INYECTANDO ENLACE DE MEMORIA DINÁMICO EN COORDENADA SEGURA "
+          echo " 🧬 ANCLANDO RUTA ABSOLUTA DE PANFROST EN EL CÓDIGO C     "
           echo "=========================================================="
           TARGET_C="src/vulkan/wrapper/wrapper_device.c"
           
@@ -35,22 +35,21 @@ jobs:
               echo "-> 1. Parcheando inodo de logs temporales universales..."
               sed -i 's|/data/data/app.gamenative/files/imagefs/usr/tmp/|/tmp/|g' "$TARGET_C"
               
-              echo "-> 2. Inyectando definición dlsym debajo de las cabeceras para heredar tipos de Vulkan..."
-              # Buscamos la inclusión de la cabecera privada e inyectamos nuestro bloque justo debajo
-              # De esta manera, VkResult y todos los tipos ya están cargados en el preprocesador
+              echo "-> 2. Inyectando definición dlsym con la ruta absoluta del rootfs de Bannerlator..."
+              # 🟢 MODIFICACIÓN MAESTRA CRÍTICA: Cambiamos la llamada flotante por la ruta rígida /usr/lib/
+              # Esto destruye el fallo de dlopen() y obliga al wrapper a encontrar a Panfrost de forma instantánea.
               sed -i '/#include "wrapper_private.h"/a \
               #include <dlfcn.h>\n\
               typedef VkResult (*PFN_panvk_CreateDevice)(VkPhysicalDevice, const VkDeviceCreateInfo*, const VkAllocationCallbacks*, VkDevice*);\n\
               static PFN_panvk_CreateDevice get_panvk_create_device(void) {\n\
-                  void* handle = dlopen(NULL, RTLD_NOW | RTLD_GLOBAL);\n\
+                  void* handle = dlopen("/usr/lib/libvulkan_panfrost.so", RTLD_NOW | RTLD_GLOBAL);\n\
                   if(!handle) handle = dlopen("libvulkan_panfrost.so", RTLD_NOW);\n\
                   return handle ? (PFN_panvk_CreateDevice)dlsym(handle, "panvk_CreateDevice") : NULL;\n\
               }' "$TARGET_C"
               
               echo "-> 3. Redirigiendo la creación de hardware de forma segura..."
-              # Reemplazamos la llamada rígida por la evaluación elástica del puntero dinámico
               sed -i 's|physical_device->dispatch_table.CreateDevice|({ PFN_panvk_CreateDevice pfn = get_panvk_create_device(); pfn ? pfn : physical_device->dispatch_table.CreateDevice; })|g' "$TARGET_C"
-              echo "-> Puente dinámico de memoria inyectado con éxito en zona segura."
+              echo "-> Puente dinámico de hardware anclado correctamente."
           else
               echo "-> [❌ ERROR GRAVE] No se localizó el archivo wrapper_device.c"
               exit 1
@@ -111,13 +110,13 @@ jobs:
         run: |
           docker run --rm -v "${{ github.workspace }}:/workspace" local-wrapper-compiler:latest ${{ env.BUILD_DIR }}
 
-      - name: 📦 7. Forjar Paquete Esencial de Rutas Planas Legítimas (v142)
+      - name: 📦 7. Forjar Paquete Esencial de Rutas Planas Legítimas (v143)
         run: |
           WRAPPER_SO="build/src/vulkan/wrapper/libvulkan_wrapper.so"
           PANFROST_SO="build/src/panfrost/vulkan/libvulkan_panfrost.so"
           
           if [ -f "$WRAPPER_SO" ] && [ -f "$PANFROST_SO" ]; then
-            echo "-> [Host] ¡Éxito! Forjando el árbol de rutas planas compatible con Bannerlator..."
+            echo "-> [Host] ¡Éxito! Forjando el árbol de rutas unificado..."
             rm -rf final_pkg
             mkdir -p final_pkg/usr/lib final_pkg/usr/share/vulkan/icd.d
             
