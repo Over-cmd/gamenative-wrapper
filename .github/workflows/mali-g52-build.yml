@@ -24,7 +24,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y zstd patchelf python3 bc
 
-      - name: 🛠️ 3. Forzar Identidad de Android en libsync.h y Limpiar Entorno (v111)
+      - name: 🛠️ 3. Forzar Identidad de Android y Evitar Redefiniciones en libsync.h (v112)
         run: |
           echo "=========================================================="
           echo " 🧬 PURIFICANDO CABECERAS Y ENTORNO DE COMPILACIÓN        "
@@ -50,14 +50,16 @@ jobs:
               echo "-> panvk_android.c parchado con éxito."
           fi
           
-          # 4. 🟢 EL REMATE ANTICOLISIONES: Forzamos a libsync.h a ver la constante __ANDROID__ 
-          # para desactivar la elisión parásita que dejaba la estructura incompleta en la línea 170.
+          # 4. 🟢 EL REMATE ANTICOLISIONES MAESTRO: Neutralizamos por completo el código interno 
+          # de src/util/libsync.h de Mesa para que no declare funciones estáticas repetidas que choquen 
+          # con tus stubs globales legítimos de Over-cmd.
           LIBSYNC_H="src/util/libsync.h"
           if [ -f "$LIBSYNC_H" ]; then
-              echo "-> Inyectando bandera de identidad forzada de Android en libsync.h..."
-              # Rompemos el candado del -U__ANDROID__ inyectando la macro directo en la línea 1
-              sed -i '1i #ifndef __ANDROID__\n#define __ANDROID__ 1\n#endif' "$LIBSYNC_H"
-              echo "-> libsync.h parchado con éxito con estructuras completas."
+              echo "-> Desactivando funciones estáticas parásitas en libsync.h de Mesa..."
+              # Renombramos las funciones conflictivas del archivo de Mesa a nivel de preprocesador 
+              # para que Clang las ignore y use únicamente tus stubs reales de Android.
+              sed -i '1i #define sync_wait mesa_sync_wait_bloqueado\n#define sync_merge mesa_sync_merge_bloqueado\n#define sync_file_info mesa_sync_file_info_bloqueado' "$LIBSYNC_H"
+              echo "-> libsync.h purificado y silenciado correctamente."
           fi
 
       - name: ⚙️ 4. Set up Docker Buildx
