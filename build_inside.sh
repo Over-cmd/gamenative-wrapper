@@ -3,7 +3,9 @@ set -e
 
 BUILD_DIR="${1:-${BUILD_DIR:-build}}"
 
-# 🟢 1. MOTOR DE CONFIGURACIÓN DE MESON COMPATIBLE DUAL (CORREGIDO REAL v50)
+BUILD_DIR="${1:-${BUILD_DIR:-build}}"
+
+# 🟢 1. MOTOR DE CONFIGURACIÓN DE MESON PARA TERMUX-X11 EMULADO (v51)
 if [ ! -d "${BUILD_DIR}" ]; then
   meson setup "${BUILD_DIR}" --cross-file /root/build-config/cross_file.txt \
       -Dcpp_rtti=false \
@@ -11,8 +13,8 @@ if [ ! -d "${BUILD_DIR}" ]; then
       -Dopengl=false \
       -Dllvm=disabled \
       -Dshared-llvm=disabled \
-      -Dplatforms=x11,android \
-      -Degl-native-platform=android \
+      -Dplatforms=x11 \
+      -Degl-native-platform=x11 \
       -Dgallium-drivers=panfrost \
       -Ddraw-use-llvm=false \
       -Dxmlconfig=disabled \
