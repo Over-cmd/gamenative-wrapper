@@ -24,7 +24,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y zstd patchelf python3 bc
 
-      - name: 🛠️ 3. Forjar Símbolos Reales en Android Stub y Purificar Cabeceras (v121)
+      - name: 🛠️ 3. Inyectar Símbolos Reales en sync_stub.cpp y Purificar Ecosistema (v123)
         run: |
           echo "=========================================================="
           echo " 🧬 PURIFICANDO CABECERAS Y ENTORNO DE COMPILACIÓN        "
@@ -58,16 +58,17 @@ jobs:
               echo "-> libsync.h unificado de forma exitosa."
           fi
           
-          # 5. 🟢 EL PORTENTO DEL ENLAZADOR: Inyectamos el cuerpo físico de las funciones dentro de tu código 
-          # de stubs de Android (src/android_stub/sync.c) para que libsync.so las exporte de verdad en binario.
-          # Esto le da al linker ld.lld las funciones reales que reclama en el paso 1348, cerrando en verde.
-          STUB_SYNC_C="src/android_stub/sync.c"
-          if [ -f "$STUB_SYNC_C" ]; then
-              echo "-> Inyectando cuerpos binarios de sync_accumulate y validate_fence_fd en sync.c..."
-              echo -e "\n/* Funciones inyectadas por el Workflow para satisfacer al linker ld.lld */" >> "$STUB_SYNC_C"
-              echo "int sync_accumulate(const char *name, int *fd1, int fd2) { return 0; }" >> "$STUB_SYNC_C"
-              echo "void validate_fence_fd(int fd) { return; }" >> "$STUB_SYNC_C"
-              echo "-> Código de stubs de Android blindado físicamente."
+          # 5. 🟢 EL REMATE ABSOLUTO DEL BUCE DE MESON: 
+          # Inyectamos el cuerpo físico de las funciones directamente al final del archivo sync_stub.cpp.
+          # Al ser este el archivo exacto que lee tu foreach de Meson, libsync.so exportará los símbolos 
+          # reales en binario, dándole al linker ld.lld lo que reclama en el paso 1348.
+          STUB_SYNC_CPP="src/android_stub/sync_stub.cpp"
+          if [ -f "$STUB_SYNC_CPP" ]; then
+              echo "-> Forjando cuerpos binarios compatibles con C++ en sync_stub.cpp..."
+              echo -e "\n/* Funciones inyectadas por el Workflow para exportación binaria nativa */" >> "$STUB_SYNC_CPP"
+              echo 'extern "C" int sync_accumulate(const char *name, int *fd1, int fd2) { return 0; }' >> "$STUB_SYNC_CPP"
+              echo 'extern "C" void validate_fence_fd(int fd) { return; }' >> "$STUB_SYNC_CPP"
+              echo "-> Archivo sync_stub.cpp blindado con éxito."
           fi
 
       - name: ⚙️ 4. Set up Docker Buildx
