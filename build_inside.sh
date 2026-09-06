@@ -3,7 +3,7 @@ set -e
 
 BUILD_DIR="${1:-${BUILD_DIR:-build}}"
 
-# 🟢 1. MOTOR DE CONFIGURACIÓN DE MESON COMPATIBLE DUAL (CORREGIDO v45)
+# 🟢 1. MOTOR DE CONFIGURACIÓN DE MESON COMPATIBLE DUAL (CORREGIDO v46)
 if [ ! -d "${BUILD_DIR}" ]; then
   meson setup "${BUILD_DIR}" --cross-file /root/build-config/cross_file.txt \
       -Dcpp_rtti=false \
@@ -12,14 +12,15 @@ if [ ! -d "${BUILD_DIR}" ]; then
       -Dllvm=disabled \
       -Dshared-llvm=disabled \
       -Dplatforms=x11,android \
-      -Dgallium-drivers=panfrost,swrast \
+      -Dgallium-drivers=panfrost \
+      -Ddraw-with-llvm=false \
       -Dxmlconfig=disabled \
       -Dvulkan-drivers=panfrost,wrapper \
       -Degl=enabled \
       -Dglx=disabled
 fi
 
-ninja -C "${BUILD_DIR}"
+ninja -C "${BUILD_DIR}" 
 
 # 🟢 2. EXTRACCIÓN ELÁSTICA DEL BINARIO DE 9.3 MB REALES
 python3 -c '
