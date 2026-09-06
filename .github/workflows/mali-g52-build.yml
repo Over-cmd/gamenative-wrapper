@@ -24,7 +24,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y zstd patchelf python3 bc
 
-      - name: 🛠️ 3. Purificar Cabeceras y Forzar Declaraciones en Panfrost y DRI (v117)
+      - name: 🛠️ 3. Purificar Cabeceras y Forzar Firmas Globales en Android Stub (v118)
         run: |
           echo "=========================================================="
           echo " 🧬 PURIFICANDO CABECERAS Y ENTORNO DE COMPILACIÓN        "
@@ -57,27 +57,16 @@ jobs:
               echo "-> libsync.h silenciado de forma exitosa."
           fi
           
-          # 5. Inyectamos la cabecera de tus stubs de Android en la línea 1 de panthor_kmod.c
-          PANTHOR_C="src/panfrost/lib/kmod/panthor_kmod.c"
-          if [ -f "$PANTHOR_C" ]; then
-              sed -i '1i #include <sync/sync.h>' "$PANTHOR_C"
-              echo "-> panthor_kmod.c parchado con éxito."
-          fi
-          
-          # 6. Inyectamos la declaración explícita de sync_accumulate en la línea 1 de pan_context.c
-          PAN_CONTEXT_C="src/gallium/drivers/panfrost/pan_context.c"
-          if [ -f "$PAN_CONTEXT_C" ]; then
-              sed -i '1i int sync_accumulate(const char *name, int *fd1, int fd2);' "$PAN_CONTEXT_C"
-              echo "-> pan_context.c parchado con éxito."
-          fi
-          
-          # 7. 🟢 EL REMATE DE FRONTEND DRI: Inyectamos la declaración explícita de validate_fence_fd
-          # en la línea 1 de dri_helpers.c para solucionar el error de declaración implícita de raíz.
-          DRI_HELPERS_C="src/gallium/frontends/dri/dri_helpers.c"
-          if [ -f "$DRI_HELPERS_C" ]; then
-              echo "-> Inyectando declaración avanzada de validate_fence_fd en dri_helpers.c..."
-              sed -i '1i void validate_fence_fd(int fd);' "$DRI_HELPERS_C"
-              echo "-> dri_helpers.c parchado con éxito con la firma de control compatible."
+          # 5. 🟢 EL INYECTOR MAESTRO GLOBAL EN TU STUB DE ANDROID:
+          # Metemos las firmas que le faltan a tu sync.h original abajo del todo. Al estar en la cabecera global,
+          # pan_context.c, dri_helpers.c, drisw.c y cualquier otro archivo las heredarán al vuelo, blindando el build.
+          STUB_SYNC_H="include/android_stub/sync/sync.h"
+          if [ -f "$STUB_SYNC_H" ]; then
+              echo "-> Inyectando declaraciones avanzadas globales en tu stub sync.h..."
+              echo -e "\n/* Firmas añadidas por el Workflow para compilar panfrost unificado */" >> "$STUB_SYNC_H"
+              echo "int sync_accumulate(const char *name, int *fd1, int fd2);" >> "$STUB_SYNC_H"
+              echo "void validate_fence_fd(int fd);" >> "$STUB_SYNC_H"
+              echo "-> Tu stub sync.h ha sido blindado globalmente."
           fi
 
       - name: ⚙️ 4. Set up Docker Buildx
@@ -131,7 +120,7 @@ jobs:
           fi
 
       - name: 🚀 8. Subir Artefacto Completo a GitHub
-        uses: actions/upload-artifact@v4
+        uses: actions/checkout@v4
         with:
           name: Bannerlator-Mali-Wrapper
           path: wrapper.tzst
