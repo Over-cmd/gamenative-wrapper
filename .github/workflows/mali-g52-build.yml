@@ -24,7 +24,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y zstd patchelf python3 bc
 
-      - name: 🛠️ 3. Purificar Cabeceras, Silenciar libsync.h y Enlazar Stubs en Panthor (v114)
+      - name: 🛠️ 3. Purificar Cabeceras, Silenciar libsync.h y Enlazar Stubs en Gallium (v115)
         run: |
           echo "=========================================================="
           echo " 🧬 PURIFICANDO CABECERAS Y ENTORNO DE COMPILACIÓN        "
@@ -57,13 +57,20 @@ jobs:
               echo "-> libsync.h silenciado de forma exitosa."
           fi
           
-          # 5. 🟢 EL REMATE DE HARDWARE PANTHOR: Inyectamos la cabecera de tus stubs de Android 
-          # en la línea 1 de panthor_kmod.c para solucionar el error de 'sync_wait' undeclared de raíz.
+          # 5. Inyectamos la cabecera de tus stubs de Android en la línea 1 de panthor_kmod.c
           PANTHOR_C="src/panfrost/lib/kmod/panthor_kmod.c"
           if [ -f "$PANTHOR_C" ]; then
-              echo "-> Inyectando cabecera sync.h de android_stub en panthor_kmod.c..."
               sed -i '1i #include <sync/sync.h>' "$PANTHOR_C"
-              echo "-> panthor_kmod.c parchado con éxito con tus stubs legítimos."
+              echo "-> panthor_kmod.c parchado con éxito."
+          fi
+          
+          # 6. 🟢 EL REMATE DE GALLIUM PANFROST: Inyectamos la cabecera de tus stubs de Android
+          # en la línea 1 de pan_context.c para solucionar el error de 'sync_accumulate' de raíz.
+          PAN_CONTEXT_C="src/gallium/drivers/panfrost/pan_context.c"
+          if [ -f "$PAN_CONTEXT_C" ]; then
+              echo "-> Inyectando cabecera sync.h de android_stub en pan_context.c..."
+              sed -i '1i #include <sync/sync.h>' "$PAN_CONTEXT_C"
+              echo "-> pan_context.c parchado con éxito con tus stubs legítimos."
           fi
 
       - name: ⚙️ 4. Set up Docker Buildx
