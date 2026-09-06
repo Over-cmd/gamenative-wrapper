@@ -24,34 +24,17 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y zstd patchelf python3 bc
 
-      - name: 🛠️ 3. Forjar Regulador Estricto de Frame Pacing en wrapper_device.c (v152)
+      - name: 🛠️ 3. Purificar Entorno y Sincronizar Cabeceras Base (v153)
         run: |
           echo "=========================================================="
-          echo " 🧬 INYECTANDO ESTABILIZADOR DE FRAMETIMES Y CACHÉ CPU    "
+          echo " 🧬 PURIFICANDO CABECERAS Y ENTORNO DE COMPILACIÓN ESTABLE "
           echo "=========================================================="
           TARGET_C="src/vulkan/wrapper/wrapper_device.c"
           if [ -f "$TARGET_C" ]; then
-              echo "-> 1. Corrigiendo inodo de logs temporales universales..."
               sed -i 's|/data/data/app.gamenative/files/imagefs/usr/tmp/|/tmp/|g' "$TARGET_C"
-              
-              echo "-> 2. Inyectando reguladores de sincronización rígida para X11..."
-              # 🟢 EL REVOLUCIONARIO ESTABILIZADOR: Forzamos a que el present_mode aplane los tirones de la barra 
-              # y limitamos los hilos dinámicos para que no saturen la caché de los 8 núcleos.
-              sed -i '/#include "wrapper_private.h"/a \
-              #ifndef BOX64_DYNAREC_BIGBLOCK\n#define BOX64_DYNAREC_BIGBLOCK 0\n#endif\n\
-              #ifndef BOX64_MOUSE_ASYNC\n#define BOX64_MOUSE_ASYNC 1\n#endif\n\
-              #ifndef MESA_VK_WSI_PRESENT_MODE\n#define MESA_VK_WSI_PRESENT_MODE 2\n#endif\n\
-              #ifndef BOX64_DYNAREC_STRONGMEM\n#define BOX64_DYNAREC_STRONGMEM 1\n#endif' "$TARGET_C"
-              
-              echo "-> 3. Asegurando recolector de basura agresivo en FreeMemory..."
-              sed -i '/wrapper_FreeMemory/!b;/{/a \  if (memory == VK_NULL_HANDLE) return;' "$TARGET_C"
-              echo "-> Estabilizador inyectado con éxito en el Wrapper."
-          else
-              echo "-> [❌ ERROR] No se localizó el archivo wrapper_device.c"
-              exit 1
+              echo "-> Parche de inodo temporal aplicado."
           fi
           
-          # Limpiamos baches parásitos de Mesa para asegurar el verde brillante
           ANDROID_MESA_C="src/vulkan/runtime/vk_android.c"
           if [ -f "$ANDROID_MESA_C" ]; then
               echo "/* Vaciado por el Workflow para evitar redefiniciones con adrenotools */" > "$ANDROID_MESA_C"
@@ -93,12 +76,12 @@ jobs:
         run: |
           docker run --rm -v "${{ github.workspace }}:/workspace" local-wrapper-compiler:latest ${{ env.BUILD_DIR }}
 
-      - name: 📦 7. Forjar Paquete Esencial de Rutas Planas Legítimas (v152)
+      - name: 📦 7. Forjar Empaquetado de Producción Legítimo (v153)
         run: |
           WRAPPER_SO="build/src/vulkan/wrapper/libvulkan_wrapper.so"
           
           if [ -f "$WRAPPER_SO" ]; then
-            echo "-> [Host] ¡Éxito! Forjando saco de inodos con estabilizador de ritmo..."
+            echo "-> [Host] ¡Éxito! Estructurando tu saco de inodos compatible de producción..."
             rm -rf final_pkg
             mkdir -p final_pkg/usr/lib final_pkg/usr/share/vulkan/icd.d
             
@@ -118,9 +101,9 @@ jobs:
             sync && sleep 3
             
             cd final_pkg && tar -I 'zstd -19 -T0' -cf ../wrapper.tzst usr/ && cd ..
-            echo "-> ¡Paquete original del wrapper estabilizado forjado con éxito!"
+            echo "-> ¡Paquete original del wrapper de producción forjado con éxito!"
           else
-            echo "-> [❌ ERROR GRAVE] El compilador no dejó el archivo libvulkan_wrapper.so en su celda."
+            echo "-> [❌ ERROR GRAVE] El binario libvulkan_wrapper.so no se encuentra en build/."
             exit 1
           fi
 
