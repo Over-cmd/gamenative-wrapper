@@ -16,9 +16,9 @@ if [ ! -d "${BUILD_DIR}" ]; then
       -Dxmlconfig=disabled \
       -Dvulkan-drivers=panfrost,wrapper
       -Dandroid-stub=true
-      -gbm = 'disabled'
-      -egl = 'disabled'
-      -glx = 'disabled'
+      -Dgbm = 'disabled'
+      -Degl = 'disabled'
+      -Dglx = 'disabled'
 fi
 
 ninja -C "${BUILD_DIR}"
