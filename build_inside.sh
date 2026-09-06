@@ -11,7 +11,7 @@ if [ ! -d "${BUILD_DIR}" ]; then
       -Dopengl=false \
       -Dllvm=disabled \
       -Dshared-llvm=disabled \
-      -Dplatforms=surfaceless \
+      -Dplatforms=android \
       -Dgallium-drivers=panfrost \
       -Dxmlconfig=disabled \
       -Dvulkan-drivers=panfrost,wrapper \
