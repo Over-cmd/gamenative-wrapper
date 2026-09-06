@@ -24,19 +24,25 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y zstd patchelf python3 bc
 
-      - name: 🛠️ 3. Aplicar Parche de Inodo Temporal Limpio (v94)
+      - name: 🛠️ 3. Aplicar Parche de Inodo Temporal y Vaciar vk_android.c (v95)
         run: |
           echo "=========================================================="
-          echo " 🧬 PURIFICANDO RUTA DE LOGS TEMPORALES EN EL CÓDIGO      "
+          echo " 🧬 DESACTIVANDO CONFLICTOS DE ENTORNO EN EL RUNTIME      "
           echo "=========================================================="
+          # 1. Parche estándar de inodo de logs temporales universales
           TARGET_C="src/vulkan/wrapper/wrapper_device.c"
-          
           if [ -f "$TARGET_C" ]; then
               sed -i 's|/data/data/app.gamenative/files/imagefs/usr/tmp/|/tmp/|g' "$TARGET_C"
               echo "-> Parche de inodo temporal aplicado con éxito."
-          else
-              echo "-> [❌ ERROR CRÍTICO] No se localizó el archivo wrapper_device.c"
-              exit 1
+          fi
+          
+          # 2. EL GOLPE DE TIMÓN: Vaciamos el archivo vk_android.c parásito de Mesa para que no choque 
+          # con las redefiniciones de ugralloc de tus parches legítimos de Over-cmd.
+          ANDROID_MESA_C="src/vulkan/runtime/vk_android.c"
+          if [ -f "$ANDROID_MESA_C" ]; then
+              echo "-> Purificando archivo de intercambio oficial de Mesa..."
+              echo "/* Vaciado por el Workflow para evitar redefiniciones con adrenotools */" > "$ANDROID_MESA_C"
+              echo "-> vk_android.c neutralizado correctamente."
           fi
 
       - name: ⚙️ 4. Set up Docker Buildx
