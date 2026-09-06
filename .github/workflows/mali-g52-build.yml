@@ -24,7 +24,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y zstd patchelf python3 bc
 
-      - name: 🛠️ 3. Forzar Identidad de Android y Evitar Redefiniciones en libsync.h (v112)
+      - name: 🛠️ 3. Neutralizar Archivos Parásitos y Forzar Estructuras Limpias (v113)
         run: |
           echo "=========================================================="
           echo " 🧬 PURIFICANDO CABECERAS Y ENTORNO DE COMPILACIÓN        "
@@ -50,16 +50,14 @@ jobs:
               echo "-> panvk_android.c parchado con éxito."
           fi
           
-          # 4. 🟢 EL REMATE ANTICOLISIONES MAESTRO: Neutralizamos por completo el código interno 
-          # de src/util/libsync.h de Mesa para que no declare funciones estáticas repetidas que choquen 
-          # con tus stubs globales legítimos de Over-cmd.
+          # 4. 🟢 JAQUE MATE A LIBSYNC: En lugar de renombrar funciones, vaciamos el archivo 
+          # src/util/libsync.h parásito de Mesa por completo. Al dejarlo vacío, Clang usará 
+          # de forma nativa e íntegra tus stubs legítimos de Android Stub, solucionando los ioctl y structs.
           LIBSYNC_H="src/util/libsync.h"
           if [ -f "$LIBSYNC_H" ]; then
-              echo "-> Desactivando funciones estáticas parásitas en libsync.h de Mesa..."
-              # Renombramos las funciones conflictivas del archivo de Mesa a nivel de preprocesador 
-              # para que Clang las ignore y use únicamente tus stubs reales de Android.
-              sed -i '1i #define sync_wait mesa_sync_wait_bloqueado\n#define sync_merge mesa_sync_merge_bloqueado\n#define sync_file_info mesa_sync_file_info_bloqueado' "$LIBSYNC_H"
-              echo "-> libsync.h purificado y silenciado correctamente."
+              echo "-> Neutralizando archivo parásito libsync.h de Mesa..."
+              echo "/* Vaciado por el Workflow para usar exclusivamente los stubs de Over-cmd */" > "$LIBSYNC_H"
+              echo "-> libsync.h silenciado de forma exitosa."
           fi
 
       - name: ⚙️ 4. Set up Docker Buildx
