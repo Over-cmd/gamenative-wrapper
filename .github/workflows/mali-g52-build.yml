@@ -24,27 +24,18 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y zstd patchelf python3 bc
 
-      - name: 🛠️ 3. Parchear logs, vaciar vk_android.c e inyectar string.h (v100)
+      - name: 🛠️ 3. Aplicar Parche de Inodo Temporal en el Wrapper Legítimo (v102)
         run: |
           echo "=========================================================="
-          echo " 🧬 PURIFICANDO CABECERAS Y ENTORNO DE COMPILACIÓN        "
+          echo " 🧬 PURIFICANDO RUTA DE LOGS TEMPORALES EN EL CÓDIGO      "
           echo "=========================================================="
           TARGET_C="src/vulkan/wrapper/wrapper_device.c"
           if [ -f "$TARGET_C" ]; then
               sed -i 's|/data/data/app.gamenative/files/imagefs/usr/tmp/|/tmp/|g' "$TARGET_C"
-              echo "-> Parche de inodo temporal aplicado."
-          fi
-          
-          ANDROID_MESA_C="src/vulkan/runtime/vk_android.c"
-          if [ -f "$ANDROID_MESA_C" ]; then
-              echo "/* Vaciado por el Workflow para evitar redefiniciones con adrenotools */" > "$ANDROID_MESA_C"
-              echo "-> vk_android.c neutralizado."
-          fi
-          
-          PANVK_ANDROID_C="src/panfrost/vulkan/panvk_android.c"
-          if [ -f "$PANVK_ANDROID_C" ]; then
-              sed -i '1i #include <string.h>' "$PANVK_ANDROID_C"
-              echo "-> panvk_android.c parchado con éxito."
+              echo "-> Parche de inodo temporal aplicado con éxito."
+          else
+              echo "-> [❌ ERROR CRÍTICO] No se localizó el archivo wrapper_device.c"
+              exit 1
           fi
 
       - name: ⚙️ 4. Set up Docker Buildx
@@ -58,42 +49,38 @@ jobs:
         run: |
           docker run --rm -v "${{ github.workspace }}:/workspace" local-wrapper-compiler:latest ${{ env.BUILD_DIR }}
 
-      - name: 📦 7. Forjar Paquete Esencial Puro para Bannerlator
+      - name: 📦 7. Forjar Paquete Esencial Puro con tu Lógica de Comodines
         run: |
           WRAPPER_SO="build/src/vulkan/wrapper/libvulkan_wrapper.so"
-          PANFROST_SO="build/src/panfrost/vulkan/libvulkan_panfrost.so"
           
-          if [ -f "$WRAPPER_SO" ] && [ -f "$PANFROST_SO" ]; then
-            echo "-> [Host] ¡Éxito! Forjando el árbol dual accesible..."
+          if [ -f "$WRAPPER_SO" ]; then
+            echo "-> [Host] ¡Éxito! Estructurando tus archivos legítimos originales..."
             rm -rf final_pkg
             mkdir -p final_pkg/usr/lib final_pkg/usr/share/vulkan/icd.d
             
+            # Copiamos tu driver original de 19 MB manteniendo su inodo intacto
             cp -fv "$WRAPPER_SO" final_pkg/usr/lib/libvulkan_wrapper.so
-            cp -fv "$PANFROST_SO" final_pkg/usr/lib/libvulkan_panfrost.so
             
             # TU REGLA DE COMODINES DE ADRENOTOOLS GANADORA INDESTRUCTIBLE
             cp -fv ./build/subprojects/libadrenotools/*.so ./build/subprojects/libadrenotools/src/hook/*.so final_pkg/usr/lib/ 2>/dev/null || true
             chmod -R 755 final_pkg/usr/lib/
             
-            # Consolidando enlaces dinámicos con patchelf RPATH masivo
+            # Sellar las identidades dinámicas para evitar conflictos ELF
             patchelf --set-soname libvulkan_wrapper.so final_pkg/usr/lib/libvulkan_wrapper.so || true
-            patchelf --set-soname libvulkan_panfrost.so final_pkg/usr/lib/libvulkan_panfrost.so || true
             find final_pkg/usr/lib/ -name "*.so" -exec patchelf --set-rpath '$ORIGIN' {} \; 2>/dev/null || true
             
-            # Manifiestos JSON duales cruzados relativos planos
+            # TU MANIFIESTO ORIGINAL IDÉNTICO CON RUTA RELATIVA PLANO
             echo '{"ICD": {"api_version": "1.3.289", "library_path": "libvulkan_wrapper.so"}, "file_format_version": "1.0.0"}' > final_pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
             echo '{"ICD": {"api_version": "1.3.289", "library_path": "libvulkan_wrapper.so"}, "file_format_version": "1.0.0"}' > final_pkg/usr/share/vulkan/icd.d/wrapper_icd.arm.json
-            echo '{"ICD": {"api_version": "1.3.289", "library_path": "libvulkan_panfrost.so"}, "file_format_version": "1.0.0"}' > final_pkg/usr/share/vulkan/icd.d/panfrost_icd.aarch64.json
-            echo '{"ICD": {"api_version": "1.3.289", "library_path": "libvulkan_panfrost.so"}, "file_format_version": "1.0.0"}' > final_pkg/usr/share/vulkan/icd.d/panfrost_icd.arm.json
             
             # Forzamos guardado físico en el disco antes del cierre
             sync && sleep 3
             
             # TU MOTOR DE COMPRESIÓN GANADOR SÍNCRONO
             cd final_pkg && tar -I 'zstd -19 -T0' -cf ../wrapper.tzst usr/ && cd ..
-            echo "-> ¡Paquete unificado con ICDs accesibles forjado con éxito!"
+            echo "-> ¡Paquete original accesible forjado con éxito!"
           else
-            echo "-> [❌ ERROR GRAVE] Faltan binarios vitales de la compilación en build/."
+            echo "-> [❌ ERROR GRAVE] El compilador no dejó el archivo libvulkan_wrapper.so en la celda del wrapper."
             exit 1
           fi
 
