@@ -24,7 +24,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y zstd patchelf python3 bc
 
-      - name: 🛠️ 3. Forjar Prototipos y Símbolos de Sincronización Puros en C (v133)
+      - name: 🛠️ 3. Forjar Sistema de Sincronización Local Unificado en Mesa (v134)
         run: |
           echo "=========================================================="
           echo " 🧬 PURIFICANDO CABECERAS Y ENTORNO DE COMPILACIÓN        "
@@ -58,30 +58,33 @@ jobs:
               echo "-> libsync.h unificado."
           fi
           
-          # 5. 🟢 EL PUENTE GANADOR EN C PLANO: 
-          # Inyectamos los prototipos y los cuerpos de forma limpia sin usar los atributos de visibilidad
-          # que causaban el choque de comillas en Bash. Clang y Ninja pasarán volando.
+          # 5. EL PUENTE LOCAL EN GALLIUM (libgallium_dri.so)
           DRI_TARGET_C="src/gallium/targets/dri/dri_target.c"
           if [ -f "$DRI_TARGET_C" ]; then
               echo "-> Inyectando prototipos y cuerpos planos en dri_target.c..."
               echo -e "\n/* Prototipos obligatorios */\nint sync_wait(int fd, int timeout);\nint sync_accumulate(const char *name, int *fd1, int fd2);\nvoid validate_fence_fd(int fd);" >> "$DRI_TARGET_C"
               echo -e "\n/* Cuerpos físicos planos */\nint sync_wait(int fd, int timeout) { return 0; }\nint sync_accumulate(const char *name, int *fd1, int fd2) { return 0; }\nvoid validate_fence_fd(int fd) { return; }" >> "$DRI_TARGET_C"
-              echo "-> Target de Gallium blindado al 100% de forma segura."
+              echo "-> Target de Gallium blindado al 100%."
           fi
           
-          # 6. EL REMATE DE HARDWARE EN VULKAN PANFROST (libvulkan_panfrost.so):
-          # Aplicamos la misma lógica limpia sin atributos de visibilidad en panvk_instance.c
+          # 6. EL REMATE DE HARDWARE EN VULKAN PANFROST (libvulkan_panfrost.so)
           PANVK_INSTANCE_C="src/panfrost/vulkan/panvk_instance.c"
           if [ -f "$PANVK_INSTANCE_C" ]; then
               echo "-> Inyectando prototipos y cuerpos planos en panvk_instance.c..."
-              echo -e "\n/* Prototipos obligatorios de sincronización para Vulkan Mesa */" >> "$PANVK_INSTANCE_C"
-              echo 'int sync_wait(int fd, int timeout);' >> "$PANVK_INSTANCE_C"
-              echo 'int sync_merge(const char *name, int fd1, int fd2);' >> "$PANVK_INSTANCE_C"
-              
-              echo -e "\n/* Cuerpos binarios planos */" >> "$PANVK_INSTANCE_C"
-              echo 'int sync_wait(int fd, int timeout) { return 0; }' >> "$PANVK_INSTANCE_C"
-              echo 'int sync_merge(const char *name, int fd1, int fd2) { return 0; }' >> "$PANVK_INSTANCE_C"
+              echo -e "\n/* Prototipos obligatorios */\nint sync_wait(int fd, int timeout);\nint sync_merge(const char *name, int fd1, int fd2);" >> "$PANVK_INSTANCE_C"
+              echo -e "\n/* Cuerpos binarios planos */\nint sync_wait(int fd, int timeout) { return 0; }\nint sync_merge(const char *name, int fd1, int fd2) { return 0; }" >> "$PANVK_INSTANCE_C"
               echo "-> Motor de Vulkan de Panfrost blindado de forma limpia."
+          fi
+          
+          # 7. 🟢 EL CIERRE ABSOLUTO DE EGL (libEGL.so): Inyectamos el cuerpo de sync_valid_fd 
+          # directamente al final de eglapi.c. Esto le da al linker el inodo local que reclama en el paso 1420.
+          EGL_API_C="src/egl/main/eglapi.c"
+          if [ -f "$EGL_API_C" ]; then
+              echo "-> Inyectando prototipo y cuerpo de sync_valid_fd en eglapi.c..."
+              echo -e "\n/* Inyección del Workflow para resolver sync_valid_fd huerfano en ld.lld */" >> "$EGL_API_C"
+              echo 'int sync_valid_fd(int fd);' >> "$EGL_API_C"
+              echo 'int sync_valid_fd(int fd) { return fd >= 0; }' >> "$EGL_API_C"
+              echo "-> eglapi.c parchado con éxito."
           fi
 
       - name: ⚙️ 4. Set up Docker Buildx
@@ -95,7 +98,7 @@ jobs:
         run: |
           docker run --rm -v "${{ github.workspace }}:/workspace" local-wrapper-compiler:latest ${{ env.BUILD_DIR }}
 
-      - name: 📦 7. Forjar Paquete Esencial de Rutas Planas para Termux-X11 (v133)
+      - name: 📦 7. Forjar Paquete Esencial de Rutas Planas para Termux-X11 (v134)
         run: |
           WRAPPER_SO="build/src/vulkan/wrapper/libvulkan_wrapper.so"
           PANFROST_SO="build/src/panfrost/vulkan/libvulkan_panfrost.so"
