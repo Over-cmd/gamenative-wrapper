@@ -24,10 +24,10 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y zstd patchelf python3 bc
 
-      - name: 🛠️ 3. Inyectar Puente Panfrost directo en el ADN del Wrapper (v137)
+      - name: 🛠️ 3. Forjar Sistema Unificado de Sincronización Inmune (v138)
         run: |
           echo "=========================================================="
-          echo " 🧬 INYECTANDO ENLACE DE HARDWARE DENTRO DE ADRENOTOOLS    "
+          echo " 🧬 PURIFICANDO CABECERAS Y ENTORNO DE COMPILACIÓN        "
           echo "=========================================================="
           # 1. Parche estándar de inodo de logs temporales universales
           TARGET_C="src/vulkan/wrapper/wrapper_device.c"
@@ -79,16 +79,6 @@ jobs:
               echo -e "\nint sync_valid_fd(int fd);\nint sync_valid_fd(int fd) { return fd >= 0; }" >> "$EGL_API_C"
               echo "-> eglapi.c parchado."
           fi
-          
-          # 8. 🟢 EL REDIRECCIONAMIENTO MOLECULAR DE ADRENOTOOLS:
-          # Obligamos a que el código del wrapper cargue libvulkan_panfrost.so en la RAM en lugar de buscar el blob de Android.
-          # Esto mantiene vivas tus 5 sublibrerías de Adrenotools y fusiona el silicio de Panfrost de forma 100% limpia.
-          WRAPPER_INSTANCE_C="src/vulkan/wrapper/wrapper_instance.c"
-          if [ -f "$WRAPPER_INSTANCE_C" ]; then
-              echo "-> Forzando al wrapper a delegar el renderizado en libvulkan_panfrost.so..."
-              sed -i 's|libvulkan.so|libvulkan_panfrost.so|g' "$WRAPPER_INSTANCE_C"
-              echo "-> Enlace de Adrenotools soldado con éxito a Panfrost."
-          fi
 
       - name: ⚙️ 4. Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -101,31 +91,33 @@ jobs:
         run: |
           docker run --rm -v "${{ github.workspace }}:/workspace" local-wrapper-compiler:latest ${{ env.BUILD_DIR }}
 
-      - name: 📦 7. Forjar Sándwich de Silicio Accesible para la Lista Blanca (v137)
+      - name: 📦 7. Forjar el Clon de Identidad Puro para Termux-X11 (v138)
         run: |
           WRAPPER_SO="build/src/vulkan/wrapper/libvulkan_wrapper.so"
           PANFROST_SO="build/src/panfrost/vulkan/libvulkan_panfrost.so"
           
           if [ -f "$WRAPPER_SO" ] && [ -f "$PANFROST_SO" ]; then
-            echo "-> [Host] ¡Éxito! Forjando el árbol dual accesible..."
+            echo "-> [Host] ¡Éxito! Aplicando el Clon de Identidad definitivo..."
             rm -rf final_pkg
             mkdir -p final_pkg/usr/lib final_pkg/usr/share/vulkan/icd.d
             
-            # 🟢 Restauramos la maquetación legítima: cada binario conserva su inodo y tamaño original
+            # 🟢 TU INTERCEPTOR ORIGINAL: Mantiene su nombre intacto para la Whitelist de Bannerlator
             cp -fv "$WRAPPER_SO" final_pkg/usr/lib/libvulkan_wrapper.so
-            cp -fv "$PANFROST_SO" final_pkg/usr/lib/libvulkan_panfrost.so
+            
+            # 🟢 EL DISFRAZ DE HARDWARE: Copiamos el motor de Panfrost (59MB) bautizándolo como libvulkan.so.
+            # Así, cuando tu wrapper llame al driver del sistema, morderá a Panfrost de forma directa en la RAM.
+            cp -fv "$PANFROST_SO" final_pkg/usr/lib/libvulkan.so
             
             # TU REGLA DE COMODINES DE ADRENOTOOLS GANADORA INDESTRUCTIBLE
             cp -fv ./build/subprojects/libadrenotools/*.so ./build/subprojects/libadrenotools/src/hook/*.so final_pkg/usr/lib/ 2>/dev/null || true
             chmod -R 755 final_pkg/usr/lib/
             
-            # Consolidando enlaces dinámicos masivos de Adrenotools en usr/lib
+            # Consolidando enlaces dinámicos masivos con patchelf RPATH a nivel de origen
             patchelf --set-soname libvulkan_wrapper.so final_pkg/usr/lib/libvulkan_wrapper.so || true
-            patchelf --set-soname libvulkan_panfrost.so final_pkg/usr/lib/libvulkan_panfrost.so || true
+            patchelf --set-soname libvulkan.so final_pkg/usr/lib/libvulkan.so || true
             find final_pkg/usr/lib/ -name "*.so" -exec patchelf --set-rpath '$ORIGIN' {} \; 2>/dev/null || true
             
-            # 🟢 TU MANIFIESTO ORIGINAL CON NOMBRE ASIMILADO: Escribimos únicamente los JSON que Bannerlator lee.
-            # Al abrir el wrapper, el propio binario despertará internamente a Panfrost en la memoria RAM.
+            # TU MANIFIESTO ORIGINAL RELATIVO PLANO COMPATIBLE
             echo '{"ICD": {"api_version": "1.3.289", "library_path": "libvulkan_wrapper.so"}, "file_format_version": "1.0.0"}' > final_pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
             echo '{"ICD": {"api_version": "1.3.289", "library_path": "libvulkan_wrapper.so"}, "file_format_version": "1.0.0"}' > final_pkg/usr/share/vulkan/icd.d/wrapper_icd.arm.json
             
@@ -134,7 +126,7 @@ jobs:
             
             # TU MOTOR DE COMPRESIÓN GANADOR SÍNCRONO
             cd final_pkg && tar -I 'zstd -19 -T0' -cf ../wrapper.tzst usr/ && cd ..
-            echo "-> ¡Sándwich de gráficos unificado con Adrenotools completado con éxito!"
+            echo "-> ¡El Clon de Identidad definitivo ha sido forjado con éxito!"
           else
             echo "-> [❌ ERROR GRAVE] Faltan binarios vitales de la compilación en build/."
             exit 1
