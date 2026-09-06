@@ -24,10 +24,10 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y zstd patchelf python3 bc
 
-      - name: 🛠️ 3. Aplicar Parche de Inodo Temporal y Vaciar vk_android.c (v95)
+      - name: 🛠️ 3. Parchear logs, vaciar vk_android.c e inyectar string.h en Panfrost (v96)
         run: |
           echo "=========================================================="
-          echo " 🧬 DESACTIVANDO CONFLICTOS DE ENTORNO EN EL RUNTIME      "
+          echo " 🧬 PURIFICANDO CABECERAS Y ENTORNO DE COMPILACIÓN        "
           echo "=========================================================="
           # 1. Parche estándar de inodo de logs temporales universales
           TARGET_C="src/vulkan/wrapper/wrapper_device.c"
@@ -36,13 +36,20 @@ jobs:
               echo "-> Parche de inodo temporal aplicado con éxito."
           fi
           
-          # 2. EL GOLPE DE TIMÓN: Vaciamos el archivo vk_android.c parásito de Mesa para que no choque 
-          # con las redefiniciones de ugralloc de tus parches legítimos de Over-cmd.
+          # 2. Vaciamos el archivo vk_android.c parásito de Mesa para evitar redefiniciones
           ANDROID_MESA_C="src/vulkan/runtime/vk_android.c"
           if [ -f "$ANDROID_MESA_C" ]; then
-              echo "-> Purificando archivo de intercambio oficial de Mesa..."
               echo "/* Vaciado por el Workflow para evitar redefiniciones con adrenotools */" > "$ANDROID_MESA_C"
-              echo "-> vk_android.c neutralizado correctamente."
+              echo "-> vk_android.c neutralizado."
+          fi
+          
+          # 3. 🟢 EL REMATE DE HARDWARE: Inyectamos #include <string.h> en la cabecera de panvk_android.c
+          # Esto soluciona de raíz el error de la función 'strcmp' no declarada en el módulo de Panfrost.
+          PANVK_ANDROID_C="src/panfrost/vulkan/panvk_android.c"
+          if [ -f "$PANVK_ANDROID_C" ]; then
+              echo "-> Inyectando cabecera string.h en panvk_android.c..."
+              sed -i '1i #include <string.h>' "$PANVK_ANDROID_C"
+              echo "-> panvk_android.c parchado con éxito."
           fi
 
       - name: ⚙️ 4. Set up Docker Buildx
