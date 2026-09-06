@@ -24,7 +24,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y zstd patchelf python3 bc
 
-      - name: 🛠️ 3. Neutralizar Archivos Parásitos y Forzar Estructuras Limpias (v113)
+      - name: 🛠️ 3. Purificar Cabeceras, Silenciar libsync.h y Enlazar Stubs en Panthor (v114)
         run: |
           echo "=========================================================="
           echo " 🧬 PURIFICANDO CABECERAS Y ENTORNO DE COMPILACIÓN        "
@@ -50,14 +50,20 @@ jobs:
               echo "-> panvk_android.c parchado con éxito."
           fi
           
-          # 4. 🟢 JAQUE MATE A LIBSYNC: En lugar de renombrar funciones, vaciamos el archivo 
-          # src/util/libsync.h parásito de Mesa por completo. Al dejarlo vacío, Clang usará 
-          # de forma nativa e íntegra tus stubs legítimos de Android Stub, solucionando los ioctl y structs.
+          # 4. Vaciamos el archivo src/util/libsync.h parásito de Mesa por completo para salvar EGL
           LIBSYNC_H="src/util/libsync.h"
           if [ -f "$LIBSYNC_H" ]; then
-              echo "-> Neutralizando archivo parásito libsync.h de Mesa..."
               echo "/* Vaciado por el Workflow para usar exclusivamente los stubs de Over-cmd */" > "$LIBSYNC_H"
               echo "-> libsync.h silenciado de forma exitosa."
+          fi
+          
+          # 5. 🟢 EL REMATE DE HARDWARE PANTHOR: Inyectamos la cabecera de tus stubs de Android 
+          # en la línea 1 de panthor_kmod.c para solucionar el error de 'sync_wait' undeclared de raíz.
+          PANTHOR_C="src/panfrost/lib/kmod/panthor_kmod.c"
+          if [ -f "$PANTHOR_C" ]; then
+              echo "-> Inyectando cabecera sync.h de android_stub en panthor_kmod.c..."
+              sed -i '1i #include <sync/sync.h>' "$PANTHOR_C"
+              echo "-> panthor_kmod.c parchado con éxito con tus stubs legítimos."
           fi
 
       - name: ⚙️ 4. Set up Docker Buildx
