@@ -11,11 +11,14 @@ if [ ! -d "${BUILD_DIR}" ]; then
       -Dopengl=false \
       -Dllvm=disabled \
       -Dshared-llvm=disabled \
-      -Dplatforms=x11,android \
+      -Dplatforms=android \
       -Dgallium-drivers=panfrost \
       -Dxmlconfig=disabled \
       -Dvulkan-drivers=panfrost,wrapper
       -Dandroid-stub=true
+      -gbm = 'disabled'
+      -egl = 'disabled'
+      -glx = 'disabled'
 fi
 
 ninja -C "${BUILD_DIR}"
