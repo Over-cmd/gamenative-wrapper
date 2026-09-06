@@ -24,7 +24,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y zstd patchelf python3 bc
 
-      - name: 🛠️ 3. Purificar Cabeceras y Forzar Declaraciones en Panfrost, Panthor y DRI (v119)
+      - name: 🛠️ 3. Redirigir libsync.h hacia tus Stubs Legítimos de Over-cmd (v120)
         run: |
           echo "=========================================================="
           echo " 🧬 PURIFICANDO CABECERAS Y ENTORNO DE COMPILACIÓN        "
@@ -50,40 +50,14 @@ jobs:
               echo "-> panvk_android.c parchado con éxito."
           fi
           
-          # 4. Vaciamos el archivo src/util/libsync.h parásito de Mesa por completo para salvar EGL
+          # 4. 🟢 EL PUENTE DE MEMORIA PERFECTO: En lugar de vaciar libsync.h, lo obligamos a actuar 
+          # como un espejo que apunta directamente a tu stub de Android original.
+          # Esto le da a panthor_kmod.c las firmas que pide, pero evita que EGL duplique funciones estáticas.
           LIBSYNC_H="src/util/libsync.h"
           if [ -f "$LIBSYNC_H" ]; then
-              echo "/* Vaciado por el Workflow para usar exclusivamente los stubs de Over-cmd */" > "$LIBSYNC_H"
-              echo "-> libsync.h silenciado de forma exitosa."
-          fi
-          
-          # 5. 🟢 EL REMATE DE HARDWARE PANTHOR: Inyectamos la firma explícita de sync_wait directamente en la línea 1 
-          # del archivo panthor_kmod.c para destruir el error de declaración implícita de raíz.
-          PANTHOR_C="src/panfrost/lib/kmod/panthor_kmod.c"
-          if [ -f "$PANTHOR_C" ]; then
-              echo "-> Inyectando declaración avanzada de sync_wait en panthor_kmod.c..."
-              sed -i '1i int sync_wait(int fd, int timeout);' "$PANTHOR_C"
-              echo "-> panthor_kmod.c parchado con éxito."
-          fi
-          
-          # 6. Inyectamos la declaración explícita de sync_accumulate en la línea 1 de pan_context.c
-          PAN_CONTEXT_C="src/gallium/drivers/panfrost/pan_context.c"
-          if [ -f "$PAN_CONTEXT_C" ]; then
-              sed -i '1i int sync_accumulate(const char *name, int *fd1, int fd2);' "$PAN_CONTEXT_C"
-              echo "-> pan_context.c parchado con éxito."
-          fi
-          
-          # 7. Inyectamos la declaración explícita de validate_fence_fd en la línea 1 de dri_helpers.c y drisw.c
-          DRI_HELPERS_C="src/gallium/frontends/dri/dri_helpers.c"
-          if [ -f "$DRI_HELPERS_C" ]; then
-              sed -i '1i void validate_fence_fd(int fd);' "$DRI_HELPERS_C"
-              echo "-> dri_helpers.c parchado con éxito."
-          fi
-          
-          DRISW_C="src/gallium/frontends/dri/drisw.c"
-          if [ -f "$DRISW_C" ]; then
-              sed -i '1i void validate_fence_fd(int fd);' "$DRISW_C"
-              echo "-> drisw.c parchado con éxito."
+              echo "-> Redirigiendo cabecera libsync.h hacia los stubs legítimos..."
+              echo -e "#ifndef MESA_LIBSYNC_H_WRAPPER\n#define MESA_LIBSYNC_H_WRAPPER\n#include <sync/sync.h>\nint sync_accumulate(const char *name, int *fd1, int fd2);\nvoid validate_fence_fd(int fd);\n#endif" > "$LIBSYNC_H"
+              echo "-> libsync.h unificado de forma exitosa."
           fi
 
       - name: ⚙️ 4. Set up Docker Buildx
