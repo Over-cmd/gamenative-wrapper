@@ -24,7 +24,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y zstd patchelf python3 bc
 
-      - name: 🛠️ 3. Forjar Bypass Dinámico en Coordenada de Inodo Segura (v147)
+      - name: 🛠️ 3. Forjar Bypass Dinámico en Coordenada de Inodo Segura (v148)
         run: |
           echo "=========================================================="
           echo " 🧬 INYECTANDO ENLACE DE GRÁFICOS COMPATIBLE CON CLANG     "
@@ -36,7 +36,6 @@ jobs:
               sed -i 's|/data/data/app.gamenative/files/imagefs/usr/tmp/|/tmp/|g' "$TARGET_C"
               
               echo "-> 2. Inyectando estructura dlsym debajo de wrapper_private.h..."
-              # Inyectamos el cargador dinámico elástico justo donde Clang ya sabe qué es Vulkan
               sed -i '/#include "wrapper_private.h"/a \
               #include <dlfcn.h>\n\
               typedef VkResult (*PFN_panvk_CreateDevice)(VkPhysicalDevice, const VkDeviceCreateInfo*, const VkAllocationCallbacks*, VkDevice*);\n\
@@ -47,7 +46,6 @@ jobs:
               }' "$TARGET_C"
               
               echo "-> 3. Interceptando wrapper_CreateDevice en caliente..."
-              # Usamos Python para buscar la firma exacta de tu archivo y reescribir su lógica interna de un solo viaje
               python3 -c '
           import os
           path = "src/vulkan/wrapper/wrapper_device.c"
@@ -57,7 +55,6 @@ jobs:
           search_target = "wrapper_CreateDevice(VkPhysicalDevice physicalDevice,"
           if search_target in code:
               print("-> Ubicada función de hardware. Inyectando desvío molecular...")
-              # Metemos el cortafuegos en la RAM: si localiza Panfrost, delega el renderizado de inmediato
               bypass = "wrapper_CreateDevice(VkPhysicalDevice physicalDevice,\n                      const VkDeviceCreateInfo* pCreateInfo,\n                      const VkAllocationCallbacks* pAllocator,\n                      VkDevice* pDevice)\n{\n   PFN_panvk_CreateDevice pfn = get_panvk_create_device();\n   if(pfn) return pfn(physicalDevice, pCreateInfo, pAllocator, pDevice);"
               
               code = code.replace("wrapper_CreateDevice(VkPhysicalDevice physicalDevice,\n                      const VkDeviceCreateInfo* pCreateInfo,\n                      const VkAllocationCallbacks* pAllocator,\n                      VkDevice* pDevice)", bypass)
@@ -69,32 +66,28 @@ jobs:
               exit(1)
           '
           else
-              echo "-> [❌ ERROR GRAVE] No se localizó el archivo wrapper_device.c"
+              echo "-> [❌ ERROR GRAVE] No se localized el archivo wrapper_device.c"
               exit 1
           fi
           
-          # 4. Vaciamos el archivo vk_android.c parásito de Mesa para evitar redefiniciones
           ANDROID_MESA_C="src/vulkan/runtime/vk_android.c"
           if [ -f "$ANDROID_MESA_C" ]; then
               echo "/* Vaciado por el Workflow para evitar redefiniciones con adrenotools */" > "$ANDROID_MESA_C"
               echo "-> vk_android.c neutralizado."
           fi
           
-          # 5. Inyectamos #include <string.h> en la cabecera de panvk_android.c
           PANVK_ANDROID_C="src/panfrost/vulkan/panvk_android.c"
           if [ -f "$PANVK_ANDROID_C" ]; then
               sed -i '1i #include <string.h>' "$PANVK_ANDROID_C"
               echo "-> panvk_android.c parchado con éxito."
           fi
           
-          # 6. Redirigimos libsync.h hacia tus stubs globales
           LIBSYNC_H="src/util/libsync.h"
           if [ -f "$LIBSYNC_H" ]; then
               echo -e "#ifndef MESA_LIBSYNC_H_WRAPPER\n#define MESA_LIBSYNC_H_WRAPPER\n#include <sync/sync.h>\nint sync_accumulate(const char *name, int *fd1, int fd2);\nvoid validate_fence_fd(int fd);\nint sync_valid_fd(int fd);\nint sync_wait(int fd, int timeout);\nint sync_merge(const char *name, int fd1, int fd2);\n#endif" > "$LIBSYNC_H"
               echo "-> libsync.h unificado."
           fi
           
-          # 7. El puente local en Gallium (dri_target.c)
           DRI_TARGET_C="src/gallium/targets/dri/dri_target.c"
           if [ -f "$DRI_TARGET_C" ]; then
               echo -e "\n/* Prototipos */\nint sync_wait(int fd, int timeout);\nint sync_accumulate(const char *name, int *fd1, int fd2);\nvoid validate_fence_fd(int fd);" >> "$DRI_TARGET_C"
@@ -102,7 +95,6 @@ jobs:
               echo "-> Target de Gallium unificado."
           fi
           
-          # 8. El puente local en Vulkan Panfrost (panvk_instance.c)
           PANVK_INSTANCE_C="src/panfrost/vulkan/panvk_instance.c"
           if [ -f "$PANVK_INSTANCE_C" ]; then
               echo -e "\n/* Prototipos */\nint sync_wait(int fd, int timeout);\nint sync_merge(const char *name, int fd1, int fd2);" >> "$PANVK_INSTANCE_C"
@@ -110,7 +102,6 @@ jobs:
               echo "-> Motor de Vulkan de Panfrost unificado."
           fi
           
-          # 9. El puente local en EGL (eglapi.c)
           EGL_API_C="src/egl/main/eglapi.c"
           if [ -f "$EGL_API_C" ]; then
               echo -e "\nint sync_valid_fd(int fd);\nint sync_valid_fd(int fd) { return fd >= 0; }" >> "$EGL_API_C"
@@ -128,7 +119,7 @@ jobs:
         run: |
           docker run --rm -v "${{ github.workspace }}:/workspace" local-wrapper-compiler:latest ${{ env.BUILD_DIR }}
 
-      - name: 📦 7. Forjar Paquete Esencial de Rutas Planas Legítimas (v147)
+      - name: 📦 7. Forjar Paquete Esencial de Rutas Planas Legítimas (v148)
         run: |
           WRAPPER_SO="build/src/vulkan/wrapper/libvulkan_wrapper.so"
           PANFROST_SO="build/src/panfrost/vulkan/libvulkan_panfrost.so"
@@ -138,29 +129,23 @@ jobs:
             rm -rf final_pkg
             mkdir -p final_pkg/usr/lib final_pkg/usr/share/vulkan/icd.d
             
-            # Copiamos tus dos binarios legítimos originales al nido de usr/lib
             cp -fv "$WRAPPER_SO" final_pkg/usr/lib/libvulkan_wrapper.so
             cp -fv "$PANFROST_SO" final_pkg/usr/lib/libvulkan_panfrost.so
             
-            # TU REGLA DE COMODINES DE ADRENOTOOLS GANADORA INDESTRUCTIBLE
             cp -fv ./build/subprojects/libadrenotools/*.so ./build/subprojects/libadrenotools/src/hook/*.so final_pkg/usr/lib/ 2>/dev/null || true
             chmod -R 755 final_pkg/usr/lib/
             
-            # Consolidando enlaces dinámicos masivos con patchelf RPATH masivo a nivel de origen
             patchelf --set-soname libvulkan_wrapper.so final_pkg/usr/lib/libvulkan_wrapper.so || true
             patchelf --set-soname libvulkan_panfrost.so final_pkg/usr/lib/libvulkan_panfrost.so || true
             find final_pkg/usr/lib/ -name "*.so" -exec patchelf --set-rpath '$ORIGIN' {} \; 2>/dev/null || true
             
-            # TU MANIFIESTO ORIGINAL RELATIVO PLANO COMPATIBLE CON LA LISTA BLANCA DE BANNERLATOR
             echo '{"ICD": {"api_version": "1.3.289", "library_path": "libvulkan_wrapper.so"}, "file_format_version": "1.0.0"}' > final_pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
             echo '{"ICD": {"api_version": "1.3.289", "library_path": "libvulkan_wrapper.so"}, "file_format_version": "1.0.0"}' > final_pkg/usr/share/vulkan/icd.d/wrapper_icd.arm.json
             echo '{"ICD": {"api_version": "1.3.289", "library_path": "libvulkan_panfrost.so"}, "file_format_version": "1.0.0"}' > final_pkg/usr/share/vulkan/icd.d/panfrost_icd.aarch64.json
             echo '{"ICD": {"api_version": "1.3.289", "library_path": "libvulkan_panfrost.so"}, "file_format_version": "1.0.0"}' > final_pkg/usr/share/vulkan/icd.d/panfrost_icd.arm.json
             
-            # Forzamos guardado físico en el disco antes del cierre
             sync && sleep 3
             
-            # TU MOTOR DE COMPRESIÓN GANADOR SÍNCRONO
             cd final_pkg && tar -I 'zstd -19 -T0' -cf ../wrapper.tzst usr/ && cd ..
             echo "-> ¡El paquete híbrido definitivo ha sido forjado con éxito!"
           else
@@ -171,6 +156,6 @@ jobs:
       - name: 🚀 8. Subir Artefacto Completo a GitHub
         uses: actions/upload-artifact@v4
         with:
-        name: Bannerlator-Mali-Wrapper
-        path: wrapper.tzst
-        retention-days: 7
+          name: Bannerlator-Mali-Wrapper
+          path: wrapper.tzst
+          retention-days: 7
