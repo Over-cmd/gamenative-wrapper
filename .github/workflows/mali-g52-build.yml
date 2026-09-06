@@ -24,40 +24,52 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y zstd patchelf python3 bc
 
-      - name: 🛠️ 3. Forjar Sistema Unificado de Sincronización Inmune (v138)
+      - name: 🛠️ 3. Inyectar Bypass Molecular panvk_CreateDevice y Sincronizar Cabeceras (v139)
         run: |
           echo "=========================================================="
-          echo " 🧬 PURIFICANDO CABECERAS Y ENTORNO DE COMPILACIÓN        "
+          echo " 🧬 INYECTANDO FUSIÓN PANFROST DIRECTO EN EL CÓDIGO C     "
           echo "=========================================================="
-          # 1. Parche estándar de inodo de logs temporales universales
           TARGET_C="src/vulkan/wrapper/wrapper_device.c"
+          
           if [ -f "$TARGET_C" ]; then
+              echo "-> 1. Parcheando inodo de logs temporales universales..."
               sed -i 's|/data/data/app.gamenative/files/imagefs/usr/tmp/|/tmp/|g' "$TARGET_C"
-              echo "-> Parche de inodo temporal aplicado."
+              
+              echo "-> 2. Inyectando Declaración Avanzada para evitar error undeclared de Clang..."
+              # Inyectamos la firma oficial de panvk_CreateDevice justo después de las cabeceras estándar
+              sed -i '1i #include <vulkan/vulkan.h>\n#ifdef __cplusplus\nextern "C" {\n#endif\nVkResult panvk_CreateDevice(VkPhysicalDevice physicalDevice, const VkDeviceCreateInfo* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkDevice* pDevice);\n#ifdef __cplusplus\n}\n#endif' "$TARGET_C"
+              
+              echo "-> 3. Redirigiendo la creación de hardware hacia el núcleo real de Panfrost..."
+              # Aplicamos el bypass exacto del informe de la comunidad para saltar el blob de Android
+              sed -i 's|physical_device->dispatch_table.CreateDevice|panvk_CreateDevice|g' "$TARGET_C"
+              echo "-> Bypass molecular de hardware inyectado con éxito en el archivo fuente."
+          else
+              echo "-> [❌ ERROR CRÍTICO] No se localizó el archivo wrapper_device.c"
+              exit 1
           fi
           
-          # 2. Vaciamos el archivo vk_android.c parásito de Mesa para evitar redefiniciones
+          # 4. Vaciamos el archivo vk_android.c parásito de Mesa para evitar redefiniciones
           ANDROID_MESA_C="src/vulkan/runtime/vk_android.c"
           if [ -f "$ANDROID_MESA_C" ]; then
               echo "/* Vaciado por el Workflow para evitar redefiniciones con adrenotools */" > "$ANDROID_MESA_C"
               echo "-> vk_android.c neutralizado."
           fi
           
-          # 3. Inyectamos #include <string.h> en la cabecera de panvk_android.c
+          # 5. Inyectamos #include <string.h> en la cabecera de panvk_android.c
           PANVK_ANDROID_C="src/panfrost/vulkan/panvk_android.c"
           if [ -f "$PANVK_ANDROID_C" ]; then
               sed -i '1i #include <string.h>' "$PANVK_ANDROID_C"
               echo "-> panvk_android.c parchado con éxito."
           fi
           
-          # 4. Redirigimos libsync.h hacia tus stubs globales
+          # 6. Redirigimos libsync.h hacia tus stubs globales agregando las firmas correspondientes
           LIBSYNC_H="src/util/libsync.h"
           if [ -f "$LIBSYNC_H" ]; then
               echo -e "#ifndef MESA_LIBSYNC_H_WRAPPER\n#define MESA_LIBSYNC_H_WRAPPER\n#include <sync/sync.h>\nint sync_accumulate(const char *name, int *fd1, int fd2);\nvoid validate_fence_fd(int fd);\nint sync_valid_fd(int fd);\nint sync_wait(int fd, int timeout);\nint sync_merge(const char *name, int fd1, int fd2);\n#endif" > "$LIBSYNC_H"
               echo "-> libsync.h unificado."
           fi
           
-          # 5. El puente local en Gallium (dri_target.c)
+          # 7. El puente local en Gallium (dri_target.c)
           DRI_TARGET_C="src/gallium/targets/dri/dri_target.c"
           if [ -f "$DRI_TARGET_C" ]; then
               echo -e "\n/* Prototipos */\nint sync_wait(int fd, int timeout);\nint sync_accumulate(const char *name, int *fd1, int fd2);\nvoid validate_fence_fd(int fd);" >> "$DRI_TARGET_C"
@@ -65,7 +77,7 @@ jobs:
               echo "-> Target de Gallium unificado."
           fi
           
-          # 6. El puente local en Vulkan Panfrost (panvk_instance.c)
+          # 8. El puente local en Vulkan Panfrost (panvk_instance.c)
           PANVK_INSTANCE_C="src/panfrost/vulkan/panvk_instance.c"
           if [ -f "$PANVK_INSTANCE_C" ]; then
               echo -e "\n/* Prototipos */\nint sync_wait(int fd, int timeout);\nint sync_merge(const char *name, int fd1, int fd2);" >> "$PANVK_INSTANCE_C"
@@ -73,7 +85,7 @@ jobs:
               echo "-> Motor de Vulkan de Panfrost unificado."
           fi
           
-          # 7. El puente local en EGL (eglapi.c)
+          # 9. El puente local en EGL (eglapi.c)
           EGL_API_C="src/egl/main/eglapi.c"
           if [ -f "$EGL_API_C" ]; then
               echo -e "\nint sync_valid_fd(int fd);\nint sync_valid_fd(int fd) { return fd >= 0; }" >> "$EGL_API_C"
@@ -91,33 +103,27 @@ jobs:
         run: |
           docker run --rm -v "${{ github.workspace }}:/workspace" local-wrapper-compiler:latest ${{ env.BUILD_DIR }}
 
-      - name: 📦 7. Forjar el Clon de Identidad Puro para Termux-X11 (v138)
+      - name: 📦 7. Forjar Paquete Esencial de Rutas Planas Legítimas (v139)
         run: |
           WRAPPER_SO="build/src/vulkan/wrapper/libvulkan_wrapper.so"
-          PANFROST_SO="build/src/panfrost/vulkan/libvulkan_panfrost.so"
           
-          if [ -f "$WRAPPER_SO" ] && [ -f "$PANFROST_SO" ]; then
-            echo "-> [Host] ¡Éxito! Aplicando el Clon de Identidad definitivo..."
+          if [ -f "$WRAPPER_SO" ]; then
+            echo "-> [Host] ¡Éxito! Estructurando tu paquete original compatible con la Whitelist..."
             rm -rf final_pkg
             mkdir -p final_pkg/usr/lib final_pkg/usr/share/vulkan/icd.d
             
-            # 🟢 TU INTERCEPTOR ORIGINAL: Mantiene su nombre intacto para la Whitelist de Bannerlator
+            # Copiamos ÚNICAMENTE tu wrapper legítimo unificado de 19 MB manteniendo su nombre original intacto
             cp -fv "$WRAPPER_SO" final_pkg/usr/lib/libvulkan_wrapper.so
-            
-            # 🟢 EL DISFRAZ DE HARDWARE: Copiamos el motor de Panfrost (59MB) bautizándolo como libvulkan.so.
-            # Así, cuando tu wrapper llame al driver del sistema, morderá a Panfrost de forma directa en la RAM.
-            cp -fv "$PANFROST_SO" final_pkg/usr/lib/libvulkan.so
             
             # TU REGLA DE COMODINES DE ADRENOTOOLS GANADORA INDESTRUCTIBLE
             cp -fv ./build/subprojects/libadrenotools/*.so ./build/subprojects/libadrenotools/src/hook/*.so final_pkg/usr/lib/ 2>/dev/null || true
             chmod -R 755 final_pkg/usr/lib/
             
-            # Consolidando enlaces dinámicos masivos con patchelf RPATH a nivel de origen
+            # Consolidando enlaces dinámicos masivos con patchelf RPATH masivo a nivel de origen
             patchelf --set-soname libvulkan_wrapper.so final_pkg/usr/lib/libvulkan_wrapper.so || true
-            patchelf --set-soname libvulkan.so final_pkg/usr/lib/libvulkan.so || true
             find final_pkg/usr/lib/ -name "*.so" -exec patchelf --set-rpath '$ORIGIN' {} \; 2>/dev/null || true
             
-            # TU MANIFIESTO ORIGINAL RELATIVO PLANO COMPATIBLE
+            # TU MANIFIESTO ORIGINAL RELATIVO PLANO COMPATIBLE CON LA LISTA BLANCA DE BANNERLATOR
             echo '{"ICD": {"api_version": "1.3.289", "library_path": "libvulkan_wrapper.so"}, "file_format_version": "1.0.0"}' > final_pkg/usr/share/vulkan/icd.d/wrapper_icd.aarch64.json
             echo '{"ICD": {"api_version": "1.3.289", "library_path": "libvulkan_wrapper.so"}, "file_format_version": "1.0.0"}' > final_pkg/usr/share/vulkan/icd.d/wrapper_icd.arm.json
             
@@ -126,9 +132,9 @@ jobs:
             
             # TU MOTOR DE COMPRESIÓN GANADOR SÍNCRONO
             cd final_pkg && tar -I 'zstd -19 -T0' -cf ../wrapper.tzst usr/ && cd ..
-            echo "-> ¡El Clon de Identidad definitivo ha sido forjado con éxito!"
+            echo "-> ¡El paquete híbrido definitivo ha sido forjado con éxito!"
           else
-            echo "-> [❌ ERROR GRAVE] Faltan binarios vitales de la compilación en build/."
+            echo "-> [❌ ERROR GRAVE] El compilador no dejó el archivo libvulkan_wrapper.so en su celda."
             exit 1
           fi
 
