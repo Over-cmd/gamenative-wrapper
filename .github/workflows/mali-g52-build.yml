@@ -24,7 +24,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y zstd patchelf python3 bc
 
-      - name: 🛠️ 3. Parchear logs, vaciar vk_android.c e inyectar string.h (v105)
+      - name: 🛠️ 3. Parchear logs, vaciar vk_android.c e inyectar string.h (v107)
         run: |
           echo "=========================================================="
           echo " 🧬 PURIFICANDO CABECERAS Y ENTORNO DE COMPILACIÓN        "
