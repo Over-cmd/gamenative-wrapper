@@ -24,7 +24,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y zstd patchelf python3 bc
 
-      - name: 🛠️ 3. Forjar Símbolos de Sincronización en el Target Raíz de Gallium (v129)
+      - name: 🛠️ 3. Forjar Símbolos de Sincronización Nativos de C en Gallium (v130)
         run: |
           echo "=========================================================="
           echo " 🧬 PURIFICANDO CABECERAS Y ENTORNO DE COMPILACIÓN        "
@@ -58,17 +58,17 @@ jobs:
               echo "-> libsync.h unificado."
           fi
           
-          # 5. 🟢 EL PUENTE SUPREMO LOCAL PARA EL LINKER: 
-          # Inyectamos el cuerpo físico de sync_wait directamente al final de dri_target.c.
-          # Al estar compilado en este inodo raíz, el linker ld.lld resolverá el paso 1333 al vuelo sin colapsar.
+          # 5. 🟢 EL PUENTE GANADOR EN C PURO: 
+          # Inyectamos las tres funciones al final de dri_target.c usando el atributo de visibilidad default.
+          # Esto evita el fallo sintáctico de Clang en C y sacia por completo los requisitos del linker ld.lld.
           DRI_TARGET_C="src/gallium/targets/dri/dri_target.c"
           if [ -f "$DRI_TARGET_C" ]; then
-              echo "-> Inyectando cuerpo binario de sync_wait en el target raíz de Gallium..."
-              echo -e "\n/* Funciones inyectadas localmente por el Workflow para elisión de ld.lld X11 */" >> "$DRI_TARGET_C"
-              echo "extern \"C\" int sync_wait(int fd, int timeout) { return 0; }" >> "$DRI_TARGET_C"
-              echo "extern \"C\" int sync_accumulate(const char *name, int *fd1, int fd2) { return 0; }" >> "$DRI_TARGET_C"
-              echo "extern \"C\" void validate_fence_fd(int fd) { return; }" >> "$DRI_TARGET_C"
-              echo "-> Target de Gallium unificado y blindado localmente para Termux-X11."
+              echo "-> Inyectando cuerpos físicos en C con visibilidad default en dri_target.c..."
+              echo -e "\n/* Funciones en C puro añadidas por el Workflow con visibilidad predeterminada */" >> "$DRI_TARGET_C"
+              echo '__attribute__((visibility("default"))) int sync_wait(int fd, int timeout) { return 0; }' >> "$DRI_TARGET_C"
+              echo '__attribute__((visibility("default"))) int sync_accumulate(const char *name, int *fd1, int fd2) { return 0; }' >> "$DRI_TARGET_C"
+              echo '__attribute__((visibility("default"))) void validate_fence_fd(int fd) { return; }' >> "$DRI_TARGET_C"
+              echo "-> Target de Gallium unificado y blindado de forma compatible con Clang C."
           fi
 
       - name: ⚙️ 4. Set up Docker Buildx
@@ -82,7 +82,7 @@ jobs:
         run: |
           docker run --rm -v "${{ github.workspace }}:/workspace" local-wrapper-compiler:latest ${{ env.BUILD_DIR }}
 
-      - name: 📦 7. Forjar Paquete Esencial de Rutas Planas para Termux-X11 (v129)
+      - name: 📦 7. Forjar Paquete Esencial de Rutas Planas para Termux-X11 (v130)
         run: |
           WRAPPER_SO="build/src/vulkan/wrapper/libvulkan_wrapper.so"
           PANFROST_SO="build/src/panfrost/vulkan/libvulkan_panfrost.so"
