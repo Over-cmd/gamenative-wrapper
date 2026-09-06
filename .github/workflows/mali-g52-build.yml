@@ -24,27 +24,40 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y zstd patchelf python3 bc
 
-      - name: 🛠️ 3. Parchear logs, vaciar vk_android.c e inyectar string.h (v109)
+      - name: 🛠️ 3. Purificar Cabeceras y Desactivar Conflictos de Sincronización (v110)
         run: |
           echo "=========================================================="
           echo " 🧬 PURIFICANDO CABECERAS Y ENTORNO DE COMPILACIÓN        "
           echo "=========================================================="
+          # 1. Parche estándar de inodo de logs temporales universales
           TARGET_C="src/vulkan/wrapper/wrapper_device.c"
           if [ -f "$TARGET_C" ]; then
               sed -i 's|/data/data/app.gamenative/files/imagefs/usr/tmp/|/tmp/|g' "$TARGET_C"
               echo "-> Parche de inodo temporal aplicado."
           fi
           
+          # 2. Vaciamos el archivo vk_android.c parásito de Mesa para evitar redefiniciones
           ANDROID_MESA_C="src/vulkan/runtime/vk_android.c"
           if [ -f "$ANDROID_MESA_C" ]; then
               echo "/* Vaciado por el Workflow para evitar redefiniciones con adrenotools */" > "$ANDROID_MESA_C"
               echo "-> vk_android.c neutralizado."
           fi
           
+          # 3. Inyectamos #include <string.h> en la cabecera de panvk_android.c
           PANVK_ANDROID_C="src/panfrost/vulkan/panvk_android.c"
           if [ -f "$PANVK_ANDROID_C" ]; then
               sed -i '1i #include <string.h>' "$PANVK_ANDROID_C"
               echo "-> panvk_android.c parchado con éxito."
+          fi
+          
+          # 4. 🟢 EL REMATE ANTICOLISIONES ELF: Neutralizamos las funciones estáticas de libsync.h de Mesa
+          # para que no choquen con tus declaraciones legítimas de sync.h de Android Stub.
+          LIBSYNC_H="src/util/libsync.h"
+          if [ -f "$LIBSYNC_H" ]; then
+              echo "-> Aplicando macro de elisión en libsync.h para evitar redefiniciones estáticas..."
+              # Metemos un bypass en la parte superior del archivo que anula la compilación de las inline repetidas
+              sed -i '1i #define sync_wait MESA_SYNC_WAIT_UNUSED\n#define sync_merge MESA_SYNC_MERGE_UNUSED\n#define sync_file_info MESA_SYNC_FILE_INFO_UNUSED' "$LIBSYNC_H"
+              echo "-> libsync.h purificado correctamente."
           fi
 
       - name: ⚙️ 4. Set up Docker Buildx
