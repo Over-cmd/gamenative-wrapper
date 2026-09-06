@@ -24,29 +24,30 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y zstd patchelf python3 bc
 
-      - name: 🛠️ 3. Forjar Aislamiento de Audio y Desvío Asíncrono en el Wrapper (v154)
+      - name: 🛠️ 3. Forjar Buffer de Audio Elástico y Liberar Potencia GPU (v155)
         run: |
           echo "=========================================================="
-          echo " 🧬 DESTRUYENDO EL CONFLICTO DE AUDIO EN TU WRAPPER       "
+          echo " 🧬 OPTIMIZANDO BUFFER DE AUDIO PARA RECUPERAR FPS       "
           echo "=========================================================="
           TARGET_C="src/vulkan/wrapper/wrapper_device.c"
           if [ -f "$TARGET_C" ]; then
               echo "-> 1. Parcheando inodo de logs temporales universales..."
               sed -i 's|/data/data/app.gamenative/files/imagefs/usr/tmp/|/tmp/|g' "$TARGET_C"
               
-              echo "-> 2. Inyectando macros de desacople acústico y desvío de hilos..."
-              # 🟢 EL REPARADOR DE AUDIO: Obligamos a que las librerías de sonido corran de forma asíncrona
-              # y aumentamos el tamaño del buffer para que el reloj gráfico de Panfrost no se detenga jamás.
+              echo "-> 2. Inyectando buffer de audio relajado y redondeo rápido de CPU..."
+              # 🟢 EL REPARADOR DE FPS: Subimos la latencia a 200ms para quitarle el estres a tus 8 nucleos 
+              # y activamos FASTROUND para que los calculos de sonido de PC vuelen en tu procesador.
               sed -i '/#include "wrapper_private.h"/a \
               #ifndef BOX64_DYNAREC_BIGBLOCK\n#define BOX64_DYNAREC_BIGBLOCK 0\n#endif\n\
               #ifndef BOX64_MOUSE_ASYNC\n#define BOX64_MOUSE_ASYNC 1\n#endif\n\
               #ifndef ALSOFT_DRIVERS\n#define ALSOFT_DRIVERS opensl,null\n#endif\n\
-              #ifndef PULSE_LATENCY_MSEC\n#define PULSE_LATENCY_MSEC 60\n#endif\n\
-              #ifndef BOX64_AUDIO_ASYNC\n#define BOX64_AUDIO_ASYNC 1\n#endif' "$TARGET_C"
+              #ifndef PULSE_LATENCY_MSEC\n#define PULSE_LATENCY_MSEC 200\n#endif\n\
+              #ifndef BOX64_AUDIO_ASYNC\n#define BOX64_AUDIO_ASYNC 1\n#endif\n\
+              #ifndef BOX64_DYNAREC_FASTROUND\n#define BOX64_DYNAREC_FASTROUND 1\n#endif' "$TARGET_C"
               
               echo "-> 3. Asegurando el recolector de basura en la RAM..."
               sed -i '/wrapper_FreeMemory/!b;/{/a \  if (memory == VK_NULL_HANDLE) return;' "$TARGET_C"
-              echo "-> Conflicto de audio anulado con éxito en el Wrapper."
+              echo "-> Alivio de CPU y audio inyectado con éxito en el Wrapper."
           else
               echo "-> [❌ ERROR] No se localizó el archivo wrapper_device.c"
               exit 1
@@ -94,12 +95,12 @@ jobs:
         run: |
           docker run --rm -v "${{ github.workspace }}:/workspace" local-wrapper-compiler:latest ${{ env.BUILD_DIR }}
 
-      - name: 📦 7. Forjar Paquete Esencial de Rutas Planas Legítimas (v154)
+      - name: 📦 7. Forjar Paquete Esencial de Rutas Planas Legítimas (v155)
         run: |
           WRAPPER_SO="build/src/vulkan/wrapper/libvulkan_wrapper.so"
           
           if [ -f "$WRAPPER_SO" ]; then
-            echo "-> [Host] ¡Éxito! Forjando el saco de inodos con protección acústica..."
+            echo "-> [Host] ¡Éxito! Forjando el saco de inodos con alivio de rendimiento..."
             rm -rf final_pkg
             mkdir -p final_pkg/usr/lib final_pkg/usr/share/vulkan/icd.d
             
@@ -119,7 +120,7 @@ jobs:
             sync && sleep 3
             
             cd final_pkg && tar -I 'zstd -19 -T0' -cf ../wrapper.tzst usr/ && cd ..
-            echo "-> ¡Paquete original del wrapper inmune a retrasos de audio forjado!"
+            echo "-> ¡Paquete original del wrapper optimizado forjado con éxito!"
           else
             echo "-> [❌ ERROR GRAVE] El compilador no dejó el archivo libvulkan_wrapper.so en su celda."
             exit 1
