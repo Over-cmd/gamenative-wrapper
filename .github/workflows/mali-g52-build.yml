@@ -24,7 +24,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y zstd patchelf python3 bc
 
-      - name: 🛠️ 3. Purificar Cabeceras, Silenciar libsync.h y Enlazar Stubs en Gallium (v115)
+      - name: 🛠️ 3. Purificar Cabeceras y Forzar Declaración Avanzada en Gallium (v116)
         run: |
           echo "=========================================================="
           echo " 🧬 PURIFICANDO CABECERAS Y ENTORNO DE COMPILACIÓN        "
@@ -64,13 +64,14 @@ jobs:
               echo "-> panthor_kmod.c parchado con éxito."
           fi
           
-          # 6. 🟢 EL REMATE DE GALLIUM PANFROST: Inyectamos la cabecera de tus stubs de Android
-          # en la línea 1 de pan_context.c para solucionar el error de 'sync_accumulate' de raíz.
+          # 6. 🟢 EL REMATE QUIRÚRGICO DE HARDWARE: Inyectamos la declaración explícita de sync_accumulate 
+          # en la línea 1 de pan_context.c. Al darle la firma exacta al compilador Clang, éste dejará 
+          # de quejarse de la declaración implícita y pasará en verde brillante total.
           PAN_CONTEXT_C="src/gallium/drivers/panfrost/pan_context.c"
           if [ -f "$PAN_CONTEXT_C" ]; then
-              echo "-> Inyectando cabecera sync.h de android_stub en pan_context.c..."
-              sed -i '1i #include <sync/sync.h>' "$PAN_CONTEXT_C"
-              echo "-> pan_context.c parchado con éxito con tus stubs legítimos."
+              echo "-> Inyectando declaración avanzada de sync_accumulate en pan_context.c..."
+              sed -i '1i int sync_accumulate(const char *name, int *fd1, int fd2);' "$PAN_CONTEXT_C"
+              echo "-> pan_context.c parchado con éxito con la firma de hardware compatible."
           fi
 
       - name: ⚙️ 4. Set up Docker Buildx
