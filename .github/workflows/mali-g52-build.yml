@@ -24,7 +24,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y zstd patchelf python3 bc
 
-      - name: 🛠️ 3. Purificar Cabeceras y Forzar Declaración Avanzada en Gallium (v116)
+      - name: 🛠️ 3. Purificar Cabeceras y Forzar Declaraciones en Panfrost y DRI (v117)
         run: |
           echo "=========================================================="
           echo " 🧬 PURIFICANDO CABECERAS Y ENTORNO DE COMPILACIÓN        "
@@ -64,14 +64,20 @@ jobs:
               echo "-> panthor_kmod.c parchado con éxito."
           fi
           
-          # 6. 🟢 EL REMATE QUIRÚRGICO DE HARDWARE: Inyectamos la declaración explícita de sync_accumulate 
-          # en la línea 1 de pan_context.c. Al darle la firma exacta al compilador Clang, éste dejará 
-          # de quejarse de la declaración implícita y pasará en verde brillante total.
+          # 6. Inyectamos la declaración explícita de sync_accumulate en la línea 1 de pan_context.c
           PAN_CONTEXT_C="src/gallium/drivers/panfrost/pan_context.c"
           if [ -f "$PAN_CONTEXT_C" ]; then
-              echo "-> Inyectando declaración avanzada de sync_accumulate en pan_context.c..."
               sed -i '1i int sync_accumulate(const char *name, int *fd1, int fd2);' "$PAN_CONTEXT_C"
-              echo "-> pan_context.c parchado con éxito con la firma de hardware compatible."
+              echo "-> pan_context.c parchado con éxito."
+          fi
+          
+          # 7. 🟢 EL REMATE DE FRONTEND DRI: Inyectamos la declaración explícita de validate_fence_fd
+          # en la línea 1 de dri_helpers.c para solucionar el error de declaración implícita de raíz.
+          DRI_HELPERS_C="src/gallium/frontends/dri/dri_helpers.c"
+          if [ -f "$DRI_HELPERS_C" ]; then
+              echo "-> Inyectando declaración avanzada de validate_fence_fd en dri_helpers.c..."
+              sed -i '1i void validate_fence_fd(int fd);' "$DRI_HELPERS_C"
+              echo "-> dri_helpers.c parchado con éxito con la firma de control compatible."
           fi
 
       - name: ⚙️ 4. Set up Docker Buildx
