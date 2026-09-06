@@ -3,7 +3,7 @@ set -e
 
 BUILD_DIR="${1:-${BUILD_DIR:-build}}"
 
-# 🟢 1. MOTOR DE CONFIGURACIÓN DE MESON Y CONSTRUCCIÓN NINJA (CORREGIDO v41)
+# 🟢 1. MOTOR DE CONFIGURACIÓN DE MESON Y CONSTRUCCIÓN NINJA (UNIFICADO DUAL v43)
 if [ ! -d "${BUILD_DIR}" ]; then
   meson setup "${BUILD_DIR}" --cross-file /root/build-config/cross_file.txt \
       -Dcpp_rtti=false \
@@ -11,7 +11,7 @@ if [ ! -d "${BUILD_DIR}" ]; then
       -Dopengl=false \
       -Dllvm=disabled \
       -Dshared-llvm=disabled \
-      -Dplatforms=android \
+      -Dplatforms=x11,android \
       -Dgallium-drivers=panfrost \
       -Dxmlconfig=disabled \
       -Dvulkan-drivers=panfrost,wrapper \
