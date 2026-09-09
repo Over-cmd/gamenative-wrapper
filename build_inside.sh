@@ -5,7 +5,7 @@ BUILD_DIR="${1:-${BUILD_DIR:-build}}"
 
 BUILD_DIR="${1:-${BUILD_DIR:-build}}"
 
-# 🟢 1. MOTOR DE CONFIGURACIÓN DE MESON PARA TERMUX-X11 EMULADO (v51) Corregido para Mali
+# 🟢 1. MOTOR DE CONFIGURACIÓN DE MESON PARA TERMUX-X11 EMULADO (v51)
 if [ ! -d "${BUILD_DIR}" ]; then
 meson setup "${BUILD_DIR}" --cross-file /root/build-config/cross_file.txt \
 -Dcpp_rtti=false \
@@ -18,7 +18,7 @@ meson setup "${BUILD_DIR}" --cross-file /root/build-config/cross_file.txt \
 -Dgallium-drivers=panfrost \
 -Ddraw-use-llvm=false \
 -Dxmlconfig=disabled \
--Dvulkan-drivers=panfrost \
+-Dvulkan-drivers=panfrost, wrapper \
 -Degl=enabled \
 -Dglx=disabled
 fi
