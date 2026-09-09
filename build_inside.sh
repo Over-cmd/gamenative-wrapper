@@ -18,7 +18,7 @@ meson setup "${BUILD_DIR}" --cross-file /root/build-config/cross_file.txt \
 -Dgallium-drivers=panfrost \
 -Ddraw-use-llvm=false \
 -Dxmlconfig=disabled \
--Dvulkan-drivers=pankaku \
+-Dvulkan-drivers=panfrost \
 -Degl=enabled \
 -Dglx=disabled
 fi
@@ -28,7 +28,7 @@ ninja -C "${BUILD_DIR}"
 # 🟢 2. EXTRACCIÓN ELÁSTICA DEL BINARIO DE 9.3 MB REALES
 python3 -c '
 import os, shutil
-src = "'"${BUILD_DIR}"'/src/panfrost/vulkan/libvulkan_pankaku.so"
+src = "'"${BUILD_DIR}"'/src/panfrost/vulkan/libvulkan_panfrost.so"
 dst = "'"${BUILD_DIR}"'/libvulkan_wrapper.so.unstripped"
 
 if os.path.exists(src):
@@ -37,8 +37,8 @@ if os.path.exists(src):
     print(f"-> [Forja Real] ¡Silicio de Mesa 25 de {size_mb:.2f} MB extraído con éxito!")
 else:
     for r, d, fs in os.walk("'"${BUILD_DIR}"'"):
-        if "libvulkan_pankaku.so" in fs:
-            shutil.copy2(os.path.join(r, "libvulkan_pankaku.so"), dst)
+        if "libvulkan_panfrost.so" in fs:
+            shutil.copy2(os.path.join(r, "libvulkan_panfrost.so"), dst)
             print("-> [Forja Real - Rescate] Binario de 9.3 MB localizado de forma elástica.")
             exit(0)
     print("-> [❌ ERROR CRÍTICO] El compilador cruzado no logró forjar el driver real.")
