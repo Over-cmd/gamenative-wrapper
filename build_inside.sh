@@ -28,7 +28,7 @@ ninja -C "${BUILD_DIR}"
 # 🟢 2. EXTRACCIÓN ELÁSTICA DEL BINARIO DE 9.3 MB REALES
 python3 -c '
 import os, shutil
-src = "'"${BUILD_DIR}"'/src/panfrost/vulkan/libvulkan_panfrost.so"
+src = "'"${BUILD_DIR}"'/src/panfrost/vulkan/libvulkan_pankaku.so"
 dst = "'"${BUILD_DIR}"'/libvulkan_wrapper.so.unstripped"
 
 if os.path.exists(src):
