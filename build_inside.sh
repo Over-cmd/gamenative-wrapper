@@ -5,22 +5,22 @@ BUILD_DIR="${1:-${BUILD_DIR:-build}}"
 
 BUILD_DIR="${1:-${BUILD_DIR:-build}}"
 
-# 🟢 1. MOTOR DE CONFIGURACIÓN DE MESON PARA TERMUX-X11 EMULADO (v51)
+# 🟢 1. MOTOR DE CONFIGURACIÓN DE MESON PARA TERMUX-X11 EMULADO (v51) Corregido para Mali
 if [ ! -d "${BUILD_DIR}" ]; then
-  meson setup "${BUILD_DIR}" --cross-file /root/build-config/cross_file.txt \
-      -Dcpp_rtti=false \
-      -Dgbm=disabled \
-      -Dopengl=false \
-      -Dllvm=disabled \
-      -Dshared-llvm=disabled \
-      -Dplatforms=x11 \
-      -Degl-native-platform=x11 \
-      -Dgallium-drivers=panfrost \
-      -Ddraw-use-llvm=false \
-      -Dxmlconfig=disabled \
-      -Dvulkan-drivers=panfrost,wrapper \
-      -Degl=enabled \
-      -Dglx=disabled
+meson setup "${BUILD_DIR}" --cross-file /root/build-config/cross_file.txt \
+-Dcpp_rtti=false \
+-Dgbm=enabled \
+-Dopengl=true \
+-Dllvm=disabled \
+-Dshared-llvm=disabled \
+-Dplatforms=x11 \
+-Degl-native-platform=x11 \
+-Dgallium-drivers=panfrost \
+-Ddraw-use-llvm=false \
+-Dxmlconfig=disabled \
+-Dvulkan-drivers=pankaku \
+-Degl=enabled \
+-Dglx=disabled
 fi
 
 ninja -C "${BUILD_DIR}"
@@ -37,8 +37,8 @@ if os.path.exists(src):
     print(f"-> [Forja Real] ¡Silicio de Mesa 25 de {size_mb:.2f} MB extraído con éxito!")
 else:
     for r, d, fs in os.walk("'"${BUILD_DIR}"'"):
-        if "libvulkan_panfrost.so" in fs:
-            shutil.copy2(os.path.join(r, "libvulkan_panfrost.so"), dst)
+        if "libvulkan_pankaku.so" in fs:
+            shutil.copy2(os.path.join(r, "libvulkan_pankaku.so"), dst)
             print("-> [Forja Real - Rescate] Binario de 9.3 MB localizado de forma elástica.")
             exit(0)
     print("-> [❌ ERROR CRÍTICO] El compilador cruzado no logró forjar el driver real.")
