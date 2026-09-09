@@ -18,7 +18,7 @@ meson setup "${BUILD_DIR}" --cross-file /root/build-config/cross_file.txt \
 -Dgallium-drivers=panfrost \
 -Ddraw-use-llvm=false \
 -Dxmlconfig=disabled \
--Dvulkan-drivers=panfrost, wrapper \
+-Dvulkan-drivers=panfrost,wrapper \
 -Degl=enabled \
 -Dglx=disabled
 fi
