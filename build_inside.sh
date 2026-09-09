@@ -9,8 +9,8 @@ BUILD_DIR="${1:-${BUILD_DIR:-build}}"
 if [ ! -d "${BUILD_DIR}" ]; then
 meson setup "${BUILD_DIR}" --cross-file /root/build-config/cross_file.txt \
 -Dcpp_rtti=false \
--Dgbm=enabled \
--Dopengl=true \
+-Dgbm=disabled \
+-Dopengl=false \
 -Dllvm=disabled \
 -Dshared-llvm=disabled \
 -Dplatforms=x11 \
