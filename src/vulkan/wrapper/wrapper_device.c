@@ -841,15 +841,13 @@ if (pdf2 && pdf2->features.f) { \
       if (device->emulate_push_descriptor) {
          WRAPPER_LOG(info, "Emulating VK_KHR_push_descriptor%s",
                      (base_has && force) ? " (forced; base has it natively)" : "");
-               if (device->emulate_push_descriptor) {
-         WRAPPER_LOG(info, "Emulating VK_KHR_push_descriptor%s",
-                     (base_has && force) ? " (forced; base has it natively)" : "");
          device->max_push_descriptors = WRAPPER_MAX_PUSH_DESCRIPTORS;
          simple_mtx_init(&device->push_mutex, mtx_plain);
          device->push_dsl_table = _mesa_hash_table_u64_create(NULL);
          device->push_pl_table = _mesa_hash_table_u64_create(NULL);
          device->push_template_table = _mesa_hash_table_u64_create(NULL);
       }
+   }
 
    result = wrapper_create_device_queue(device, pCreateInfo);
    if (result != VK_SUCCESS) {
