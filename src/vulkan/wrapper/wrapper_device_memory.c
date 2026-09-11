@@ -586,6 +586,9 @@ wrapper_AllocateMemory(VkDevice _device,
       unlink_memory_alloc_info_pnext(&memory_allocate_info, VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO);
    }
    
+   // 🚨 EXCLUSIVO MALI Y AUDIO: Barrera atómica para vaciar la caché antes de tocar el backend de Android
+   __sync_synchronize();
+   
    if (strstr(device->physical->resource_type, "ahb")) {
       WRAPPER_LOG(info, "Using AHardwareBuffer memory backend");
       result = wrapper_allocate_memory_ahardware_buffer(device,
@@ -626,6 +629,9 @@ wrapper_AllocateMemory(VkDevice _device,
    
    if (result != VK_SUCCESS) {
       WRAPPER_LOG(error, "Failed to allocate memory, res %d", result);
+      
+      // 🚨 CORRECCIÓN MALI: Quitar de la lista enlazada global antes de borrar la RAM
+      list_del(&mem->link);
       wrapper_device_memory_destroy(mem);
 
       if (dedicated_allocate_info && dedicated_allocate_info->image != VK_NULL_HANDLE) {
@@ -638,6 +644,7 @@ wrapper_AllocateMemory(VkDevice _device,
             // Fixes failure to blit on ion-heap (< GKI 5.10) Mali devices at the cost of
             // not being able to mmap these.
             WRAPPER_LOG(error, "EXT_map_memory_placed emulation failed for swapchain image, bypassing emulation");
+            // 🚨 SOLUCIÓN SONIDO/COLAPSO: Liberamos obligatoriamente el Mutex antes de saltar al fallback
             simple_mtx_unlock(&device->resource_mutex);
             goto fallback; // TODO: the VkMemoryAllocateInfo may have been unlinked here
          }
@@ -653,6 +660,8 @@ out:
    return result;
 
 fallback:
+// 🚨 EXCLUSIVO MALI Y AUDIO: Vaciar caché física antes de la llamada de respaldo directa de Vulkan
+   __sync_synchronize();
    return device->dispatch_table.AllocateMemory(device->dispatch_handle,
       pAllocateInfo, pAllocator, pMemory);
 }
@@ -663,6 +672,9 @@ wrapper_FreeMemory(VkDevice _device, VkDeviceMemory _memory,
 {
    VK_FROM_HANDLE(wrapper_device, device, _device);
    struct wrapper_device_memory *mem;
+   
+   // 🚨 EXCLUSIVO MALI: Sincronizar de forma atómica los hilos antes de liberar memoria RAM gráfica
+   __sync_synchronize();
 
    mem = wrapper_device_memory_from_handle(device, _memory);
    if (mem) {
