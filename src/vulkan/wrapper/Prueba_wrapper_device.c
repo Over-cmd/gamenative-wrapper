@@ -425,19 +425,17 @@ wrapper_UpdateDescriptorSets(VkDevice _device, uint32_t descriptorWriteCount,
    device->dispatch_table.UpdateDescriptorSets(device->dispatch_handle,
       descriptorWriteCount, writes, descriptorCopyCount, pDescriptorCopies);
 
-   // 🚨 LIBERACIÓN CRÍTICA: Borramos solo basándonos en las marcas booleanas
+      device->dispatch_table.UpdateDescriptorSets(device->dispatch_handle,
+      descriptorWriteCount, writes, descriptorCopyCount, pDescriptorCopies);
+
+   // 🚨 LIBERACIÓN CRÍTICA SEGURA: Comparamos directamente los punteros modificados
    for (uint32_t i = 0; i < descriptorWriteCount; i++) {
-      if (allocated_bi && allocated_bi[i]) {
+      if (writes[i].pBufferInfo != pDescriptorWrites[i].pBufferInfo)
          free((void *)writes[i].pBufferInfo);
-      }
-      if (allocated_ii && allocated_ii[i]) {
+      if (writes[i].pImageInfo != pDescriptorWrites[i].pImageInfo)
          free((void *)writes[i].pImageInfo);
-      }
    }
 
-   // Liberamos el resto de las listas auxiliares de control
-   free(allocated_bi);
-   free(allocated_ii);
    free(writes);
 }
 
