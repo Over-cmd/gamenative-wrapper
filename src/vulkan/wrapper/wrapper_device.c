@@ -823,6 +823,7 @@ if (pdf2 && pdf2->features.f) { \
 
    /* Push-descriptor emulation: on when the app enabled VK_KHR_push_descriptor */
    {
+         {
       static int force = -1;
       if (force == -1)
          force = getenv("WRAPPER_EMULATE_PUSH_DESCRIPTOR")
@@ -838,9 +839,14 @@ if (pdf2 && pdf2->features.f) { \
          device->push_dsl_table = _mesa_hash_table_u64_create(NULL);
          device->push_pl_table = _mesa_hash_table_u64_create(NULL);
          device->push_template_table = _mesa_hash_table_u64_create(NULL);
-      } else {
+      } 
+      else {
          device->push_dsl_table = NULL;
          device->push_pl_table = NULL;
+         device->push_template_table = NULL;
+      }
+   }
+
    process_pnext_chain((VkBaseInStructure *)&wrapper_create_info, device->physical);
 
    if (enable_device_fault &&
