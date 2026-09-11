@@ -1048,23 +1048,32 @@ wrapper_DestroyBuffer(VkDevice _device,
 
 static void 
 wrapper_image_destroy(struct wrapper_device *device,
-					  struct wrapper_image *wi,
-					  const VkAllocationCallbacks *pAllocator)
+                      struct wrapper_image *wi,
+                      const VkAllocationCallbacks *pAllocator)
 {
    if (wi == NULL)
       return;
+
+   // 🚨 SOLUCIÓN CONGELAMIENTO D3D9: Forzar sincronización atómica antes de tocar las texturas
+   __sync_synchronize();
 
    simple_mtx_lock(&device->resource_mutex);
       
    device->dispatch_table.DestroyImage(device->dispatch_handle,
       wi->dispatch_handle, pAllocator);
 
-   _mesa_hash_table_u64_remove(device->image_table, (uint64_t)wi->dispatch_handle);
+   if (device->image_table) {
+      _mesa_hash_table_u64_remove(device->image_table, (uint64_t)wi->dispatch_handle);
+   }
    list_del(&wi->link);
 
+   // Liberamos el candado de inmediato para que D3D9 pueda cerrar el juego sin quedarse congelado
    simple_mtx_unlock(&device->resource_mutex);
    
-   vk_object_free(&device->vk, &device->vk.alloc, wi);
+   // Vaciado final de hardware fuera del candado mutuo
+   __sync_synchronize();
+   
+   vk_object_free(&device->vk, pAllocator ? pAllocator : &device->vk.alloc, wi);
 }
 
 VKAPI_ATTR VkResult VKAPI_CALL
