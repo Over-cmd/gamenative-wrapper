@@ -592,7 +592,11 @@ decompress_bcn_format(void *srcBuffer,
       free(args);
    }
 
-   // --- GUARDADO SEGURO EN EL CACHÉ DE TEXTURAS ---
+      // --- PARTE 3 CORREGIDA PARA MALI: GUARDADO SEGURO Y SINCRONIZACIÓN DE MEMORIA GRÁFICA ---
+   
+   // 🚨 EXCLUSIVO MALI: Forzar barrera de memoria para que la GPU lea los píxeles procesados
+   __sync_synchronize();
+
    if (wrapper_use_bcn_cache && cache_filename && dst) {
       FILE *fp = fopen(cache_filename, "wb");
       if (fp) {
