@@ -607,20 +607,26 @@ decompress_bcn_format(void *srcBuffer,
       free(args);
    }
 
-   if (wrapper_use_bcn_cache && cache_filename) {
+   // --- PARTE 3 CORREGIDA PARA MALI: GUARDADO SEGURO Y SINCRONIZACIÓN DE MEMORIA GRÁFICA ---
+   
+   // 🚨 EXCLUSIVO MALI: Forzar barrera de memoria para que la GPU lea los píxeles procesados
+   __sync_synchronize();
+
+   if (wrapper_use_bcn_cache && cache_filename && dst) {
       FILE *fp = fopen(cache_filename, "wb");
       if (fp) {
          size_t length = fwrite(dst, 1, uncompressed_size, fp);
          fclose(fp);
-         if (length == uncompressed_size)
+         if (length == (size_t)uncompressed_size) {
             WRAPPER_LOG(bcn, "Saved texture %s to cache", cache_filename);
-         else {
-            WRAPPER_LOG(bcn, "Failed to save texture %s to cache", cache_filename);
+         } else {
+            WRAPPER_LOG(bcn, "🚨 ERROR: Fallo al escribir cache, borrando: %s", cache_filename);
             unlink(cache_filename);
          }
       }
    }
 
-   free(cache_filename);
-   
+   if (cache_filename) {
+      free(cache_filename);
+   }
 }
