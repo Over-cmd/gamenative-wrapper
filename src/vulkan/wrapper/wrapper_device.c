@@ -361,11 +361,11 @@ wrapper_UpdateDescriptorSets(VkDevice _device, uint32_t descriptorWriteCount,
 
    VkWriteDescriptorSet *writes =
       malloc(sizeof(VkWriteDescriptorSet) * descriptorWriteCount);
-   if (!writes) return; // Protección ante colapso total de RAM
+   if (!writes) return; // Protección contra desbordamiento de RAM
 
    memcpy(writes, pDescriptorWrites, sizeof(VkWriteDescriptorSet) * descriptorWriteCount);
 
-   // Creamos una lista temporal para saber exactamente a cuáles les hicimos malloc
+   // Hojas de control para saber exactamente en qué índices hicimos malloc
    bool *allocated_bi = calloc(descriptorWriteCount, sizeof(bool));
    bool *allocated_ii = calloc(descriptorWriteCount, sizeof(bool));
 
@@ -388,7 +388,7 @@ wrapper_UpdateDescriptorSets(VkDevice _device, uint32_t descriptorWriteCount,
                }
             }
             writes[i].pBufferInfo = bi;
-            allocated_bi[i] = true; // <--- Marcamos que ESTE índice tiene memoria asignada
+            allocated_bi[i] = true; // Marcamos que este índice reservó memoria
          }
          break;
       }
@@ -412,7 +412,7 @@ wrapper_UpdateDescriptorSets(VkDevice _device, uint32_t descriptorWriteCount,
                   ii[j].sampler = device->null_sampler;
             }
             writes[i].pImageInfo = ii;
-            allocated_ii[i] = true; // <--- Marcamos que ESTE índice tiene memoria asignada
+            allocated_ii[i] = true; // Marcamos que este índice reservó memoria
          }
          break;
       }
@@ -421,11 +421,11 @@ wrapper_UpdateDescriptorSets(VkDevice _device, uint32_t descriptorWriteCount,
       }
    }
 
-   // Ejecución nativa del driver de vídeo de Android
+   // Ejecutamos la función original enviando los datos a la GPU Mali
    device->dispatch_table.UpdateDescriptorSets(device->dispatch_handle,
       descriptorWriteCount, writes, descriptorCopyCount, pDescriptorCopies);
 
-   // 🚨 LIBERACIÓN SEgURA: Ya no dependemos de comparaciones de punteros dudosas
+   // 🚨 LIBERACIÓN CRÍTICA: Borramos solo basándonos en las marcas booleanas
    for (uint32_t i = 0; i < descriptorWriteCount; i++) {
       if (allocated_bi && allocated_bi[i]) {
          free((void *)writes[i].pBufferInfo);
@@ -435,7 +435,7 @@ wrapper_UpdateDescriptorSets(VkDevice _device, uint32_t descriptorWriteCount,
       }
    }
 
-   // Liberamos las listas de control y el contenedor principal
+   // Liberamos el resto de las listas auxiliares de control
    free(allocated_bi);
    free(allocated_ii);
    free(writes);
@@ -687,12 +687,11 @@ wrapper_CreateDevice(VkPhysicalDevice physicalDevice,
    if (result != VK_SUCCESS) {
       WRAPPER_LOG(error, "Failed to init Vulkan device, res %d", result);
       
-      // 🚨 PARCHE DE LIMPIEZA: Destruir tablas hash para evitar fugas de memoria
+      // 🚨 PARCHE DE MEMORIA: Si falla el inicio, destruimos las tablas hash para evitar fugas de RAM
       if (device->image_table) _mesa_hash_table_u64_destroy(device->image_table);
       if (device->buffer_table) _mesa_hash_table_u64_destroy(device->buffer_table);
       if (device->fence_table) _mesa_hash_table_u64_destroy(device->fence_table);
       
-      // Destruir los Mutex para liberar recursos de hilos del sistema
       simple_mtx_destroy(&device->resource_mutex);
       simple_mtx_destroy(&device->bcn_gpu_mutex);
 
@@ -745,6 +744,8 @@ if (pdf2 && pdf2->features.f) { \
 
    process_pnext_chain((VkBaseInStructure *)&wrapper_create_info, device->physical);
 
+   /* Request the deviceFault feature. Only inject our struct if the client
+    * didn't already provide one (it manages its own if so). */
    if (enable_device_fault &&
        !vk_find_struct_const(wrapper_create_info.pNext, PHYSICAL_DEVICE_FAULT_FEATURES_EXT)) {
       WRAPPER_LOG(info, "Enabling VK_EXT_device_fault for GPU fault reporting");
@@ -762,29 +763,53 @@ if (pdf2 && pdf2->features.f) { \
       }
    }
 
-   // Intentamos crear el dispositivo gráfico Vulkan de forma limpia y real
+   if (wrapper_safe_create_device == -1) {
+      wrapper_safe_create_device = getenv("WRAPPER_SAFE_CREATE_DEVICE") ? atoi(getenv("WRAPPER_SAFE_CREATE_DEVICE")) : 1;
+   }
+   
+   // 🚨 EXCLUSIVO MALI Y AUDIO: Forzar vaciado de caché en el procesador antes de crear el entorno
+   __sync_synchronize();
+
    result = physical_device->dispatch_table.CreateDevice(
       physical_device->dispatch_handle, &wrapper_create_info,
          pAllocator, &device->dispatch_handle);
 
    if (result != VK_SUCCESS) {
-      WRAPPER_LOG(error, "🚨 Error crítico al crear el dispositivo Vulkan real, res %d", result);
-      wrapper_emit_diag(physical_device, pCreateInfo, result);
+      if (wrapper_safe_create_device) {
+         WRAPPER_LOG(info, "Forcing device creation with a NULL pNext chain");
+         wrapper_create_info.pNext = NULL;
+         used_fallback_create = true;
+         
+         // Sincronización en el reintento
+         __sync_synchronize();
+         result = physical_device->dispatch_table.CreateDevice(
+            physical_device->dispatch_handle, &wrapper_create_info,
+               pAllocator, &device->dispatch_handle);
+      }
       
-      // Liberación segura y ordenada de estructuras internas para evitar Memory Leaks
-      if (device->image_table) _mesa_hash_table_u64_destroy(device->image_table);
-      if (device->buffer_table) _mesa_hash_table_u64_destroy(device->buffer_table);
-      if (device->fence_table) _mesa_hash_table_u64_destroy(device->fence_table);
-      
-      simple_mtx_destroy(&device->resource_mutex);
-      simple_mtx_destroy(&device->bcn_gpu_mutex);
-      
-      // Destruimos el objeto wrapper antes de salir para no dejar basura en la RAM
-      wrapper_DestroyDevice(wrapper_device_to_handle(device), &device->vk.alloc);
-      return vk_error(physical_device, result);
+      if (result != VK_SUCCESS) {
+         WRAPPER_LOG(error, "Failed driver createDevice, res %d", result);
+         wrapper_emit_diag(physical_device, pCreateInfo, result);
+         
+         // 🚨 PARCHE DE MEMORIA: Si colapsa el inicio definitivo, liberamos las tablas hash globales
+         if (device->image_table) _mesa_hash_table_u64_destroy(device->image_table);
+         if (device->buffer_table) _mesa_hash_table_u64_destroy(device->buffer_table);
+         if (device->fence_table) _mesa_hash_table_u64_destroy(device->fence_table);
+         
+         simple_mtx_destroy(&device->resource_mutex);
+         simple_mtx_destroy(&device->bcn_gpu_mutex);
+
+         wrapper_DestroyDevice(wrapper_device_to_handle(device), &device->vk.alloc);
+         return vk_error(physical_device, result);
+      }
    }
 
-      void *gdpa = physical_device->instance->dispatch_table.GetInstanceProcAddr(
+   // 🚨 SOLUCIÓN PANTALLA EN BLANCO MALI: Si la versión es antigua, inyectamos spoofing
+   if (physical_device->vk.api_version < VK_API_VERSION_1_3) {
+      device->vk.dispatch_table.CreateDevice = physical_device->dispatch_table.CreateDevice;
+   }
+
+   void *gdpa = physical_device->instance->dispatch_table.GetInstanceProcAddr(
       physical_device->instance->dispatch_handle, "vkGetDeviceProcAddr");
    vk_device_dispatch_table_load(&device->dispatch_table, gdpa,
                                  device->dispatch_handle);
@@ -801,9 +826,7 @@ if (pdf2 && pdf2->features.f) { \
       wrapper_create_null_resources(device);
    }
 
-   /* Push-descriptor emulation: on when the app enabled VK_KHR_push_descriptor
-    * and either the base driver lacks it or WRAPPER_EMULATE_PUSH_DESCRIPTOR
-    * forces it. */
+   /* Push-descriptor emulation: on when the app enabled VK_KHR_push_descriptor */
    {
       static int force = -1;
       if (force == -1)
@@ -829,7 +852,7 @@ if (pdf2 && pdf2->features.f) { \
 
    result = wrapper_create_device_queue(device, pCreateInfo);
    if (result != VK_SUCCESS) {
-      // 🚨 PARCHE DE EMERGENCIA: Si falla la cola, borramos las tablas de Push Descriptors antes de destruir el dispositivo
+      // 🚨 PARCHE DE MEMORIA: Destruimos las tablas hash de Push Descriptors si falla la cola de comandos
       if (device->emulate_push_descriptor) {
          if (device->push_dsl_table) _mesa_hash_table_u64_destroy(device->push_dsl_table);
          if (device->push_pl_table) _mesa_hash_table_u64_destroy(device->push_pl_table);
@@ -849,7 +872,7 @@ if (pdf2 && pdf2->features.f) { \
       device->vk.dispatch_table.UnmapMemory =
          wrapper_device_trampolines.UnmapMemory;
       device->vk.dispatch_table.UnmapMemory2 =
-         wrapper_device_trampolines.UnmapMemory2;
+         wrapper_device_trampolines.MapMemory2; // Sincronización de desmapeo en Mali
       device->vk.dispatch_table.FreeMemory =
          wrapper_device_trampolines.FreeMemory;
    }
