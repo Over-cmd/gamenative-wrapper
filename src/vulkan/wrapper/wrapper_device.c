@@ -703,7 +703,11 @@ wrapper_CreateDevice(VkPhysicalDevice physicalDevice,
       &wrapper_enable_extension_count, wrapper_enable_extensions);
    wrapper_append_required_extensions(&device->vk,
       &wrapper_enable_extension_count, wrapper_enable_extensions);
-
+   /* VK_EXT_device_fault turns the generic VK_ERROR_DEVICE_LOST into an actual
+    * GPU fault report (faulting address + vendor fault codes) that we dump in
+    * QueueSubmit. It's universally available on Mali and cheap when no fault
+    * occurs, so enable it by default whenever the base driver supports it;
+    * WRAPPER_DEVICE_FAULT=0 opts out. */
    if (wrapper_device_fault == -1)
       wrapper_device_fault = getenv("WRAPPER_DEVICE_FAULT")
          ? atoi(getenv("WRAPPER_DEVICE_FAULT")) : 1;
@@ -829,7 +833,9 @@ if (pdf2 && pdf2->features.f) { \
       wrapper_create_null_resources(device);
    }
 
-   /* Push-descriptor emulation: on when the app enabled VK_KHR_push_descriptor */
+   /* Push-descriptor emulation: on when the app enabled VK_KHR_push_descriptor
+    * and either the base driver lacks it or WRAPPER_EMULATE_PUSH_DESCRIPTOR
+    * forces it (so it can be validated on a device that has it natively). */
    {
       static int force = -1;
       if (force == -1)
@@ -851,12 +857,6 @@ if (pdf2 && pdf2->features.f) { \
 
    result = wrapper_create_device_queue(device, pCreateInfo);
    if (result != VK_SUCCESS) {
-      if (device->emulate_push_descriptor) {
-         if (device->push_dsl_table) _mesa_hash_table_u64_destroy(device->push_dsl_table);
-         if (device->push_pl_table) _mesa_hash_table_u64_destroy(device->push_pl_table);
-         if (device->push_template_table) _mesa_hash_table_u64_destroy(device->push_template_table);
-         simple_mtx_destroy(&device->push_mutex);
-      }
       wrapper_DestroyDevice(wrapper_device_to_handle(device),
                             &device->vk.alloc);
       return vk_error(physical_device, result);
