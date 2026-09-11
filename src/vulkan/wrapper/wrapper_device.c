@@ -803,6 +803,14 @@ if (pdf2 && pdf2->features.f) { \
          return vk_error(physical_device, result);
       }
    }
+   
+   // 🚨 SOLUCIÓN PANTALLA BLANCA MALI: Forzar spoofing de Vulkan 1.3 en las propiedades del dispositivo
+   if (physical_device->properties2.properties.apiVersion < VK_API_VERSION_1_3) {
+      WRAPPER_LOG(info, "Falsificando apiVersion a Vulkan 1.3 para engañar a DXVK en Mali Vulkan 1.1");
+      
+      physical_device->vk.properties.apiVersion = VK_API_VERSION_1_3;
+      physical_device->properties2.properties.apiVersion = VK_API_VERSION_1_3;
+   }
 
    void *gdpa = physical_device->instance->dispatch_table.GetInstanceProcAddr(
       physical_device->instance->dispatch_handle, "vkGetDeviceProcAddr");
