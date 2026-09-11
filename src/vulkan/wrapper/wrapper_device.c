@@ -905,11 +905,6 @@ if (pdf2 && pdf2->features.f) { \
       }
    }
 
-   if (physical_device->properties2.properties.apiVersion < VK_API_VERSION_1_3) {
-      WRAPPER_LOG(info, "Falsificando entrada de API Vulkan para evitar pantalla en blanco en Mali");
-      device->dispatch_table.CreateDevice = physical_device->dispatch_table.CreateDevice;
-   }
-
    void *gdpa = physical_device->instance->dispatch_table.GetInstanceProcAddr(
       physical_device->instance->dispatch_handle, "vkGetDeviceProcAddr");
    vk_device_dispatch_table_load(&device->dispatch_table, gdpa,
