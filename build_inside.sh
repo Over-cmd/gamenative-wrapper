@@ -53,7 +53,11 @@ STRIP="${NDK_DIR}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip"
 if [ ! -f "$STRIP" ]; then
     STRIP=$(find "${NDK_DIR}" -name "llvm-strip" | head -n 1)
 fi
-$STRIP --strip-unneeded -o "${BUILD_DIR}/libvulkan_wrapper.so" "${BUILD_DIR}/libvulkan_wrapper.so.unstripped"
+# 🚨 MODIFICADO: Desactivamos el strip para que no borre el rastreador de fugas de memoria
+# $STRIP --strip-unneeded -o "${BUILD_DIR}/libvulkan_wrapper.so" "${BUILD_DIR}/libvulkan_wrapper.so.unstripped"
+
+# 🚨 AÑADIDO: Copiamos el archivo directamente manteniendo los datos anti-fugas intactos
+cp "${BUILD_DIR}/libvulkan_wrapper.so.unstripped" "${BUILD_DIR}/libvulkan_wrapper.so"
 
 # 🟢 4. CREACIÓN DEL ÁRBOL DE DIRECTORIOS RIGIDO (usr/lib y usr/share/vulkan/icd.d)
 ROOTFS_DIR="${BUILD_DIR}/rootfs_export"
