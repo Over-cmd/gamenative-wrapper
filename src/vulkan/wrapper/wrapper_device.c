@@ -804,12 +804,17 @@ if (pdf2 && pdf2->features.f) { \
       }
    }
    
-      // 🚨 SOLUCIÓN PANTALLA BLANCA MALI: Solo aplicamos el engaño en arquitecturas de 64 bits para no romper los 32 bits
-   if (sizeof(void*) == 8) {
-      if (physical_device->properties2.properties.apiVersion < VK_API_VERSION_1_3) {
-         WRAPPER_LOG(info, "Falsificando apiVersion a Vulkan 1.3 solo en 64 bits para engañar a DXVK en Mali");
-         
+    // 🚨 SOLUCIÓN DEFINITIVA PANTALLA BLANCA Y CIERRE (32/64 BITS MALI)
+    if (physical_device->properties2.properties.apiVersion < VK_API_VERSION_1_3) {
+      WRAPPER_LOG(info, "Falsificando apiVersion a Vulkan 1.3 para evitar cierres y pantalla blanca en Mali");
+      
+      // En 64 bits podemos alterar ambas de forma segura
+      if (sizeof(void*) == 8) {
          physical_device->vk.properties.apiVersion = VK_API_VERSION_1_3;
+         physical_device->properties2.properties.apiVersion = VK_API_VERSION_1_3;
+      } 
+      // En 32 bits alteramos SOLO properties2 para engañar a DXVK sin desbordar la memoria base
+      else {
          physical_device->properties2.properties.apiVersion = VK_API_VERSION_1_3;
       }
    }
