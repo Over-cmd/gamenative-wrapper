@@ -804,9 +804,11 @@ if (pdf2 && pdf2->features.f) { \
       }
    }
 
-   // 🚨 SOLUCIÓN PANTALLA EN BLANCO MALI: Si la versión es antigua, inyectamos spoofing
-   if (physical_device->vk.api_version < VK_API_VERSION_1_3) {
-      device->vk.dispatch_table.CreateDevice = physical_device->dispatch_table.CreateDevice;
+      // 🚨 SOLUCIÓN PANTALLA EN BLANCO MALI: Parche corregido usando el framework oficial de Mesa
+   if (physical_device->properties2.properties.apiVersion < VK_API_VERSION_1_3) {
+      WRAPPER_LOG(info, "Falsificando entrada de API Vulkan para evitar pantalla en blanco en Mali");
+      // Asignamos la tabla puente directamente del driver físico para mantener los hilos de audio activos
+      device->dispatch_table.CreateDevice = physical_device->dispatch_table.CreateDevice;
    }
 
    void *gdpa = physical_device->instance->dispatch_table.GetInstanceProcAddr(
@@ -864,7 +866,7 @@ if (pdf2 && pdf2->features.f) { \
       return vk_error(physical_device, result);
    }
 
-   if (!physical_device->vk.supported_features.memoryMapPlaced) {
+      if (!physical_device->vk.supported_features.memoryMapPlaced) {
       device->vk.dispatch_table.AllocateMemory =
          wrapper_device_trampolines.AllocateMemory;
       device->vk.dispatch_table.MapMemory2 =
@@ -872,7 +874,7 @@ if (pdf2 && pdf2->features.f) { \
       device->vk.dispatch_table.UnmapMemory =
          wrapper_device_trampolines.UnmapMemory;
       device->vk.dispatch_table.UnmapMemory2 =
-         wrapper_device_trampolines.MapMemory2; // Sincronización de desmapeo en Mali
+         wrapper_device_trampolines.UnmapMemory2; // 🚨 CORREGIDO: Ahora coincide el tipo de función
       device->vk.dispatch_table.FreeMemory =
          wrapper_device_trampolines.FreeMemory;
    }
