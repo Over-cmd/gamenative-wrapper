@@ -8,8 +8,8 @@ BUILD_DIR="${1:-${BUILD_DIR:-build}}"
 # 🟢 1. MOTOR DE CONFIGURACIÓN DE MESON PARA TERMUX-X11 EMULADO (v51)
 if [ ! -d "${BUILD_DIR}" ]; then
 meson setup "${BUILD_DIR}" --cross-file /root/build-config/cross_file.txt \
--Db_sanitize=address \
--Db_lundef=false \
+-Db_sanitize=none \
+-Db_lundef=true \
 -Dcpp_rtti=false \
 -Dgbm=enabled \
 -Dopengl=true \
@@ -53,11 +53,7 @@ STRIP="${NDK_DIR}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip"
 if [ ! -f "$STRIP" ]; then
     STRIP=$(find "${NDK_DIR}" -name "llvm-strip" | head -n 1)
 fi
-# 🚨 MODIFICADO: Desactivamos el strip para que no borre el rastreador de fugas de memoria
-# $STRIP --strip-unneeded -o "${BUILD_DIR}/libvulkan_wrapper.so" "${BUILD_DIR}/libvulkan_wrapper.so.unstripped"
-
-# 🚨 AÑADIDO: Copiamos el archivo directamente manteniendo los datos anti-fugas intactos
-cp "${BUILD_DIR}/libvulkan_wrapper.so.unstripped" "${BUILD_DIR}/libvulkan_wrapper.so"
+$STRIP --strip-unneeded -o "${BUILD_DIR}/libvulkan_wrapper.so" "${BUILD_DIR}/libvulkan_wrapper.so.unstripped"
 
 # 🟢 4. CREACIÓN DEL ÁRBOL DE DIRECTORIOS RIGIDO (usr/lib y usr/share/vulkan/icd.d)
 ROOTFS_DIR="${BUILD_DIR}/rootfs_export"
