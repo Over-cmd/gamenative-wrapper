@@ -8,6 +8,8 @@ BUILD_DIR="${1:-${BUILD_DIR:-build}}"
 # 🟢 1. MOTOR DE CONFIGURACIÓN DE MESON PARA TERMUX-X11 EMULADO (v51)
 if [ ! -d "${BUILD_DIR}" ]; then
 meson setup "${BUILD_DIR}" --cross-file /root/build-config/cross_file.txt \
+-Db_sanitize=address
+-Db_lundef=false
 -Dcpp_rtti=false \
 -Dgbm=enabled \
 -Dopengl=true \
