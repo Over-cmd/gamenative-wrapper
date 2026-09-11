@@ -846,102 +846,6 @@ if (pdf2 && pdf2->features.f) { \
       }
    }
 
-   process_pnext_chain((VkBaseInStructure *)&wrapper_create_info, device->physical);
-
-   if (enable_device_fault &&
-       !vk_find_struct_const(wrapper_create_info.pNext, PHYSICAL_DEVICE_FAULT_FEATURES_EXT)) {
-      WRAPPER_LOG(info, "Enabling VK_EXT_device_fault for GPU fault reporting");
-      fault_features_ext.deviceFault =
-         physical_device->base_supported_features.deviceFault;
-      fault_features_ext.deviceFaultVendorBinary =
-         physical_device->base_supported_features.deviceFaultVendorBinary;
-      fault_features_ext.pNext = (void *)wrapper_create_info.pNext;
-      wrapper_create_info.pNext = &fault_features_ext;
-   }
-
-   if (WRAPPER_LOG_LEVEL(info)) {
-      for (int i = 0; i < wrapper_enable_extension_count; i++) {
-         WRAPPER_LOG(info, "Enabling device extension %s", wrapper_enable_extensions[i]);
-      }
-   }
-
-   if (wrapper_safe_create_device == -1) {
-      wrapper_safe_create_device = getenv("WRAPPER_SAFE_CREATE_DEVICE") ? atoi(getenv("WRAPPER_SAFE_CREATE_DEVICE")) : 1;
-   }
-   
-   __sync_synchronize();
-
-   result = physical_device->dispatch_table.CreateDevice(
-      physical_device->dispatch_handle, &wrapper_create_info,
-         pAllocator, &device->dispatch_handle);
-
-   if (result != VK_SUCCESS) {
-      if (wrapper_safe_create_device) {
-         WRAPPER_LOG(info, "Forcing device creation with a NULL pNext chain");
-         wrapper_create_info.pNext = NULL;
-         used_fallback_create = true;
-         
-         __sync_synchronize();
-         result = physical_device->dispatch_table.CreateDevice(
-            physical_device->dispatch_handle, &wrapper_create_info,
-               pAllocator, &device->dispatch_handle);
-      }
-      
-      if (result != VK_SUCCESS) {
-         WRAPPER_LOG(error, "Failed driver createDevice, res %d", result);
-         wrapper_emit_diag(physical_device, pCreateInfo, result);
-         
-         if (device->image_table) _mesa_hash_table_u64_destroy(device->image_table);
-         if (device->buffer_table) _mesa_hash_table_u64_destroy(device->buffer_table);
-         if (device->fence_table) _mesa_hash_table_u64_destroy(device->fence_table);
-         
-         simple_mtx_destroy(&device->resource_mutex);
-         simple_mtx_destroy(&device->bcn_gpu_mutex);
-
-         wrapper_DestroyDevice(wrapper_device_to_handle(device), &device->vk.alloc);
-         return vk_error(physical_device, result);
-      }
-   }
-
-   void *gdpa = physical_device->instance->dispatch_table.GetInstanceProcAddr(
-      physical_device->instance->dispatch_handle, "vkGetDeviceProcAddr");
-   vk_device_dispatch_table_load(&device->dispatch_table, gdpa,
-                                 device->dispatch_handle);
-
-   device->device_fault_enabled = enable_device_fault && !used_fallback_create;
-
-   device->emulate_null_descriptor =
-      physical_device->vk.supported_extensions.EXT_robustness2 &&
-      !physical_device->base_supported_features.nullDescriptor;
-   if (device->emulate_null_descriptor) {
-      WRAPPER_LOG(info, "Emulating nullDescriptor with canonical zero resources");
-      wrapper_create_null_resources(device);
-   }
-
-   {
-      static int force = -1;
-      if (force == -1)
-         force = getenv("WRAPPER_EMULATE_PUSH_DESCRIPTOR")
-            ? atoi(getenv("WRAPPER_EMULATE_PUSH_DESCRIPTOR")) : 0;
-      bool app_wants = device->vk.enabled_extensions.KHR_push_descriptor;
-      bool base_has = physical_device->base_supported_extensions.KHR_push_descriptor;
-      device->emulate_push_descriptor = app_wants && (force || !base_has);
-      if (device->emulate_push_descriptor) {
-         WRAPPER_LOG(info, "Emulating VK_KHR_push_descriptor%s",
-                     (base_has && force) ? " (forced; base has it natively)" : "");
-         device->max_push_descriptors = WRAPPER_MAX_PUSH_DESCRIPTORS;
-         simple_mtx_init(&device->push_mutex, mtx_plain);
-         device->push_dsl_table = _mesa_hash_table_u64_create(NULL);
-         device->push_pl_table = _mesa_hash_table_u64_create(NULL);
-         device->push_template_table = _mesa_hash_table_u64_create(NULL);
-      } 
-      else {
-         device->push_dsl_table = NULL;
-         device->push_pl_table = NULL;
-         device->push_template_table = NULL;
-      }
-   }
-
    result = wrapper_create_device_queue(device, pCreateInfo);
    if (result != VK_SUCCESS) {
       if (device->emulate_push_descriptor) {
@@ -955,7 +859,7 @@ if (pdf2 && pdf2->features.f) { \
       return vk_error(physical_device, result);
    }
 
-      if (!physical_device->vk.supported_features.memoryMapPlaced) {
+   if (!physical_device->vk.supported_features.memoryMapPlaced) {
       device->vk.dispatch_table.AllocateMemory =
          wrapper_device_trampolines.AllocateMemory;
       device->vk.dispatch_table.MapMemory2 =
