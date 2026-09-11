@@ -823,7 +823,6 @@ if (pdf2 && pdf2->features.f) { \
 
    /* Push-descriptor emulation: on when the app enabled VK_KHR_push_descriptor */
    {
-         {
       static int force = -1;
       if (force == -1)
          force = getenv("WRAPPER_EMULATE_PUSH_DESCRIPTOR")
