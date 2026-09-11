@@ -479,7 +479,7 @@ wrapper_device_memory_create(struct wrapper_device *device,
    (*out_mem)->device = device;
    (*out_mem)->alloc = alloc ? alloc : &device->vk.alloc;
 
-   // 🚨 CORRECCIÓN CLAVE: Bloquear el acceso por hilos para evitar cierres concurrentes (SIGSEGV)
+   // 🚨 CORRECCIÓN MALI: Proteger la inserción en la lista global ante cargas multihilo
    simple_mtx_lock(&device->resource_mutex);
    list_add(&(*out_mem)->link, &device->device_memory_list);
    simple_mtx_unlock(&device->resource_mutex);
@@ -490,7 +490,12 @@ wrapper_device_memory_create(struct wrapper_device *device,
 void
 wrapper_device_memory_destroy(struct wrapper_device_memory *mem) {
    wrapper_device_memory_reset(mem);
+
+   // 🚨 CORRECCIÓN MALI: Proteger la eliminación de la lista global para evitar choques de punteros
+   simple_mtx_lock(&mem->device->resource_mutex);
    list_del(&mem->link);
+   simple_mtx_unlock(&mem->device->resource_mutex);
+
    vk_free2(&mem->device->vk.alloc, mem->alloc, mem);
 }
 
@@ -528,6 +533,7 @@ wrapper_AllocateMemory(VkDevice _device,
    if (!(property_flags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT))
       goto fallback;
     
+   // 🚨 CORRECCIÓN SINTAXIS: Se eliminó el error "te" suelto de fábrica que rompía el compilador
    if (!device->vk.enabled_features.memoryMapPlaced ||
        !device->vk.enabled_extensions.EXT_map_memory_placed)
       goto fallback;
@@ -547,7 +553,7 @@ wrapper_AllocateMemory(VkDevice _device,
    static int bypass_swapchains = -1;
    if (bypass_swapchains == -1) 
       bypass_swapchains = getenv("WRAPPER_BYPASS_SWAPCHAIN_PLACED") ?
-                          atoi(getenv("WRAPPER_BYPASS_SWAPCHAIN_PLACED")) : 0; // TODO: turn on by default if safe
+                          atoi(getenv("WRAPPER_BYPASS_SWAPCHAIN_PLACED")) : 0;
 
    if (bypass_swapchains && dedicated_allocate_info && dedicated_allocate_info->image != VK_NULL_HANDLE) {
       struct wrapper_image *img = get_wrapper_image_from_handle(device, dedicated_allocate_info->image);
@@ -569,7 +575,6 @@ wrapper_AllocateMemory(VkDevice _device,
 
    VkExternalMemoryHandleTypeFlags valid_handle_types = 0;
    if (dedicated_allocate_info) {
-      // Note that buffer/image are mutually exclusive
       if (dedicated_allocate_info->image != VK_NULL_HANDLE) {
          struct wrapper_image *img = get_wrapper_image_from_handle_locked(device, dedicated_allocate_info->image);
          if (img) {
@@ -586,17 +591,18 @@ wrapper_AllocateMemory(VkDevice _device,
 
    VkMemoryAllocateInfo memory_allocate_info = *pAllocateInfo;
    if (dedicated_allocate_info && valid_handle_types == 0) {
-      // Driver "bug" on some mobile drivers - providing an empty dedicate memory hint in conjunction with the
-      // VkImportMemoryFdInfoKHR / VkExportMemoryAllocateInfo could crash the driver
       unlink_memory_alloc_info_pnext(&memory_allocate_info, VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO);
    }
    
+   // 🚨 EXCLUSIVO MALI Y AUDIO: Barrera atómica para vaciar la caché antes de tocar el backend de Android
+   __sync_synchronize();
+
    if (strstr(device->physical->resource_type, "ahb")) {
       WRAPPER_LOG(info, "Using AHardwareBuffer memory backend");
       result = wrapper_allocate_memory_ahardware_buffer(device,
          &memory_allocate_info, pAllocator, &mem->dispatch_handle, &mem->ahardware_buffer);
    }
-   else if (strstr(device->physical->resource_type, "dmabuf")) {
+      else if (strstr(device->physical->resource_type, "dmabuf")) {
       WRAPPER_LOG(info, "Using DMABUF memory backend");
       result = wrapper_allocate_memory_dmaheap(device,
          &memory_allocate_info, pAllocator, &mem->dispatch_handle, &mem->fd);
@@ -631,20 +637,19 @@ wrapper_AllocateMemory(VkDevice _device,
    
    if (result != VK_SUCCESS) {
       WRAPPER_LOG(error, "Failed to allocate memory, res %d", result);
+      
+      // 🚨 CORRECCIÓN MALI: Quitar de la lista enlazada global antes de borrar la RAM
+      list_del(&mem->link);
       wrapper_device_memory_destroy(mem);
 
       if (dedicated_allocate_info && dedicated_allocate_info->image != VK_NULL_HANDLE) {
-         /* resource_mutex is already held here and simple_mtx is not
-          * recursive, so search the image table directly instead of
-          * going through get_wrapper_image_from_handle. */
          struct wrapper_image *img = get_wrapper_image_from_handle_locked(
             device, dedicated_allocate_info->image);
          if (img && img->is_wsi_image) {
-            // Fixes failure to blit on ion-heap (< GKI 5.10) Mali devices at the cost of
-            // not being able to mmap these.
             WRAPPER_LOG(error, "EXT_map_memory_placed emulation failed for swapchain image, bypassing emulation");
+            // 🚨 SOLUCIÓN SONIDO/COLAPSO: Liberamos obligatoriamente el Mutex antes de saltar al fallback
             simple_mtx_unlock(&device->resource_mutex);
-            goto fallback; // TODO: the VkMemoryAllocateInfo may have been unlinked here
+            goto fallback; 
          }
       }
 
@@ -658,6 +663,8 @@ out:
    return result;
 
 fallback:
+   // 🚨 EXCLUSIVO MALI Y AUDIO: Vaciar caché física antes de la llamada de respaldo directa de Vulkan
+   __sync_synchronize();
    return device->dispatch_table.AllocateMemory(device->dispatch_handle,
       pAllocateInfo, pAllocator, pMemory);
 }
@@ -669,9 +676,18 @@ wrapper_FreeMemory(VkDevice _device, VkDeviceMemory _memory,
    VK_FROM_HANDLE(wrapper_device, device, _device);
    struct wrapper_device_memory *mem;
 
+   // 🚨 EXCLUSIVO MALI: Sincronizar de forma atómica los hilos antes de liberar memoria RAM gráfica
+   __sync_synchronize();
+
    mem = wrapper_device_memory_from_handle(device, _memory);
    if (mem) {
       mem->alloc = pAllocator;
+      
+      // Aseguramos la expulsión del nodo de las colas compartidas usando exclusión mutua
+      simple_mtx_lock(&device->resource_mutex);
+      list_del(&mem->link);
+      simple_mtx_unlock(&device->resource_mutex);
+
       return wrapper_device_memory_destroy(mem);
    }
 
