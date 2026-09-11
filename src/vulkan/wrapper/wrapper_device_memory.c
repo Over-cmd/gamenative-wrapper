@@ -478,7 +478,12 @@ wrapper_device_memory_create(struct wrapper_device *device,
    (*out_mem)->fd = -1;
    (*out_mem)->device = device;
    (*out_mem)->alloc = alloc ? alloc : &device->vk.alloc;
+
+   // 🚨 CORRECCIÓN CLAVE: Bloquear el acceso por hilos para evitar cierres concurrentes (SIGSEGV)
+   simple_mtx_lock(&device->resource_mutex);
    list_add(&(*out_mem)->link, &device->device_memory_list);
+   simple_mtx_unlock(&device->resource_mutex);
+
    return VK_SUCCESS;
 }
 
