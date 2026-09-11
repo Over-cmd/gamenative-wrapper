@@ -494,6 +494,7 @@ wrapper_device_memory_from_handle(struct wrapper_device *device,
                                   VkDeviceMemory handle) {
    struct wrapper_device_memory *mem = NULL;
 
+   // 🚨 PROTECCIÓN MULTIHILO: Bloqueamos la lista para que ningún hilo borre datos mientras buscamos
    simple_mtx_lock(&device->resource_mutex);
 
    list_for_each_entry(struct wrapper_device_memory, data,
@@ -503,7 +504,9 @@ wrapper_device_memory_from_handle(struct wrapper_device *device,
       }
    }
 
+   // 🚨 LIBERACIÓN CRÍTICA: Soltamos el candado de inmediato para no congelar el audio
    simple_mtx_unlock(&device->resource_mutex);
+   
    return mem;
 }
 
