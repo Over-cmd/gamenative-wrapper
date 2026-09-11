@@ -956,7 +956,7 @@ if (pdf2 && pdf2->features.f) { \
       return vk_error(physical_device, result);
    }
 
-   if (!physical_device->vk.supported_features.memoryMapPlaced) {
+      if (!physical_device->vk.supported_features.memoryMapPlaced) {
       device->vk.dispatch_table.AllocateMemory =
          wrapper_device_trampolines.AllocateMemory;
       device->vk.dispatch_table.MapMemory2 =
@@ -967,14 +967,14 @@ if (pdf2 && pdf2->features.f) { \
          wrapper_device_trampolines.UnmapMemory2;
       device->vk.dispatch_table.FreeMemory =
          wrapper_device_trampolines.FreeMemory;
-   }
+   } // <--- Asegúrate de que esta llave cierre el bloque "if"
 
    wrapper_emit_diag(physical_device, pCreateInfo, VK_SUCCESS);
 
    *pDevice = wrapper_device_to_handle(device);
 
    return VK_SUCCESS;
-}
+} // <--- ¡ESTA LLAVE ES LA QUE FALTA! Añádela justo aquí para cerrar toda la función
 
 static void 
 wrapper_buffer_destroy(struct wrapper_device *device,
