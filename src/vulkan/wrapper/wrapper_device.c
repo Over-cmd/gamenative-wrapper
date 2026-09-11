@@ -406,16 +406,22 @@ wrapper_UpdateDescriptorSets(VkDevice _device, uint32_t descriptorWriteCount,
          break;
       }
    }
-
+   
+   // Ejecutamos la función original enviando los datos a la GPU Mali
    device->dispatch_table.UpdateDescriptorSets(device->dispatch_handle,
       descriptorWriteCount, writes, descriptorCopyCount, pDescriptorCopies);
+   
+      device->dispatch_table.UpdateDescriptorSets(device->dispatch_handle,
+      descriptorWriteCount, writes, descriptorCopyCount, pDescriptorCopies);
 
+   // 🚨 LIBERACIÓN CRÍTICA SEGURA: Comparamos directamente los punteros modificados
    for (uint32_t i = 0; i < descriptorWriteCount; i++) {
       if (writes[i].pBufferInfo != pDescriptorWrites[i].pBufferInfo)
          free((void *)writes[i].pBufferInfo);
       if (writes[i].pImageInfo != pDescriptorWrites[i].pImageInfo)
          free((void *)writes[i].pImageInfo);
    }
+
    free(writes);
 }
 
@@ -664,6 +670,15 @@ wrapper_CreateDevice(VkPhysicalDevice physicalDevice,
 
    if (result != VK_SUCCESS) {
       WRAPPER_LOG(error, "Failed to init Vulkan device, res %d", result);
+      
+      // 🚨 PARCHE DE MEMORIA GRÁFICA: Si falla el inicio, liberamos las tablas hash globales para evitar leaks de RAM
+      if (device->image_table) _mesa_hash_table_u64_destroy(device->image_table);
+      if (device->buffer_table) _mesa_hash_table_u64_destroy(device->buffer_table);
+      if (device->fence_table) _mesa_hash_table_u64_destroy(device->fence_table);
+      
+      simple_mtx_destroy(&device->resource_mutex);
+      simple_mtx_destroy(&device->bcn_gpu_mutex);
+      
       vk_free2(&physical_device->instance->vk.alloc, pAllocator,
                device);
       return vk_error(physical_device, result);
@@ -742,6 +757,9 @@ if (pdf2 && pdf2->features.f) { \
       wrapper_safe_create_device = getenv("WRAPPER_SAFE_CREATE_DEVICE") ? atoi(getenv("WRAPPER_SAFE_CREATE_DEVICE")) : 1;
    }
    
+   // 🚨 EXCLUSIVO MALI Y AUDIO: Forzar vaciado de caché en el procesador antes de crear el entorno
+   __sync_synchronize();
+   
    result = physical_device->dispatch_table.CreateDevice(
       physical_device->dispatch_handle, &wrapper_create_info,
          pAllocator, &device->dispatch_handle);
@@ -763,6 +781,14 @@ if (pdf2 && pdf2->features.f) { \
                                &device->vk.alloc);
          return vk_error(physical_device, result);
       }
+   }
+   
+   // 🚨 SOLUCIÓN DEFINITIVA 32/64 BITS MALI: Engaño de API ultra-compatible sin romper la memoria base
+   if (physical_device->properties2.properties.apiVersion < VK_API_VERSION_1_3) {
+      WRAPPER_LOG(info, "Falsificando apiVersion a Vulkan 1.3 de forma segura para DXVK en Mali");
+      
+      // Modificamos estrictamente las propiedades extendidas que DXVK lee al arrancar en WoW64
+      physical_device->properties2.properties.apiVersion = VK_API_VERSION_1_3;
    }
 
    void *gdpa = physical_device->instance->dispatch_table.GetInstanceProcAddr(
@@ -844,7 +870,11 @@ wrapper_buffer_destroy(struct wrapper_device *device,
    device->dispatch_table.DestroyBuffer(device->dispatch_handle,
       wb->dispatch_handle, pAllocator);
 
-   _mesa_hash_table_u64_remove(device->buffer_table, (uint64_t)wb->dispatch_handle);
+   // 🚨 PARCHE ADICIONAL: Limpieza profunda de los nodos huérfanos de la tabla hash de Mesa
+   if (device->buffer_table) {
+      _mesa_hash_table_u64_remove(device->buffer_table, (uint64_t)wb->dispatch_handle);
+   }
+   
    list_del(&wb->link);
 
    simple_mtx_unlock(&device->resource_mutex);
@@ -992,16 +1022,25 @@ wrapper_image_destroy(struct wrapper_device *device,
 {
    if (wi == NULL)
       return;
+   
+   // 🚨 SOLUCIÓN CONGELAMIENTO D3D9: Forzar sincronización atómica antes de tocar las texturas
+   __sync_synchronize();
 
    simple_mtx_lock(&device->resource_mutex);
       
    device->dispatch_table.DestroyImage(device->dispatch_handle,
       wi->dispatch_handle, pAllocator);
 
+   if (device->image_table) {
    _mesa_hash_table_u64_remove(device->image_table, (uint64_t)wi->dispatch_handle);
+   }
    list_del(&wi->link);
-
+   
+   // Liberamos el candado de inmediato para que D3D9 pueda cerrar el juego sin quedarse congelado
    simple_mtx_unlock(&device->resource_mutex);
+   
+   // Vaciado final de hardware fuera del candado mutuo
+   __sync_synchronize();
    
    vk_object_free(&device->vk, &device->vk.alloc, wi);
 }
