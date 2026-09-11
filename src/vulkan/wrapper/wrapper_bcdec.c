@@ -486,7 +486,7 @@ decompress_bcn_format(void *srcBuffer,
       return;
    }
 
-   /* compressed source. Skips decode+encode on subsequent loads. Only touched
+    * compressed source. Skips decode+encode on subsequent loads. Only touched
     * when explicitly enabled, so there is zero overhead by default. */
    char *cache_filename = NULL;
    if (wrapper_use_bcn_cache) {
@@ -611,7 +611,6 @@ decompress_bcn_format(void *srcBuffer,
       free(args);
    }
 
-   // --- GUARDADO SEGURO EN CACHÉ CONTRA CORRUPCIÓN ---
       if (wrapper_use_bcn_cache && cache_filename && dst) {
       FILE *fp = fopen(cache_filename, "wb");
       if (fp) {
