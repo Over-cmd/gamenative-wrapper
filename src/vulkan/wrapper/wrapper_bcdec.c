@@ -510,11 +510,8 @@ decompress_bcn_format(void *srcBuffer,
       }
    }
 
-
-   if (astc8) {
-      /* 8x8 ASTC: each block covers a 2x2 group of BC blocks (8 = 2*4, aligned).
-       * Decode the 4 BC blocks into an 8x8 RGBA scratch, then encode one ASTC
-       * 8x8 block. Threaded over 8x8-block rows. */
+      if (astc8) {
+      /* 8x8 ASTC: each block covers a 2x2 group of BC blocks (8 = 2*4, aligned). */
       int core_count = sysconf(_SC_NPROCESSORS_CONF);
       int num_threads = (block_y8 >= core_count) ? core_count : (block_y8 >= 4 ? 4 : 1);
       int rows_per = block_y8 / num_threads, rem = block_y8 % num_threads;
@@ -523,14 +520,14 @@ decompress_bcn_format(void *srcBuffer,
       int cur = 0;
       for (int i = 0; i < num_threads; i++) {
          int rows = rows_per + ((i < rem) ? 1 : 0);
-         args[i].src = src;                 /* full src; absolute BC addressing */
+         args[i].src = src;
          args[i].dst = dst;
-         args[i].block_x = block_x8;         /* ASTC 8x8 grid width */
-         args[i].block_x_src = block_x_src;  /* BC source row stride (blocks) */
+         args[i].block_x = block_x8;
+         args[i].block_x_src = block_x_src;
          args[i].format = format;
          args[i].block_y_count = rows;
          args[i].block_y_start = cur;
-         args[i].texel_size = block_size;    /* BC block bytes */
+         args[i].texel_size = block_size;
          args[i].bc_bx = block_x;
          args[i].bc_by = block_y;
          args[i].astc = 0;
@@ -543,9 +540,7 @@ decompress_bcn_format(void *srcBuffer,
       free(threads);
       free(args);
    } else if (wrapper_no_bcn_thread) {
-      WRAPPER_LOG(bcn, "Decompressing %dx%d BCN %d texture from main thread",
-         w, h, format);
-         
+      WRAPPER_LOG(bcn, "Decompressing %dx%d BCN %d texture from main thread", w, h, format);
       struct decompression_params args[1];
       args[0].src = src;
       args[0].dst = dst;
@@ -562,14 +557,7 @@ decompress_bcn_format(void *srcBuffer,
       decompression_routine(&args[0]);
    } else {
       int core_count = sysconf(_SC_NPROCESSORS_CONF);
-      int num_threads;
-      if (block_y >= core_count)
-         num_threads = core_count;
-      else if (block_y >= 4)
-         num_threads = 4;
-      else
-         num_threads = 1;
-      
+      int num_threads = (block_y >= core_count) ? core_count : (block_y >= 4 ? 4 : 1);
       int rows_per_thread = block_y / num_threads;
       int rem = block_y % num_threads;
 
@@ -577,8 +565,7 @@ decompress_bcn_format(void *srcBuffer,
       struct decompression_params *args = malloc(sizeof(struct decompression_params) * num_threads);
       int current_row = 0;
 
-      WRAPPER_LOG(bcn, "Decompressing %dx%d BCN %d texture using %d threads",
-         w, h, format, num_threads);
+      WRAPPER_LOG(bcn, "Decompressing %dx%d BCN %d texture using %d threads", w, h, format, num_threads);
 
       for (int i = 0; i < num_threads; i++) {
          int rows = rows_per_thread + ((i < rem) ? 1 : 0);
@@ -598,12 +585,9 @@ decompress_bcn_format(void *srcBuffer,
          current_row += rows;
       }
 
-      // 🚨 CORRECCIÓN CLAVE: Esperar de forma segura a que TODOS los hilos terminen de procesar
       for (int i = 0; i < num_threads; i++) {
          pthread_join(threads[i], NULL);
       }
-
-      // 🚨 CORRECCIÓN CLAVE: Liberar arreglos dinámicos para tapar fugas masivas de RAM
       free(threads);
       free(args);
    }
@@ -628,24 +612,21 @@ decompress_bcn_format(void *srcBuffer,
    }
 
    // --- GUARDADO SEGURO EN CACHÉ CONTRA CORRUPCIÓN ---
-   if (wrapper_use_bcn_cache && cache_filename && dst) {
+      if (wrapper_use_bcn_cache && cache_filename && dst) {
       FILE *fp = fopen(cache_filename, "wb");
       if (fp) {
          size_t length = fwrite(dst, 1, uncompressed_size, fp);
          fclose(fp);
-         
          if (length == (size_t)uncompressed_size) {
             WRAPPER_LOG(bcn, "Saved texture %s to cache", cache_filename);
          } else {
-            WRAPPER_LOG(bcn, "🚨 ERROR: Escritura incompleta de textura. Borrando caché corrupto: %s", cache_filename);
-            unlink(cache_filename); // Evita que el juego intente leer un archivo roto al reiniciar
+            WRAPPER_LOG(bcn, "🚨 ERROR: Fallo al escribir cache, borrando: %s", cache_filename);
+            unlink(cache_filename);
          }
       }
    }
 
-   // Limpieza absoluta de la ruta de texto dinámica
    if (cache_filename) {
       free(cache_filename);
    }
 }
-
