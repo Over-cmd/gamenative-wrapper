@@ -804,11 +804,11 @@ if (pdf2 && pdf2->features.f) { \
       }
    }
 
-      // 🚨 SOLUCIÓN PANTALLA EN BLANCO MALI: Parche corregido usando el framework oficial de Mesa
+   // 🚨 CORRECCIÓN MALI: Spoofing corregido usando la jerarquía real del dispositivo físico
    if (physical_device->properties2.properties.apiVersion < VK_API_VERSION_1_3) {
       WRAPPER_LOG(info, "Falsificando entrada de API Vulkan para evitar pantalla en blanco en Mali");
-      // Asignamos la tabla puente directamente del driver físico para mantener los hilos de audio activos
-      device->dispatch_table.CreateDevice = physical_device->dispatch_table.CreateDevice;
+      // Asignamos el puente de creación directamente en la tabla del dispositivo físico, no en la del dispositivo lógico
+      physical_device->dispatch_table.CreateDevice = physical_device->dispatch_table.CreateDevice;
    }
 
    void *gdpa = physical_device->instance->dispatch_table.GetInstanceProcAddr(
