@@ -593,7 +593,7 @@ wrapper_AllocateMemory(VkDevice _device,
       result = wrapper_allocate_memory_ahardware_buffer(device,
          &memory_allocate_info, pAllocator, &mem->dispatch_handle, &mem->ahardware_buffer);
    }
-      else if (strstr(device->physical->resource_type, "dmabuf")) {
+   else if (strstr(device->physical->resource_type, "dmabuf")) {
       WRAPPER_LOG(info, "Using DMABUF memory backend");
       result = wrapper_allocate_memory_dmaheap(device,
          &memory_allocate_info, pAllocator, &mem->dispatch_handle, &mem->fd);
@@ -654,7 +654,7 @@ out:
    return result;
 
 fallback:
-   // 🚨 EXCLUSIVO MALI Y AUDIO: Vaciar caché física antes de la llamada de respaldo directa de Vulkan
+// 🚨 EXCLUSIVO MALI Y AUDIO: Vaciar caché física antes de la llamada de respaldo directa de Vulkan
    __sync_synchronize();
    return device->dispatch_table.AllocateMemory(device->dispatch_handle,
       pAllocateInfo, pAllocator, pMemory);
