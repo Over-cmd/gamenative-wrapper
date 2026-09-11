@@ -804,19 +804,12 @@ if (pdf2 && pdf2->features.f) { \
       }
    }
    
-    // 🚨 SOLUCIÓN DEFINITIVA PANTALLA BLANCA Y CIERRE (32/64 BITS MALI)
-    if (physical_device->properties2.properties.apiVersion < VK_API_VERSION_1_3) {
-      WRAPPER_LOG(info, "Falsificando apiVersion a Vulkan 1.3 para evitar cierres y pantalla blanca en Mali");
+   // 🚨 SOLUCIÓN DEFINITIVA 32/64 BITS MALI: Engaño de API ultra-compatible sin romper la memoria base
+   if (physical_device->properties2.properties.apiVersion < VK_API_VERSION_1_3) {
+      WRAPPER_LOG(info, "Falsificando apiVersion a Vulkan 1.3 de forma segura para DXVK en Mali");
       
-      // En 64 bits podemos alterar ambas de forma segura
-      if (sizeof(void*) == 8) {
-         physical_device->vk.properties.apiVersion = VK_API_VERSION_1_3;
-         physical_device->properties2.properties.apiVersion = VK_API_VERSION_1_3;
-      } 
-      // En 32 bits alteramos SOLO properties2 para engañar a DXVK sin desbordar la memoria base
-      else {
-         physical_device->properties2.properties.apiVersion = VK_API_VERSION_1_3;
-      }
+      // Modificamos estrictamente las propiedades extendidas que DXVK lee al arrancar en WoW64
+      physical_device->properties2.properties.apiVersion = VK_API_VERSION_1_3;
    }
 
    void *gdpa = physical_device->instance->dispatch_table.GetInstanceProcAddr(
