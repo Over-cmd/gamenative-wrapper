@@ -465,55 +465,46 @@ wrapper_device_memory_reset(struct wrapper_device_memory *mem) {
 }
 
 VkResult
-wrapper_device_memory_create(struct wrapper_device *device,
-                             const VkAllocationCallbacks *alloc,
-                             struct wrapper_device_memory **out_mem)
+wrapper_device_memory_create( struct wrapper_device * device,
+                              const VkAllocationCallbacks * alloc,
+                              struct wrapper_device_memory ** out_mem)
 {
-   *out_mem = vk_zalloc2(&device->vk.alloc, alloc,
-                         sizeof(struct wrapper_device_memory),
+   * out_mem = vk_zalloc2(& device-> vk. alloc, alloc,
+                         sizeof( struct wrapper_device_memory),
                          8, VK_SYSTEM_ALLOCATION_SCOPE_OBJECT);
-   if (*out_mem == NULL)
+   if (* out_mem == NULL)
       return VK_ERROR_OUT_OF_HOST_MEMORY;
 
-   (*out_mem)->fd = -1;
-   (*out_mem)->device = device;
-   (*out_mem)->alloc = alloc ? alloc : &device->vk.alloc;
+   (* out_mem)-> fd = -1;
+   (* out_mem)-> device = device;
+   (* out_mem)-> alloc = alloc ? alloc : & device-> vk. alloc;
 
-   // 🚨 CORRECCIÓN MALI: Proteger la inserción en la lista global ante cargas multihilo
-   simple_mtx_lock(&device->resource_mutex);
-   list_add(&(*out_mem)->link, &device->device_memory_list);
-   simple_mtx_unlock(&device->resource_mutex);
+   list_add(&(* out_mem)-> link, & device-> device_memory_list);
 
    return VK_SUCCESS;
 }
 
 void
-wrapper_device_memory_destroy(struct wrapper_device_memory *mem) {
-   wrapper_device_memory_reset(mem);
+wrapper_device_memory_destroy( struct wrapper_device_memory * mem) {
+   wrapper_device_memory_reset( mem);
 
-   // 🚨 CORRECCIÓN MALI: Proteger la eliminación de la lista global para evitar choques de punteros
-   simple_mtx_lock(&mem->device->resource_mutex);
-   list_del(&mem->link);
-   simple_mtx_unlock(&mem->device->resource_mutex);
+   list_del(& mem-> link);
 
-   vk_free2(&mem->device->vk.alloc, mem->alloc, mem);
+   vk_free2(& mem-> device-> vk. alloc, mem-> alloc, mem);
 }
 
 static struct wrapper_device_memory *
-wrapper_device_memory_from_handle(struct wrapper_device *device,
+wrapper_device_memory_from_handle( struct wrapper_device * device,
                                   VkDeviceMemory handle) {
-   struct wrapper_device_memory *mem = NULL;
+   struct wrapper_device_memory * mem = NULL;
 
-   simple_mtx_lock(&device->resource_mutex);
-
-   list_for_each_entry(struct wrapper_device_memory, data,
-                       &device->device_memory_list, link) {
-      if (data->dispatch_handle == handle) {
+   list_for_each_entry( struct wrapper_device_memory, data,
+                       & device-> device_memory_list, link) {
+      if ( data-> dispatch_handle == handle) {
          mem = data;
       }
    }
 
-   simple_mtx_unlock(&device->resource_mutex);
    return mem;
 }
 
