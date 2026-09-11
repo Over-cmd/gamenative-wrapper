@@ -486,7 +486,7 @@ decompress_bcn_format(void *srcBuffer,
       return;
    }
 
-    * compressed source. Skips decode+encode on subsequent loads. Only touched
+   /* compressed source. Skips decode+encode on subsequent loads. Only touched
     * when explicitly enabled, so there is zero overhead by default. */
    char *cache_filename = NULL;
    if (wrapper_use_bcn_cache) {
@@ -585,7 +585,7 @@ decompress_bcn_format(void *srcBuffer,
          current_row += rows;
       }
 
-      for (int i = 0; i < num_threads; i++) {
+            for (int i = 0; i < num_threads; i++) {
          pthread_join(threads[i], NULL);
       }
       free(threads);
@@ -593,25 +593,7 @@ decompress_bcn_format(void *srcBuffer,
    }
 
    // --- GUARDADO SEGURO EN EL CACHÉ DE TEXTURAS ---
-   if (wrapper_use_bcn_cache && cache_filename) {
-      FILE *fp = fopen(cache_filename, "wb");
-      if (fp) {
-         fwrite(dst, 1, uncompressed_size, fp);
-         fclose(fp);
-      }
-      free(cache_filename); // <--- Liberación final obligatoria del texto
-   }
-}
-   
-            for (int i = 0; i < num_threads; i++) {
-         pthread_join(threads[i], NULL);
-      }
-
-      free(threads);
-      free(args);
-   }
-
-      if (wrapper_use_bcn_cache && cache_filename && dst) {
+   if (wrapper_use_bcn_cache && cache_filename && dst) {
       FILE *fp = fopen(cache_filename, "wb");
       if (fp) {
          size_t length = fwrite(dst, 1, uncompressed_size, fp);
