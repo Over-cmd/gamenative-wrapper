@@ -486,8 +486,7 @@ decompress_bcn_format(void *srcBuffer,
       return;
    }
 
-   /* Optional disk cache of the transcoded output, keyed by a hash of the
-    * compressed source. Skips decode+encode on subsequent loads. Only touched
+   /* compressed source. Skips decode+encode on subsequent loads. Only touched
     * when explicitly enabled, so there is zero overhead by default. */
    char *cache_filename = NULL;
    if (wrapper_use_bcn_cache) {
@@ -598,8 +597,29 @@ decompress_bcn_format(void *srcBuffer,
          pthread_create(&threads[i], NULL, decompression_routine, &args[i]);
          current_row += rows;
       }
-   
+
+      // 🚨 CORRECCIÓN CLAVE: Esperar de forma segura a que TODOS los hilos terminen de procesar
       for (int i = 0; i < num_threads; i++) {
+         pthread_join(threads[i], NULL);
+      }
+
+      // 🚨 CORRECCIÓN CLAVE: Liberar arreglos dinámicos para tapar fugas masivas de RAM
+      free(threads);
+      free(args);
+   }
+
+   // --- GUARDADO SEGURO EN EL CACHÉ DE TEXTURAS ---
+   if (wrapper_use_bcn_cache && cache_filename) {
+      FILE *fp = fopen(cache_filename, "wb");
+      if (fp) {
+         fwrite(dst, 1, uncompressed_size, fp);
+         fclose(fp);
+      }
+      free(cache_filename); // <--- Liberación final obligatoria del texto
+   }
+}
+   
+            for (int i = 0; i < num_threads; i++) {
          pthread_join(threads[i], NULL);
       }
 
@@ -607,20 +627,25 @@ decompress_bcn_format(void *srcBuffer,
       free(args);
    }
 
-   if (wrapper_use_bcn_cache && cache_filename) {
+   // --- GUARDADO SEGURO EN CACHÉ CONTRA CORRUPCIÓN ---
+   if (wrapper_use_bcn_cache && cache_filename && dst) {
       FILE *fp = fopen(cache_filename, "wb");
       if (fp) {
          size_t length = fwrite(dst, 1, uncompressed_size, fp);
          fclose(fp);
-         if (length == uncompressed_size)
+         
+         if (length == (size_t)uncompressed_size) {
             WRAPPER_LOG(bcn, "Saved texture %s to cache", cache_filename);
-         else {
-            WRAPPER_LOG(bcn, "Failed to save texture %s to cache", cache_filename);
-            unlink(cache_filename);
+         } else {
+            WRAPPER_LOG(bcn, "🚨 ERROR: Escritura incompleta de textura. Borrando caché corrupto: %s", cache_filename);
+            unlink(cache_filename); // Evita que el juego intente leer un archivo roto al reiniciar
          }
       }
    }
 
-   free(cache_filename);
-   
+   // Limpieza absoluta de la ruta de texto dinámica
+   if (cache_filename) {
+      free(cache_filename);
+   }
 }
+
