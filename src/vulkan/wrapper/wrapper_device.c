@@ -402,28 +402,13 @@ wrapper_UpdateDescriptorSets(VkDevice _device, uint32_t descriptorWriteCount,
          writes[i].pImageInfo = ii;
          break;
       }
-      default:
+            default:
          break;
       }
    }
-      device->dispatch_table.UpdateDescriptorSets(device->dispatch_handle,
-      descriptorWriteCount, writes, descriptorCopyCount, pDescriptorCopies);
 
-   for (uint32_t i = 0; i < descriptorWriteCount; i++) {
-      if (writes[i].pBufferInfo != pDescriptorWrites[i].pBufferInfo)
-         free((void *)writes[i].pBufferInfo);
-      if (writes[i].pImageInfo != pDescriptorWrites[i].pImageInfo)
-         free((void *)writes[i].pImageInfo);
-   }
-
-   free(writes);
-}
-   
-   // Ejecutamos la función original enviando los datos a la GPU Mali
+   // Ejecutamos la función original enviando los datos a la GPU Mali una sola vez
    device->dispatch_table.UpdateDescriptorSets(device->dispatch_handle,
-      descriptorWriteCount, writes, descriptorCopyCount, pDescriptorCopies);
-   
-      device->dispatch_table.UpdateDescriptorSets(device->dispatch_handle,
       descriptorWriteCount, writes, descriptorCopyCount, pDescriptorCopies);
 
    // 🚨 LIBERACIÓN CRÍTICA SEGURA: Comparamos directamente los punteros modificados
