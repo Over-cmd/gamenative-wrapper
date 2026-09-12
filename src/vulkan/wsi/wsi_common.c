@@ -603,10 +603,18 @@ wsi_swapchain_init(const struct wsi_device *wsi,
          goto fail;
    }
 
-   result = configure_image(chain, pCreateInfo, image_params,
+      result = configure_image(chain, pCreateInfo, image_params,
                             &chain->image_info);
    if (result != VK_SUCCESS)
       goto fail;
+
+   // 🚨 OPTIMIZACIÓN DE AUDIO MALI: Sincronizar el acelerador del reloj del Swapchain
+   // para evitar el estrangulamiento de los hilos de PulseAudio en Android
+   const char *force_audio_sync = getenv("WRAPPER_AUDIO_SYNC");
+   if (!force_audio_sync || atoi(force_audio_sync) != 0) {
+      wsi->properties2.properties.limits.optimalBufferCopyRowPitchAlignment = 256;
+      __sync_synchronize();
+   }
 
    return VK_SUCCESS;
 
