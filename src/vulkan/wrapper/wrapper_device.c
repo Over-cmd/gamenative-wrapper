@@ -363,6 +363,49 @@ wrapper_UpdateDescriptorSets(VkDevice _device, uint32_t descriptorWriteCount,
       malloc(sizeof(VkWriteDescriptorSet) * descriptorWriteCount);
    memcpy(writes, pDescriptorWrites, sizeof(VkWriteDescriptorSet) * descriptorWriteCount);
 
+   for (uint32_t i = 0; i < descriptorWriteCount; i++) {
+      const VkWriteDescriptorSet *w = &pDescriptorWrites[i];
+      uint32_t n = w->descriptorCount;
+      switch (w->descriptorType) {
+      case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER:
+      case VK_DESCRIPTOR_TYPE_STORAGE_BUFFER:
+      case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC:
+      case VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC: {
+         VkDescriptorBufferInfo *bi = malloc(sizeof(*bi) * n);
+         memcpy(bi, w->pBufferInfo, sizeof(*bi) * n);
+         for (uint32_t j = 0; j < n; j++)
+            if (bi[j].buffer == VK_NULL_HANDLE) {
+               bi[j].buffer = device->null_buffer;
+               bi[j].offset = 0; bi[j].range = VK_WHOLE_SIZE;
+            }
+         writes[i].pBufferInfo = bi;
+         break;
+      }
+      case VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE:
+      case VK_DESCRIPTOR_TYPE_STORAGE_IMAGE:
+      case VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER:
+      case VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT:
+      case VK_DESCRIPTOR_TYPE_SAMPLER: {
+         VkDescriptorImageInfo *ii = malloc(sizeof(*ii) * n);
+         memcpy(ii, w->pImageInfo, sizeof(*ii) * n);
+         for (uint32_t j = 0; j < n; j++) {
+            if ((w->descriptorType != VK_DESCRIPTOR_TYPE_SAMPLER) &&
+                ii[j].imageView == VK_NULL_HANDLE) {
+               ii[j].imageView = device->null_image_view;
+               ii[j].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+            }
+            if ((w->descriptorType == VK_DESCRIPTOR_TYPE_SAMPLER ||
+                 w->descriptorType == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER) &&
+                ii[j].sampler == VK_NULL_HANDLE)
+               ii[j].sampler = device->null_sampler;
+         }
+         writes[i].pImageInfo = ii;
+         break;
+      }
+      default:
+         break;
+      }
+   }
       device->dispatch_table.UpdateDescriptorSets(device->dispatch_handle,
       descriptorWriteCount, writes, descriptorCopyCount, pDescriptorCopies);
 
