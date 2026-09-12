@@ -1016,7 +1016,7 @@ wrapper_BindBufferMemory2(VkDevice _device,
       return res;
    }
 
-   for (uint32_t i = 0; i < bindInfoCount; i++) {
+      for (uint32_t i = 0; i < bindInfoCount; i++) {
       struct wrapper_buffer *wb =
          get_wrapper_buffer_from_handle(device, pBindInfos[i].buffer);
       if (wb) {
@@ -1024,6 +1024,9 @@ wrapper_BindBufferMemory2(VkDevice _device,
          wb->offset = pBindInfos[i].memoryOffset;
       }
    }
+
+   // 🚨 EXCLUSIVO MALI Y AUDIO: Vaciar la caché del procesador tras vincular la memoria
+   __sync_synchronize();
 
    return VK_SUCCESS;
 }
