@@ -86,7 +86,6 @@ struct wrapper_device {
    // 🚨 EXCLUSIVO MALI: Forzamos lectura directa en RAM para evitar hilos cruzados corruptos
    volatile bool emulate_null_descriptor;
    volatile bool device_fault_enabled;
-};
 
    /* VK_KHR_push_descriptor emulation (for drivers lacking it, e.g. Mali r44).
     * Enabled when the app uses push descriptors and either the base driver
