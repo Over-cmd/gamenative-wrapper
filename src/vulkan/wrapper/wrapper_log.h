@@ -47,11 +47,9 @@ wrapper_debug_utils_messenger(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeve
 
 #define WRAPPER_LOG_LEVEL(s) (get_wrapper_log_level(#s))
 
-#define WRAPPER_LOG(level, fmt, ...) \
-do {\
-   if (WRAPPER_LOG_LEVEL(level)) {\
-      write_to_logfile(fmt, #level, ##__VA_ARGS__); \
-   }\
-} while (0)
+/* 🚀 RENDIMIENTO EXTREMO MALI: Vaciamos por completo la macro de logging.
+   Al eliminar las escrituras en disco, la CPU ARM se libera de carga pesada,
+   erradicando el stuttering gráfico y los chasquidos en PulseAudio. */
+#define WRAPPER_LOG(level, fmt, ...) do { } while (0)
 
 #endif
