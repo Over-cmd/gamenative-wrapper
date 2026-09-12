@@ -37,8 +37,11 @@ struct wrapper_physical_device {
    struct vk_physical_device vk;
 
    int dma_heap_fd;
-   int emulate_bcn;
-   bool is_vkd3d;
+   
+   // 🚨 EXCLUSIVO MALI Y AUDIO: Forzamos la lectura directa en RAM de los estados críticos
+   volatile int emulate_bcn;
+   volatile bool is_vkd3d;
+   
    char *resource_type;
    VkPhysicalDevice dispatch_handle;
    VkPhysicalDeviceProperties2 properties2;
@@ -80,8 +83,10 @@ struct wrapper_device {
    struct wrapper_physical_device *physical;
    struct vk_device_dispatch_table dispatch_table;
 
-   bool emulate_null_descriptor;
-   bool device_fault_enabled;
+   // 🚨 EXCLUSIVO MALI: Forzamos lectura directa en RAM para evitar hilos cruzados corruptos
+   volatile bool emulate_null_descriptor;
+   volatile bool device_fault_enabled;
+};
 
    /* VK_KHR_push_descriptor emulation (for drivers lacking it, e.g. Mali r44).
     * Enabled when the app uses push descriptors and either the base driver
