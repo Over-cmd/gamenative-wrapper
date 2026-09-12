@@ -188,8 +188,12 @@ wrapper_setup_device_features(struct wrapper_physical_device *physical_device)
    __vk_append_struct(&supported_features2, &supported_${f.c_type});
 % endfor
 
-   physical_device->dispatch_table.GetPhysicalDeviceFeatures2(
+    physical_device->dispatch_table.GetPhysicalDeviceFeatures2(
       vk_physical_device, &supported_features2);
+
+   /* 🚨 OPTIMIZACIÓN MALI: Forzar vaciado de caché física al vuelo tras recopilar extensiones
+      Esto evita que la memoria compartida corrompa los hilos al arrancar el contenedor */
+   __sync_synchronize();
 
    vk_set_physical_device_features(&physical_device->vk.supported_features,
                                    &supported_features2);
