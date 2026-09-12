@@ -126,7 +126,7 @@ x11_dri3_check_multibuffer(xcb_connection_t *c, bool *err, bool *explicit_modifi
       goto error;
    }
 
-   int dri3Major = dri3_reply->major_version;
+      int dri3Major = dri3_reply->major_version;
    int dri3Minor = dri3_reply->minor_version;
    free(dri3_reply);
 
@@ -139,14 +139,16 @@ x11_dri3_check_multibuffer(xcb_connection_t *c, bool *err, bool *explicit_modifi
    int presentMinor = present_reply->minor_version;
    free(present_reply);
 
-#ifdef HAVE_X11_DRM
-   if (presentMajor > 1 || (presentMajor == 1 && presentMinor >= 2)) {
-      *explicit_modifiers = dri3Major > 1 || (dri3Major == 1 && dri3Minor >= 2);
-      if (dri3Major >= 1)
-         return true;
+   // 🚨 OPTIMIZACIÓN CRÍTICA UNISOC: Forzamos la activación de modificadores explícitos
+   // y multibúfer ignorando las restricciones heredadas de compresión de PC.
+   *explicit_modifiers = (dri3Major > 1 || (dri3Major == 1 && dri3Minor >= 2));
+   
+   if (dri3Major >= 1 && presentMajor >= 1) {
+      return true;
    }
-#endif
+
    return false;
+
 error:
    *err = true;
    return false;
