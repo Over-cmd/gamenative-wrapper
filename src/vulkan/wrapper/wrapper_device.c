@@ -777,6 +777,15 @@ if (pdf2 && pdf2->features.f) { \
       if (result != VK_SUCCESS) {
          WRAPPER_LOG(error, "Failed driver createDevice, res %d", result);
          wrapper_emit_diag(physical_device, pCreateInfo, result);
+         
+         // 🚨 PARCHE DE MEMORIA: Si colapsa el inicio definitivo, liberamos las tablas hash globales
+         if (device->image_table) _mesa_hash_table_u64_destroy(device->image_table);
+         if (device->buffer_table) _mesa_hash_table_u64_destroy(device->buffer_table);
+         if (device->fence_table) _mesa_hash_table_u64_destroy(device->fence_table);
+         
+         simple_mtx_destroy(&device->resource_mutex);
+         simple_mtx_destroy(&device->bcn_gpu_mutex);
+         
          wrapper_DestroyDevice(wrapper_device_to_handle(device),
                                &device->vk.alloc);
          return vk_error(physical_device, result);
@@ -992,7 +1001,7 @@ wrapper_BindBufferMemory2(VkDevice _device,
       return res;
    }
 
-   for (uint32_t i = 0; i < bindInfoCount; i++) {
+      for (uint32_t i = 0; i < bindInfoCount; i++) {
       struct wrapper_buffer *wb =
          get_wrapper_buffer_from_handle(device, pBindInfos[i].buffer);
       if (wb) {
@@ -1001,8 +1010,12 @@ wrapper_BindBufferMemory2(VkDevice _device,
       }
    }
 
+   // 🚨 EXCLUSIVO MALI Y AUDIO: Vaciar la caché del procesador tras vincular la memoria
+   __sync_synchronize();
+
    return VK_SUCCESS;
 }
+
 
 VKAPI_ATTR void VKAPI_CALL
 wrapper_DestroyBuffer(VkDevice _device,
