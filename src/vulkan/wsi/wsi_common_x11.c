@@ -449,11 +449,12 @@ wsi_x11_get_connection(struct wsi_device *wsi_dev,
 // to ALWAYS be B8G8R8A8_UNORM, regardless of the advertised format.
 // Until we can swizzle+copy the image (and we cannot use a vkCmdBlitImage)
 // we must always advertise B8G8R8A8_UNORM as the primary image format.
+// 🚨 OPTIMIZACIÓN EN MALI: Ponemos el formato nativo de PC de primero para evitar congelamientos en DXVK
 static const VkFormat formats[] = {
-   VK_FORMAT_R5G6B5_UNORM_PACK16,
-   VK_FORMAT_B8G8R8A8_SRGB,
    VK_FORMAT_B8G8R8A8_UNORM,
+   VK_FORMAT_B8G8R8A8_SRGB,
    VK_FORMAT_A2R10G10B10_UNORM_PACK32,
+   VK_FORMAT_R5G6B5_UNORM_PACK16,
 };
 
 static const VkPresentModeKHR present_modes[] = {
