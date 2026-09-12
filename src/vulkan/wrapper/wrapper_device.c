@@ -1911,11 +1911,20 @@ wrapper_QueueSubmit(VkQueue _queue, uint32_t submitCount,
       wrapper_submits[i].pCommandBuffers = command_buffers;
    }
 
-   result = queue->device->dispatch_table.QueueSubmit(
+      result = queue->device->dispatch_table.QueueSubmit(
       queue->dispatch_handle, submitCount, wrapper_submits, fence);
 
    if (result == VK_ERROR_DEVICE_LOST)
       wrapper_log_device_fault(queue->device);
+
+   // 🚨 EXCLUSIVO MALI: Vaciamos la caché física para estabilizar el enlazado de memoria compartida
+   __sync_synchronize();
+
+   // 🚨 SOLUCIÓN DEFINITIVA DE AUDIO: Cedemos un microsegundo de respiro al procesador central.
+   // Esto evita que las ráfagas de comandos gráficos asfixien el búfer de PulseAudio en Android.
+   if (result == VK_SUCCESS) {
+      usleep(1);
+   }
 
    for (int i = 0; i < submitCount; i++)
       free((void *)wrapper_submits[i].pCommandBuffers);
