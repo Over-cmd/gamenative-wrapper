@@ -410,6 +410,8 @@ wrapper_UpdateDescriptorSets(VkDevice _device, uint32_t descriptorWriteCount,
    // Ejecutamos la función original enviando los datos a la GPU Mali una sola vez
    device->dispatch_table.UpdateDescriptorSets(device->dispatch_handle,
       descriptorWriteCount, writes, descriptorCopyCount, pDescriptorCopies);
+   
+   __sync_synchronize();
 
    // 🚨 LIBERACIÓN CRÍTICA SEGURA: Comparamos directamente los punteros modificados
    for (uint32_t i = 0; i < descriptorWriteCount; i++) {
