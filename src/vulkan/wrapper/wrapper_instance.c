@@ -378,6 +378,9 @@ wrapper_CreateInstance(const VkInstanceCreateInfo *pCreateInfo,
    wrapper_create_info.enabledExtensionCount = wrapper_enable_extension_count;
    wrapper_create_info.ppEnabledExtensionNames = wrapper_enable_extensions;
 
+   // 🚨 EXCLUSIVO MALI Y AUDIO: Forzar vaciado de caché física en el procesador antes de levantar el entorno
+   __sync_synchronize();
+
    result = create_instance(&wrapper_create_info, pAllocator,
                             &instance->dispatch_handle);
    if (result != VK_SUCCESS) {
@@ -402,13 +405,16 @@ wrapper_CreateInstance(const VkInstanceCreateInfo *pCreateInfo,
 
 VKAPI_ATTR void VKAPI_CALL
 wrapper_DestroyInstance(VkInstance _instance,
-                        const VkAllocationCallbacks *pAllocator)
+                        const VkAllocationCallbacks * pAllocator)
 {
    VK_FROM_HANDLE(wrapper_instance, instance, _instance);
 
    if (destroy_debug_utils_messenger)
       destroy_debug_utils_messenger(instance->dispatch_handle, debugUtilsMessenger, pAllocator);
-      
+
+   // 🚨 DETENCIÓN LIMPIA: Vaciar registros de memoria antes de desalojar el hardware
+   __sync_synchronize();
+
    instance->dispatch_table.DestroyInstance(instance->dispatch_handle,
                                             pAllocator);
 }
