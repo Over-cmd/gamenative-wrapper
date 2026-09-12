@@ -898,12 +898,15 @@ wrapper_GetPhysicalDeviceFormatProperties(VkPhysicalDevice physicalDevice,
          
       if (pdevice->emulate_bcn > 0) {
          pFormatProperties->optimalTilingFeatures |= VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT | VK_FORMAT_FEATURE_BLIT_SRC_BIT | VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT | VK_FORMAT_FEATURE_TRANSFER_DST_BIT;
+         
+         // 🚨 EXCLUSIVO MALI: Forzar vaciado de memoria caché tras mutar las propiedades del formato
+         __sync_synchronize();
          return;
       }
       break;
    default:
       break;   
-   }
+}
    
    pdevice->dispatch_table.GetPhysicalDeviceFormatProperties(pdevice->dispatch_handle,
       format, pFormatProperties);
@@ -953,6 +956,9 @@ wrapper_GetPhysicalDeviceFormatProperties2(VkPhysicalDevice physicalDevice,
                ((VkFormatProperties3 *)s)->optimalTilingFeatures |= bc;
             s = s->pNext;
          }
+
+         // 🚨 COMPATIBILIDAD WOW64: Sincronizar registros antes de abandonar el túnel de Vulkan
+         __sync_synchronize();
       }
       break;
    default:
