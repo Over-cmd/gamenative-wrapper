@@ -76,8 +76,11 @@ ${e.prefixed_name('wrapper_tramp')}(${e.decl_params()})
     VK_FROM_HANDLE(wrapper_physical_device, vk_physical_device, ${e.params[0].name});
   % if e.return_type == 'void':
     vk_physical_device->dispatch_table.${e.name}(vk_physical_device->dispatch_handle, ${e.call_params(1)});
+    __sync_synchronize();
   % else:
-    return vk_physical_device->dispatch_table.${e.name}(vk_physical_device->dispatch_handle, ${e.call_params(1)});
+    ${e.return_type} result = vk_physical_device->dispatch_table.${e.name}(vk_physical_device->dispatch_handle, ${e.call_params(1)});
+    __sync_synchronize();
+    return result;
   % endif
 }
   % if e.guard is not None:
@@ -118,12 +121,15 @@ ${e.prefixed_name('wrapper_tramp')}(${e.decl_params()})
       % else:
     vk_device->dispatch_table.${e.name}(vk_device->dispatch_handle);
       % endif
+    __sync_synchronize();
     % else:
       % if len(e.params) > 1:
-    return vk_device->dispatch_table.${e.name}(vk_device->dispatch_handle, ${e.call_params(1)});
+    ${e.return_type} result = vk_device->dispatch_table.${e.name}(vk_device->dispatch_handle, ${e.call_params(1)});
       % else:
-    return vk_device->dispatch_table.${e.name}(vk_device->dispatch_handle);
+    ${e.return_type} result = vk_device->dispatch_table.${e.name}(vk_device->dispatch_handle);
       % endif
+    __sync_synchronize();
+    return result;
     % endif
   % elif e.params[0].type == 'VkCommandBuffer':
     VK_FROM_HANDLE(wrapper_command_buffer, wcb, ${e.params[0].name});
@@ -133,12 +139,15 @@ ${e.prefixed_name('wrapper_tramp')}(${e.decl_params()})
       % else:
     wcb->device->dispatch_table.${e.name}(wcb->dispatch_handle);
       % endif
+    __sync_synchronize();
     % else:
       % if len(e.params) > 1:
-    return wcb->device->dispatch_table.${e.name}(wcb->dispatch_handle, ${e.call_params(1)});
+    ${e.return_type} result = wcb->device->dispatch_table.${e.name}(wcb->dispatch_handle, ${e.call_params(1)});
       % else:
-    return wcb->device->dispatch_table.${e.name}(wcb->dispatch_handle);
+    ${e.return_type} result = wcb->device->dispatch_table.${e.name}(wcb->dispatch_handle);
       % endif
+    __sync_synchronize();
+    return result;
     % endif
   % elif e.params[0].type == 'VkQueue':
     VK_FROM_HANDLE(wrapper_queue, wqueue, ${e.params[0].name});
@@ -148,12 +157,15 @@ ${e.prefixed_name('wrapper_tramp')}(${e.decl_params()})
       % else:
     wqueue->device->dispatch_table.${e.name}(wqueue->dispatch_handle);
       % endif
+    __sync_synchronize();
     % else:
       % if len(e.params) > 1:
-    return wqueue->device->dispatch_table.${e.name}(wqueue->dispatch_handle, ${e.call_params(1)});
+    ${e.return_type} result = wqueue->device->dispatch_table.${e.name}(wqueue->dispatch_handle, ${e.call_params(1)});
       % else:
-    return wqueue->device->dispatch_table.${e.name}(wqueue->dispatch_handle);
+    ${e.return_type} result = wqueue->device->dispatch_table.${e.name}(wqueue->dispatch_handle);
       % endif
+    __sync_synchronize();
+    return result;
     % endif
   % else:
     assert(!"Unhandled device child trampoline case: ${e.params[0].type}");
