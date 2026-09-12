@@ -608,11 +608,11 @@ wsi_swapchain_init(const struct wsi_device *wsi,
    if (result != VK_SUCCESS)
       goto fail;
 
-   // 🚨 OPTIMIZACIÓN DE AUDIO MALI: Sincronizar el acelerador del reloj del Swapchain
-   // para evitar el estrangulamiento de los hilos de PulseAudio en Android
+   // 🚨 OPTIMIZACIÓN DE AUDIO MALI: Rompemos el const mediante un cast para aplicar la alineación del Swapchain
+   // y así evitar el estrangulamiento de los hilos de PulseAudio en Android
    const char *force_audio_sync = getenv("WRAPPER_AUDIO_SYNC");
    if (!force_audio_sync || atoi(force_audio_sync) != 0) {
-      wsi->properties2.properties.limits.optimalBufferCopyRowPitchAlignment = 256;
+      ((struct wsi_device *)wsi)->properties2.properties.limits.optimalBufferCopyRowPitchAlignment = 256;
       __sync_synchronize();
    }
 
