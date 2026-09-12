@@ -298,7 +298,9 @@ static const int16_t astc_pinv8[16][64] = {
   {0,0,0,0,0,0,-2,-3,0,0,0,0,-1,0,2,4,0,0,0,0,-2,-1,5,10,0,0,0,1,0,-1,-3,-4,0,-1,-2,0,5,5,-10,-25,0,0,-1,-1,5,-2,-9,-16,-2,2,5,-3,-10,-9,33,75,-3,4,10,-4,-25,-16,75,166},
 };
 
-static inline int astc_round(double x) { return (int)(x >= 0 ? x + 0.5 : x - 0.5); }
+static inline int __attribute__((const)) astc_round(float x) { 
+   return (int)(x >= 0.0f ? x + 0.5f : x - 0.5f); 
+}
 
 /* Farthest RGB pair over 64 texels. */
 static inline void
@@ -337,23 +339,23 @@ astc_encode_rgb_8x8(const uint8_t texels[256], uint8_t out[16])
    int dir[3]; long dlen2 = 0;
    for (int c = 0; c < 3; c++) { dir[c] = e1[c] - e0[c]; dlen2 += (long)dir[c] * dir[c]; }
 
-   double ideal[64];
+   float ideal[64];
    for (int t = 0; t < 64; t++) {
-      double w;
-      if (dlen2 == 0) w = 0;
+      float w;
+      if (dlen2 == 0) w = 0.0f;
       else {
          long dot = 0;
          for (int c = 0; c < 3; c++) dot += (long)(texels[t * 4 + c] - e0[c]) * dir[c];
-         double f = (double)dot / (double)dlen2;
-         if (f < 0) f = 0; if (f > 1) f = 1;
-         w = f * 7.0;
+         float f = (float)dot / (float)dlen2;
+         if (f < 0.0f) f = 0.0f; if (f > 1.0f) f = 1.0f;
+         w = f * 7.0f;
       }
       ideal[t] = w;
    }
    for (int g = 0; g < 16; g++) {
-      double a = 0;
-      for (int t = 0; t < 64; t++) a += astc_pinv8[g][t] * ideal[t];
-      int q = astc_round(a / 256.0);
+      float a = 0.0f;
+      for (int t = 0; t < 64; t++) a += (float)astc_pinv8[g][t] * ideal[t];
+      int q = astc_round(a / 256.0f);
       if (q < 0) q = 0; if (q > 7) q = 7;
       astc_set_bits(out, 128 - (g + 1) * 3, 3, astc_reverse_bits((uint32_t)q, 3));
    }
@@ -392,31 +394,34 @@ astc_encode_rgba_8x8(const uint8_t texels[256], uint8_t out[16])
    for (int c = 0; c < 3; c++) { dir[c] = e1[c] - e0[c]; dlen2 += (long)dir[c] * dir[c]; }
    int arange = amax - amin;
 
-   double id0[64], id1[64];
+   float id0[64], id1[64];
    for (int t = 0; t < 64; t++) {
-      double w0;
-      if (dlen2 == 0) w0 = 0;
+      float w0;
+      if (dlen2 == 0) w0 = 0.0f;
       else {
          long dot = 0;
          for (int c = 0; c < 3; c++) dot += (long)(texels[t * 4 + c] - e0[c]) * dir[c];
-         double f = (double)dot / (double)dlen2;
-         if (f < 0) f = 0; if (f > 1) f = 1;
-         w0 = f * 3.0;
+         float f = (float)dot / (float)dlen2;
+         if (f < 0.0f) f = 0.0f; if (f > 1.0f) f = 1.0f;
+         w0 = f * 3.0f;
       }
-      double w1;
-      if (arange == 0) w1 = 0;
+      float w1;
+      if (arange == 0) w1 = 0.0f;
       else {
-         double f = (double)(texels[t * 4 + 3] - amin) / (double)arange;
-         if (f < 0) f = 0; if (f > 1) f = 1;
-         w1 = f * 3.0;
+         float f = (float)(texels[t * 4 + 3] - amin) / (float)arange;
+         if (f < 0.0f) f = 0.0f; if (f > 1.0f) f = 1.0f;
+         w1 = f * 3.0f;
       }
-      if (swap) { w0 = 3.0 - w0; w1 = 3.0 - w1; }
+      if (swap) { w0 = 3.0f - w0; w1 = 3.0f - w1; }
       id0[t] = w0; id1[t] = w1;
    }
    for (int g = 0; g < 16; g++) {
-      double a0 = 0, a1 = 0;
-      for (int t = 0; t < 64; t++) { a0 += astc_pinv8[g][t] * id0[t]; a1 += astc_pinv8[g][t] * id1[t]; }
-      int q0 = astc_round(a0 / 256.0), q1 = astc_round(a1 / 256.0);
+      float a0 = 0.0f, a1 = 0.0f;
+      for (int t = 0; t < 64; t++) { 
+         a0 += (float)astc_pinv8[g][t] * id0[t]; 
+         a1 += (float)astc_pinv8[g][t] * id1[t]; 
+      }
+      int q0 = astc_round(a0 / 256.0f), q1 = astc_round(a1 / 256.0f);
       if (q0 < 0) q0 = 0; if (q0 > 3) q0 = 3;
       if (q1 < 0) q1 = 0; if (q1 > 3) q1 = 3;
       astc_set_bits(out, 128 - (2 * g + 1) * 2, 2, astc_reverse_bits((uint32_t)q0, 2));
