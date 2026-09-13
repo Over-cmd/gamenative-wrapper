@@ -1024,6 +1024,11 @@ wrapper_DestroyBuffer(VkDevice _device,
    VK_FROM_HANDLE(wrapper_device, device, _device);
 
    struct wrapper_buffer *wb = get_wrapper_buffer_from_handle(device, buffer);
+   
+   // 🚨 ANTI-FUGAS MALI: Sincronizamos la caché de la CPU ARM con la GPU Mali-G52
+   // antes de eliminar el búfer para evitar que queden registros huérfanos en la RAM unificada.
+   __sync_synchronize();
+
    wrapper_buffer_destroy(device, wb, pAllocator);
 }
 
@@ -2921,6 +2926,15 @@ wrapper_DestroyDevice(VkDevice _device, const VkAllocationCallbacks* pAllocator)
       vk_queue_finish(queue);
       vk_free2(&device->vk.alloc, pAllocator, queue);
    }
+
+   /* 🚨 PARCHE MASTER ANTI-FUGAS MALI: Si hay bytes de texturas remanentes en vuelo,
+      forzamos a la GPU Mali-G52 a vaciarlos y liberar la RAM antes de apagar el dispositivo. */
+   if (device->physical->bcn_gpu_inflight > 0) {
+      device->dispatch_table.DeviceWaitIdle(device->dispatch_handle);
+      device->physical->bcn_gpu_inflight = 0;
+      __sync_synchronize();
+   }
+
    if (device->dispatch_handle != VK_NULL_HANDLE) {
       device->dispatch_table.DestroyDevice(device->
          dispatch_handle, pAllocator);
