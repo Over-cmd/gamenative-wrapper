@@ -42,6 +42,12 @@ struct wrapper_physical_device {
    volatile int emulate_bcn;
    volatile bool is_vkd3d;
    
+   // 🚨 DETECTOR DE SILICIO MALI: Forzamos la activación de extensiones avanzadas
+   // basadas en las capacidades físicas de OpenGL ES verificadas en la tablet.
+   bool has_tessellation_shaders;
+   bool has_geometry_shaders;
+   bool has_custom_bgra_formats;
+   
    char *resource_type;
    VkPhysicalDevice dispatch_handle;
    VkPhysicalDeviceProperties2 properties2;
