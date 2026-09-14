@@ -402,7 +402,7 @@ wrapper_UpdateDescriptorSets(VkDevice _device, uint32_t descriptorWriteCount,
          writes[i].pImageInfo = ii;
          break;
       }
-            default:
+      default:
          break;
       }
    }
@@ -412,6 +412,14 @@ wrapper_UpdateDescriptorSets(VkDevice _device, uint32_t descriptorWriteCount,
       descriptorWriteCount, writes, descriptorCopyCount, pDescriptorCopies);
    
    __sync_synchronize();
+
+   /* 🚨 PARCHE DEFINITIVO ANTI-FUGAS MALI: Si hay registros acumulados en vuelo en el dispositivo físico,
+      forzamos un vaciado preventivo inmediato para no ahogar la RAM unificada del chip Unisoc. */
+   if (device->physical->bcn_gpu_inflight > 0) {
+      device->dispatch_table.DeviceWaitIdle(device->dispatch_handle);
+      device->physical->bcn_gpu_inflight = 0;
+      __sync_synchronize();
+   }
 
    // 🚨 LIBERACIÓN CRÍTICA SEGURA: Comparamos directamente los punteros modificados
    for (uint32_t i = 0; i < descriptorWriteCount; i++) {
@@ -790,6 +798,11 @@ if (pdf2 && pdf2->features.f) { \
          return vk_error(physical_device, result);
       }
    }
+   
+   /* 🚨 BLINDAJE MASTER PANFROST: Al arrancar el dispositivo con éxito total,
+      forzamos que el contador de bytes comience en un cero absoluto y vaciamos la caché. */
+   physical_device->bcn_gpu_inflight = 0;
+   __sync_synchronize();
    
    // 🚨 SOLUCIÓN DEFINITIVA 32/64 BITS MALI: Engaño de API ultra-compatible sin romper la memoria base
    if (physical_device->properties2.properties.apiVersion < VK_API_VERSION_1_3) {
