@@ -801,7 +801,7 @@ if (pdf2 && pdf2->features.f) { \
    
    /* 🚨 BLINDAJE MASTER PANFROST: Al arrancar el dispositivo con éxito total,
       forzamos que el contador de bytes comience en un cero absoluto y vaciamos la caché. */
-   physical_device->bcn_gpu_inflight = 0;
+   device->bcn_gpu_inflight = 0;
    __sync_synchronize();
    
    // 🚨 SOLUCIÓN DEFINITIVA 32/64 BITS MALI: Engaño de API ultra-compatible sin romper la memoria base
@@ -811,6 +811,7 @@ if (pdf2 && pdf2->features.f) { \
       // Modificamos estrictamente las propiedades extendidas que DXVK lee al arrancar en WoW64
       physical_device->properties2.properties.apiVersion = VK_API_VERSION_1_3;
    }
+
 
    void *gdpa = physical_device->instance->dispatch_table.GetInstanceProcAddr(
       physical_device->instance->dispatch_handle, "vkGetDeviceProcAddr");
@@ -2941,10 +2942,11 @@ wrapper_DestroyDevice(VkDevice _device, const VkAllocationCallbacks* pAllocator)
    }
 
    /* 🚨 PARCHE MASTER ANTI-FUGAS MALI: Si hay bytes de texturas remanentes en vuelo,
-      forzamos a la GPU Mali-G52 a vaciarlos y liberar la RAM antes de apagar el dispositivo. */
-   if (device->physical->bcn_gpu_inflight > 0) {
+      forzamos a la GPU Mali-G52 a vaciarlos y liberar la RAM antes de apagar el dispositivo.
+      Corregido: Apuntamos directo a la raíz lógica de 'device->' */
+   if (device->bcn_gpu_inflight > 0) {
       device->dispatch_table.DeviceWaitIdle(device->dispatch_handle);
-      device->physical->bcn_gpu_inflight = 0;
+      device->bcn_gpu_inflight = 0;
       __sync_synchronize();
    }
 
