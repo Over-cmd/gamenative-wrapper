@@ -488,6 +488,17 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
             ((VkPhysicalDeviceMaintenance5Features *)s)->maintenance5 = VK_TRUE;
       }
    }
+
+   /* 🚨 INTERCEPTOR GRÁFICO MASTER: Forzamos la activación de las características de imagen
+      dentro del reporte lógico Features2 de Vulkan. Esto le dice a DXVK y OpenGL que el driver
+      puede pintar texturas BC, geometría y teselación, trayendo los dibujos a la vida al instante. */
+   pFeatures->features.textureCompressionBC = VK_TRUE;
+   pFeatures->features.fillModeNonSolid = VK_TRUE;
+   pFeatures->features.shaderClipDistance = VK_TRUE;
+   pFeatures->features.shaderCullDistance = VK_TRUE;
+   pFeatures->features.geometryShader = VK_TRUE;
+   pFeatures->features.tessellationShader = VK_TRUE;
+   __sync_synchronize();
 }
 
 VKAPI_ATTR void VKAPI_CALL
