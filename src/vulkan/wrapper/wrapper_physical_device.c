@@ -440,9 +440,21 @@ wrapper_EnumerateDeviceExtensionProperties(VkPhysicalDevice physicalDevice,
 
 VKAPI_ATTR void VKAPI_CALL
 wrapper_GetPhysicalDeviceFeatures(VkPhysicalDevice physicalDevice,
-                                  VkPhysicalDeviceFeatures* pFeatures) 
+                                  VkPhysicalDeviceFeatures* pFeatures)
 {
-   return vk_common_GetPhysicalDeviceFeatures(physicalDevice, pFeatures);
+   vk_common_GetPhysicalDeviceFeatures(physicalDevice, pFeatures);
+
+   /* 🚨 RESURRECCIÓN DE IMAGEN NATIVA: Forzamos la activación de texturas comprimidas 
+      y shaders avanzados directamente en la tabla base de características de Vulkan.
+      Esto es lo que el backend de OpenGL (Zink) y DXVK leen de forma obligatoria 
+      para pintar los dibujos en pantalla en tu chip Unisoc sin quedarse a oscuras. */
+   pFeatures->textureCompressionBC = VK_TRUE;
+   pFeatures->fillModeNonSolid = VK_TRUE;
+   pFeatures->shaderClipDistance = VK_TRUE;
+   pFeatures->shaderCullDistance = VK_TRUE;
+   pFeatures->geometryShader = VK_TRUE;
+   pFeatures->tessellationShader = VK_TRUE;
+   __sync_synchronize();
 }
 
 VKAPI_ATTR void VKAPI_CALL
