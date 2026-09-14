@@ -81,7 +81,6 @@ get_wrapper_fence_from_handle(struct wrapper_device *device, VkFence fence) {
 }
 
 static void
-static void
 wrapper_filter_enabled_extensions(const struct wrapper_device *device,
                                   uint32_t *enable_extension_count,
                                   const char **enable_extensions)
