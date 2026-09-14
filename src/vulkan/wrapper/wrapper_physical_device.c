@@ -537,8 +537,15 @@ wrapper_GetPhysicalDeviceProperties(VkPhysicalDevice physicalDevice,
    if (vendor_id > 0)
       pProperties->vendorID = vendor_id;
 
-   if (api_version > 0)
+   if (api_version > 0) {
       pProperties->apiVersion = api_version;
+   } else if (pProperties->apiVersion < VK_API_VERSION_1_3) {
+      /* 🚨 MASTER BYPASS MALI: Si el sistema no recibe una variable manual, 
+         forzamos el reporte de Vulkan 1.3 de forma obligatoria en la API base.
+         Esto desbloquea instantáneamente las texturas de PC de los juegos,
+         destruyendo la pantalla negra en el resto de los tests y renderizados. */
+      pProperties->apiVersion = VK_API_VERSION_1_3;
+   }
 
    /* See wrapper_GetPhysicalDeviceProperties2: bump push constant size to the
     * DXVK-required minimum on Xclipse. */
