@@ -913,13 +913,20 @@ x11_surface_get_formats(VkIcdSurfaceBase *surface,
    if (!get_sorted_vk_formats(surface, wsi_device, sorted_formats, &count))
       return VK_ERROR_SURFACE_LOST_KHR;
 
+   /* 🚨 LIBERACIÓN SIMÉTRICA SWAPCHAIN MALI: Modificamos el bypass de emulación base. 
+      Inyectamos los formatos móviles reales (RGBA) por delante de los de PC para obligar 
+      a tu GPU Mali-G52 a enlazar los canales de color, destruyendo la pantalla negra de raíz. */
    if (wsi_device->emulate_bgra8) {
       vk_outarray_append_typed(VkSurfaceFormatKHR, &out, f) {
-         f->format = VK_FORMAT_B8G8R8A8_UNORM;
+         f->format = VK_FORMAT_R8G8B8A8_UNORM;
          f->colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
       }
       vk_outarray_append_typed(VkSurfaceFormatKHR, &out, f) {
-         f->format = VK_FORMAT_B8G8R8A8_SRGB;
+         f->format = VK_FORMAT_R8G8B8A8_SRGB;
+         f->colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
+      }
+      vk_outarray_append_typed(VkSurfaceFormatKHR, &out, f) {
+         f->format = VK_FORMAT_B8G8R8A8_UNORM;
          f->colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
       }
    } else {
@@ -949,15 +956,24 @@ x11_surface_get_formats2(VkIcdSurfaceBase *surface,
    if (!get_sorted_vk_formats(surface, wsi_device, sorted_formats, &count))
       return VK_ERROR_SURFACE_LOST_KHR;
 
+   /* 🚨 LIBERACIÓN COMPLETA SWAPCHAIN MALI: Modificamos el bypass de emulación. 
+      En lugar de forzar solo los formatos de PC (BGRA) que asfixian tu pantalla, 
+      le inyectamos la matriz de formatos móviles reales ordenados al revés. 
+      ¡Esto une tus FPS con las imágenes en 3D reales de forma obligatoria! */
    if (wsi_device->emulate_bgra8) {
       vk_outarray_append_typed(VkSurfaceFormat2KHR, &out, f) {
          assert(f->sType == VK_STRUCTURE_TYPE_SURFACE_FORMAT_2_KHR);
-         f->surfaceFormat.format = VK_FORMAT_B8G8R8A8_UNORM;
+         f->surfaceFormat.format = VK_FORMAT_R8G8B8A8_UNORM;
          f->surfaceFormat.colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
       }
       vk_outarray_append_typed(VkSurfaceFormat2KHR, &out, f) {
          assert(f->sType == VK_STRUCTURE_TYPE_SURFACE_FORMAT_2_KHR);
-         f->surfaceFormat.format = VK_FORMAT_B8G8R8A8_SRGB;
+         f->surfaceFormat.format = VK_FORMAT_R8G8B8A8_SRGB;
+         f->surfaceFormat.colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
+      }
+      vk_outarray_append_typed(VkSurfaceFormat2KHR, &out, f) {
+         assert(f->sType == VK_STRUCTURE_TYPE_SURFACE_FORMAT_2_KHR);
+         f->surfaceFormat.format = VK_FORMAT_B8G8R8A8_UNORM;
          f->surfaceFormat.colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
       }
    } else {
