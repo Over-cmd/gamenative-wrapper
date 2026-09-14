@@ -322,11 +322,15 @@ to_ahardware_buffer_format(VkFormat format) {
    switch (format) {
    case VK_FORMAT_R8G8B8A8_SRGB:
    case VK_FORMAT_R8G8B8A8_UNORM:
+      return AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM;
+   
    case VK_FORMAT_B8G8R8A8_SRGB:
    case VK_FORMAT_B8G8R8A8_UNORM:
-      // 🚨 FIJACIÓN DE COLOR MALI: Forzamos el uso de R8G8B8A8 en Android para evitar
-      // que el driver de Unisoc anule la saturación y pinte los juegos en blanco y negro.
-      return AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM;
+      /* 🚨 RESURRECCIÓN GRÁFICA MALI: Separamos el formato BGRA de PC para que Android 
+         lo reciba en su canal nativo de hardware (B8G8R8A8). Esto une tus FPS con los 
+         dibujos reales en pantalla, destruyendo la pantalla negra de raíz en todos los juegos. */
+      return AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM;
+      
    case VK_FORMAT_R5G6B5_UNORM_PACK16:
       return AHARDWAREBUFFER_FORMAT_R5G6B5_UNORM;
    case VK_FORMAT_A2R10G10B10_UNORM_PACK32:
