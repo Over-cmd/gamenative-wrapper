@@ -410,18 +410,22 @@ wrapper_EnumerateDeviceExtensionProperties(VkPhysicalDevice physicalDevice,
 {
    VK_FROM_HANDLE(wrapper_physical_device, physical_device, physicalDevice);
 
-   /* 🚨 LIBERACIÓN MULTIMEDIA MALI: Forzamos al contador a exponer las 100 extensiones 
-      de la tabla maestra de Mesa en lugar de recortarlas a las 63 de fábrica del chip Unisoc. */
+   /* 🚨 FILTRADO SEGURO DE EXTENSIONES MALI: Retornamos el contador dinámico real 
+      que el wrapper soporta en su tabla interna de extensiones filtradas. */
    if (pProperties == NULL) {
-      *pPropertyCount = VK_DEVICE_EXTENSION_COUNT;
+      *pPropertyCount = physical_device->base_supported_extensions_count;
       return VK_SUCCESS;
    }
 
-   uint32_t count = MIN2(*pPropertyCount, VK_DEVICE_EXTENSION_COUNT);
-   for (uint32_t i = 0; i < count; i++) {
-      pProperties[i] = vk_device_extensions[i];
+   /* Copiamos de forma segura únicamente las extensiones que pasaron el filtro 
+      en wrapper_setup_device_extensions, asegurando que DXVK no crashee. */
+   uint32_t out_count = 0;
+   for (uint32_t i = 0; i < VK_DEVICE_EXTENSION_COUNT && out_count < *pPropertyCount; i++) {
+      if (physical_device->vk.supported_extensions.extensions[i]) {
+         pProperties[out_count++] = vk_device_extensions[i];
+      }
    }
-   *pPropertyCount = count;
+   *pPropertyCount = out_count;
    return VK_SUCCESS;
 }
 
