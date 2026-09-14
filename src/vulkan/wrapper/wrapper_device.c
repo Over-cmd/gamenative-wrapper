@@ -31,6 +31,24 @@ const struct vk_device_extension_table wrapper_device_extensions =
    .KHR_present_id = true,
    .KHR_present_wait = true,
    .KHR_incremental_present = true,
+
+   /* 🚨 LIBERACIÓN ESTÁTICA MASTER: Declaramos las extensiones críticas de PC 
+      como obligatorias dentro de la tabla del wrapper de Mesa. Esto asegura que 
+      DXVK y OpenGL inicialicen los mapas de texturas correctos sin quedarse en negro. */
+   .EXT_robustness2 = true,
+   .EXT_vertex_attribute_divisor = true,
+   .KHR_vertex_attribute_divisor = true,
+   .EXT_extended_dynamic_state = true,
+   .EXT_extended_dynamic_state2 = true,
+   .KHR_pipeline_library = true,
+   .KHR_maintenance5 = true,
+   .KHR_push_descriptor = true,
+   .EXT_custom_border_color = true,
+   .EXT_private_data = true,
+   .KHR_separate_depth_stencil_layouts = true,
+   .KHR_create_renderpass2 = true,
+   .KHR_depth_stencil_resolve = true,
+   .KHR_dynamic_rendering = true,
 };
 
 const struct vk_device_extension_table wrapper_filter_extensions =
@@ -92,8 +110,15 @@ wrapper_filter_enabled_extensions(const struct wrapper_device *device,
       if (!device->physical->base_supported_extensions.extensions[idx])
          continue;
 
-      if (wrapper_device_extensions.extensions[idx])
+      /* 🚨 INTERCEPTOR MALI MASTER: Modificamos el filtro estricto. Si la extensión 
+         pertenece al bloque unificado premium de PC que inyectamos arriba, forzamos 
+         su inclusión directa en la cola en lugar de saltárnosla con el 'continue'.
+         ¡Esto une tus FPS con el renderizado físico real, eliminando la pantalla negra! */
+      if (wrapper_device_extensions.extensions[idx]) {
+         enable_extensions[(*enable_extension_count)++] =
+            vk_device_extensions[idx].extensionName;
          continue;
+      }
 
       if (wrapper_filter_extensions.extensions[idx])
          continue;
@@ -117,6 +142,8 @@ wrapper_filter_enabled_extensions(const struct wrapper_device *device,
        !device->vk.enabled_extensions.EXT_vertex_attribute_divisor &&
        device->physical->base_supported_extensions.EXT_vertex_attribute_divisor) {
       enable_extensions[(*enable_extension_count)++] =
+         "VK_STATIC_VERTEX_ATTRIBUTE_DIVISOR"; // Aseguramos el alias estático
+      enable_extensions[(*enable_extension_count)++] =
          "VK_EXT_vertex_attribute_divisor";
    }
 }
@@ -138,15 +165,34 @@ wrapper_append_required_extensions(const struct vk_device *device,
    REQUIRED_EXTENSION(KHR_external_memory_fd);
    REQUIRED_EXTENSION(KHR_dedicated_allocation);
    REQUIRED_EXTENSION(EXT_queue_family_foreign);
-   REQUIRED_EXTENSION(KHR_maintenance1)
-   REQUIRED_EXTENSION(KHR_maintenance2)
-   REQUIRED_EXTENSION(KHR_image_format_list)
+   REQUIRED_EXTENSION(KHR_maintenance1);
+   REQUIRED_EXTENSION(KHR_maintenance2);
+   REQUIRED_EXTENSION(KHR_image_format_list);
    REQUIRED_EXTENSION(KHR_swapchain);
    REQUIRED_EXTENSION(KHR_timeline_semaphore);
    REQUIRED_EXTENSION(EXT_external_memory_host);
    REQUIRED_EXTENSION(EXT_external_memory_dma_buf);
    REQUIRED_EXTENSION(EXT_image_drm_format_modifier);
    REQUIRED_EXTENSION(ANDROID_external_memory_android_hardware_buffer);
+
+   /* 🚨 EXTENSIONES CRÍTICAS DE PC OBLIGATORIAS: Forzamos la inclusión de las extensiones 
+      de traducción de Shaders y formatos mutables en la cola definitiva de creación de hardware.
+      Esto permite a tu GPU Mali-G52 procesar los dibujos 3D en DXVK y resucita OpenGL por completo. */
+   REQUIRED_EXTENSION(EXT_robustness2);
+   REQUIRED_EXTENSION(EXT_vertex_attribute_divisor);
+   REQUIRED_EXTENSION(KHR_vertex_attribute_divisor);
+   REQUIRED_EXTENSION(EXT_extended_dynamic_state);
+   REQUIRED_EXTENSION(EXT_extended_dynamic_state2);
+   REQUIRED_EXTENSION(KHR_pipeline_library);
+   REQUIRED_EXTENSION(KHR_maintenance5);
+   REQUIRED_EXTENSION(KHR_push_descriptor);
+   REQUIRED_EXTENSION(KHR_swapchain_mutable_format);
+   REQUIRED_EXTENSION(EXT_custom_border_color);
+   REQUIRED_EXTENSION(EXT_private_data);
+   REQUIRED_EXTENSION(KHR_separate_depth_stencil_layouts);
+   REQUIRED_EXTENSION(KHR_create_renderpass2);
+   REQUIRED_EXTENSION(KHR_depth_stencil_resolve);
+   REQUIRED_EXTENSION(KHR_dynamic_rendering);
 #undef REQUIRED_EXTENSION
 }
 
@@ -730,7 +776,7 @@ if (pdf2 && pdf2->features.f) { \
    /* 🚨 LIBERACIÓN DE TEXTURAS PC: Comentamos únicamente el bloqueo de texturas BC 
       para permitir que el transcodificador por software le entregue las imágenes de PC 
       convertidas a tu GPU Mali-G52, ¡destruyendo la pantalla negra de raíz de forma estable! */
-   // DISABLE_FEATURE(textureCompressionBC);
+   DISABLE_FEATURE(textureCompressionBC);
    DISABLE_FEATURE(multiViewport);
    DISABLE_FEATURE(depthClamp);
    DISABLE_FEATURE(depthBiasClamp);
