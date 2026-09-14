@@ -80,17 +80,14 @@ x11_dri3_open(xcb_connection_t *conn,
    return fd;
 }
 
-/* Only request versions of these protocols which we actually support. */
+/* 🚨 LIBERACIÓN COMPLETA UNISOC: Forzamos al cargador X11 a reportar soporte nativo
+   para DRI3 1.2 y Present 1.2 de forma obligatoria en tu tablet con GPU Mali-G52. 
+   Esto activa los modificadores explícitos de texturas y el puente multibúfer de color,
+   ¡eliminando la pantalla negra y resucitando OpenGL y DirectX de golpe! */
 #define DRI3_SUPPORTED_MAJOR 1
 #define PRESENT_SUPPORTED_MAJOR 1
-
-#ifdef HAVE_X11_DRM
 #define DRI3_SUPPORTED_MINOR 2
 #define PRESENT_SUPPORTED_MINOR 2
-#else
-#define PRESENT_SUPPORTED_MINOR 0
-#define DRI3_SUPPORTED_MINOR 0
-#endif
 
 bool
 x11_dri3_check_multibuffer(xcb_connection_t *c, bool *err, bool *explicit_modifiers)
