@@ -511,7 +511,6 @@ decompress_bcn_format(void *srcBuffer,
       }
    }
 
-
    if (astc8) {
       /* 8x8 ASTC: each block covers a 2x2 group of BC blocks (8 = 2*4, aligned).
        * Decode the 4 BC blocks into an 8x8 RGBA scratch, then encode one ASTC
