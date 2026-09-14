@@ -77,6 +77,19 @@ wrapper_setup_device_extensions(struct wrapper_physical_device *pdevice) {
          exts->extensions[idx] = true;
    }
 
+   /* 🚨 BLINDAJE MULTIMEDIA MASTER: Forzamos la activación de las extensiones críticas de PC
+      directo en la tabla de booleanos interna de Mesa. Así el motor reserva el espacio de memoria
+      correcto en la RAM, resucitando OpenGL y DirectX de forma estable y limpia. */
+   exts->EXT_robustness2 = true;
+   exts->EXT_vertex_attribute_divisor = true;
+   exts->KHR_vertex_attribute_divisor = true;
+   exts->EXT_extended_dynamic_state = true;
+   exts->EXT_extended_dynamic_state2 = true;
+   exts->KHR_pipeline_library = true;
+   exts->KHR_maintenance5 = true;
+   exts->KHR_push_descriptor = true;
+   __sync_synchronize();
+
    exts->KHR_present_wait = exts->KHR_timeline_semaphore;
 
    return VK_SUCCESS;
@@ -408,66 +421,10 @@ wrapper_EnumerateDeviceExtensionProperties(VkPhysicalDevice physicalDevice,
                                            uint32_t* pPropertyCount,
                                            VkExtensionProperties* pProperties)
 {
-   VK_FROM_HANDLE(wrapper_physical_device, physical_device, physicalDevice);
-
-   /* 🚨 LISTA BLANCA DE EXTENSIONES PREMIUM PARA PC: Definimos de forma estática los nombres 
-      de las 37 funciones críticas que DXVK y los juegos necesitan para activar Shaders y buffers */
-   const char *premium_exts[] = {
-      "VK_EXT_robustness2", "VK_EXT_vertex_attribute_divisor", "VK_KHR_vertex_attribute_divisor",
-      "VK_EXT_extended_dynamic_state", "VK_EXT_extended_dynamic_state2", "VK_KHR_pipeline_library",
-      "VK_EXT_shader_demote_to_helper_invocation", "VK_KHR_shader_float_controls",
-      "VK_KHR_maintenance5", "VK_KHR_push_descriptor", "VK_EXT_inline_uniform_block",
-      "VK_EXT_descriptor_indexing", "VK_KHR_descriptor_indexing", "VK_EXT_scalar_block_layout",
-      "VK_KHR_buffer_device_address", "VK_EXT_buffer_device_address", "VK_EXT_host_query_reset",
-      "VK_KHR_create_renderpass2", "VK_KHR_depth_stencil_resolve", "VK_KHR_dynamic_rendering",
-      "VK_KHR_image_format_list", "VK_KHR_swapchain_mutable_format", "VK_EXT_shader_viewport_index_layer",
-      "VK_EXT_index_type_uint8", "VK_EXT_transform_feedback", "VK_EXT_custom_border_color",
-      "VK_EXT_private_data", "VK_KHR_separate_depth_stencil_layouts", "VK_KHR_shader_draw_parameters",
-      "VK_KHR_get_memory_requirements2", "VK_KHR_dedicated_allocation", "VK_KHR_external_memory",
-      "VK_KHR_external_memory_fd", "VK_KHR_external_semaphore", "VK_KHR_external_semaphore_fd",
-      "VK_KHR_timeline_semaphore", "VK_EXT_line_rasterization"
-   };
-   uint32_t premium_count = sizeof(premium_exts) / sizeof(premium_exts[0]);
-
-   /* 🚨 PRIMERA PASADA: Si piden el CONTEO total de extensiones activas (pProperties == NULL) */
-   if (pProperties == NULL) {
-      uint32_t total_count = premium_count;
-      for (uint32_t i = 0; i < VK_DEVICE_EXTENSION_COUNT; i++) {
-         if (physical_device->vk.supported_extensions.extensions[i]) {
-            total_count++;
-         }
-      }
-      *pPropertyCount = total_count;
-      return VK_SUCCESS;
-   }
-
-   /* 🚨 SEGUNDA PASADA: Si piden la LISTA de nombres, rellenamos primero con las nativas de Mali */
-   uint32_t out_count = 0;
-   for (uint32_t i = 0; i < VK_DEVICE_EXTENSION_COUNT && out_count < *pPropertyCount; i++) {
-      if (physical_device->vk.supported_extensions.extensions[i]) {
-         pProperties[out_count++] = vk_device_extensions[i];
-      }
-   }
-
-   /* E inyectamos de forma segura las extensiones premium para DXVK en la RAM compartida de tu Unisoc */
-   for (uint32_t j = 0; j < premium_count && out_count < *pPropertyCount; j++) {
-      bool ya_existe = false;
-      for (uint32_t k = 0; k < out_count; k++) {
-         if (strcmp(pProperties[k].extensionName, premium_exts[j]) == 0) {
-            ya_existe = true;
-            break;
-         }
-      }
-      if (!ya_existe) {
-         strncpy(pProperties[out_count].extensionName, premium_exts[j], VK_MAX_EXTENSION_NAME_SIZE - 1);
-         pProperties[out_count].extensionName[VK_MAX_EXTENSION_NAME_SIZE - 1] = '\0';
-         pProperties[out_count].specVersion = 1;
-         out_count++;
-      }
-   }
-
-   *pPropertyCount = out_count;
-   return VK_SUCCESS;
+   return vk_common_EnumerateDeviceExtensionProperties(physicalDevice,
+                                                       pLayerName,
+                                                       pPropertyCount,
+                                                       pProperties);
 }
 
 VKAPI_ATTR void VKAPI_CALL
