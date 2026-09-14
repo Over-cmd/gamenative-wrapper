@@ -727,17 +727,21 @@ if (pdf2 && pdf2->features.f) { \
    pdf2->features.f &= physical_device->base_supported_features.f; \
 }
 
-   DISABLE_FEATURE(textureCompressionBC);
+   /* 🚨 LIBERACIÓN GRÁFICA MASTER: Comentamos los bloqueos de fábrica para permitir 
+      que el wrapper le entregue las texturas BC de PC, el relleno no sólido y los 
+      shaders de geometría directamente a tu GPU Mali, ¡trayendo la imagen a la vida! */
+   // DISABLE_FEATURE(textureCompressionBC);
    DISABLE_FEATURE(multiViewport);
    DISABLE_FEATURE(depthClamp);
    DISABLE_FEATURE(depthBiasClamp);
-   DISABLE_FEATURE(fillModeNonSolid);
-   DISABLE_FEATURE(shaderClipDistance);
-   DISABLE_FEATURE(shaderCullDistance);
+   // DISABLE_FEATURE(fillModeNonSolid);
+   // DISABLE_FEATURE(shaderClipDistance);
+   // DISABLE_FEATURE(shaderCullDistance);
    DISABLE_FEATURE(dualSrcBlend);
    DISABLE_FEATURE(multiDrawIndirect);
 
 #undef DISABLE_FEATURE
+
 
    process_pnext_chain((VkBaseInStructure *)&wrapper_create_info, device->physical);
 
