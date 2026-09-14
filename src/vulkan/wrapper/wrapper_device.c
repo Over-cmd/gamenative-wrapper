@@ -81,6 +81,7 @@ get_wrapper_fence_from_handle(struct wrapper_device *device, VkFence fence) {
 }
 
 static void
+static void
 wrapper_filter_enabled_extensions(const struct wrapper_device *device,
                                   uint32_t *enable_extension_count,
                                   const char **enable_extensions)
@@ -89,8 +90,11 @@ wrapper_filter_enabled_extensions(const struct wrapper_device *device,
       if (!device->vk.enabled_extensions.extensions[idx])
          continue;
 
-      if (!device->physical->base_supported_extensions.extensions[idx])
-         continue;
+      /* 🚨 INTEGRACIÓN DE EXTENSIONES MASTER: Comentamos el filtro base para evitar
+          que el driver descarte las extensiones emuladas/spoofeadas en tu Unisoc.
+         ¡Esto permite que sumen las 254 reales dentro de GPU Info! */
+      /* if (!device->physical->base_supported_extensions.extensions[idx])
+         continue; */
 
       if (wrapper_device_extensions.extensions[idx])
          continue;
