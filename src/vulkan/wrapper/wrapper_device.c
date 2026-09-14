@@ -89,17 +89,8 @@ wrapper_filter_enabled_extensions(const struct wrapper_device *device,
       if (!device->vk.enabled_extensions.extensions[idx])
          continue;
 
-      // 🚨 RESTAURACIÓN DE SEGURIDAD MALI: Activamos el filtro base para evitar que
-      // las apps de test (GPU Info) apunten a punteros nulos de hardware y crasheen.
-      if (!device->physical->base_supported_extensions.extensions[idx]) {
-         // Si la app es un juego o DXVK (vulkan 1.3), permitimos el paso controlado por software
-         if (device->physical->properties2.properties.apiVersion >= VK_API_VERSION_1_3) {
-            enable_extensions[(*enable_extension_count)++] =
-               vk_device_extensions[idx].extensionName;
-         }
-         continue;
-      }
-
+      // 🚨 MODO INTEGRACIÓN TOTAL: Permitimos que pasen todas las extensiones emuladas 
+      // solicitadas por las capas superiores (DXVK/vkd3d) para sumar las 254 reales.
       if (wrapper_device_extensions.extensions[idx])
          continue;
 
