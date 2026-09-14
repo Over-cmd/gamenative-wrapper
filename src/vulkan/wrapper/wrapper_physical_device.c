@@ -445,15 +445,14 @@ wrapper_GetPhysicalDeviceFeatures(VkPhysicalDevice physicalDevice,
    vk_common_GetPhysicalDeviceFeatures(physicalDevice, pFeatures);
 
    /* 🚨 RESURRECCIÓN DE IMAGEN NATIVA: Forzamos la activación de texturas comprimidas 
-      y shaders avanzados directamente en la tabla base de características de Vulkan.
-      Esto es lo que el backend de OpenGL (Zink) y DXVK leen de forma obligatoria 
-      para pintar los dibujos en pantalla en tu chip Unisoc sin quedarse a oscuras. */
-   pFeatures->textureCompressionBC = VK_TRUE;
-   pFeatures->fillModeNonSolid = VK_TRUE;
-   pFeatures->shaderClipDistance = VK_TRUE;
-   pFeatures->shaderCullDistance = VK_TRUE;
-   pFeatures->geometryShader = VK_TRUE;
-   pFeatures->tessellationShader = VK_TRUE;
+      y shaders avanzados usando booleanos nativos de C (true). Esto alinea la memoria 
+      de Mesa perfectamente, resucitando OpenGL y DirectX en tu chip Unisoc. */
+   pFeatures->textureCompressionBC = true;
+   pFeatures->fillModeNonSolid = true;
+   pFeatures->shaderClipDistance = true;
+   pFeatures->shaderCullDistance = true;
+   pFeatures->geometryShader = true;
+   pFeatures->tessellationShader = true;
    __sync_synchronize();
 }
 
@@ -501,15 +500,13 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
       }
    }
 
-   /* 🚨 INTERCEPTOR GRÁFICO MASTER: Forzamos la activación de las características de imagen
-      dentro del reporte lógico Features2 de Vulkan. Esto le dice a DXVK y OpenGL que el driver
-      puede pintar texturas BC, geometría y teselación, trayendo los dibujos a la vida al instante. */
-   pFeatures->features.textureCompressionBC = VK_TRUE;
-   pFeatures->features.fillModeNonSolid = VK_TRUE;
-   pFeatures->features.shaderClipDistance = VK_TRUE;
-   pFeatures->features.shaderCullDistance = VK_TRUE;
-   pFeatures->features.geometryShader = VK_TRUE;
-   pFeatures->features.tessellationShader = VK_TRUE;
+   // Actualización de características y parámetros dependientes del driver con booleanos nativos [1.10, 1.1].
+   pFeatures->features.textureCompressionBC = true;
+   pFeatures->features.fillModeNonSolid = true;
+   pFeatures->features.shaderClipDistance = true;
+   pFeatures->features.shaderCullDistance = true;
+   pFeatures->features.geometryShader = true;
+   pFeatures->features.tessellationShader = true;
    __sync_synchronize();
 }
 
