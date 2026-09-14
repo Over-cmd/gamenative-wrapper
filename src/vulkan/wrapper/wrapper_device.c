@@ -89,8 +89,9 @@ wrapper_filter_enabled_extensions(const struct wrapper_device *device,
       if (!device->vk.enabled_extensions.extensions[idx])
          continue;
 
-      // 🚨 MODO INTEGRACIÓN TOTAL: Permitimos que pasen todas las extensiones emuladas 
-      // solicitadas por las capas superiores (DXVK/vkd3d) para sumar las 254 reales.
+      if (!device->physical->base_supported_extensions.extensions[idx])
+         continue;
+
       if (wrapper_device_extensions.extensions[idx])
          continue;
 
