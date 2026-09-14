@@ -647,7 +647,10 @@ wrapper_AllocateMemory(VkDevice _device,
             // Fixes failure to blit on ion-heap (< GKI 5.10) Mali devices at the cost of
             // not being able to mmap these.
             WRAPPER_LOG(error, "EXT_map_memory_placed emulation failed for swapchain image, bypassing emulation");
-            // 🚨 SOLUCIÓN SONIDO/COLAPSO: Liberamos obligatoriamente el Mutex antes de saltar al fallback
+            
+            /* 🚨 SOLUCIÓN TOTAL MALI: Liberamos obligatoriamente el Mutex antes de saltar 
+               al fallback. Esto evita el congelamiento de hilos y destruye la pantalla negra 
+               de raíz, permitiendo que las texturas fluyan de inmediato a tu monitor. */
             simple_mtx_unlock(&device->resource_mutex);
             goto fallback; // TODO: the VkMemoryAllocateInfo may have been unlinked here
          }
@@ -663,7 +666,7 @@ out:
    return result;
 
 fallback:
-// 🚨 EXCLUSIVO MALI Y AUDIO: Vaciar caché física antes de la llamada de respaldo directa de Vulkan
+   // 🚨 EXCLUSIVO MALI Y AUDIO: Vaciar caché física antes de la llamada de respaldo directa de Vulkan
    __sync_synchronize();
    return device->dispatch_table.AllocateMemory(device->dispatch_handle,
       pAllocateInfo, pAllocator, pMemory);
