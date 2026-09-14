@@ -408,10 +408,21 @@ wrapper_EnumerateDeviceExtensionProperties(VkPhysicalDevice physicalDevice,
                                            uint32_t* pPropertyCount,
                                            VkExtensionProperties* pProperties)
 {
-   return vk_common_EnumerateDeviceExtensionProperties(physicalDevice,
-                                                       pLayerName,
-                                                       pPropertyCount,
-                                                       pProperties);
+   VK_FROM_HANDLE(wrapper_physical_device, physical_device, physicalDevice);
+
+   /* 🚨 LIBERACIÓN MULTIMEDIA MALI: Forzamos al contador a exponer las 100 extensiones 
+      de la tabla maestra de Mesa en lugar de recortarlas a las 63 de fábrica del chip Unisoc. */
+   if (pProperties == NULL) {
+      *pPropertyCount = VK_DEVICE_EXTENSION_COUNT;
+      return VK_SUCCESS;
+   }
+
+   uint32_t count = MIN2(*pPropertyCount, VK_DEVICE_EXTENSION_COUNT);
+   for (uint32_t i = 0; i < count; i++) {
+      pProperties[i] = vk_device_extensions[i];
+   }
+   *pPropertyCount = count;
+   return VK_SUCCESS;
 }
 
 VKAPI_ATTR void VKAPI_CALL
