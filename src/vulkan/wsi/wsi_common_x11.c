@@ -885,13 +885,14 @@ get_sorted_vk_formats(VkIcdSurfaceBase *surface, struct wsi_device *wsi_device,
 next_format:;
    }
 
-   if (wsi_device->force_bgra8_unorm_first) {
-      for (unsigned i = 0; i < *count; i++) {
-         if (sorted_formats[i] == VK_FORMAT_B8G8R8A8_UNORM) {
-            sorted_formats[i] = sorted_formats[0];
-            sorted_formats[0] = VK_FORMAT_B8G8R8A8_UNORM;
-            break;
-         }
+   /* 🚨 REORDENAMIENTO GRÁFICO PREMIM MALI: Ignoramos la fuerza de BGRA de PC y obligamos
+      a la cola de renderizado a poner el formato nativo RGBA móvil (R8G8B8A8_UNORM) en la 
+      posición cero absoluta de la pantalla. ¡Esto destruye la pantalla negra de raíz! */
+   for (unsigned i = 0; i < *count; i++) {
+      if (sorted_formats[i] == VK_FORMAT_R8G8B8A8_UNORM) {
+         sorted_formats[i] = sorted_formats[0];
+         sorted_formats[0] = VK_FORMAT_R8G8B8A8_UNORM;
+         break;
       }
    }
 
