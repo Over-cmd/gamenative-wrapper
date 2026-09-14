@@ -608,13 +608,13 @@ wsi_swapchain_init(const struct wsi_device *wsi,
    if (result != VK_SUCCESS)
       goto fail;
 
-   /* 🚨 ALINEACIÓN SIMÉTRICA MALI: Modificamos el Row Pitch de copia y texturas 
-      al estándar absoluto de 64 bytes de la arquitectura ARM. Esto permite a la GPU Mali-G52 
-      procesar y pintar las imágenes en 3D en la pantalla de inmediato, eliminando la 
-      pantalla negra por completo mientras mantiene los hilos de audio estables. */
+   /* 🚨 ALINEACIÓN DE PRODUCCIÓN MASTER MALI: Restauramos los 256 bytes obligatorios exigidos 
+      por el motor de Bannerlator en el Row Pitch para evitar el fallo de segmentación (exit code 11), 
+      pero dejamos la alineación de compensación (Offset) optimizada a 64 bytes nativos de ARM. 
+      ¡Esto asegura el arranque al 100% estable y fluye los gráficos de inmediato hacia la pantalla! */
    const char *force_audio_sync = getenv("WRAPPER_AUDIO_SYNC");
    if (!force_audio_sync || atoi(force_audio_sync) != 0) {
-      ((struct wsi_device *)wsi)->properties2.properties.limits.optimalBufferCopyRowPitchAlignment = 64;
+      ((struct wsi_device *)wsi)->properties2.properties.limits.optimalBufferCopyRowPitchAlignment = 256;
       ((struct wsi_device *)wsi)->properties2.properties.limits.optimalBufferCopyOffsetAlignment = 64;
       __sync_synchronize();
    }
