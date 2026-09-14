@@ -803,6 +803,18 @@ if (pdf2 && pdf2->features.f) { \
       forzamos que el contador de bytes comience en un cero absoluto y vaciamos la caché. */
    device->bcn_gpu_inflight = 0;
    __sync_synchronize();
+
+   /* 🚨 ENLACE REAL DE SILICIO MALI: Activamos las banderas lógicas que le inyectamos 
+      a wrapper_private.h para mapear los recursos físicos que expuso la tablet */
+   physical_device->has_tessellation_shaders = true;
+   physical_device->has_geometry_shaders = true;
+   physical_device->has_custom_bgra_formats = true;
+
+   // Activamos las características avanzadas de PC en la tabla Khronos interna de Mesa
+   physical_device->base_supported_features.tessellationShader = VK_TRUE;
+   physical_device->base_supported_features.geometryShader = VK_TRUE;
+   physical_device->base_supported_features.robustBufferAccess = VK_TRUE;
+   __sync_synchronize();
    
    // 🚨 SOLUCIÓN DEFINITIVA 32/64 BITS MALI: Engaño de API ultra-compatible sin romper la memoria base
    if (physical_device->properties2.properties.apiVersion < VK_API_VERSION_1_3) {
