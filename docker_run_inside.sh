@@ -113,8 +113,8 @@ python3 meson_src/meson.py setup build-libdrm libdrm_android --cross-file /works
   -Dintel=disabled -Dradeon=disabled -Damdgpu=disabled -Dnouveau=disabled -Dman-pages=disabled -Dvalgrind=disabled -Dtests=false
 python3 meson_src/meson.py install -C build-libdrm
 
-# 🟢 CONFIGURACIÓN MAESTRA COMPLETA DE SILICIO: Activamos la matriz legal dual de Mesa 25 para que compile los 800 objetos gráficos de Panfrost fusionados con tu capa de adrenotools de forma nativa
-python3 meson_src/meson.py setup build-64 --cross-file /workspace/cross_64.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=panfrost,wrapper
+# 🟢 CONFIGURACIÓN MAESTRA COMPLETA DE SILICIO: Activamos la matriz legal dual de Mesa 25 y forzamos el soporte nativo de los 8 codecs de video
+python3 meson_src/meson.py setup build-64 --cross-file /workspace/cross_64.txt --wrap-mode=nodownload -Dbuildtype=release -Dplatforms=android -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dllvm=disabled -Dgallium-drivers=[] -Dvulkan-drivers=panfrost,wrapper -Dvideo-codecs=vc1dec,h264dec,h264enc,h265dec,h265enc,av1dec,av1enc,vp9dec
 python3 meson_src/meson.py compile -C build-64
 
 # 🟢 EXTRACCIÓN DIRECTA COORDENADA FÍSICA REAL: Python irá única y exclusivamente al nido de salida de Panfrost (donde Ninja escribe los 9.3 MB reales con todo el silicio gráfico y el wrapper inyectado dentro). Lo extraerá y lo guardará en la recámara intermedia renombrado como libvulkan_wrapper.so, pulverizando los stubs vacíos de 2.56 MB de forma indestructible
