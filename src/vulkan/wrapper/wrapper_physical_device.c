@@ -99,13 +99,6 @@ wrapper_setup_device_extensions(struct wrapper_physical_device *pdevice) {
    exts->KHR_create_renderpass2 = true;
    exts->KHR_depth_stencil_resolve = true;
    exts->KHR_dynamic_rendering = true;
-
-   /* 🚨 INYECCIÓN DE IMAGEN DIRECTA: Forzamos el encendido del soporte de texturas de PC (BC)
-      y el modo de relleno sólido/no sólido para que tu GPU Mali pinte las imágenes en 3D de largo. */
-   pdevice->vk.supported_features.textureCompressionBC = true;
-   pdevice->vk.supported_features.fillModeNonSolid = true;
-   pdevice->vk.supported_features.shaderClipDistance = true;
-   pdevice->vk.supported_features.shaderCullDistance = true;
    __sync_synchronize();
 
    exts->KHR_present_wait = exts->KHR_timeline_semaphore;
