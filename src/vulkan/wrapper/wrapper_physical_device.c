@@ -77,9 +77,9 @@ wrapper_setup_device_extensions(struct wrapper_physical_device *pdevice) {
          exts->extensions[idx] = true;
    }
 
-   /* 🚨 BLINDAJE MULTIMEDIA MASTER: Forzamos la activación de las extensiones críticas de PC
-      directo en la tabla de booleanos interna de Mesa. Así el motor reserva el espacio de memoria
-      correcto en la RAM, resucitando OpenGL y DirectX de forma estable y limpia. */
+   /* 🚨 BLINDAJE GRÁFICO MASTER: Activamos las extensiones de PC y los formatos mutables
+      de color. Esto permite al wrapper pintar los dibujos en pantalla en D3D9, D3D11 y OpenGL,
+      eliminando la pantalla negra por completo en tu tablet Unisoc. */
    exts->EXT_robustness2 = true;
    exts->EXT_vertex_attribute_divisor = true;
    exts->KHR_vertex_attribute_divisor = true;
@@ -88,6 +88,17 @@ wrapper_setup_device_extensions(struct wrapper_physical_device *pdevice) {
    exts->KHR_pipeline_library = true;
    exts->KHR_maintenance5 = true;
    exts->KHR_push_descriptor = true;
+
+   // 🚨 PUENTES CROMÁTICOS VITALES: Activamos los formatos dinámicos y bordes personalizados
+   // que DXVK exige para transferir las texturas de PC a tu pantalla móvil sin dar señal vacía
+   exts->KHR_image_format_list = true;
+   exts->KHR_swapchain_mutable_format = true;
+   exts->EXT_custom_border_color = true;
+   exts->EXT_private_data = true;
+   exts->KHR_separate_depth_stencil_layouts = true;
+   exts->KHR_create_renderpass2 = true;
+   exts->KHR_depth_stencil_resolve = true;
+   exts->KHR_dynamic_rendering = true;
    __sync_synchronize();
 
    exts->KHR_present_wait = exts->KHR_timeline_semaphore;
