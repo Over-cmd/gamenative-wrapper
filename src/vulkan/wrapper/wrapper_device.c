@@ -89,11 +89,16 @@ wrapper_filter_enabled_extensions(const struct wrapper_device *device,
       if (!device->vk.enabled_extensions.extensions[idx])
          continue;
 
-      /* 🚨 INTEGRACIÓN DE EXTENSIONES MASTER: Comentamos el filtro base para evitar
-          que el driver descarte las extensiones emuladas/spoofeadas en tu Unisoc.
-         ¡Esto permite que sumen las 254 reales dentro de GPU Info! */
-      /* if (!device->physical->base_supported_extensions.extensions[idx])
-         continue; */
+      // 🚨 RESTAURACIÓN DE SEGURIDAD MALI: Activamos el filtro base para evitar que
+      // las apps de test (GPU Info) apunten a punteros nulos de hardware y crasheen.
+      if (!device->physical->base_supported_extensions.extensions[idx]) {
+         // Si la app es un juego o DXVK (vulkan 1.3), permitimos el paso controlado por software
+         if (device->physical->properties2.properties.apiVersion >= VK_API_VERSION_1_3) {
+            enable_extensions[(*enable_extension_count)++] =
+               vk_device_extensions[idx].extensionName;
+         }
+         continue;
+      }
 
       if (wrapper_device_extensions.extensions[idx])
          continue;
