@@ -413,11 +413,11 @@ wrapper_UpdateDescriptorSets(VkDevice _device, uint32_t descriptorWriteCount,
    
    __sync_synchronize();
 
-   /* 🚨 PARCHE DEFINITIVO ANTI-FUGAS MALI: Si hay registros acumulados en vuelo en el dispositivo físico,
-      forzamos un vaciado preventivo inmediato para no ahogar la RAM unificada del chip Unisoc. */
-   if (device->physical->bcn_gpu_inflight > 0) {
+   /* 🚨 PARCHE MASTER ANTI-FUGAS MALI: Si hay bytes de texturas remanentes en vuelo,
+      forzamos a la GPU Mali-G52 a vaciarlos y liberar la RAM antes de continuar. */
+   if (device->bcn_gpu_inflight > 0) {
       device->dispatch_table.DeviceWaitIdle(device->dispatch_handle);
-      device->physical->bcn_gpu_inflight = 0;
+      device->bcn_gpu_inflight = 0;
       __sync_synchronize();
    }
 
