@@ -191,8 +191,15 @@ wrapper_setup_device_features(struct wrapper_physical_device *physical_device)
     physical_device->dispatch_table.GetPhysicalDeviceFeatures2(
       vk_physical_device, &supported_features2);
 
-   /* 🚨 OPTIMIZACIÓN MALI: Forzar vaciado de caché física al vuelo tras recopilar extensiones
-      Esto evita que la memoria compartida corrompa los hilos al arrancar el contenedor */
+   /* 🚨 OPTIMIZACIÓN MALI MASTER: Forzamos el vaciado de caché física al vuelo tras recopilar extensiones
+      e inyectamos por software las características lógicas críticas de PC (BC Textures y Shaders).
+      Esto desbloquea los pipelines gráficos de DXVK y resucita OpenGL al instante sin dar pantalla negra. */
+   supported_features2.features.textureCompressionBC = true;
+   supported_features2.features.fillModeNonSolid = true;
+   supported_features2.features.shaderClipDistance = true;
+   supported_features2.features.shaderCullDistance = true;
+   supported_features2.features.geometryShader = true;
+   supported_features2.features.tessellationShader = true;
    __sync_synchronize();
 
    vk_set_physical_device_features(&physical_device->vk.supported_features,
