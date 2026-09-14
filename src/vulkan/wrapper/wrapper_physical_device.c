@@ -410,15 +410,21 @@ wrapper_EnumerateDeviceExtensionProperties(VkPhysicalDevice physicalDevice,
 {
    VK_FROM_HANDLE(wrapper_physical_device, physical_device, physicalDevice);
 
-   /* 🚨 FILTRADO SEGURO DE EXTENSIONES MALI: Retornamos el contador dinámico real 
-      que el wrapper soporta en su tabla interna de extensiones filtradas. */
+   /* 🚨 PRIMERA PASADA: Si las aplicaciones (o GPU Info) solo piden el CONTEO total de extensiones
+      activas (pProperties == NULL), recorremos la tabla filtrada para darles el número exacto. */
    if (pProperties == NULL) {
-      *pPropertyCount = physical_device->base_supported_extensions_count;
+      uint32_t total_count = 0;
+      for (uint32_t i = 0; i < VK_DEVICE_EXTENSION_COUNT; i++) {
+         if (physical_device->vk.supported_extensions.extensions[i]) {
+            total_count++;
+         }
+      }
+      *pPropertyCount = total_count;
       return VK_SUCCESS;
    }
 
-   /* Copiamos de forma segura únicamente las extensiones que pasaron el filtro 
-      en wrapper_setup_device_extensions, asegurando que DXVK no crashee. */
+   /* 🚨 SEGUNDA PASADA: Si piden la LISTA de nombres, copiamos de forma segura únicamente 
+      las extensiones validadas por el wrapper, evitando que DXVK, OpenGL o D3D crasheen. */
    uint32_t out_count = 0;
    for (uint32_t i = 0; i < VK_DEVICE_EXTENSION_COUNT && out_count < *pPropertyCount; i++) {
       if (physical_device->vk.supported_extensions.extensions[i]) {
