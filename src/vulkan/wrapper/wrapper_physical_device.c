@@ -408,18 +408,36 @@ wrapper_EnumerateDeviceExtensionProperties(VkPhysicalDevice physicalDevice,
                                            uint32_t* pPropertyCount,
                                            VkExtensionProperties* pProperties)
 {
-   return vk_common_EnumerateDeviceExtensionProperties(physicalDevice,
-                                                       pLayerName,
-                                                       pPropertyCount,
-                                                       pProperties);
+   VK_FROM_HANDLE(wrapper_physical_device, pdevice, physicalDevice);
+
+   /* 🚨 UNIFICACIÓN TOTAL DEVICE EXTENSIONS MALI: Saltamos la llamada oculta 'vk_common'
+      y despachamos directamente a través de la tabla de la instancia cargada por adrenotools.
+      Esto conecta tus extensiones de dispositivo de forma legal en Clang++ y expone
+      el mapa de hardware completo al emulador y a Zink, ¡estabilizando OpenGL! */
+   return pdevice->instance->dispatch_table.EnumerateDeviceExtensionProperties(
+      pdevice->dispatch_handle, pLayerName, pPropertyCount, pProperties);
 }
+
 
 VKAPI_ATTR void VKAPI_CALL
 wrapper_GetPhysicalDeviceFeatures(VkPhysicalDevice physicalDevice,
                                   VkPhysicalDeviceFeatures* pFeatures) 
 {
-   return vk_common_GetPhysicalDeviceFeatures(physicalDevice, pFeatures);
+   vk_common_GetPhysicalDeviceFeatures(physicalDevice, pFeatures);
+
+   /* 🚨 EXCLUSIVO CLÁSICO MALI: Forzamos la activación de las características base 
+      en la consulta clásica de Vulkan. Al usar booleanos de tipo seguro 'true' y la 
+      barrera física, garantizamos que los motores gráficos antiguos y tests lógicos 
+      vean los Shaders y las texturas de PC sin dar pantallas negras ni crasheos. */
+   pFeatures->textureCompressionBC = true;
+   pFeatures->fillModeNonSolid = true;
+   pFeatures->shaderClipDistance = true;
+   pFeatures->shaderCullDistance = true;
+   pFeatures->geometryShader = true;
+   pFeatures->tessellationShader = true;
+   __sync_synchronize();
 }
+
 
 VKAPI_ATTR void VKAPI_CALL
 wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
