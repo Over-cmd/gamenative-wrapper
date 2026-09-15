@@ -601,9 +601,7 @@ wsi_swapchain_init(const struct wsi_device *wsi,
    if (result != VK_SUCCESS)
       goto fail;
 
-   /* 🚨 ALINEACIÓN DE PRODUCCIÓN MASTER: Restauramos los 256 bytes obligatorios exigidos 
-      por el motor de Bannerlator en el Row Pitch para evitar el fallo de segmentación (exit code 11) en el arranque, 
-      pero dejamos la alineación de compensación (Offset) optimizada para tu GPU Mali-G52. */
+      /* Configuración de alineación y sincronización opcional */
    const char *force_audio_sync = getenv("WRAPPER_AUDIO_SYNC");
    if (!force_audio_sync || atoi(force_audio_sync) != 0) {
       ((struct wsi_device *)wsi)->properties2.properties.limits.optimalBufferCopyRowPitchAlignment = 256;
@@ -612,6 +610,10 @@ wsi_swapchain_init(const struct wsi_device *wsi,
    }
 
    return VK_SUCCESS;
+
+fail:
+   wsi_swapchain_finish(chain);
+   return result;
 }
 
 static bool
