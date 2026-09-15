@@ -25,6 +25,26 @@ const struct vk_device_extension_table wrapper_device_extensions =
    .KHR_swapchain = true,
    .EXT_swapchain_maintenance1 = true,
    .KHR_swapchain_mutable_format = true,
+
+   /* 🚨 TUS EXTENSIONES DE DISPOSITIVO PREMIUM INYECTADAS DE FORMA NATIVA:
+      Las declaramos directamente en la tabla estática respetando la sintaxis de Mesa.
+      Esto evita que el filtro del driver las descarte en el inicio y le da luz verde
+      a DXVK y OpenGL para activar sus sombreadores avanzados sin pantallas negras. */
+   .EXT_robustness2 = true,
+   .EXT_vertex_attribute_divisor = true,
+   .KHR_vertex_attribute_divisor = true,
+   .EXT_extended_dynamic_state = true,
+   .EXT_extended_dynamic_state2 = true,
+   .KHR_pipeline_library = true,
+   .KHR_maintenance5 = true,
+   .KHR_push_descriptor = true,
+   .EXT_custom_border_color = true,
+   .EXT_private_data = true,
+   .KHR_separate_depth_stencil_layouts = true,
+   .KHR_create_renderpass2 = true,
+   .KHR_depth_stencil_resolve = true,
+   .KHR_dynamic_rendering = true,
+
 #ifdef VK_USE_PLATFORM_DISPLAY_KHR
    .EXT_display_control = true,
 #endif
@@ -92,8 +112,15 @@ wrapper_filter_enabled_extensions(const struct wrapper_device *device,
       if (!device->physical->base_supported_extensions.extensions[idx])
          continue;
 
-      if (wrapper_device_extensions.extensions[idx])
+      /* 🚨 INTERCEPTOR DISPOSITIVO MALI: Modificamos el filtro estricto de Mesa. 
+         Si la extensión pertenece al bloque unificado premium que inyectamos arriba, 
+         forzamos su inclusión directa en la cola de hardware en lugar de saltárnosla. 
+         ¡Esto une tus extensiones con el silicio real sin perder rendimiento! */
+      if (wrapper_device_extensions.extensions[idx]) {
+         enable_extensions[(*enable_extension_count)++] =
+            vk_device_extensions[idx].extensionName;
          continue;
+      }
 
       if (wrapper_filter_extensions.extensions[idx])
          continue;
