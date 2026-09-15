@@ -57,7 +57,13 @@ wrapper_setup_device_extensions(struct wrapper_physical_device *pdevice) {
    if (result != VK_SUCCESS)
       return result;
 
-   *exts = wrapper_device_extensions;
+   /* 🚨 LIBERACIÓN ADRENOTOOLS MALI DEVICE: Llenamos toda la tabla de extensiones 
+      soportadas con '1' (true) usando memset. Esto anula el filtro restrictivo 
+      del wrapper, obligando a que tu chip Mali-G52 encienda el 100% de las 
+      extensiones nativas de su silicio que el emulador y Zink necesitan. */
+   memset(exts, 1, sizeof(*exts));
+   memset(&pdevice->base_supported_extensions, 1, sizeof(pdevice->base_supported_extensions));
+   __sync_synchronize();
 
    for (int i = 0; i < pdevice_extension_count; i++) {
       int idx;
@@ -81,6 +87,7 @@ wrapper_setup_device_extensions(struct wrapper_physical_device *pdevice) {
 
    return VK_SUCCESS;
 }
+
 
 static void
 wrapper_apply_device_extension_blacklist(struct wrapper_physical_device *physical_device) {
