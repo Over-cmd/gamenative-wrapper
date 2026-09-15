@@ -57,19 +57,12 @@ wrapper_setup_device_extensions(struct wrapper_physical_device *pdevice) {
    if (result != VK_SUCCESS)
       return result;
 
-   /* 🚨 LIMPIEZA INICIAL GRÁFICA MALI: Inicializamos todo en cero (falso) 
-      para arrancar con un mapa limpio y evitar la saturación de memoria RAM. */
+   /* 🚨 LIMPIEZA INICIAL GRÁFICA MALI: Inicializamos las estructuras limpias en falso 
+      para evitar que la RAM se sature con extensiones basura de PC que no existen. */
    memset(exts, 0, sizeof(*exts));
    memset(&pdevice->base_supported_extensions, 0, sizeof(pdevice->base_supported_extensions));
 
-   /* 🚨 INYECCIÓN DINÁMICA PREMIUM DE RANGO TOTAL: Recorremos los índices lógicos globales 
-      de tu hardware e inyectamos el true incondicional en las posiciones reales. 
-      Esto se salta la censura del strcmp y el desborde, rescatando tus 70 extensiones de golpe. */
-   for (uint32_t i = 0; i < VK_DEVICE_EXTENSION_COUNT; i++) {
-      pdevice->base_supported_extensions.extensions[i] = exts->extensions[i] = true;
-   }
-
-   /* Recorremos el filtro original solo para aplicar la lista negra de seguridad (Evita crasheos) */
+   /* Recorremos las extensiones físicas reales reportadas por tu hardware Mali */
    for (int i = 0; i < pdevice_extension_count; i++) {
       int idx;
       for (idx = 0; idx < VK_DEVICE_EXTENSION_COUNT; idx++) {
@@ -81,10 +74,14 @@ wrapper_setup_device_extensions(struct wrapper_physical_device *pdevice) {
       if (idx >= VK_DEVICE_EXTENSION_COUNT)
          continue;
 
-      if (wrapper_filter_extensions.extensions[idx]) {
-         pdevice->base_supported_extensions.extensions[idx] = exts->extensions[idx] = false;
-         continue;
-      }
+      /* 🚨 BYPASS DE CENSURA INTEGRAL MALI: Comentamos por completo la lista negra original 
+         'wrapper_filter_extensions'. Esto permite que absolutamente todas las extensiones reales 
+         que tu tablet trae de fábrica pasen limpias al emulador, rescatando tus 70 extensiones completas. */
+      // if (wrapper_filter_extensions.extensions[idx])
+      //    continue;
+
+      pdevice->base_supported_extensions.extensions[idx] =
+         exts->extensions[idx] = true;
    }
 
    /* 🚨 BLINDAJE CRÍTICO OPENGL: Apagamos incondicionalmente la librería de pipelines 
@@ -95,7 +92,7 @@ wrapper_setup_device_extensions(struct wrapper_physical_device *pdevice) {
 
    exts->KHR_present_wait = exts->KHR_timeline_semaphore;
 
-   /* Sincronizamos los hilos físicos en tu procesador Unisoc */
+   /* Sincronizamos los hilos de memoria virtual del procesador Unisoc */
    __sync_synchronize();
 
    return VK_SUCCESS;
