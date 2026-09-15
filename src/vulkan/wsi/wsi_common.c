@@ -61,10 +61,10 @@ int MALI_AHardwareBuffer_allocate(const struct AHardwareBuffer_Desc* desc, struc
 void MALI_AHardwareBuffer_release(struct AHardwareBuffer* buffer);
 int MALI_AHardwareBuffer_sendHandleToUnixSocket(const struct AHardwareBuffer* b, int s);
 
-/* 🟢 AISLAMIENTO ESTÁTICO LOCAL: Declaramos los stubs de logs como static inline. 
+/* 🟢 AISLAMIENTO ESTÁTICO LOCAL COMPLETO: Declaramos los stubs de logs como static inline. 
    Al ser locales de esta unidad de traducción, sacian las referencias del WSI 
    internamente, pero no se exportan al mapa global de símbolos públicos, 
-   ¡destruyendo el error de duplicación y el cierre forzado para siempre! */
+   ¡eliminando el error de duplicación y el freno de Clang para siempre! */
 static inline int Mesa_get_wrapper_log_level(const char *option) { (void)option; return 0; }
 static inline void Mesa_write_to_logfile(const char *fmt, const char *level, ...) { (void)fmt; (void)level; }
 
@@ -105,17 +105,6 @@ int MALI_AHardwareBuffer_sendHandleToUnixSocket(const struct AHardwareBuffer* b,
     }
     if (func) return func(b, s);
     return -1;
-}
-
-/* 🟢 AISLAMIENTO ESTÁTICO LOCAL: Declaramos los stubs de logs de elisión como static inline. Al ser locales de esta unidad de traducción, sacian las referencias del WSI de Panfrost internamente, pero no se exportan al mapa global de símbolos públicos, destruyendo el error 'duplicate symbol' en libvulkan_wrapper.so para siempre */
-int Mesa_get_wrapper_log_level(const char *option) {
-    (void)option;
-    return 0;
-}
-
-void Mesa_write_to_logfile(const char *fmt, const char *level, ...) {
-    (void)fmt;
-    (void)level;
 }
 
 #define WRAPPER_LOG(level, fmt, ...) do { } while(0)
