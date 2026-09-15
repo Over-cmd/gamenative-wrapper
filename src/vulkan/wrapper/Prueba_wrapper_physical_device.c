@@ -77,10 +77,12 @@ wrapper_setup_device_extensions(struct wrapper_physical_device *pdevice) {
          exts->extensions[idx] = true;
    }
 
-   /* 🚨 BLINDAJE GRÁFICO MASTER MALI: Activamos las extensiones de PC y los formatos mutables
-      de color. Esto permite al wrapper pintar los dibujos en pantalla en D3D9, D3D11 y OpenGL,
-      eliminando la pantalla negra por completo en tu tablet Unisoc. */
-   exts->EXT_robustness2 = true;
+   /* 🚨 BLINDAJE GRÁFICO MASTER MALI V2: Apagamos de forma explícita 'robustness2' 
+      para alinearnos con el silicio real de tu tablet. Dejamos encendidas las extensiones 
+      de estado dinámico que DXVK exige de forma obligatoria para arrancar. */
+   exts->EXT_robustness2 = false;
+   pdevice->base_supported_extensions.EXT_robustness2 = false;
+
    exts->EXT_vertex_attribute_divisor = true;
    exts->KHR_vertex_attribute_divisor = true;
    exts->EXT_extended_dynamic_state = true;
