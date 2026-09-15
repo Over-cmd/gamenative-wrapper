@@ -729,7 +729,7 @@ if (pdf2 && pdf2->features.f) { \
    pdf2->features.f &= physical_device->base_supported_features.f; \
 }
 
-   DISABLE_FEATURE(textureCompressionBC);
+   // DISABLE_FEATURE(textureCompressionBC);
    DISABLE_FEATURE(multiViewport);
    DISABLE_FEATURE(depthClamp);
    DISABLE_FEATURE(depthBiasClamp);
