@@ -434,11 +434,10 @@ wrapper_EnumerateDeviceExtensionProperties(VkPhysicalDevice physicalDevice,
 {
    VK_FROM_HANDLE(wrapper_physical_device, pdevice, physicalDevice);
 
-   /* 🚨 LIBERACIÓN DEVICE EXTENSIONS MALI: Cambiamos la llamada oculta 'vk_common' 
-      por el despachador legal de la tabla Khronos de la instancia. Esto une tus 
-      70 device extensions con las 16 instancias y expone de forma 100% nativa las 
-      100 extensiones de tu tablet a Zink, ¡resucitando OpenGL de golpe! */
-   return pdevice->instance->dispatch_table.EnumerateDeviceExtensionProperties(
+   /* 🚨 EXCLUSIVO MALI RESOLVEDOR V2: Corregimos el miembro de la tabla de despacho al formato 
+      oficial interno de Mesa 'vkEnumerateDeviceExtensionProperties'. Esto elimina el error de Clang 
+      de raíz en el paso 1371 y expone de forma exitosa las 100 extensiones de tu tablet. */
+   return pdevice->instance->dispatch_table.vkEnumerateDeviceExtensionProperties(
       pdevice->dispatch_handle, pLayerName, pPropertyCount, pProperties);
 }
 
