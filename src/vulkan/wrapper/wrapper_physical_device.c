@@ -77,6 +77,8 @@ wrapper_setup_device_extensions(struct wrapper_physical_device *pdevice) {
          exts->extensions[idx] = true;
    }
 
+   exts->EXT_robustness2 = false;
+   exts->KHR_pipeline_library = false;
    exts->KHR_present_wait = exts->KHR_timeline_semaphore;
 
    return VK_SUCCESS;
