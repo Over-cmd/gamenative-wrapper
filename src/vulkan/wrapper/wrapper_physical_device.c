@@ -57,6 +57,8 @@ wrapper_setup_device_extensions(struct wrapper_physical_device *pdevice) {
    if (result != VK_SUCCESS)
       return result;
 
+   *exts = wrapper_device_extensions;
+
    /* 🚨 HERENCIA DIRECTA MALI: Eliminamos por completo la limpieza inicial en cero (memset 0). 
       Dejamos que las estructuras conserven intacta la memoria física nativa que adrenotools 
       lee de tu hardware, evitando que se pierdan las extensiones buenas de fábrica. */
