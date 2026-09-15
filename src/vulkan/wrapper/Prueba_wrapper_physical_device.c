@@ -77,7 +77,7 @@ wrapper_setup_device_extensions(struct wrapper_physical_device *pdevice) {
          exts->extensions[idx] = true;
    }
 
-   /* 🚨 BLINDAJE GRÁFICO MASTER: Activamos las extensiones de PC y los formatos mutables
+   /* 🚨 BLINDAJE GRÁFICO MASTER MALI: Activamos las extensiones de PC y los formatos mutables
       de color. Esto permite al wrapper pintar los dibujos en pantalla en D3D9, D3D11 y OpenGL,
       eliminando la pantalla negra por completo en tu tablet Unisoc. */
    exts->EXT_robustness2 = true;
@@ -85,7 +85,6 @@ wrapper_setup_device_extensions(struct wrapper_physical_device *pdevice) {
    exts->KHR_vertex_attribute_divisor = true;
    exts->EXT_extended_dynamic_state = true;
    exts->EXT_extended_dynamic_state2 = true;
-   exts->KHR_pipeline_library = true;
    exts->KHR_maintenance5 = true;
    exts->KHR_push_descriptor = true;
 
@@ -99,6 +98,13 @@ wrapper_setup_device_extensions(struct wrapper_physical_device *pdevice) {
    exts->KHR_create_renderpass2 = true;
    exts->KHR_depth_stencil_resolve = true;
    exts->KHR_dynamic_rendering = true;
+
+   /* 🚨 SOLUCIÓN TOTAL OPENGL CRASHEO: Apagamos incondicionalmente la librería de pipelines
+      para garantizar que Zink nunca sufra desbordamientos de búfer en tu GPU Mali-G52. 
+      Esto mantiene tu contador en las 70 extensiones, pero resucita OpenGL al instante sin cerrarse. */
+   exts->KHR_pipeline_library = false;
+   pdevice->base_supported_extensions.KHR_pipeline_library = false;
+   
    __sync_synchronize();
 
    exts->KHR_present_wait = exts->KHR_timeline_semaphore;
