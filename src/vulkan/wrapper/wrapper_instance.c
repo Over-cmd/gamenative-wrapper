@@ -114,11 +114,19 @@ static void *get_vulkan_handle()
       has_intercepted_layer_paths = set_layer_paths();
    }
 
-   /* 🚨 EXCLUSIVO UNISOC MALI MASTER: Si detectamos que estamos corriendo en tu chip Mali-G52, 
-      forzamos el bypass de adrenotools de forma incondicional para evitar la corrupción de 
-      memoria virtual. Saltamos directo a la carga nativa limpia de Android con dlopen, 
-      ¡destruyendo la pantalla negra y el exit code 11 de raíz en todos los juegos! */
-   return dlopen(DEFAULT_VULKAN_PATH, RTLD_NOW | RTLD_LOCAL);
+   if (hooks && path && (stat(path, &sb) == 0)) {
+      char *temp;
+      asprintf(&temp, "%s%s", path, "temp");
+      mkdir(temp, S_IRWXU | S_IRWXG);
+
+      int flags = ADRENOTOOLS_DRIVER_CUSTOM;
+      if (redirect_dir)
+         flags |= ADRENOTOOLS_DRIVER_FILE_REDIRECT;
+         
+      return  adrenotools_open_libvulkan(RTLD_NOW, flags, temp, hooks, path, name, redirect_dir, NULL);
+   }
+   else
+      return dlopen(DEFAULT_VULKAN_PATH, RTLD_NOW | RTLD_LOCAL);
 }
 
 static bool vulkan_library_init()
