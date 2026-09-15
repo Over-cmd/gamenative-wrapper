@@ -57,14 +57,7 @@ wrapper_setup_device_extensions(struct wrapper_physical_device *pdevice) {
    if (result != VK_SUCCESS)
       return result;
 
-   /* 🚨 LIBERACIÓN ADRENOTOOLS MALI DEVICE: Llenamos toda la tabla de extensiones 
-      soportadas con '1' (true) usando memset. Esto anula el filtro restrictivo 
-      del wrapper, obligando a que tu chip Mali-G52 encienda el 100% de las 
-      extensiones nativas de su silicio que el emulador y Zink necesitan. */
-   memset(exts, 1, sizeof(*exts));
-   memset(&pdevice->base_supported_extensions, 1, sizeof(pdevice->base_supported_extensions));
-   __sync_synchronize();
-
+   /* Primero dejamos que se ejecute el mapeo base original de Mesa */
    for (int i = 0; i < pdevice_extension_count; i++) {
       int idx;
       for (idx = 0; idx < VK_DEVICE_EXTENSION_COUNT; idx++) {
@@ -84,6 +77,14 @@ wrapper_setup_device_extensions(struct wrapper_physical_device *pdevice) {
    }
 
    exts->KHR_present_wait = exts->KHR_timeline_semaphore;
+
+   /* 🚨 LIBERACIÓN INCONDICIONAL MALI: Colocamos el memset y la barrera atómica al puro final. 
+      Esto asegura que sea la última instrucción en ejecutarse sobre la memoria RAM, 
+      forzando el encendido del 100% de las extensiones que adrenotools necesita inyectar 
+      sin que ningún filtro previo de Mesa pueda machacarlo o censurarlo. */
+   memset(exts, 1, sizeof(*exts));
+   memset(&pdevice->base_supported_extensions, 1, sizeof(pdevice->base_supported_extensions));
+   __sync_synchronize();
 
    return VK_SUCCESS;
 }
