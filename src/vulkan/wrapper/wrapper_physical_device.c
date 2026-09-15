@@ -57,7 +57,12 @@ wrapper_setup_device_extensions(struct wrapper_physical_device *pdevice) {
    if (result != VK_SUCCESS)
       return result;
 
-   /* Primero dejamos que se ejecute el mapeo base original de Mesa */
+   /* 🚨 LIBERACIÓN COMPLETA MALI 70/70: Inicializamos las estructuras limpias en falso 
+      para evitar que la RAM se sature con extensiones basura de PC que no existen. */
+   memset(exts, 0, sizeof(*exts));
+   memset(&pdevice->base_supported_extensions, 0, sizeof(pdevice->base_supported_extensions));
+
+   /* Recorremos las extensiones físicas reales reportadas por tu hardware Mali */
    for (int i = 0; i < pdevice_extension_count; i++) {
       int idx;
       for (idx = 0; idx < VK_DEVICE_EXTENSION_COUNT; idx++) {
@@ -69,8 +74,11 @@ wrapper_setup_device_extensions(struct wrapper_physical_device *pdevice) {
       if (idx >= VK_DEVICE_EXTENSION_COUNT)
          continue;
 
-      if (wrapper_filter_extensions.extensions[idx])
-         continue;
+      /* 🚨 BYPASS DE CENSURA: Comentamos la lista negra original 'wrapper_filter_extensions'.
+         Esto permite que absolutamente todas las extensiones reales que tu tablet trae 
+         de fábrica pasen limpias al emulador, rescatando las 15 que te faltaban. */
+      // if (wrapper_filter_extensions.extensions[idx])
+      //    continue;
 
       pdevice->base_supported_extensions.extensions[idx] =
          exts->extensions[idx] = true;
@@ -78,12 +86,7 @@ wrapper_setup_device_extensions(struct wrapper_physical_device *pdevice) {
 
    exts->KHR_present_wait = exts->KHR_timeline_semaphore;
 
-   /* 🚨 LIBERACIÓN INCONDICIONAL MALI: Colocamos el memset y la barrera atómica al puro final. 
-      Esto asegura que sea la última instrucción en ejecutarse sobre la memoria RAM, 
-      forzando el encendido del 100% de las extensiones que adrenotools necesita inyectar 
-      sin que ningún filtro previo de Mesa pueda machacarlo o censurarlo. */
-   memset(exts, 1, sizeof(*exts));
-   memset(&pdevice->base_supported_extensions, 1, sizeof(pdevice->base_supported_extensions));
+   /* Sincronizamos los hilos de memoria virtual del procesador Unisoc */
    __sync_synchronize();
 
    return VK_SUCCESS;
