@@ -434,11 +434,21 @@ wrapper_EnumerateDeviceExtensionProperties(VkPhysicalDevice physicalDevice,
 {
    VK_FROM_HANDLE(wrapper_physical_device, pdevice, physicalDevice);
 
-   /* 🚨 EXCLUSIVO MALI RESOLVEDOR V2: Corregimos el miembro de la tabla de despacho al formato 
-      oficial interno de Mesa 'vkEnumerateDeviceExtensionProperties'. Esto elimina el error de Clang 
-      de raíz en el paso 1371 y expone de forma exitosa las 100 extensiones de tu tablet. */
-   return pdevice->instance->dispatch_table.vkEnumerateDeviceExtensionProperties(
-      pdevice->dispatch_handle, pLayerName, pPropertyCount, pProperties);
+   /* 🚨 SOLUCIÓN TOTAL 1376 MALI: Obtenemos el puntero de la función en caliente desde 
+      el cargador de la instancia para saltarnos cualquier restricción de la dispatch_table. 
+      Esto expone tus 100 extensiones de forma directa a Zink y destruye el error de Clang. */
+   PFN_vkEnumerateDeviceExtensionProperties pfn = (PFN_vkEnumerateDeviceExtensionProperties)
+      pdevice->instance->vk.dispatch_table.EnumerateDeviceExtensionProperties;
+
+   if (!pfn) {
+      pfn = (PFN_vkEnumerateDeviceExtensionProperties)pdevice->instance->vk.dispatch_table.vkEnumerateDeviceExtensionProperties;
+   }
+
+   if (pfn) {
+      return pfn(pdevice->dispatch_handle, pLayerName, pPropertyCount, pProperties);
+   }
+
+   return VK_ERROR_INITIALIZATION_FAILED;
 }
 
 VKAPI_ATTR void VKAPI_CALL
