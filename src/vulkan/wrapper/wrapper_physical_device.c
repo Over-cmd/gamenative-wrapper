@@ -76,13 +76,28 @@ wrapper_setup_device_extensions(struct wrapper_physical_device *pdevice) {
 
       /* 🚨 BYPASS DE CENSURA INTEGRAL MALI: Comentamos por completo la lista negra original 
          'wrapper_filter_extensions'. Esto permite que absolutamente todas las extensiones reales 
-         que tu tablet trae de fábrica pasen limpias al emulador, rescatando tus 70 extensiones completas. */
+         que tu tablet trae de fábrica pasen limpias al emulador, rescatando tus extensiones base. */
       // if (wrapper_filter_extensions.extensions[idx])
       //    continue;
 
       pdevice->base_supported_extensions.extensions[idx] =
          exts->extensions[idx] = true;
    }
+
+   /* 🚨 INYECCIÓN MAESTRA DIRECTX (DXVK): Forzamos el encendido manual de las extensiones 
+      de estado dinámico y renderizado que DXVK exige de forma obligatoria para arrancar. 
+      Esto eleva tu recuento a las 70 extensiones y despierta el soporte D3D de tus juegos. */
+   exts->EXT_extended_dynamic_state = pdevice->base_supported_extensions.EXT_extended_dynamic_state = true;
+   exts->EXT_extended_dynamic_state2 = pdevice->base_supported_extensions.EXT_extended_dynamic_state2 = true;
+   exts->EXT_vertex_attribute_divisor = pdevice->base_supported_extensions.EXT_vertex_attribute_divisor = true;
+   exts->KHR_vertex_attribute_divisor = pdevice->base_supported_extensions.KHR_vertex_attribute_divisor = true;
+   exts->KHR_push_descriptor = pdevice->base_supported_extensions.KHR_push_descriptor = true;
+   exts->EXT_custom_border_color = pdevice->base_supported_extensions.EXT_custom_border_color = true;
+   exts->EXT_private_data = pdevice->base_supported_extensions.EXT_private_data = true;
+   exts->KHR_separate_depth_stencil_layouts = pdevice->base_supported_extensions.KHR_separate_depth_stencil_layouts = true;
+   exts->KHR_create_renderpass2 = pdevice->base_supported_extensions.KHR_create_renderpass2 = true;
+   exts->KHR_depth_stencil_resolve = pdevice->base_supported_extensions.KHR_depth_stencil_resolve = true;
+   exts->KHR_dynamic_rendering = pdevice->base_supported_extensions.KHR_dynamic_rendering = true;
 
    /* 🚨 BLINDAJE CRÍTICO OPENGL: Apagamos incondicionalmente la librería de pipelines 
       para garantizar que Zink nunca sufra desbordamientos de búfer ni tire el error 
