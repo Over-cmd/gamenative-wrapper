@@ -601,7 +601,8 @@ wsi_swapchain_init(const struct wsi_device *wsi,
    if (result != VK_SUCCESS)
       goto fail;
 
-      /* Configuración de alineación y sincronización opcional */
+   /* 🚨 ALINEACIÓN DE PRODUCCIÓN MASTER MALI: Aseguramos los 256 bytes exigidos
+      por el motor para evitar el desbordamiento de memoria y el exit code 11. */
    const char *force_audio_sync = getenv("WRAPPER_AUDIO_SYNC");
    if (!force_audio_sync || atoi(force_audio_sync) != 0) {
       ((struct wsi_device *)wsi)->properties2.properties.limits.optimalBufferCopyRowPitchAlignment = 256;
