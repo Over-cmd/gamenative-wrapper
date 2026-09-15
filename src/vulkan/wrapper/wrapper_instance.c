@@ -16,6 +16,18 @@ const struct vk_instance_extension_table wrapper_instance_extensions = {
    .KHR_surface_protected_capabilities = true,
    .KHR_surface = true,
    .EXT_swapchain_colorspace = true,
+   
+   /* 🚨 EXTENSIONES DE INSTANCIA PREMIUN DE PC: Forzamos la activación de las 
+      capacidades de hardware externas y propiedades extendidas que DXVK y Zink exigen 
+      para levantar el entorno gráfico en Android, rompiendo el límite de las 16 instancias. */
+   .KHR_get_physical_device_properties2 = true,
+   .KHR_external_fence_capabilities = true,
+   .KHR_external_memory_capabilities = true,
+   .KHR_external_semaphore_capabilities = true,
+   .KHR_device_group_creation = true,
+   .EXT_debug_report = true,
+   .EXT_debug_utils = true,
+
 #ifdef VK_USE_PLATFORM_ANDROID_KHR
    .KHR_android_surface = true,
 #endif
@@ -41,7 +53,6 @@ const struct vk_instance_extension_table wrapper_instance_extensions = {
 #define WRAPPER_VALIDATION_LAYER "VK_LAYER_KHRONOS_validation"
 #define WRAPPER_API_DUMP_LAYER   "VK_LAYER_LUNARG_api_dump"
 
-
 static void *vulkan_library_handle;
 static PFN_vkCreateInstance create_instance;
 static PFN_vkGetInstanceProcAddr get_instance_proc_addr;
@@ -63,7 +74,7 @@ bool has_intercepted_layer_paths = false;
 
 #include <dlfcn.h>
 
-static void init_debug_messenger(VkInstance instance) 
+static void init_debug_messenger(VkInstance instance)
 {
   create_debug_utils_messenger = (PFN_vkCreateDebugUtilsMessengerEXT)get_instance_proc_addr(instance, "vkCreateDebugUtilsMessengerEXT");
   destroy_debug_utils_messenger = (PFN_vkDestroyDebugUtilsMessengerEXT)get_instance_proc_addr(instance, "vkDestroyDebugUtilsMessengerEXT");
