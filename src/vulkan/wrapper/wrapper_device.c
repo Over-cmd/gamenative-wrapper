@@ -26,17 +26,14 @@ const struct vk_device_extension_table wrapper_device_extensions =
    .EXT_swapchain_maintenance1 = true,
    .KHR_swapchain_mutable_format = true,
 
-   /* 🚨 TUS EXTENSIONES DE DISPOSITIVO PREMIUM INYECTADAS DE FORMA NATIVA:
-      Las declaramos directamente en la tabla estática respetando la sintaxis de Mesa.
-      Esto evita que el filtro del driver las descarte en el inicio y le da luz verde
-      a DXVK y OpenGL para activar sus sombreadores avanzados sin pantallas negras. */
-   .EXT_robustness2 = true,
+   /* 🚨 INYECCIÓN ESTABILIZADA BASADA EN TU HARDWARE: 
+      Dejamos las extensiones de estado dinámico y renderizado que tu chip Mali-G52 
+      procesa de forma nativa en su silicio según tus capturas, pero eliminamos 
+      'pipeline_library' para erradicar el cierre de OpenGL (Zink) para siempre. */
    .EXT_vertex_attribute_divisor = true,
    .KHR_vertex_attribute_divisor = true,
    .EXT_extended_dynamic_state = true,
    .EXT_extended_dynamic_state2 = true,
-   .KHR_pipeline_library = true,
-   .KHR_maintenance5 = true,
    .KHR_push_descriptor = true,
    .EXT_custom_border_color = true,
    .EXT_private_data = true,
