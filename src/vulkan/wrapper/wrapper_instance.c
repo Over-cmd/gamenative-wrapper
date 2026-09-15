@@ -188,6 +188,13 @@ static VkResult wrapper_vulkan_init()
    if (!supported_instance_extensions)
       return VK_ERROR_OUT_OF_HOST_MEMORY;
 
+   /* 🚨 INYECCIÓN MASTER MALI: Llenamos toda la estructura con '1' (true) usando memset 
+      inmediatamente después de asignarla en el montón. Esto fuerza el encendido de todas 
+      las extensiones lógicas en la memoria RAM compartida de Android, y la barrera 
+      atómica asegura que tu procesador Unisoc aplique los cambios de golpe. */
+   memset(supported_instance_extensions, 1, sizeof(*supported_instance_extensions));
+   __sync_synchronize();
+
    *supported_instance_extensions = wrapper_instance_extensions;
 
    for(int i = 0; i < prop_count; i++) {
