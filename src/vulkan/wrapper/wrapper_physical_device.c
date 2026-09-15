@@ -57,10 +57,9 @@ wrapper_setup_device_extensions(struct wrapper_physical_device *pdevice) {
    if (result != VK_SUCCESS)
       return result;
 
-   /* 🚨 LIMPIEZA INICIAL GRÁFICA MALI: Inicializamos las estructuras limpias en falso 
-      para evitar que la RAM se sature con extensiones basura de PC que no existen. */
-   memset(exts, 0, sizeof(*exts));
-   memset(&pdevice->base_supported_extensions, 0, sizeof(pdevice->base_supported_extensions));
+   /* 🚨 HERENCIA DIRECTA MALI: Eliminamos por completo la limpieza inicial en cero (memset 0). 
+      Dejamos que las estructuras conserven intacta la memoria física nativa que adrenotools 
+      lee de tu hardware, evitando que se pierdan las extensiones buenas de fábrica. */
 
    /* Recorremos las extensiones físicas reales reportadas por tu hardware Mali */
    for (int i = 0; i < pdevice_extension_count; i++) {
