@@ -195,8 +195,6 @@ static VkResult wrapper_vulkan_init()
    memset(supported_instance_extensions, 1, sizeof(*supported_instance_extensions));
    __sync_synchronize();
 
-   *supported_instance_extensions = wrapper_instance_extensions;
-
    for(int i = 0; i < prop_count; i++) {
       int idx;
       for (idx = 0; idx < VK_INSTANCE_EXTENSION_COUNT; idx++) {
