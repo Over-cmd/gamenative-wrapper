@@ -776,7 +776,7 @@ if (pdf2 && pdf2->features.f) { \
    /* 🚨 LIBERACIÓN DE TEXTURAS PC: Comentamos únicamente el bloqueo de texturas BC 
       para permitir que el transcodificador por software le entregue las imágenes de PC 
       convertidas a tu GPU Mali-G52, ¡destruyendo la pantalla negra de raíz de forma estable! */
-   DISABLE_FEATURE(textureCompressionBC);
+   // DISABLE_FEATURE(textureCompressionBC);
    DISABLE_FEATURE(multiViewport);
    DISABLE_FEATURE(depthClamp);
    DISABLE_FEATURE(depthBiasClamp);
