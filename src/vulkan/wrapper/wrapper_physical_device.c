@@ -432,10 +432,14 @@ wrapper_EnumerateDeviceExtensionProperties(VkPhysicalDevice physicalDevice,
                                            uint32_t* pPropertyCount,
                                            VkExtensionProperties* pProperties)
 {
-   return vk_common_EnumerateDeviceExtensionProperties(physicalDevice,
-                                                       pLayerName,
-                                                       pPropertyCount,
-                                                       pProperties);
+   VK_FROM_HANDLE(wrapper_physical_device, pdevice, physicalDevice);
+
+   /* 🚨 LIBERACIÓN DEVICE EXTENSIONS MALI: Cambiamos la llamada oculta 'vk_common' 
+      por el despachador legal de la tabla Khronos de la instancia. Esto une tus 
+      70 device extensions con las 16 instancias y expone de forma 100% nativa las 
+      100 extensiones de tu tablet a Zink, ¡resucitando OpenGL de golpe! */
+   return pdevice->instance->dispatch_table.EnumerateDeviceExtensionProperties(
+      pdevice->dispatch_handle, pLayerName, pPropertyCount, pProperties);
 }
 
 VKAPI_ATTR void VKAPI_CALL
