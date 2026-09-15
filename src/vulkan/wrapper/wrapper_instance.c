@@ -106,7 +106,9 @@ static void init_debug_messenger(VkInstance instance)
   
 }
 
-static void *get_vulkan_handle() 
+sta
+
+void *get_vulkan_handle() 
 {
    char *path = getenv("ADRENOTOOLS_DRIVER_PATH");
    char *redirect_dir = getenv("ADRENOTOOLS_REDIRECT_DIR");
