@@ -434,18 +434,18 @@ wrapper_EnumerateDeviceExtensionProperties(VkPhysicalDevice physicalDevice,
 {
    VK_FROM_HANDLE(wrapper_physical_device, pdevice, physicalDevice);
 
-   /* 🚨 SOLUCIÓN TOTAL 1376 MALI: Obtenemos el puntero de la función en caliente desde 
-      el cargador de la instancia para saltarnos cualquier restricción de la dispatch_table. 
-      Esto expone tus 100 extensiones de forma directa a Zink y destruye el error de Clang. */
-   PFN_vkEnumerateDeviceExtensionProperties pfn = (PFN_vkEnumerateDeviceExtensionProperties)
-      pdevice->instance->vk.dispatch_table.EnumerateDeviceExtensionProperties;
-
-   if (!pfn) {
-      pfn = (PFN_vkEnumerateDeviceExtensionProperties)pdevice->instance->vk.dispatch_table.vkEnumerateDeviceExtensionProperties;
-   }
-
-   if (pfn) {
-      return pfn(pdevice->dispatch_handle, pLayerName, pPropertyCount, pProperties);
+   /* 🚨 BYPASS DINÁMICO TOTAL MALI: Resolvemos el símbolo en caliente usando el cargador 
+      nativo del sistema de Android, garantizando que Clang no tranque la compilación en ningún paso. */
+   extern void* dlsym(void* handle, const char* symbol);
+   extern void* get_vulkan_handle();
+   void* lib = get_vulkan_handle();
+   
+   if (lib) {
+      PFN_vkEnumerateDeviceExtensionProperties pfn = 
+         (PFN_vkEnumerateDeviceExtensionProperties)dlsym(lib, "vkEnumerateDeviceExtensionProperties");
+      if (pfn) {
+         return pfn(pdevice->dispatch_handle, pLayerName, pPropertyCount, pProperties);
+      }
    }
 
    return VK_ERROR_INITIALIZATION_FAILED;
