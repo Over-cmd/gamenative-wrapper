@@ -88,7 +88,6 @@ wrapper_setup_device_extensions(struct wrapper_physical_device *pdevice) {
    return VK_SUCCESS;
 }
 
-
 static void
 wrapper_apply_device_extension_blacklist(struct wrapper_physical_device *physical_device) {
    char *blacklist = getenv("WRAPPER_EXTENSION_BLACKLIST");
@@ -425,7 +424,6 @@ wrapper_EnumerateDeviceExtensionProperties(VkPhysicalDevice physicalDevice,
       pdevice->dispatch_handle, pLayerName, pPropertyCount, pProperties);
 }
 
-
 VKAPI_ATTR void VKAPI_CALL
 wrapper_GetPhysicalDeviceFeatures(VkPhysicalDevice physicalDevice,
                                   VkPhysicalDeviceFeatures* pFeatures) 
@@ -444,7 +442,6 @@ wrapper_GetPhysicalDeviceFeatures(VkPhysicalDevice physicalDevice,
    pFeatures->tessellationShader = true;
    __sync_synchronize();
 }
-
 
 VKAPI_ATTR void VKAPI_CALL
 wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
@@ -502,7 +499,6 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
    pFeatures->features.tessellationShader = true;
    __sync_synchronize();
 }
-
 
    if (pdevice->driver_properties.driverID == VK_DRIVER_ID_SAMSUNG_PROPRIETARY) {
       vk_foreach_struct(s, pFeatures->pNext) {
