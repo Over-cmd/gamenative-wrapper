@@ -16,6 +16,19 @@ const struct vk_instance_extension_table wrapper_instance_extensions = {
    .KHR_surface_protected_capabilities = true,
    .KHR_surface = true,
    .EXT_swapchain_colorspace = true,
+   
+   /* 🚨 TUS EXTENSIONES PREMIUM DE PC INJECTADAS DE FORMA NATIVA: 
+      Las añadimos respetando la sintaxis estricta de la tabla de Mesa. Esto rompe 
+      el límite de las 16 instancias y le da luz verde a DXVK y OpenGL (Zink) 
+      para comunicarse con el servidor de pantalla sin dar pantallas negras. */
+   .KHR_get_physical_device_properties2 = true,
+   .KHR_external_fence_capabilities = true,
+   .KHR_external_memory_capabilities = true,
+   .KHR_external_semaphore_capabilities = true,
+   .KHR_device_group_creation = true,
+   .EXT_debug_report = true,
+   .EXT_debug_utils = true,
+
 #ifdef VK_USE_PLATFORM_ANDROID_KHR
    .KHR_android_surface = true,
 #endif
