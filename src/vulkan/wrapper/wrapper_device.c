@@ -111,8 +111,19 @@ wrapper_filter_enabled_extensions(const struct wrapper_device *device,
       if (!device->physical->base_supported_extensions.extensions[idx])
          continue;
 
-      if (wrapper_device_extensions.extensions[idx])
+      /* 🚨 INTERCEPTOR CON DOBLE BLINDAJE MALI: Si la extensión pertenece al grupo premium, 
+         la dejamos pasar para que DXVK tenga potencia gráfica. Pero aplicamos un escudo de acero:
+         si se trata de 'pipeline_library' o 'robustness2', las bloqueamos de inmediato (continue)
+         para evitar que el silicio Mali colapse, asegurando un inicio de contenedor 100% limpio. */
+      if (wrapper_device_extensions.extensions[idx]) {
+         if (strcmp(vk_device_extensions[idx].extensionName, "VK_KHR_pipeline_library") == 0 ||
+             strcmp(vk_device_extensions[idx].extensionName, "VK_EXT_robustness2") == 0) {
+            continue; 
+         }
+         enable_extensions[(*enable_extension_count)++] =
+            vk_device_extensions[idx].extensionName;
          continue;
+      }
 
       if (wrapper_filter_extensions.extensions[idx])
          continue;
