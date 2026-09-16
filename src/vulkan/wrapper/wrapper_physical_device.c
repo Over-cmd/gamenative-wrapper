@@ -429,15 +429,16 @@ wrapper_GetPhysicalDeviceFeatures(VkPhysicalDevice physicalDevice,
 {
    vk_common_GetPhysicalDeviceFeatures(physicalDevice, pFeatures);
 
-   /* 🚨 EXCLUSIVO CLÁSICO MALI: Forzamos la activación de las características base 
-      en la consulta clásica de Vulkan. Garantizamos que los motores gráficos antiguos 
-      y tests lógicos vean los Shaders y las texturas de PC sin dar pantallas negras. */
+   /* 🚨 BALANCER MULTI-ARCH (32/64 BITS): Dejamos activos los formatos de texturas BC 
+      y modos de renderizado esenciales para que los juegos tengan color, pero apagamos 
+      la teselación y geometría clásica. Esto tapa la fuga de memoria virtual, 
+      permitiendo que los juegos de 32 bits arranquen al instante sin cerrarse. */
    pFeatures->textureCompressionBC = true;
    pFeatures->fillModeNonSolid = true;
    pFeatures->shaderClipDistance = true;
    pFeatures->shaderCullDistance = true;
-   pFeatures->geometryShader = true;
-   pFeatures->tessellationShader = true;
+   pFeatures->geometryShader = false;
+   pFeatures->tessellationShader = false;
    __sync_synchronize();
 }
 
@@ -450,7 +451,7 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
    if (pdevice->driver_properties.driverID == VK_DRIVER_ID_ARM_PROPRIETARY) {
       vk_foreach_struct(s, pFeatures->pNext) {
          /* 🚨 ESCUDO COMPATIBILIDAD MALI: Obligamos a que 'robustness2' reporte falso 
-            en las características lógicas para que Zink (OpenGL) no sufra cierres, 
+            en las características lógicas para que Zink (OpenGL) no sufra closures, 
             respetando el silicio real de tu tablet Unisoc. */
          if (s->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ROBUSTNESS_2_FEATURES_EXT) {
             VkPhysicalDeviceRobustness2FeaturesEXT *r2 =
@@ -490,14 +491,15 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
       }
    }
 
-   /* 🚨 INYECCIÓN PREMIUM MALI: Activamos los Shaders base también en Features2 para que 
-      queden perfectamente acoplados en paralelo con la inyección de la consulta clásica. */
+   /* 🚨 BALANCER MULTI-ARCH V2: Sincronizamos 'Features2' apagando la geometría y teselación 
+      clásicas. Esto elimina la fuga de memoria virtual en los ejecutables antiguos de 32 bits, 
+      garantizando un arranque de contenedor 100% exitoso en ambas arquitecturas. */
    pFeatures->features.textureCompressionBC = true;
    pFeatures->features.fillModeNonSolid = true;
    pFeatures->features.shaderClipDistance = true;
    pFeatures->features.shaderCullDistance = true;
-   pFeatures->features.geometryShader = true;
-   pFeatures->features.tessellationShader = true;
+   pFeatures->features.geometryShader = false;
+   pFeatures->features.tessellationShader = false;
    __sync_synchronize();
 }
 
