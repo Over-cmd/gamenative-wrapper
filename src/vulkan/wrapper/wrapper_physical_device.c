@@ -1023,6 +1023,7 @@ wrapper_setup_device_extensions(struct wrapper_physical_device *pdevice) {
    if (result != VK_SUCCESS)
       return result;
 
+   /* Dejamos el mapeo base original de Mesa */
    *exts = wrapper_device_extensions;
 
    for (int i = 0; i < pdevice_extension_count; i++) {
@@ -1043,15 +1044,12 @@ wrapper_setup_device_extensions(struct wrapper_physical_device *pdevice) {
          exts->extensions[idx] = true;
    }
 
-   /* 🚨 PARCHE DE RESURRECCIÓN GRÁFICA MALI: 
-      Activamos de forma segura las extensiones de estado dinámico y divisores 
-      que los juegos de PC exigen y que tu chip Mali-G52 SÍ procesa con total fluidez. 
-      Al unificarlas aquí, le damos potencia a DirectX sin sobrecargar el silicio. */
+   /* 🚨 LIMPIEZA TOTAL MALI: Activamos únicamente los estados dinámicos y pasadas de renderizado 
+      que tu chip maneja con fluidez nativa y que DXVK exige de forma obligatoria para pintar. */
    exts->EXT_vertex_attribute_divisor = pdevice->base_supported_extensions.EXT_vertex_attribute_divisor = true;
    exts->KHR_vertex_attribute_divisor = pdevice->base_supported_extensions.KHR_vertex_attribute_divisor = true;
    exts->EXT_extended_dynamic_state = pdevice->base_supported_extensions.EXT_extended_dynamic_state = true;
    exts->EXT_extended_dynamic_state2 = pdevice->base_supported_extensions.EXT_extended_dynamic_state2 = true;
-   exts->KHR_push_descriptor = pdevice->base_supported_extensions.KHR_push_descriptor = true;
    exts->EXT_custom_border_color = pdevice->base_supported_extensions.EXT_custom_border_color = true;
    exts->EXT_private_data = pdevice->base_supported_extensions.EXT_private_data = true;
    exts->KHR_separate_depth_stencil_layouts = pdevice->base_supported_extensions.KHR_separate_depth_stencil_layouts = true;
@@ -1059,14 +1057,14 @@ wrapper_setup_device_extensions(struct wrapper_physical_device *pdevice) {
    exts->KHR_depth_stencil_resolve = pdevice->base_supported_extensions.KHR_depth_stencil_resolve = true;
    exts->KHR_dynamic_rendering = pdevice->base_supported_extensions.KHR_dynamic_rendering = true;
 
-   /* 🚨 ESCUDO ATÓMICO IMPENETRABLE MALI: 
-      Apagamos de forma incondicional las 4 extensiones venenosas que causan la pantalla 
-      negra, rompen el formato de píxeles compartidos de Android o apagan Vulkan/Zink. 
-      ¡Al purgarlas de la memoria virtual, protegemos el driver al 100%! */
+   /* 🚨 ESCUDO ANTICRASHEO: Apagamos de forma tajante las extensiones pesadas de PC 
+      que asfixian la RAM de tu GPU móvil, devolviendo la vida al pipeline gráfico. */
    exts->EXT_robustness2 = false;
    pdevice->base_supported_extensions.EXT_robustness2 = false;
    exts->KHR_pipeline_library = false;
    pdevice->base_supported_extensions.KHR_pipeline_library = false;
+   exts->KHR_push_descriptor = false;
+   pdevice->base_supported_extensions.KHR_push_descriptor = false;
    exts->KHR_maintenance5 = false;
    pdevice->base_supported_extensions.KHR_maintenance5 = false;
    exts->KHR_image_format_list = false;
