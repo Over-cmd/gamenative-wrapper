@@ -509,7 +509,7 @@ wrapper_GetPhysicalDeviceProperties(VkPhysicalDevice physicalDevice,
    uint32_t device_id;
    uint32_t vendor_id;
    
-   uint32_t api_version = parse_vk_version_from_env();
+   uint32_t api_version = VK_MAKE_VERSION(1, 3, 0);
    
    VK_FROM_HANDLE(wrapper_physical_device, pdevice, physicalDevice);
    pdevice->dispatch_table.GetPhysicalDeviceProperties(
@@ -573,7 +573,7 @@ wrapper_GetPhysicalDeviceProperties2(VkPhysicalDevice physicalDevice,
    char *driver_info;
    uint32_t driver_id;
 
-   uint32_t api_version = parse_vk_version_from_env();
+   uint32_t api_version = VK_MAKE_VERSION(1, 3, 0);
 
    VK_FROM_HANDLE(wrapper_physical_device, pdevice, physicalDevice);
    pdevice->dispatch_table.GetPhysicalDeviceProperties2(
