@@ -57,8 +57,6 @@ wrapper_setup_device_extensions(struct wrapper_physical_device *pdevice) {
    if (result != VK_SUCCESS)
       return result;
 
-   *exts = wrapper_device_extensions;
-
    for (int i = 0; i < pdevice_extension_count; i++) {
       int idx;
       for (idx = 0; idx < VK_DEVICE_EXTENSION_COUNT; idx++) {
