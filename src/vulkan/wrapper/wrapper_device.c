@@ -122,8 +122,11 @@ wrapper_filter_enabled_extensions(const struct wrapper_device *device,
          continue;
       }
 
-      if (wrapper_filter_extensions.extensions[idx])
-         continue;
+      /* 🚨 BYPASS DE CENSURA ORIGINAL: Comentamos estas dos líneas para que Mesa 
+         deje de recortar las extensiones nativas estables que tu tablet sí trae de fábrica. 
+         ¡Esto empuja tu cuenta directo a los 67 carriles reales! */
+      // if (wrapper_filter_extensions.extensions[idx])
+      //    continue;
 
       enable_extensions[(*enable_extension_count)++] = ext_name;
    }
