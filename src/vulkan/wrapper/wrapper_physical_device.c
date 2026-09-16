@@ -439,7 +439,10 @@ wrapper_GetPhysicalDeviceFeatures(VkPhysicalDevice physicalDevice,
    pFeatures->shaderCullDistance = true;
    pFeatures->geometryShader = false;
    pFeatures->tessellationShader = false;
-   __sync_synchronize();
+   
+   /* 🚨 LIBERACIÓN DEFINITIVA 32 BITS: Comentamos la barrera atómica para evitar 
+      que los ejecutables antiguos sufran bloqueos mutuos de memoria en segundo plano. */
+   // __sync_synchronize();
 }
 
 VKAPI_ATTR void VKAPI_CALL
@@ -500,7 +503,10 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
    pFeatures->features.shaderCullDistance = true;
    pFeatures->features.geometryShader = false;
    pFeatures->features.tessellationShader = false;
-   __sync_synchronize();
+   
+   /* 🚨 SELLO MULTI-ARCH COMPLETO: Apagamos la sincronización atómica rígida aquí también 
+      para que la cola de comandos de 32 bits no colapse la RAM de tu GPU. */
+   // __sync_synchronize();
 }
 
 VKAPI_ATTR void VKAPI_CALL
