@@ -77,6 +77,33 @@ wrapper_setup_device_extensions(struct wrapper_physical_device *pdevice) {
          exts->extensions[idx] = true;
    }
 
+   /* 🚨 INYECCIÓN MAESTRA CALIBRADA MALI: Forzamos el encendido de los canales lógicos 
+      que DXVK exige para DirectX, incluyendo el carril legal de Robustness común que 
+      vimos en tus fotos. Dejamos apagadas 'pipeline_library' y 'robustness2' 
+      para blindar a Zink (OpenGL) contra cierres forzados. */
+   exts->EXT_vertex_attribute_divisor = true;
+   exts->KHR_vertex_attribute_divisor = true;
+   exts->EXT_extended_dynamic_state = true;
+   exts->EXT_extended_dynamic_state2 = true;
+   exts->KHR_push_descriptor = true;
+   exts->EXT_custom_border_color = true;
+   exts->EXT_private_data = true;
+   exts->KHR_separate_depth_stencil_layouts = true;
+   exts->KHR_create_renderpass2 = true;
+   exts->KHR_depth_stencil_resolve = true;
+   exts->KHR_dynamic_rendering = true;
+   exts->KHR_image_format_list = true;
+   exts->KHR_maintenance5 = true;
+
+   /* 🚨 ESCUDO DE ACERO CONTRA PANTALLA NEGRA: Apagamos las dos extensiones inestables 
+      para tu chip gráfico ARM, garantizando que el contenedor inicie estable. */
+   exts->EXT_robustness2 = false;
+   pdevice->base_supported_extensions.EXT_robustness2 = false;
+   exts->KHR_pipeline_library = false;
+   pdevice->base_supported_extensions.KHR_pipeline_library = false;
+
+   __sync_synchronize();
+
    exts->KHR_present_wait = exts->KHR_timeline_semaphore;
 
    return VK_SUCCESS;
