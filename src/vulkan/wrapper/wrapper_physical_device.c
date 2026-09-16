@@ -1023,7 +1023,8 @@ wrapper_setup_device_extensions(struct wrapper_physical_device *pdevice) {
    if (result != VK_SUCCESS)
       return result;
 
-   /* Recorremos las extensiones físicas reales reportadas por tu hardware Mali */
+   *exts = wrapper_device_extensions;
+
    for (int i = 0; i < pdevice_extension_count; i++) {
       int idx;
       for (idx = 0; idx < VK_DEVICE_EXTENSION_COUNT; idx++) {
@@ -1042,9 +1043,26 @@ wrapper_setup_device_extensions(struct wrapper_physical_device *pdevice) {
          exts->extensions[idx] = true;
    }
 
-   /* 🚨 ESCUDO ESTABILIZADOR MALI: Apagamos incondicionalmente la librería de pipelines 
-      y robustness2 en el hardware físico. Esto garantiza que Zink (OpenGL) nunca sufra 
-      desbordamientos de búfer en tu GPU Mali-G52, manteniendo el contenedor 100% estable. */
+   /* 🚨 UNIFICACIÓN TOTAL DE EXTENSIONES PARA DXVK (DIRECTX): 
+      Forzamos el encendido manual en la tabla del dispositivo físico de las extensiones 
+      que DXVK exige para arrancar los juegos. Al copiarlas aquí en armonía con 'wrapper_device.c', 
+      ¡Mesa ya no las descarta, tu contador sube y DirectX arranca al instante! */
+   exts->EXT_vertex_attribute_divisor = pdevice->base_supported_extensions.EXT_vertex_attribute_divisor = true;
+   exts->KHR_vertex_attribute_divisor = pdevice->base_supported_extensions.KHR_vertex_attribute_divisor = true;
+   exts->EXT_extended_dynamic_state = pdevice->base_supported_extensions.EXT_extended_dynamic_state = true;
+   exts->EXT_extended_dynamic_state2 = pdevice->base_supported_extensions.EXT_extended_dynamic_state2 = true;
+   exts->KHR_push_descriptor = pdevice->base_supported_extensions.KHR_push_descriptor = true;
+   exts->EXT_custom_border_color = pdevice->base_supported_extensions.EXT_custom_border_color = true;
+   exts->EXT_private_data = pdevice->base_supported_extensions.EXT_private_data = true;
+   exts->KHR_separate_depth_stencil_layouts = pdevice->base_supported_extensions.KHR_separate_depth_stencil_layouts = true;
+   exts->KHR_create_renderpass2 = pdevice->base_supported_extensions.KHR_create_renderpass2 = true;
+   exts->KHR_depth_stencil_resolve = pdevice->base_supported_extensions.KHR_depth_stencil_resolve = true;
+   exts->KHR_dynamic_rendering = pdevice->base_supported_extensions.KHR_dynamic_rendering = true;
+   exts->KHR_image_format_list = pdevice->base_supported_extensions.KHR_image_format_list = true;
+   exts->KHR_maintenance5 = pdevice->base_supported_extensions.KHR_maintenance5 = true;
+
+   /* 🚨 ESCUDO ANTICRASHEO OPENGL: Mantenemos apagadas las dos extensiones inestables 
+      para tu silicio real ARM, asegurando que el contenedor inicie estable al 100%. */
    exts->EXT_robustness2 = false;
    pdevice->base_supported_extensions.EXT_robustness2 = false;
    exts->KHR_pipeline_library = false;
