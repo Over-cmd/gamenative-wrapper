@@ -509,7 +509,13 @@ wrapper_GetPhysicalDeviceProperties(VkPhysicalDevice physicalDevice,
    uint32_t device_id;
    uint32_t vendor_id;
    
-   uint32_t api_version = VK_MAKE_VERSION(1, 3, 0);
+   device_id = getenv("WRAPPER_DEVICE_ID") ? atoi(getenv("WRAPPER_DEVICE_ID")) : 0;
+   vendor_id = getenv("WRAPPER_VENDOR_ID") ? atoi(getenv("WRAPPER_VENDOR_ID")) : 0;
+   
+   /* 🚨 RESTAURACIÓN SEGURA VULKAN: Devolvemos la lectura nativa de Mesa. */
+   uint32_t api_version = parse_vk_version_from_env();
+   if (api_version > 0)
+      pProperties->apiVersion = api_version;
    
    VK_FROM_HANDLE(wrapper_physical_device, pdevice, physicalDevice);
    pdevice->dispatch_table.GetPhysicalDeviceProperties(
@@ -573,7 +579,13 @@ wrapper_GetPhysicalDeviceProperties2(VkPhysicalDevice physicalDevice,
    char *driver_info;
    uint32_t driver_id;
 
-   uint32_t api_version = VK_MAKE_VERSION(1, 3, 0);
+   device_id = getenv("WRAPPER_DEVICE_ID") ? atoi(getenv("WRAPPER_DEVICE_ID")) : 0;
+   vendor_id = getenv("WRAPPER_VENDOR_ID") ? atoi(getenv("WRAPPER_VENDOR_ID")) : 0;
+   
+   /* 🚨 RESTAURACIÓN SEGURA VULKAN: Devolvemos la lectura nativa de Mesa. */
+   uint32_t api_version = parse_vk_version_from_env();
+   if (api_version > 0)
+      pProperties->apiVersion = api_version;
 
    VK_FROM_HANDLE(wrapper_physical_device, pdevice, physicalDevice);
    pdevice->dispatch_table.GetPhysicalDeviceProperties2(
