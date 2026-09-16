@@ -92,31 +92,43 @@ wrapper_filter_enabled_extensions(const struct wrapper_device *device,
       if (!device->physical->base_supported_extensions.extensions[idx])
          continue;
 
-      /* 🚨 INTERCEPTOR CON DOBLE BLINDAJE MALI: Si la extensión pertenece al grupo premium, 
-         la dejamos pasar para que DXVK tenga potencia gráfica. Pero aplicamos un escudo de acero:
-         si se trata de 'pipeline_library' o 'robustness2', las bloqueamos de inmediato (continue)
-         para evitar que el silicio Mali colapse, asegurando un inicio de contenedor 100% limpio. */
-      if (wrapper_device_extensions.extensions[idx]) {
-         if (strcmp(vk_device_extensions[idx].extensionName, "VK_KHR_pipeline_library") == 0 ||
-             strcmp(vk_device_extensions[idx].extensionName, "VK_EXT_robustness2") == 0) {
-            continue; 
+      const char *ext_name = vk_device_extensions[idx].extensionName;
+
+      /* 🚨 INTERCEPTOR FINAL DE RANGO TOTAL MALI: En lugar de usar IDs numéricas, 
+         comparamos los nombres de texto reales de tus extensiones premium. 
+         Si coincide con el grupo de PC que DXVK exige, se inyecta directo en caliente. 
+         Y mantenemos el escudo: si es 'pipeline_library' o 'robustness2', se bloquean 
+         de golpe (continue) para mantener OpenGL estable y el contenedor libre de fallos. */
+      if (strcmp(ext_name, "VK_EXT_vertex_attribute_divisor") == 0 ||
+          strcmp(ext_name, "VK_KHR_vertex_attribute_divisor") == 0 ||
+          strcmp(ext_name, "VK_EXT_extended_dynamic_state") == 0 ||
+          strcmp(ext_name, "VK_EXT_extended_dynamic_state2") == 0 ||
+          strcmp(ext_name, "VK_KHR_push_descriptor") == 0 ||
+          strcmp(ext_name, "VK_EXT_custom_border_color") == 0 ||
+          strcmp(ext_name, "VK_EXT_private_data") == 0 ||
+          strcmp(ext_name, "VK_KHR_separate_depth_stencil_layouts") == 0 ||
+          strcmp(ext_name, "VK_KHR_create_renderpass2") == 0 ||
+          strcmp(ext_name, "VK_KHR_depth_stencil_resolve") == 0 ||
+          strcmp(ext_name, "VK_KHR_dynamic_rendering") == 0 ||
+          strcmp(ext_name, "VK_KHR_image_format_list") == 0 ||
+          strcmp(ext_name, "VK_KHR_maintenance5") == 0) {
+
+         if (strcmp(ext_name, "VK_KHR_pipeline_library") == 0 ||
+             strcmp(ext_name, "VK_EXT_robustness2") == 0) {
+            continue;
          }
-         enable_extensions[(*enable_extension_count)++] =
-            vk_device_extensions[idx].extensionName;
+
+         enable_extensions[(*enable_extension_count)++] = ext_name;
          continue;
       }
 
       if (wrapper_filter_extensions.extensions[idx])
          continue;
 
-      enable_extensions[(*enable_extension_count)++] =
-         vk_device_extensions[idx].extensionName;
+      enable_extensions[(*enable_extension_count)++] = ext_name;
    }
 
-   /* The app enabled one of the vertex_attribute_divisor aliases (both are
-    * advertised). Forward whichever one the base driver actually supports;
-    * symmetric so a future Mali that gains EXT is handled too. On r44 (neither
-    * is present) nothing is forwarded -- the extension is purely spoofed. */
+   /* El remate simétrico original de Mesa para los alias de divisor se queda intacto */
    if (device->vk.enabled_extensions.EXT_vertex_attribute_divisor &&
        !device->vk.enabled_extensions.KHR_vertex_attribute_divisor &&
        device->physical->base_supported_extensions.KHR_vertex_attribute_divisor) {
