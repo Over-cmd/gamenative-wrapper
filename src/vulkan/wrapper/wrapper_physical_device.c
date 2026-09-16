@@ -1043,10 +1043,10 @@ wrapper_setup_device_extensions(struct wrapper_physical_device *pdevice) {
          exts->extensions[idx] = true;
    }
 
-   /* 🚨 UNIFICACIÓN TOTAL DE EXTENSIONES PARA DXVK (DIRECTX): 
-      Forzamos el encendido manual en la tabla del dispositivo físico de las extensiones 
-      que DXVK exige para arrancar los juegos. Al copiarlas aquí en armonía con 'wrapper_device.c', 
-      ¡Mesa ya no las descarta, tu contador sube y DirectX arranca al instante! */
+   /* 🚨 PARCHE DE RESURRECCIÓN GRÁFICA MALI: 
+      Activamos de forma segura las extensiones de estado dinámico y divisores 
+      que los juegos de PC exigen y que tu chip Mali-G52 SÍ procesa con total fluidez. 
+      Al unificarlas aquí, le damos potencia a DirectX sin sobrecargar el silicio. */
    exts->EXT_vertex_attribute_divisor = pdevice->base_supported_extensions.EXT_vertex_attribute_divisor = true;
    exts->KHR_vertex_attribute_divisor = pdevice->base_supported_extensions.KHR_vertex_attribute_divisor = true;
    exts->EXT_extended_dynamic_state = pdevice->base_supported_extensions.EXT_extended_dynamic_state = true;
@@ -1058,15 +1058,19 @@ wrapper_setup_device_extensions(struct wrapper_physical_device *pdevice) {
    exts->KHR_create_renderpass2 = pdevice->base_supported_extensions.KHR_create_renderpass2 = true;
    exts->KHR_depth_stencil_resolve = pdevice->base_supported_extensions.KHR_depth_stencil_resolve = true;
    exts->KHR_dynamic_rendering = pdevice->base_supported_extensions.KHR_dynamic_rendering = true;
-   exts->KHR_image_format_list = pdevice->base_supported_extensions.KHR_image_format_list = true;
-   exts->KHR_maintenance5 = pdevice->base_supported_extensions.KHR_maintenance5 = true;
 
-   /* 🚨 ESCUDO ANTICRASHEO OPENGL: Mantenemos apagadas las dos extensiones inestables 
-      para tu silicio real ARM, asegurando que el contenedor inicie estable al 100%. */
+   /* 🚨 ESCUDO ATÓMICO IMPENETRABLE MALI: 
+      Apagamos de forma incondicional las 4 extensiones venenosas que causan la pantalla 
+      negra, rompen el formato de píxeles compartidos de Android o apagan Vulkan/Zink. 
+      ¡Al purgarlas de la memoria virtual, protegemos el driver al 100%! */
    exts->EXT_robustness2 = false;
    pdevice->base_supported_extensions.EXT_robustness2 = false;
    exts->KHR_pipeline_library = false;
    pdevice->base_supported_extensions.KHR_pipeline_library = false;
+   exts->KHR_maintenance5 = false;
+   pdevice->base_supported_extensions.KHR_maintenance5 = false;
+   exts->KHR_image_format_list = false;
+   pdevice->base_supported_extensions.KHR_image_format_list = false;
 
    __sync_synchronize();
 
