@@ -44,67 +44,45 @@ get_driver_version(const uint32_t driverVersion)
 	return driver_version;
 }
 
-static VkResult
-wrapper_setup_device_extensions(struct wrapper_physical_device *pdevice) {
-   struct vk_device_extension_table *exts = &pdevice->vk.supported_extensions;
-   VkExtensionProperties pdevice_extensions[VK_DEVICE_EXTENSION_COUNT];
-   uint32_t pdevice_extension_count = VK_DEVICE_EXTENSION_COUNT;
-   VkResult result;
+static void
+wrapper_filter_enabled_extensions(const struct wrapper_device *device,
+                                  uint32_t *enable_extension_count,
+                                  const char **enable_extensions)
+{
+   for (int idx = 0; idx < VK_DEVICE_EXTENSION_COUNT; idx++) {
+      if (!device->vk.enabled_extensions.extensions[idx])
+         continue;
 
-   result = pdevice->dispatch_table.EnumerateDeviceExtensionProperties(
-      pdevice->dispatch_handle, NULL, &pdevice_extension_count, pdevice_extensions);
+      if (!device->physical->base_supported_extensions.extensions[idx])
+         continue;
 
-   if (result != VK_SUCCESS)
-      return result;
-
-   for (int i = 0; i < pdevice_extension_count; i++) {
-      int idx;
-      for (idx = 0; idx < VK_DEVICE_EXTENSION_COUNT; idx++) {
-         if (strcmp(vk_device_extensions[idx].extensionName,
-                     pdevice_extensions[i].extensionName) == 0)
-            break;
-      }
-
-      if (idx >= VK_DEVICE_EXTENSION_COUNT)
+      if (wrapper_device_extensions.extensions[idx])
          continue;
 
       if (wrapper_filter_extensions.extensions[idx])
          continue;
 
-      pdevice->base_supported_extensions.extensions[idx] =
-         exts->extensions[idx] = true;
+      enable_extensions[(*enable_extension_count)++] =
+         vk_device_extensions[idx].extensionName;
    }
 
-   /* 🚨 INYECCIÓN MAESTRA CALIBRADA MALI: Forzamos el encendido de los canales lógicos 
-      que DXVK exige para DirectX, incluyendo el carril legal de Robustness común que 
-      vimos en tus fotos. Dejamos apagadas 'pipeline_library' y 'robustness2' 
-      para blindar a Zink (OpenGL) contra cierres forzados. */
-   exts->EXT_vertex_attribute_divisor = true;
-   exts->KHR_vertex_attribute_divisor = true;
-   exts->EXT_extended_dynamic_state = true;
-   exts->EXT_extended_dynamic_state2 = true;
-   exts->KHR_push_descriptor = true;
-   exts->EXT_custom_border_color = true;
-   exts->EXT_private_data = true;
-   exts->KHR_separate_depth_stencil_layouts = true;
-   exts->KHR_create_renderpass2 = true;
-   exts->KHR_depth_stencil_resolve = true;
-   exts->KHR_dynamic_rendering = true;
-   exts->KHR_image_format_list = true;
-   exts->KHR_maintenance5 = true;
+   /* The app enabled one of the vertex_attribute_divisor aliases (both are
+    * advertised). Forward whichever one the base driver actually supports;
+    * symmetric so a future Mali that gains EXT is handled too. On r44 (neither
+    * is present) nothing is forwarded -- the extension is purely spoofed. */
+   if (device->vk.enabled_extensions.EXT_vertex_attribute_divisor &&
+       !device->vk.enabled_extensions.KHR_vertex_attribute_divisor &&
+       device->physical->base_supported_extensions.KHR_vertex_attribute_divisor) {
+      enable_extensions[(*enable_extension_count)++] =
+         "VK_KHR_vertex_attribute_divisor";
+   }
 
-   /* 🚨 ESCUDO DE ACERO CONTRA PANTALLA NEGRA: Apagamos las dos extensiones inestables 
-      para tu chip gráfico ARM, garantizando que el contenedor inicie estable. */
-   exts->EXT_robustness2 = false;
-   pdevice->base_supported_extensions.EXT_robustness2 = false;
-   exts->KHR_pipeline_library = false;
-   pdevice->base_supported_extensions.KHR_pipeline_library = false;
-
-   __sync_synchronize();
-
-   exts->KHR_present_wait = exts->KHR_timeline_semaphore;
-
-   return VK_SUCCESS;
+   if (device->vk.enabled_extensions.KHR_vertex_attribute_divisor &&
+       !device->vk.enabled_extensions.EXT_vertex_attribute_divisor &&
+       device->physical->base_supported_extensions.EXT_vertex_attribute_divisor) {
+      enable_extensions[(*enable_extension_count)++] =
+         "VK_EXT_vertex_attribute_divisor";
+   }
 }
 
 static void
@@ -452,17 +430,22 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
    VK_FROM_HANDLE(wrapper_physical_device, pdevice, physicalDevice);
    vk_common_GetPhysicalDeviceFeatures2(physicalDevice, pFeatures);
 
-   if (pdevice->driver_properties.driverID == VK_DRIVER_ID_ARM_PROPRIETARY &&
-       pdevice->vk.supported_extensions.EXT_robustness2) {
+   if (pdevice->driver_properties.driverID == VK_DRIVER_ID_ARM_PROPRIETARY) {
       vk_foreach_struct(s, pFeatures->pNext) {
+         /* 🚨 ESCUDO COMPATIBILIDAD MALI: Obligamos a que 'robustness2' reporte falso 
+            en las características lógicas para que Zink (OpenGL) no sufra cierres, 
+            respetando el silicio real de tu tablet Unisoc. */
          if (s->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ROBUSTNESS_2_FEATURES_EXT) {
             VkPhysicalDeviceRobustness2FeaturesEXT *r2 =
                (VkPhysicalDeviceRobustness2FeaturesEXT *)s;
-            r2->robustBufferAccess2 = VK_TRUE;
-            r2->nullDescriptor = VK_TRUE;
-            if (pdevice->is_vkd3d)
-               r2->robustImageAccess2 = VK_TRUE;
+            r2->robustBufferAccess2 = VK_FALSE;
+            r2->robustImageAccess2 = VK_FALSE;
+            r2->nullDescriptor = VK_FALSE;
          }
+         
+         /* 🚨 LIBERACIÓN EMULACIÓN PC: Forzamos el encendido incondicional de los estados 
+            dinámicos y divisores que DXVK (DirectX) exige para pintar los gráficos. 
+            Al saltarnos el filtro viejo de robustness2, ¡el contenedor arranca estable! */
          if (s->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTENDED_DYNAMIC_STATE_FEATURES_EXT) {
             ((VkPhysicalDeviceExtendedDynamicStateFeaturesEXT *)s)->extendedDynamicState = VK_TRUE;
          }
