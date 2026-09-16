@@ -427,7 +427,18 @@ VKAPI_ATTR void VKAPI_CALL
 wrapper_GetPhysicalDeviceFeatures(VkPhysicalDevice physicalDevice,
                                   VkPhysicalDeviceFeatures* pFeatures) 
 {
-   return vk_common_GetPhysicalDeviceFeatures(physicalDevice, pFeatures);
+   vk_common_GetPhysicalDeviceFeatures(physicalDevice, pFeatures);
+
+   /* 🚨 EXCLUSIVO CLÁSICO MALI: Forzamos la activación de las características base 
+      en la consulta clásica de Vulkan. Garantizamos que los motores gráficos antiguos 
+      y tests lógicos vean los Shaders y las texturas de PC sin dar pantallas negras. */
+   pFeatures->textureCompressionBC = true;
+   pFeatures->fillModeNonSolid = true;
+   pFeatures->shaderClipDistance = true;
+   pFeatures->shaderCullDistance = true;
+   pFeatures->geometryShader = true;
+   pFeatures->tessellationShader = true;
+   __sync_synchronize();
 }
 
 VKAPI_ATTR void VKAPI_CALL
@@ -478,6 +489,16 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
             ((VkPhysicalDeviceMaintenance5Features *)s)->maintenance5 = VK_TRUE;
       }
    }
+
+   /* 🚨 INYECCIÓN PREMIUM MALI: Activamos los Shaders base también en Features2 para que 
+      queden perfectamente acoplados en paralelo con la inyección de la consulta clásica. */
+   pFeatures->features.textureCompressionBC = true;
+   pFeatures->features.fillModeNonSolid = true;
+   pFeatures->features.shaderClipDistance = true;
+   pFeatures->features.shaderCullDistance = true;
+   pFeatures->features.geometryShader = true;
+   pFeatures->features.tessellationShader = true;
+   __sync_synchronize();
 }
 
 VKAPI_ATTR void VKAPI_CALL
@@ -1023,7 +1044,6 @@ wrapper_setup_device_extensions(struct wrapper_physical_device *pdevice) {
    if (result != VK_SUCCESS)
       return result;
 
-   /* Dejamos el mapeo base original de Mesa */
    *exts = wrapper_device_extensions;
 
    for (int i = 0; i < pdevice_extension_count; i++) {
@@ -1043,39 +1063,6 @@ wrapper_setup_device_extensions(struct wrapper_physical_device *pdevice) {
       pdevice->base_supported_extensions.extensions[idx] =
          exts->extensions[idx] = true;
    }
-
-   /* 🚨 NÚCLEO DE ACCIÓN SEGURO MALI: Activamos única y exclusivamente las extensiones 
-      de estado dinámico, divisores y renderizado dinámico directo que tu chip procesa 
-      con total fluidez nativa por hardware y que DXVK exige para poder arrancar DirectX 
-      sin colgar el contenedor ni corromper los buffers. */
-   exts->EXT_vertex_attribute_divisor = pdevice->base_supported_extensions.EXT_vertex_attribute_divisor = true;
-   exts->KHR_vertex_attribute_divisor = pdevice->base_supported_extensions.KHR_vertex_attribute_divisor = true;
-   exts->EXT_extended_dynamic_state = pdevice->base_supported_extensions.EXT_extended_dynamic_state = true;
-   exts->EXT_extended_dynamic_state2 = pdevice->base_supported_extensions.EXT_extended_dynamic_state2 = true;
-   exts->KHR_separate_depth_stencil_layouts = pdevice->base_supported_extensions.KHR_separate_depth_stencil_layouts = true;
-   exts->KHR_create_renderpass2 = pdevice->base_supported_extensions.KHR_create_renderpass2 = true;
-   exts->KHR_depth_stencil_resolve = pdevice->base_supported_extensions.KHR_depth_stencil_resolve = true;
-   exts->KHR_dynamic_rendering = pdevice->base_supported_extensions.KHR_dynamic_rendering = true;
-
-   /* 🚨 ESCUDO DE ACERO GRÁFICO FINAL: Apagamos incondicionalmente todos los componentes 
-      inestables de PC de escritorio de gama alta. Al purgarlos del mapa del dispositivo físico, 
-      eliminamos los desbordamientos de la RAM de tu GPU móvil, restaurando la vida al sistema. */
-   exts->EXT_robustness2 = false;
-   pdevice->base_supported_extensions.EXT_robustness2 = false;
-   exts->KHR_pipeline_library = false;
-   pdevice->base_supported_extensions.KHR_pipeline_library = false;
-   exts->EXT_private_data = false;
-   pdevice->base_supported_extensions.EXT_private_data = false;
-   exts->EXT_custom_border_color = false;
-   pdevice->base_supported_extensions.EXT_custom_border_color = false;
-   exts->KHR_push_descriptor = false;
-   pdevice->base_supported_extensions.KHR_push_descriptor = false;
-   exts->KHR_maintenance5 = false;
-   pdevice->base_supported_extensions.KHR_maintenance5 = false;
-   exts->KHR_image_format_list = false;
-   pdevice->base_supported_extensions.KHR_image_format_list = false;
-
-   __sync_synchronize();
 
    exts->KHR_present_wait = exts->KHR_timeline_semaphore;
 
