@@ -25,6 +25,12 @@ const struct vk_device_extension_table wrapper_device_extensions =
    .KHR_swapchain = true,
    .EXT_swapchain_maintenance1 = true,
    .KHR_swapchain_mutable_format = true,
+#ifdef VK_USE_PLATFORM_DISPLAY_KHR
+   .EXT_display_control = true,
+#endif
+   .KHR_present_id = true,
+   .KHR_present_wait = true,
+   .KHR_incremental_present = true,
 
    /* 🚨 TUS EXTENSIONES PREMIUM DE PC INYECTADAS DE FORMA NATIVA:
       Las declaramos en la tabla original respetando el formato estricto de Mesa.
@@ -44,13 +50,6 @@ const struct vk_device_extension_table wrapper_device_extensions =
    .KHR_dynamic_rendering = true,
    .KHR_image_format_list = true,
    .KHR_maintenance5 = true,
-
-#ifdef VK_USE_PLATFORM_DISPLAY_KHR
-   .EXT_display_control = true,
-#endif
-   .KHR_present_id = true,
-   .KHR_present_wait = true,
-   .KHR_incremental_present = true,
 };
 
 const struct vk_device_extension_table wrapper_filter_extensions =
