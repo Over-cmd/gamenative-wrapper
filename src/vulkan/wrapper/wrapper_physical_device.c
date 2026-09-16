@@ -1044,26 +1044,28 @@ wrapper_setup_device_extensions(struct wrapper_physical_device *pdevice) {
          exts->extensions[idx] = true;
    }
 
-   /* 🚨 NÚCLEO DE POTENCIA SEGURO MALI: Activamos única y exclusivamente los estados 
-      dinámicos y divisores que tu chip procesa con total fluidez nativa por hardware 
-      y que DXVK exige para poder arrancar DirectX sin colgar el contenedor. */
+   /* 🚨 NÚCLEO DE ACCIÓN SEGURO MALI: Activamos única y exclusivamente las extensiones 
+      de estado dinámico, divisores y renderizado dinámico directo que tu chip procesa 
+      con total fluidez nativa por hardware y que DXVK exige para poder arrancar DirectX 
+      sin colgar el contenedor ni corromper los buffers. */
    exts->EXT_vertex_attribute_divisor = pdevice->base_supported_extensions.EXT_vertex_attribute_divisor = true;
    exts->KHR_vertex_attribute_divisor = pdevice->base_supported_extensions.KHR_vertex_attribute_divisor = true;
    exts->EXT_extended_dynamic_state = pdevice->base_supported_extensions.EXT_extended_dynamic_state = true;
    exts->EXT_extended_dynamic_state2 = pdevice->base_supported_extensions.EXT_extended_dynamic_state2 = true;
-   exts->EXT_private_data = pdevice->base_supported_extensions.EXT_private_data = true;
    exts->KHR_separate_depth_stencil_layouts = pdevice->base_supported_extensions.KHR_separate_depth_stencil_layouts = true;
    exts->KHR_create_renderpass2 = pdevice->base_supported_extensions.KHR_create_renderpass2 = true;
    exts->KHR_depth_stencil_resolve = pdevice->base_supported_extensions.KHR_depth_stencil_resolve = true;
    exts->KHR_dynamic_rendering = pdevice->base_supported_extensions.KHR_dynamic_rendering = true;
 
-   /* 🚨 ESCUDO ATÓMICO FINAL: Apagamos incondicionalmente todos los componentes pesados 
-      de PC de escritorio. Al purgarlos de la memoria virtual del dispositivo, 
-      eliminamos los desbordamientos de la RAM de tu GPU móvil para siempre. */
+   /* 🚨 ESCUDO DE ACERO GRÁFICO FINAL: Apagamos incondicionalmente todos los componentes 
+      inestables de PC de escritorio de gama alta. Al purgarlos del mapa del dispositivo físico, 
+      eliminamos los desbordamientos de la RAM de tu GPU móvil, restaurando la vida al sistema. */
    exts->EXT_robustness2 = false;
    pdevice->base_supported_extensions.EXT_robustness2 = false;
    exts->KHR_pipeline_library = false;
    pdevice->base_supported_extensions.KHR_pipeline_library = false;
+   exts->EXT_private_data = false;
+   pdevice->base_supported_extensions.EXT_private_data = false;
    exts->EXT_custom_border_color = false;
    pdevice->base_supported_extensions.EXT_custom_border_color = false;
    exts->KHR_push_descriptor = false;
