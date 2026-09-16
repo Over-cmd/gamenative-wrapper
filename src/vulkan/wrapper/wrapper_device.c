@@ -25,6 +25,26 @@ const struct vk_device_extension_table wrapper_device_extensions =
    .KHR_swapchain = true,
    .EXT_swapchain_maintenance1 = true,
    .KHR_swapchain_mutable_format = true,
+
+   /* 🚨 TUS EXTENSIONES PREMIUM DE PC INYECTADAS DE FORMA NATIVA:
+      Las declaramos en la tabla original respetando el formato estricto de Mesa.
+      Esto le da luz verde a DXVK (DirectX) para encender sus motores gráficos,
+      pero dejando fuera de forma segura 'pipeline_library' y 'robustness2'
+      para que OpenGL (Zink) no se rompa y tu pantalla no se vaya a negro. */
+   .EXT_vertex_attribute_divisor = true,
+   .KHR_vertex_attribute_divisor = true,
+   .EXT_extended_dynamic_state = true,
+   .EXT_extended_dynamic_state2 = true,
+   .KHR_push_descriptor = true,
+   .EXT_custom_border_color = true,
+   .EXT_private_data = true,
+   .KHR_separate_depth_stencil_layouts = true,
+   .KHR_create_renderpass2 = true,
+   .KHR_depth_stencil_resolve = true,
+   .KHR_dynamic_rendering = true,
+   .KHR_image_format_list = true,
+   .KHR_maintenance5 = true,
+
 #ifdef VK_USE_PLATFORM_DISPLAY_KHR
    .EXT_display_control = true,
 #endif
