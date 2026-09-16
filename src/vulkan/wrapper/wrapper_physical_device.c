@@ -581,11 +581,13 @@ wrapper_GetPhysicalDeviceProperties2(VkPhysicalDevice physicalDevice,
 
    device_id = getenv("WRAPPER_DEVICE_ID") ? atoi(getenv("WRAPPER_DEVICE_ID")) : 0;
    vendor_id = getenv("WRAPPER_VENDOR_ID") ? atoi(getenv("WRAPPER_VENDOR_ID")) : 0;
-   
-   /* 🚨 RESTAURACIÓN SEGURA VULKAN: Devolvemos la lectura nativa de Mesa. */
+
+   /* 🚨 SOLUCIÓN PASO 1377 CORREGIDO: Usamos '.properties.' de forma estricta. 
+      Esto permite que la máscara binaria de Vulkan se asigne en la subestructura legal, 
+      eliminando por completo el bloqueo de compilación de Clang. */
    uint32_t api_version = parse_vk_version_from_env();
    if (api_version > 0)
-      pProperties->apiVersion = api_version;
+      pProperties->properties.apiVersion = api_version;
 
    VK_FROM_HANDLE(wrapper_physical_device, pdevice, physicalDevice);
    pdevice->dispatch_table.GetPhysicalDeviceProperties2(
