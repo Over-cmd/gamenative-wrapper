@@ -13,7 +13,11 @@
 #include "vk_util.h"
 #include "wsi_common.h"
 #include "util/os_misc.h"
+#include "util/os_misc.h"
 
+/* 🚨 SOLUCIÓN PASO 1376: Declaramos el prototipo de la función al principio del archivo. 
+   Esto le avisa a Clang++ que la función está escrita más abajo, eliminando el fallo 
+   de declaración implícita por completo sin tocar el código original de fábrica. */
 static VkResult wrapper_setup_device_extensions(struct wrapper_physical_device *pdevice);
 
 static uint32_t
