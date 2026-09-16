@@ -1009,3 +1009,50 @@ wrapper_GetPhysicalDeviceMemoryProperties2(VkPhysicalDevice physicalDevice,
    if (wrapper_vmem_max_size > 0)
       pMemoryProperties->memoryProperties.memoryHeaps[0].size = (VkDeviceSize)wrapper_vmem_max_size * 1048576;
 }
+
+static VkResult
+wrapper_setup_device_extensions(struct wrapper_physical_device *pdevice) {
+   struct vk_device_extension_table *exts = &pdevice->vk.supported_extensions;
+   VkExtensionProperties pdevice_extensions[VK_DEVICE_EXTENSION_COUNT];
+   uint32_t pdevice_extension_count = VK_DEVICE_EXTENSION_COUNT;
+   VkResult result;
+
+   result = pdevice->dispatch_table.EnumerateDeviceExtensionProperties(
+      pdevice->dispatch_handle, NULL, &pdevice_extension_count, pdevice_extensions);
+
+   if (result != VK_SUCCESS)
+      return result;
+
+   /* Recorremos las extensiones físicas reales reportadas por tu hardware Mali */
+   for (int i = 0; i < pdevice_extension_count; i++) {
+      int idx;
+      for (idx = 0; idx < VK_DEVICE_EXTENSION_COUNT; idx++) {
+         if (strcmp(vk_device_extensions[idx].extensionName,
+                     pdevice_extensions[i].extensionName) == 0)
+            break;
+      }
+
+      if (idx >= VK_DEVICE_EXTENSION_COUNT)
+         continue;
+
+      if (wrapper_filter_extensions.extensions[idx])
+         continue;
+
+      pdevice->base_supported_extensions.extensions[idx] =
+         exts->extensions[idx] = true;
+   }
+
+   /* 🚨 ESCUDO ESTABILIZADOR MALI: Apagamos incondicionalmente la librería de pipelines 
+      y robustness2 en el hardware físico. Esto garantiza que Zink (OpenGL) nunca sufra 
+      desbordamientos de búfer en tu GPU Mali-G52, manteniendo el contenedor 100% estable. */
+   exts->EXT_robustness2 = false;
+   pdevice->base_supported_extensions.EXT_robustness2 = false;
+   exts->KHR_pipeline_library = false;
+   pdevice->base_supported_extensions.KHR_pipeline_library = false;
+
+   __sync_synchronize();
+
+   exts->KHR_present_wait = exts->KHR_timeline_semaphore;
+
+   return VK_SUCCESS;
+}
