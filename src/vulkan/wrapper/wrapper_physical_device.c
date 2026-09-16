@@ -1044,25 +1044,28 @@ wrapper_setup_device_extensions(struct wrapper_physical_device *pdevice) {
          exts->extensions[idx] = true;
    }
 
-   /* 🚨 LIMPIEZA TOTAL MALI: Activamos únicamente los estados dinámicos y pasadas de renderizado 
-      que tu chip maneja con fluidez nativa y que DXVK exige de forma obligatoria para pintar. */
+   /* 🚨 NÚCLEO DE POTENCIA SEGURO MALI: Activamos única y exclusivamente los estados 
+      dinámicos y divisores que tu chip procesa con total fluidez nativa por hardware 
+      y que DXVK exige para poder arrancar DirectX sin colgar el contenedor. */
    exts->EXT_vertex_attribute_divisor = pdevice->base_supported_extensions.EXT_vertex_attribute_divisor = true;
    exts->KHR_vertex_attribute_divisor = pdevice->base_supported_extensions.KHR_vertex_attribute_divisor = true;
    exts->EXT_extended_dynamic_state = pdevice->base_supported_extensions.EXT_extended_dynamic_state = true;
    exts->EXT_extended_dynamic_state2 = pdevice->base_supported_extensions.EXT_extended_dynamic_state2 = true;
-   exts->EXT_custom_border_color = pdevice->base_supported_extensions.EXT_custom_border_color = true;
    exts->EXT_private_data = pdevice->base_supported_extensions.EXT_private_data = true;
    exts->KHR_separate_depth_stencil_layouts = pdevice->base_supported_extensions.KHR_separate_depth_stencil_layouts = true;
    exts->KHR_create_renderpass2 = pdevice->base_supported_extensions.KHR_create_renderpass2 = true;
    exts->KHR_depth_stencil_resolve = pdevice->base_supported_extensions.KHR_depth_stencil_resolve = true;
    exts->KHR_dynamic_rendering = pdevice->base_supported_extensions.KHR_dynamic_rendering = true;
 
-   /* 🚨 ESCUDO ANTICRASHEO: Apagamos de forma tajante las extensiones pesadas de PC 
-      que asfixian la RAM de tu GPU móvil, devolviendo la vida al pipeline gráfico. */
+   /* 🚨 ESCUDO ATÓMICO FINAL: Apagamos incondicionalmente todos los componentes pesados 
+      de PC de escritorio. Al purgarlos de la memoria virtual del dispositivo, 
+      eliminamos los desbordamientos de la RAM de tu GPU móvil para siempre. */
    exts->EXT_robustness2 = false;
    pdevice->base_supported_extensions.EXT_robustness2 = false;
    exts->KHR_pipeline_library = false;
    pdevice->base_supported_extensions.KHR_pipeline_library = false;
+   exts->EXT_custom_border_color = false;
+   pdevice->base_supported_extensions.EXT_custom_border_color = false;
    exts->KHR_push_descriptor = false;
    pdevice->base_supported_extensions.KHR_push_descriptor = false;
    exts->KHR_maintenance5 = false;
