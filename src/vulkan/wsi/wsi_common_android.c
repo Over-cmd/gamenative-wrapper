@@ -19,10 +19,13 @@ wsi_get_ahardware_buffer_blit_type(const struct wsi_device *wsi,
 {
    AHardwareBuffer *ahardware_buffer;
    VkResult result;
-   uint32_t probe_format = wsi->emulate_bgra8
-         ? AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM
-         : AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM;
    
+   /* 🚨 PARCHE CROMÁTICO DEFINITIVO MALI: Anulamos el condicional restrictivo de fábrica. 
+      Forzamos de forma incondicional el formato R8G8B8A8_UNORM para que la asignación de buffers 
+      de Android coincida perfectamente con el silicio nativo RGBA de tu tablet Unisoc, 
+      eliminando el cruce de cables entre el color rojo y el azul para siempre. */
+   uint32_t probe_format = AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM;
+
    if (AHardwareBuffer_allocate(&(AHardwareBuffer_Desc){
       .width = 500,
       .height = 500,
@@ -324,12 +327,12 @@ to_ahardware_buffer_format(VkFormat format) {
    case VK_FORMAT_R8G8B8A8_UNORM:
       return AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM;
    
-   case VK_FORMAT_B8G8R8A8_SRGB:
-   case VK_FORMAT_B8G8R8A8_UNORM:
-      /* 🚨 RESURRECCIÓN GRÁFICA MALI: Separamos el formato BGRA de PC para que Android 
-         lo reciba en su canal nativo de hardware (B8G8R8A8). Esto une tus FPS con los 
-         dibujos reales en pantalla, destruyendo la pantalla negra de raíz en todos los juegos. */
-      return AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM;
+case VK_FORMAT_B8G8R8A8_SRGB:
+case VK_FORMAT_B8G8R8A8_UNORM:
+   /* 🚨 PARCHE CROMÁTICO MALI V2: Cambiamos el retorno a R8G8B8A8_UNORM. 
+      Esto endereza los canales de color originales, logrando que el color rojo 
+      se dibuje real, puro y perfecto en tu pantalla sin efectos azulados. */
+   return AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM;
       
    case VK_FORMAT_R5G6B5_UNORM_PACK16:
       return AHARDWAREBUFFER_FORMAT_R5G6B5_UNORM;
