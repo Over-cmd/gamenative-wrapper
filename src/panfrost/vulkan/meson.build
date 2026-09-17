@@ -178,10 +178,11 @@ libvulkan_panfrost = shared_library(
   ],
   c_args : [no_override_init_args, panvk_flags],
   
-  # 🚨 SOLUCIÓN PASO 1461 MALI: Añadimos la flag de hardware en los link_args nativos.
-  # Esto le permite a ld.lld amarrar las funciones 'MALI_AHardwareBuffer' con los stubs 
-  # del sistema, cerrando la fuga de símbolos y completando la build entera en verde.
-  link_args : [ld_args_bsymbolic, ld_args_gc_sections, ld_args_build_id, '-lhardware'],
+  # 🚨 ENLAZADO LOCAL DE HARDWARE MALI: 
+  # En lugar de usar '-lhardware' genérico, enlazamos directamente el objeto binario local 
+  # 'libhardware.so' que vive dentro de la carpeta de stubs de tu repositorio ('src/android_stub/').
+  # Al darle la ruta física interna, ld.lld amarra las funciones al instante sin perderse.
+  link_args : [ld_args_bsymbolic, ld_args_gc_sections, ld_args_build_id, '-Lsrc/android_stub', '-lhardware'],
   install : true,
 )
 
