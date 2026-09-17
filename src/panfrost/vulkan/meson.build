@@ -176,7 +176,15 @@ libvulkan_panfrost = shared_library(
     idep_mesautil,
   ] + panvk_deps,
   c_args : [no_override_init_args, panvk_flags],
-  link_args : [ld_args_bsymbolic, ld_args_gc_sections, ld_args_build_id],
+  
+  # 🚨 CIERRE DE FUGA MALI PASO 1465: Le damos al enlazador la ruta física absoluta de tu 
+  # repositorio hacia la carpeta de stubs de Android. Al amarrar '-lhardware', '-llog' y '-lcutils' 
+  # usando la raíz del proyecto, ld.lld une las funciones nativas al instante y completa la build.
+  link_args : [
+    ld_args_bsymbolic, ld_args_gc_sections, ld_args_build_id,
+    '-L' + meson.project_source_root() / 'src/android_stub',
+    '-lhardware', '-llog', '-lcutils'
+  ],
   install : true,
 )
 
