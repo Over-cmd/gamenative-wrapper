@@ -160,10 +160,6 @@ libvulkan_panfrost = shared_library(
     libpanfrost_decode,
     libpanfrost_lib,
     libpanfrost_util,
-    # 🚨 SOLUCIÓN PASO 1466 MALI: Enlazamos el objeto estático directo de tu repositorio.
-    # Al ponerlo aquí dentro de link_with, Meson busca el binario interno real ya compilado
-    # por la suite, inyectando las funciones MALI_ de golpe sin depender de archivos .so sueltos.
-    libandroid_stub
   ],
   dependencies : [
     dep_dl,
@@ -180,7 +176,17 @@ libvulkan_panfrost = shared_library(
     idep_mesautil,
   ] + panvk_deps,
   c_args : [no_override_init_args, panvk_flags],
-  link_args : [ld_args_bsymbolic, ld_args_gc_sections, ld_args_build_id],
+  
+  # 🚨 ENLAZADO ATÓMICO NATIVO PANFROST: 
+  # En lugar de usar '-lhardware' o variables desconocidas, inyectamos la ruta del archivo 
+  # binario directo ya construido por la suite en la carpeta de compilación de salida. 
+  # Al pasarle el objeto físico exacto, ld.lld amarra 'MALI_AHardwareBuffer' de golpe sin fallas.
+  link_args : [
+    ld_args_bsymbolic, ld_args_gc_sections, ld_args_build_id,
+    meson.project_build_root() / 'src/android_stub/libhardware.so',
+    meson.project_build_root() / 'src/android_stub/liblog.so',
+    meson.project_build_root() / 'src/android_stub/libcutils.so'
+  ],
   install : true,
 )
 
