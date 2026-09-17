@@ -188,12 +188,20 @@ static VkResult wrapper_vulkan_init()
    if (!supported_instance_extensions)
       return VK_ERROR_OUT_OF_HOST_MEMORY;
 
-   /* 🚨 INYECCIÓN MASTER MALI: Llenamos toda la estructura con '1' (true) usando memset 
-      inmediatamente después de asignarla en el montón. Esto fuerza el encendido de todas 
-      las extensiones lógicas en la memoria RAM compartida de Android, y la barrera 
-      atómica asegura que tu procesador Unisoc aplique los cambios de golpe. */
-   memset(supported_instance_extensions, 1, sizeof(*supported_instance_extensions));
+   /* 🚨 INICIALIZACIÓN COMPATIBLE MULTI-ARCH: 
+      Inicializamos toda la estructura limpia a 0 (false). Esto evita corrupciones de bytes 
+      y desbordamientos de datos que tiran al suelo las aplicaciones de 32 bits al arrancar. */
+   memset(supported_instance_extensions, 0, sizeof(*supported_instance_extensions));
    __sync_synchronize();
+
+   /* 🚨 INTERRUPTOR MAESTRO: Si la app es de 64 bits, habilitamos todas las extensiones 
+      de forma segura para mantener la inyección máxima en juegos modernos. Si es un binario 
+      antiguo de 32 bits, dejamos que use solo el filtrado selectivo real del dispositivo. */
+   if (sizeof(void*) == 8) {
+      for (int idx = 0; idx < VK_INSTANCE_EXTENSION_COUNT; idx++) {
+         supported_instance_extensions->extensions[idx] = true;
+      }
+   }
 
    for(int i = 0; i < prop_count; i++) {
       int idx;
