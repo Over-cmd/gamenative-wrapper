@@ -144,11 +144,6 @@ if with_platform_android
   libpanvk_files += files('panvk_android.c')
 endif
 
-# 🚨 PARCHE ENLAZADO DEFINITIVO MALI: Localizamos los binarios reales construidos en la build
-mali_hardware_lib = meson.get_compiler('c').find_library('hardware', dirs : meson.project_build_root() / 'src/android_stub')
-mali_log_lib = meson.get_compiler('c').find_library('log', dirs : meson.project_build_root() / 'src/android_stub')
-mali_cutils_lib = meson.get_compiler('c').find_library('cutils', dirs : meson.project_build_root() / 'src/android_stub')
-
 libvulkan_panfrost = shared_library(
   'vulkan_panfrost',
   [libpanvk_files, panvk_entrypoints],
@@ -179,7 +174,7 @@ libvulkan_panfrost = shared_library(
     idep_vulkan_runtime,
     idep_vulkan_wsi,
     idep_mesautil,
-  ] + panvk_deps + [mali_hardware_lib, mali_log_lib, mali_cutils_lib],
+  ] + panvk_deps + [dep_android],
   c_args : [no_override_init_args, panvk_flags],
   link_args : [ld_args_bsymbolic, ld_args_gc_sections, ld_args_build_id],
   install : true,
