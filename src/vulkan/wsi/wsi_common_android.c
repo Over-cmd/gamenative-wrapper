@@ -11,7 +11,7 @@
 
 /* 🚨 PROTOTIPOS NATIVOS MALI EXPLICITOS: Declaramos las firmas reales de tu silicio. 
    Esto le permite a Clang y al enlazador ld.lld encontrar los símbolos exactos 
-   sin generar errores en el paso 1250 ni en el 1467, respetando tu hardware. */
+   respectando tu hardware sin generar errores. */
 extern int MALI_AHardwareBuffer_allocate(const AHardwareBuffer_Desc *desc, AHardwareBuffer **outBuffer);
 extern void MALI_AHardwareBuffer_release(AHardwareBuffer *buffer);
 
@@ -22,9 +22,11 @@ wsi_get_ahardware_buffer_blit_type(const struct wsi_device *wsi,
    AHardwareBuffer *ahardware_buffer;
    VkResult result;
    
-   /* 🚨 PARCHE CROMÁTICO DEFINITIVO MALI: Forzamos el formato de hardware R8G8B8A8_UNORM. 
-      Al fijarlo aquí de forma transparente, Android y tu chip Unisoc T618 se comunican 
-      en formato RGBA puro, eliminando el error del color rojo que se veía azul. */
+   /* 🚨 ESCUDO MAESTRO COMPILACIÓN MULTI-MOTOR:
+      Si el archivo está siendo procesado por el driver nativo de Panfrost, usamos el camino 
+      original limpio de Mesa para que no busque símbolos MALI_ inexistentes en su enlazador (Paso 1468).
+      Si lo procesa el Wrapper, inyectamos tu súper parche cromático RGBA con llamadas Mali nativas. */
+#ifndef PAN_ARCH
    uint32_t probe_format = AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM;
    
    if (MALI_AHardwareBuffer_allocate(&(AHardwareBuffer_Desc){
@@ -40,6 +42,24 @@ wsi_get_ahardware_buffer_blit_type(const struct wsi_device *wsi,
       WRAPPER_LOG(error, "Failed to allocate ahardware buffer, blitting");
       return WSI_SWAPCHAIN_IMAGE_BLIT;
    }
+#else
+   uint32_t probe_format = wsi->emulate_bgra8
+         ? AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM
+         : AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM;
+
+   if (AHardwareBuffer_allocate(&(AHardwareBuffer_Desc){
+      .width = 500,
+      .height = 500,
+      .layers = 1,
+      .format = probe_format,
+      .usage = AHARDWAREBUFFER_USAGE_GPU_FRAMEBUFFER |
+               AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE |
+               AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN |
+               AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN },
+                                &ahardware_buffer) != 0) {
+      return WSI_SWAPCHAIN_IMAGE_BLIT;
+   }
+#endif
 
    VkAndroidHardwareBufferFormatPropertiesANDROID ahardware_buffer_format_props = {
       .sType = VK_STRUCTURE_TYPE_ANDROID_HARDWARE_BUFFER_FORMAT_PROPERTIES_ANDROID,
@@ -52,15 +72,19 @@ wsi_get_ahardware_buffer_blit_type(const struct wsi_device *wsi,
    result = wsi->GetAndroidHardwareBufferPropertiesANDROID(
       device, ahardware_buffer, &ahardware_buffer_props);
 
+#ifndef PAN_ARCH
    MALI_AHardwareBuffer_release(ahardware_buffer);
+#else
+   AHardwareBuffer_release(ahardware_buffer);
+#endif
 
    if (result != VK_SUCCESS) {
+#ifndef PAN_ARCH
       WRAPPER_LOG(error, "Failed to get ahardware buffer properties, blitting");
+#endif
       return WSI_SWAPCHAIN_IMAGE_BLIT;
    }
 
-   /* 🚨 SELLO ORIGINAL DE MESA: Eliminamos el segundo bloque repetido que causaba 
-      la redefinición, permitiendo que el compilador continúe leyendo de largo. */
    VkPhysicalDeviceExternalImageFormatInfo external_format_info = {
       .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTERNAL_IMAGE_FORMAT_INFO,
       .pNext = NULL,
@@ -88,17 +112,23 @@ wsi_get_ahardware_buffer_blit_type(const struct wsi_device *wsi,
    result = wsi->GetPhysicalDeviceImageFormatProperties2(
       wsi->pdevice, &format_info, &format_props);
    if (result != VK_SUCCESS) {
+#ifndef PAN_ARCH
       WRAPPER_LOG(error, "External Image format not supported, blitting");
+#endif
       return WSI_SWAPCHAIN_IMAGE_BLIT;
    }
 
    if (!(external_format_props.externalMemoryProperties.externalMemoryFeatures
          & VK_EXTERNAL_MEMORY_FEATURE_IMPORTABLE_BIT)) {
+#ifndef PAN_ARCH
       WRAPPER_LOG(error, "External image format isn't importable, blitting");
+#endif
       return WSI_SWAPCHAIN_IMAGE_BLIT;
    }
 
+#ifndef PAN_ARCH
    WRAPPER_LOG(info, "wsi_get_ahardware_buffer_blit_type: WSI_SWAPCHAIN_NO_BLIT");
+#endif
    return WSI_SWAPCHAIN_NO_BLIT;
 }
 
