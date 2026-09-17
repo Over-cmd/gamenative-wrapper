@@ -27,7 +27,7 @@ extern const struct vk_device_extension_table wrapper_filter_extensions;
    Forzamos un empaquetamiento compacto de 4 bytes exclusivo si el juego que está corriendo 
    es un ejecutable antiguo de 32 bits. Esto garantiza que las tablas de despacho 'dispatch_table' 
    no sufran desfasamientos de punteros ni fugas de bytes, permitiendo un arranque estable de largo. */
-#if defined(__arm__) || sizeof(void*) == 4
+#if defined(__arm__) || defined(__i386__) || (defined(__SIZEOF_POINTER__) && __SIZEOF_POINTER__ == 4)
 #pragma pack(push, 4)
 #endif
 
@@ -38,7 +38,7 @@ struct wrapper_instance {
    struct vk_instance_dispatch_table dispatch_table;
 };
 
-#if defined(__arm__) || sizeof(void*) == 4
+#if defined(__arm__) || defined(__i386__) || (defined(__SIZEOF_POINTER__) && __SIZEOF_POINTER__ == 4)
 #pragma pack(pop)
 #endif
 
@@ -50,7 +50,7 @@ VK_DEFINE_HANDLE_CASTS(wrapper_instance, vk.base, VkInstance,
    es un ejecutable antiguo de 32 bits. Esto garantiza que las estructuras masivas como properties2, 
    memory_properties y wsi_device mantengan su alineación milimétrica y no corrompan los punteros 
    vecinos, permitiendo que los juegos de 32 bits levanten estables de largo en tu tablet. */
-#if defined(__arm__) || sizeof(void*) == 4
+#if defined(__arm__) || defined(__i386__) || (defined(__SIZEOF_POINTER__) && __SIZEOF_POINTER__ == 4)
 #pragma pack(push, 4)
 #endif
 
