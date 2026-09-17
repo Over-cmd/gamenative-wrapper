@@ -837,7 +837,12 @@ if (pdf2 && pdf2->features.f) { \
       return vk_error(physical_device, result);
    }
 
-   if (!physical_device->vk.supported_features.memoryMapPlaced) {
+   /* 🚨 BALANCER MULTI-ARCH DE MEMORIA: 
+      Activamos los trampolines rígidos de mapeo colocados SOLAMENTE si el juego es de 64 bits.
+      Si es un ejecutable antiguo de 32 bits (donde sizeof(void*) es igual a 4), nos saltamos 
+      este bloque, permitiendo que la asignación de memoria fluya de forma ligera y nativa 
+      sin provocar desbordamientos de RAM virtual ni cierres al arrancar. */
+   if (!physical_device->vk.supported_features.memoryMapPlaced && sizeof(void*) == 8) {
       device->vk.dispatch_table.AllocateMemory =
          wrapper_device_trampolines.AllocateMemory;
       device->vk.dispatch_table.MapMemory2 =
