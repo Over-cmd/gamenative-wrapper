@@ -601,10 +601,12 @@ wsi_swapchain_init(const struct wsi_device *wsi,
    if (result != VK_SUCCESS)
       goto fail;
 
-   /* 🚨 ALINEACIÓN DE PRODUCCIÓN MASTER MALI: Aseguramos los 256 bytes exigidos
-      por el motor para evitar el desbordamiento de memoria y el exit code 11. */
+      /* 🚨 ALINEACIÓN DE PRODUCCIÓN BALANCED MALI: Aseguramos los 256 bytes exigidos
+      por el motor para evitar el desbordamiento de memoria y el exit code 11,
+      pero SOLAMENTE si el juego es de 64 bits. Para ejecutables de 32 bits, omitimos
+      esta inyección agresiva evitando el desborde del Row Pitch en motores clásicos. */
    const char *force_audio_sync = getenv("WRAPPER_AUDIO_SYNC");
-   if (!force_audio_sync || atoi(force_audio_sync) != 0) {
+   if ((!force_audio_sync || atoi(force_audio_sync) != 0) && sizeof(void*) == 8) {
       ((struct wsi_device *)wsi)->properties2.properties.limits.optimalBufferCopyRowPitchAlignment = 256;
       ((struct wsi_device *)wsi)->properties2.properties.limits.optimalBufferCopyOffsetAlignment = 64;
       __sync_synchronize();
