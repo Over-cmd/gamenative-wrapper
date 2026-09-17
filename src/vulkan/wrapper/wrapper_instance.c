@@ -449,14 +449,20 @@ wrapper_GetInstanceProcAddr(VkInstance _instance,
                                     pName);
 }
 
-PUBLIC VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL
-vk_icdGetInstanceProcAddr(VkInstance instance,
-                          const char *pName);
+/* 🚨 PUENTE DE CARGA MULTI-ARCH EXPLICITO (32/64 BITS):
+   Forzamos la exportación del símbolo con visibilidad pública nativa por atributo de Clang. 
+   Esto garantiza que el cargador de Vulkan de Android y el entorno Wine de 32 bits encuentren 
+   la función de entrada de inmediato, eliminando los cierres instantáneos al arrancar. */
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-
-PUBLIC VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL
-vk_icdGetInstanceProcAddr(VkInstance instance,
-                          const char *pName)
+__attribute__((visibility("default"))) VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL
+vk_icdGetInstanceProcAddr(VkInstance instance, const char *pName)
 {
    return wrapper_GetInstanceProcAddr(instance, pName);
 }
+
+#ifdef __cplusplus
+}
+#endif
