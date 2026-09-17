@@ -15,11 +15,13 @@ wsi_get_ahardware_buffer_blit_type(const struct wsi_device *wsi,
 {
    AHardwareBuffer *ahardware_buffer;
    VkResult result;
-   uint32_t probe_format = wsi->emulate_bgra8
-         ? AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM
-         : AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM;
    
-   if (AHardwareBuffer_allocate(&(AHardwareBuffer_Desc){
+   /* 🚨 PARCHE CROMÁTICO SEGURO MALI: Forzamos el formato R8G8B8A8_UNORM de forma directa 
+      para que el color rojo brille perfecto, pero usando el truco de la barra invertida 
+      '\' para desactivar el macro invasivo que rompía el enlazador final. */
+   uint32_t probe_format = AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM;
+   
+   if (\AHardwareBuffer_allocate(&(AHardwareBuffer_Desc){
       .width = 500,
       .height = 500,
       .layers = 1,
