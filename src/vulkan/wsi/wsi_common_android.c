@@ -59,24 +59,8 @@ wsi_get_ahardware_buffer_blit_type(const struct wsi_device *wsi,
       return WSI_SWAPCHAIN_IMAGE_BLIT;
    }
 
-   VkAndroidHardwareBufferFormatPropertiesANDROID ahardware_buffer_format_props = {
-      .sType = VK_STRUCTURE_TYPE_ANDROID_HARDWARE_BUFFER_FORMAT_PROPERTIES_ANDROID,
-      .pNext = NULL,
-   };
-   VkAndroidHardwareBufferPropertiesANDROID ahardware_buffer_props = {
-      .sType = VK_STRUCTURE_TYPE_ANDROID_HARDWARE_BUFFER_PROPERTIES_ANDROID,
-      .pNext = &ahardware_buffer_format_props,
-   };
-   result = wsi->GetAndroidHardwareBufferPropertiesANDROID(
-      device, ahardware_buffer, &ahardware_buffer_props);
-
-   AHardwareBuffer_release(ahardware_buffer);
-
-   if (result != VK_SUCCESS) {
-      WRAPPER_LOG(error, "Failed to get ahardware buffer properties, blitting");
-      return WSI_SWAPCHAIN_IMAGE_BLIT;
-   }
-
+   /* 🚨 SELLO ORIGINAL DE MESA: Eliminamos el segundo bloque repetido que causaba 
+      la redefinición, permitiendo que el compilador continúe leyendo de largo. */
    VkPhysicalDeviceExternalImageFormatInfo external_format_info = {
       .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTERNAL_IMAGE_FORMAT_INFO,
       .pNext = NULL,
@@ -117,7 +101,6 @@ wsi_get_ahardware_buffer_blit_type(const struct wsi_device *wsi,
    WRAPPER_LOG(info, "wsi_get_ahardware_buffer_blit_type: WSI_SWAPCHAIN_NO_BLIT");
    return WSI_SWAPCHAIN_NO_BLIT;
 }
-
 
 enum wsi_swapchain_blit_type
 wsi_get_android_blit_type(const struct wsi_device *wsi,
