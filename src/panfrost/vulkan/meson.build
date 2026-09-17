@@ -144,6 +144,11 @@ if with_platform_android
   libpanvk_files += files('panvk_android.c')
 endif
 
+# 🚨 PARCHE ENLAZADO DEFINITIVO MALI: Localizamos los binarios reales construidos en la build
+mali_hardware_lib = meson.get_compiler('c').find_library('hardware', dirs : meson.project_build_root() / 'src/android_stub')
+mali_log_lib = meson.get_compiler('c').find_library('log', dirs : meson.project_build_root() / 'src/android_stub')
+mali_cutils_lib = meson.get_compiler('c').find_library('cutils', dirs : meson.project_build_root() / 'src/android_stub')
+
 libvulkan_panfrost = shared_library(
   'vulkan_panfrost',
   [libpanvk_files, panvk_entrypoints],
@@ -174,19 +179,9 @@ libvulkan_panfrost = shared_library(
     idep_vulkan_runtime,
     idep_vulkan_wsi,
     idep_mesautil,
-  ] + panvk_deps,
+  ] + panvk_deps + [mali_hardware_lib, mali_log_lib, mali_cutils_lib],
   c_args : [no_override_init_args, panvk_flags],
-  
-  # 🚨 ENLAZADO ATÓMICO NATIVO PANFROST: 
-  # En lugar de usar '-lhardware' o variables desconocidas, inyectamos la ruta del archivo 
-  # binario directo ya construido por la suite en la carpeta de compilación de salida. 
-  # Al pasarle el objeto físico exacto, ld.lld amarra 'MALI_AHardwareBuffer' de golpe sin fallas.
-  link_args : [
-    ld_args_bsymbolic, ld_args_gc_sections, ld_args_build_id,
-    meson.project_build_root() / 'src/android_stub/libhardware.so',
-    meson.project_build_root() / 'src/android_stub/liblog.so',
-    meson.project_build_root() / 'src/android_stub/libcutils.so'
-  ],
+  link_args : [ld_args_bsymbolic, ld_args_gc_sections, ld_args_build_id],
   install : true,
 )
 
