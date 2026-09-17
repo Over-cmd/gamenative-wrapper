@@ -177,7 +177,11 @@ libvulkan_panfrost = shared_library(
     idep_mesautil,
   ],
   c_args : [no_override_init_args, panvk_flags],
-  link_args : [ld_args_bsymbolic, ld_args_gc_sections, ld_args_build_id],
+  
+  # 🚨 SOLUCIÓN PASO 1461 MALI: Añadimos la flag de hardware en los link_args nativos.
+  # Esto le permite a ld.lld amarrar las funciones 'MALI_AHardwareBuffer' con los stubs 
+  # del sistema, cerrando la fuga de símbolos y completando la build entera en verde.
+  link_args : [ld_args_bsymbolic, ld_args_gc_sections, ld_args_build_id, '-lhardware'],
   install : true,
 )
 
