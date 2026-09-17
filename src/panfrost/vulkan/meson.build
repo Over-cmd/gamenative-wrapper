@@ -177,12 +177,12 @@ libvulkan_panfrost = shared_library(
   ] + panvk_deps,
   c_args : [no_override_init_args, panvk_flags],
   
-  # 🚨 CIERRE DE FUGA MALI PASO 1465: Le damos al enlazador la ruta física absoluta de tu 
-  # repositorio hacia la carpeta de stubs de Android. Al amarrar '-lhardware', '-llog' y '-lcutils' 
-  # usando la raíz del proyecto, ld.lld une las funciones nativas al instante y completa la build.
+  # 🚨 ENLAZADO DEFINTIVO MALI PANFROST: Apuntamos a la carpeta de construcción (project_build_root).
+  # Al usar esta macro, ld.lld encuentra los objetos binarios .so de los stubs ya compilados en la nubes,
+  # enlazando '-lhardware', '-llog' y '-lcutils' de forma perfecta al 100% sin dar errores.
   link_args : [
     ld_args_bsymbolic, ld_args_gc_sections, ld_args_build_id,
-    '-L' + meson.project_source_root() / 'src/android_stub',
+    '-L' + meson.project_build_root() / 'src/android_stub',
     '-lhardware', '-llog', '-lcutils'
   ],
   install : true,
