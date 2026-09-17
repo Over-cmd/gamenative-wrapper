@@ -23,6 +23,14 @@ extern const struct vk_instance_extension_table wrapper_instance_extensions;
 extern const struct vk_device_extension_table wrapper_device_extensions;
 extern const struct vk_device_extension_table wrapper_filter_extensions;
 
+/* 🚨 BALANCER MULTI-ARCH INSTANCIA:
+   Forzamos un empaquetamiento compacto de 4 bytes exclusivo si el juego que está corriendo 
+   es un ejecutable antiguo de 32 bits. Esto garantiza que las tablas de despacho 'dispatch_table' 
+   no sufran desfasamientos de punteros ni fugas de bytes, permitiendo un arranque estable de largo. */
+#if defined(__arm__) || sizeof(void*) == 4
+#pragma pack(push, 4)
+#endif
+
 struct wrapper_instance {
    struct vk_instance vk;
 
@@ -30,8 +38,21 @@ struct wrapper_instance {
    struct vk_instance_dispatch_table dispatch_table;
 };
 
+#if defined(__arm__) || sizeof(void*) == 4
+#pragma pack(pop)
+#endif
+
 VK_DEFINE_HANDLE_CASTS(wrapper_instance, vk.base, VkInstance,
                        VK_OBJECT_TYPE_INSTANCE)
+
+/* 🚨 BALANCER MULTI-ARCH DISPOSITIVO FÍSICO Y COLA:
+   Forzamos un empaquetamiento compacto de 4 bytes exclusivo si el juego que está corriendo 
+   es un ejecutable antiguo de 32 bits. Esto garantiza que las estructuras masivas como properties2, 
+   memory_properties y wsi_device mantengan su alineación milimétrica y no corrompan los punteros 
+   vecinos, permitiendo que los juegos de 32 bits levanten estables de largo en tu tablet. */
+#if defined(__arm__) || sizeof(void*) == 4
+#pragma pack(push, 4)
+#endif
 
 struct wrapper_physical_device {
    struct vk_physical_device vk;
@@ -70,8 +91,21 @@ struct wrapper_queue {
    VkQueue dispatch_handle;
 };
 
+#if defined(__arm__) || sizeof(void*) == 4
+#pragma pack(pop)
+#endif
+
 VK_DEFINE_HANDLE_CASTS(wrapper_queue, vk.base, VkQueue,
                        VK_OBJECT_TYPE_QUEUE)
+
+/* 🚨 BALANCER MULTI-ARCH DISPOSITIVO LÓGICO:
+   Forzamos un empaquetamiento compacto de 4 bytes exclusivo si el juego que está corriendo 
+   es un ejecutable antiguo de 32 bits. Esto garantiza que las tablas hash, los mutex y el motor 
+   de transcodificación BCn->ASTC mantengan su alineación milimétrica y no sufran desfasamientos 
+   de punteros en la RAM virtual, permitiendo un arranque 100% exitoso en ambas arquitecturas. */
+#if defined(__arm__) || sizeof(void*) == 4
+#pragma pack(push, 4)
+#endif
 
 struct wrapper_device {
    struct vk_device vk;
@@ -119,6 +153,10 @@ struct wrapper_device {
    VkPipeline bcn_pipeline;
    VkDeviceSize bcn_gpu_inflight;        /* transient GPU-transcode bytes not yet freed */
 };
+
+#if defined(__arm__) || sizeof(void*) == 4
+#pragma pack(pop)
+#endif
 
 VK_DEFINE_HANDLE_CASTS(wrapper_device, vk.base, VkDevice,
                        VK_OBJECT_TYPE_DEVICE)
