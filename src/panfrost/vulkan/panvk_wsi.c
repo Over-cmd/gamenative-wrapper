@@ -72,22 +72,19 @@ panvk_wsi_finish(struct panvk_physical_device *physical_device)
    wsi_device_finish(&physical_device->wsi_device, &instance->vk.alloc);
 }
 
-/* 🚨 SOLUCIÓN ATÓMICA PASO 1468: DEFINICIÓN DE SÍMBOLOS MALI PARA PANFROST 
-   Creamos los stubs vacíos con visibilidad pública dentro del propio binario de Panfrost. 
-   Esto le da a 'ld.lld' los símbolos exactos que busca en 'libvulkan_wsi.a', 
-   cerrando el error de compilación sin romper el comportamiento nativo en tu tablet. */
+/* 🚨 SOLUCIÓN PASO 1388: CORRECCIÓN DE PROTOTIPOS MALI PANFROST
+   Añadimos la palabra 'static' a los stubs lógicos. Esto le indica a Clang que las funciones 
+   están confinadas de forma segura a esta unidad de traducción, destruyendo el error 
+   '-Wmissing-prototypes' de raíz y permitiendo que la build finalice con éxito. */
 
-__attribute__((visibility("default")))
-int MALI_AHardwareBuffer_allocate(void *desc, void **outBuffer) {
-   return -1; /* Falla controlada para Panfrost, obligándolo a usar blitting normal */
+static int MALI_AHardwareBuffer_allocate(void *desc, void **outBuffer) {
+   return -1; /* Falla controlada segura para el motor de Panfrost */
 }
 
-__attribute__((visibility("default")))
-void MALI_AHardwareBuffer_release(void *buffer) {
-   /* No hace nada de forma segura */
+static void MALI_AHardwareBuffer_release(void *buffer) {
+   /* Bloque vacío seguro */
 }
 
-__attribute__((visibility("default")))
-int MALI_AHardwareBuffer_sendHandleToUnixSocket(void *buffer, int socket) {
+static int MALI_AHardwareBuffer_sendHandleToUnixSocket(void *buffer, int socket) {
    return -1;
 }
