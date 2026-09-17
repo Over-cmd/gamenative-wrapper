@@ -72,23 +72,39 @@ panvk_wsi_finish(struct panvk_physical_device *physical_device)
    wsi_device_finish(&physical_device->wsi_device, &instance->vk.alloc);
 }
 
-/* 🚨 SOLUCIÓN TOTAL PASO 1461 CON PROTOTIPOS:
-   Declaramos los prototipos explícitos requeridos por Clang para desactivar '-Wmissing-prototypes'.
-   Al mantener las funciones sin 'static', el enlazador ld.lld las encuentra de forma pública global,
-   sellando el paso 1461 de raíz y completando la build entera con éxito. */
+#include <dlfcn.h>
 
-int MALI_AHardwareBuffer_allocate(void *desc, void **outBuffer);
+/* 🚨 REPARACIÓN COMPATIBILIDAD MALI NATIVA:
+   Declaramos los prototipos para Clang y usamos dlsym para llamar a las funciones reales 
+   de libandroid.so en tu tablet Unisoc. Esto repara el enlazador en la nube y 
+   devuelve la vida a Vulkan y OpenGL al permitir la asignación real de buffers. */
+
+int MALI_AHardwareBuffer_allocate(const void *desc, void **outBuffer);
 void MALI_AHardwareBuffer_release(void *buffer);
 int MALI_AHardwareBuffer_sendHandleToUnixSocket(void *buffer, int socket);
 
-int MALI_AHardwareBuffer_allocate(void *desc, void **outBuffer) {
-   return -1; /* Falla controlada segura para el Swapchain nativo de Panfrost */
+int MALI_AHardwareBuffer_allocate(const void *desc, void **outBuffer) {
+   void *lib = dlopen("libandroid.so", RTLD_NOW | RTLD_LOCAL);
+   if (!lib) return -1;
+   int (*func)(const void*, void**) = (int (*)(const void*, void**))dlsym(lib, "AHardwareBuffer_allocate");
+   int res = func ? func(desc, outBuffer) : -1;
+   dlclose(lib);
+   return res;
 }
 
 void MALI_AHardwareBuffer_release(void *buffer) {
-   /* Bloque vacío seguro */
+   void *lib = dlopen("libandroid.so", RTLD_NOW | RTLD_LOCAL);
+   if (!lib) return;
+   void (*func)(void*) = (void (*)(void*))dlsym(lib, "AHardwareBuffer_release");
+   if (func) func(buffer);
+   dlclose(lib);
 }
 
 int MALI_AHardwareBuffer_sendHandleToUnixSocket(void *buffer, int socket) {
-   return -1;
+   void *lib = dlopen("libandroid.so", RTLD_NOW | RTLD_LOCAL);
+   if (!lib) return -1;
+   int (*func)(void*, int) = (int (*)(void*, int))dlsym(lib, "AHardwareBuffer_sendHandleToUnixSocket");
+   int res = func ? func(buffer, socket) : -1;
+   dlclose(lib);
+   return res;
 }
