@@ -81,6 +81,10 @@ struct wrapper_physical_device {
    struct vk_physical_device_dispatch_table dispatch_table;
 };
 
+#if defined(__arm__) || defined(__i386__) || (defined(__SIZEOF_POINTER__) && __SIZEOF_POINTER__ == 4)
+#pragma pack(pop)
+#endif
+
 VK_DEFINE_HANDLE_CASTS(wrapper_physical_device, vk.base, VkPhysicalDevice,
                        VK_OBJECT_TYPE_PHYSICAL_DEVICE)
 
@@ -91,7 +95,7 @@ struct wrapper_queue {
    VkQueue dispatch_handle;
 };
 
-#if defined(__arm__) || sizeof(void*) == 4
+#if defined(__arm__) || defined(__i386__) || (defined(__SIZEOF_POINTER__) && __SIZEOF_POINTER__ == 4)
 #pragma pack(pop)
 #endif
 
@@ -103,7 +107,7 @@ VK_DEFINE_HANDLE_CASTS(wrapper_queue, vk.base, VkQueue,
    es un ejecutable antiguo de 32 bits. Esto garantiza que las tablas hash, los mutex y el motor 
    de transcodificación BCn->ASTC mantengan su alineación milimétrica y no sufran desfasamientos 
    de punteros en la RAM virtual, permitiendo un arranque 100% exitoso en ambas arquitecturas. */
-#if defined(__arm__) || sizeof(void*) == 4
+#if defined(__arm__) || defined(__i386__) || (defined(__SIZEOF_POINTER__) && __SIZEOF_POINTER__ == 4)
 #pragma pack(push, 4)
 #endif
 
@@ -154,7 +158,7 @@ struct wrapper_device {
    VkDeviceSize bcn_gpu_inflight;        /* transient GPU-transcode bytes not yet freed */
 };
 
-#if defined(__arm__) || sizeof(void*) == 4
+#if defined(__arm__) || defined(__i386__) || (defined(__SIZEOF_POINTER__) && __SIZEOF_POINTER__ == 4)
 #pragma pack(pop)
 #endif
 
