@@ -175,16 +175,11 @@ libvulkan_panfrost = shared_library(
     idep_vulkan_runtime,
     idep_vulkan_wsi,
     idep_mesautil,
+    idep_android_stub,
   ],
   c_args : [no_override_init_args, panvk_flags],
   
-  # 🚨 ENLAZADO LOCAL DE HARDWARE MALI: 
-  # En lugar de usar '-lhardware' genérico, enlazamos directamente el objeto binario local 
-  # 'libhardware.so' que vive dentro de la carpeta de stubs de tu repositorio ('src/android_stub/').
-  # Al darle la ruta física interna, ld.lld amarra las funciones al instante sin perderse.
-  link_args : [ld_args_bsymbolic, ld_args_gc_sections, ld_args_build_id, '-Lsrc/android_stub', '-lhardware'],
-  install : true,
-)
+  link_args : [ld_args_bsymbolic, ld_args_gc_sections, ld_args_build_id],
 
 panfrost_icd = custom_target(
   'panfrost_icd',
