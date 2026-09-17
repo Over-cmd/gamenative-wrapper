@@ -148,7 +148,11 @@ VkResult enumerate_physical_device(struct vk_instance *_instance)
       PFN_vkGetInstanceProcAddr get_instance_proc_addr;
       struct wrapper_physical_device *pdevice;
 
-      pdevice = vk_zalloc(&_instance->alloc, sizeof(*pdevice), 8,
+      /* 🚨 BALANCER ATÓMICO MULTI-ARCH DE ALINEACIÓN: 
+         Cambiamos la alineación fija de 8 bytes por 'sizeof(void*)'. Esto hace que en juegos 
+         de 32 bits la estructura se alinee perfectamente a 4 bytes, y en juegos de 64 bits 
+         a 8 bytes, destruyendo por completo la corrupción de punteros y los cierres silenciosos. */
+      pdevice = vk_zalloc(&_instance->alloc, sizeof(*pdevice), sizeof(void*),
                           VK_SYSTEM_ALLOCATION_SCOPE_INSTANCE);
       if (!pdevice)
          return VK_ERROR_OUT_OF_HOST_MEMORY;
