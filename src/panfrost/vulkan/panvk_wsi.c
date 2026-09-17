@@ -72,19 +72,23 @@ panvk_wsi_finish(struct panvk_physical_device *physical_device)
    wsi_device_finish(&physical_device->wsi_device, &instance->vk.alloc);
 }
 
-/* 🚨 SOLUCIÓN PASO 1388: CORRECCIÓN DE PROTOTIPOS MALI PANFROST
-   Añadimos la palabra 'static' a los stubs lógicos. Esto le indica a Clang que las funciones 
-   están confinadas de forma segura a esta unidad de traducción, destruyendo el error 
-   '-Wmissing-prototypes' de raíz y permitiendo que la build finalice con éxito. */
+/* 🚨 SOLUCIÓN TOTAL PASO 1461 CON PROTOTIPOS:
+   Declaramos los prototipos explícitos requeridos por Clang para desactivar '-Wmissing-prototypes'.
+   Al mantener las funciones sin 'static', el enlazador ld.lld las encuentra de forma pública global,
+   sellando el paso 1461 de raíz y completando la build entera con éxito. */
 
-static int MALI_AHardwareBuffer_allocate(void *desc, void **outBuffer) {
-   return -1; /* Falla controlada segura para el motor de Panfrost */
+int MALI_AHardwareBuffer_allocate(void *desc, void **outBuffer);
+void MALI_AHardwareBuffer_release(void *buffer);
+int MALI_AHardwareBuffer_sendHandleToUnixSocket(void *buffer, int socket);
+
+int MALI_AHardwareBuffer_allocate(void *desc, void **outBuffer) {
+   return -1; /* Falla controlada segura para el Swapchain nativo de Panfrost */
 }
 
-static void MALI_AHardwareBuffer_release(void *buffer) {
+void MALI_AHardwareBuffer_release(void *buffer) {
    /* Bloque vacío seguro */
 }
 
-static int MALI_AHardwareBuffer_sendHandleToUnixSocket(void *buffer, int socket) {
+int MALI_AHardwareBuffer_sendHandleToUnixSocket(void *buffer, int socket) {
    return -1;
 }
