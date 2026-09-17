@@ -1,6 +1,7 @@
 #include "wsi_common.h"
 #include "wsi_common_private.h"
 #include "vk_log.h"
+#include <dlfcn.h> /* 🚨 REQUERIDO PARA EL BYPASS DE ENLAZADO DINÁMICO */
 #include "../wrapper/wrapper_log.h"
 #include "../wrapper/wrapper_private.h"
 
@@ -9,6 +10,10 @@
 #define AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM 1
 #define AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM 5
 
+/* Definimos el tipo de función exacta para el cargador */
+typedef int (*pfn_AHardwareBuffer_allocate)(const AHardwareBuffer_Desc*, AHardwareBuffer**);
+typedef void (*pfn_AHardwareBuffer_release)(AHardwareBuffer*);
+
 static enum wsi_swapchain_blit_type
 wsi_get_ahardware_buffer_blit_type(const struct wsi_device *wsi,
                             VkDevice device)
@@ -16,12 +21,25 @@ wsi_get_ahardware_buffer_blit_type(const struct wsi_device *wsi,
    AHardwareBuffer *ahardware_buffer;
    VkResult result;
    
-   /* 🚨 PARCHE CROMÁTICO SEGURO MALI: Forzamos el formato R8G8B8A8_UNORM de forma directa 
-      para que el color rojo brille perfecto, pero usando el truco de la barra invertida 
-      '\' para desactivar el macro invasivo que rompía el enlazador final. */
+   /* 🚨 PARCHE CROMÁTICO MALI: Forzamos el formato nativo RGBA para tu chip Unisoc. */
    uint32_t probe_format = AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM;
    
-   if (\AHardwareBuffer_allocate(&(AHardwareBuffer_Desc){
+   /* 🚨 BYPASS DINÁMICO TOTAL: Abrimos la librería del sistema en caliente.
+      Esto se salta los macros '-DAHardwareBuffer...' evitando el error de ld.lld 1467. */
+   void *libandroid = dlopen("libandroid.so", RTLD_NOW | RTLD_LOCAL);
+   if (!libandroid) {
+      return WSI_SWAPCHAIN_IMAGE_BLIT;
+   }
+
+   pfn_AHardwareBuffer_allocate alloc_func = (pfn_AHardwareBuffer_allocate)dlsym(libandroid, "AHardwareBuffer_allocate");
+   pfn_AHardwareBuffer_release release_func = (pfn_AHardwareBuffer_release)dlsym(libandroid, "AHardwareBuffer_release");
+
+   if (!alloc_func || !release_func) {
+      dlclose(libandroid);
+      return WSI_SWAPCHAIN_IMAGE_BLIT;
+   }
+
+   if (alloc_func(&(AHardwareBuffer_Desc){
       .width = 500,
       .height = 500,
       .layers = 1,
@@ -32,6 +50,7 @@ wsi_get_ahardware_buffer_blit_type(const struct wsi_device *wsi,
                AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN },
                                 &ahardware_buffer) != 0) {
       WRAPPER_LOG(error, "Failed to allocate ahardware buffer, blitting");
+      dlclose(libandroid);
       return WSI_SWAPCHAIN_IMAGE_BLIT;
    }
 
