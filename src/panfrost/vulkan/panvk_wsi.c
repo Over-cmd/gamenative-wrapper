@@ -71,3 +71,40 @@ panvk_wsi_finish(struct panvk_physical_device *physical_device)
    physical_device->vk.wsi_device = NULL;
    wsi_device_finish(&physical_device->wsi_device, &instance->vk.alloc);
 }
+
+#include <dlfcn.h>
+
+/* 🚨 REPARACIÓN COMPATIBILIDAD MALI NATIVA:
+   Declaramos los prototipos para Clang y usamos dlsym para llamar a las funciones reales 
+   de libandroid.so en tu tablet Unisoc. Esto repara el enlazador en la nube y 
+   devuelve la vida a Vulkan y OpenGL al permitir la asignación real de buffers. */
+
+int MALI_AHardwareBuffer_allocate(const void *desc, void **outBuffer);
+void MALI_AHardwareBuffer_release(void *buffer);
+int MALI_AHardwareBuffer_sendHandleToUnixSocket(void *buffer, int socket);
+
+int MALI_AHardwareBuffer_allocate(const void *desc, void **outBuffer) {
+   void *lib = dlopen("libandroid.so", RTLD_NOW | RTLD_LOCAL);
+   if (!lib) return -1;
+   int (*func)(const void*, void**) = (int (*)(const void*, void**))dlsym(lib, "AHardwareBuffer_allocate");
+   int res = func ? func(desc, outBuffer) : -1;
+   dlclose(lib);
+   return res;
+}
+
+void MALI_AHardwareBuffer_release(void *buffer) {
+   void *lib = dlopen("libandroid.so", RTLD_NOW | RTLD_LOCAL);
+   if (!lib) return;
+   void (*func)(void*) = (void (*)(void*))dlsym(lib, "AHardwareBuffer_release");
+   if (func) func(buffer);
+   dlclose(lib);
+}
+
+int MALI_AHardwareBuffer_sendHandleToUnixSocket(void *buffer, int socket) {
+   void *lib = dlopen("libandroid.so", RTLD_NOW | RTLD_LOCAL);
+   if (!lib) return -1;
+   int (*func)(void*, int) = (int (*)(void*, int))dlsym(lib, "AHardwareBuffer_sendHandleToUnixSocket");
+   int res = func ? func(buffer, socket) : -1;
+   dlclose(lib);
+   return res;
+}
