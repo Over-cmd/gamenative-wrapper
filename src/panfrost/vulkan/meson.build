@@ -170,16 +170,16 @@ libvulkan_panfrost = shared_library(
     dep_valgrind,
     idep_nir,
     idep_pan_packers,
-    panvk_deps,
     idep_vulkan_util,
     idep_vulkan_runtime,
     idep_vulkan_wsi,
     idep_mesautil,
     idep_android_stub,
-  ],
+  ] + panvk_deps,
   c_args : [no_override_init_args, panvk_flags],
-  
   link_args : [ld_args_bsymbolic, ld_args_gc_sections, ld_args_build_id],
+  install : true,
+)
 
 panfrost_icd = custom_target(
   'panfrost_icd',
