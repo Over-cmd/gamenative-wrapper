@@ -607,8 +607,8 @@ wsi_swapchain_init(const struct wsi_device *wsi,
       esta inyección agresiva evitando el desborde del Row Pitch en motores clásicos. */
    const char *force_audio_sync = getenv("WRAPPER_AUDIO_SYNC");
    if ((!force_audio_sync || atoi(force_audio_sync) != 0) && sizeof(void*) == 8) {
-      ((struct wsi_device *)wsi)->properties2.properties.limits.optimalBufferCopyRowPitchAlignment = 256;
-      ((struct wsi_device *)wsi)->properties2.properties.limits.optimalBufferCopyOffsetAlignment = 64;
+      ((struct wsi_device *)wsi)->properties2.properties.limits.optimalBufferCopyRowPitchAlignment = 16;
+      ((struct wsi_device *)wsi)->properties2.properties.limits.optimalBufferCopyOffsetAlignment = 16;
       __sync_synchronize();
    }
 
