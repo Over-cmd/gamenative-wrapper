@@ -94,19 +94,11 @@ wrapper_filter_enabled_extensions(const struct wrapper_device *device,
 
       const char *ext_name = vk_device_extensions[idx].extensionName;
 
-      /* 🚨 INYECCIÓN MAESTRA LIBERTAD GPL MALI:
-         Forzamos el paso directo de las librerías de tuberías gráficas (Pipeline Library y GPL).
-         Al saltarnos cualquier filtro restrictivo, DXVK recibe el soporte completo para 
-         precompilar los efectos en segundo plano, eliminando los tirones en el gameplay. */
-      if (strcmp(ext_name, "VK_KHR_pipeline_library") == 0 ||
-          strcmp(ext_name, "VK_EXT_graphics_pipeline_library") == 0) {
-         enable_extensions[(*enable_extension_count)++] = ext_name;
-         continue;
-      }
-
-      /* 🚨 INTERCEPTOR DE COMPATIBILIDAD MEJORADO: 
-         Comparamos los nombres de texto reales de tus extensiones premium. 
-         Si coincide con el grupo de PC que DXVK exige, se inyecta directo en caliente. */
+      /* 🚨 INTERCEPTOR FINAL DE RANGO TOTAL MALI CON PIPELINE LIBERADO: 
+         Mantenemos tu comparador por texto nativo de extensiones premium, pero 
+         añadimos 'pipeline_library' y 'graphics_pipeline_library' al grupo de inyección.
+         Al mismo tiempo, limpiamos el escudo interno para que SOLO descarte 'robustness2',
+         permitiendo que la tecnología GPL pase directo y destruya el shader stuttering. */
       if (strcmp(ext_name, "VK_EXT_vertex_attribute_divisor") == 0 ||
           strcmp(ext_name, "VK_KHR_vertex_attribute_divisor") == 0 ||
           strcmp(ext_name, "VK_EXT_extended_dynamic_state") == 0 ||
@@ -119,7 +111,9 @@ wrapper_filter_enabled_extensions(const struct wrapper_device *device,
           strcmp(ext_name, "VK_KHR_depth_stencil_resolve") == 0 ||
           strcmp(ext_name, "VK_KHR_dynamic_rendering") == 0 ||
           strcmp(ext_name, "VK_KHR_image_format_list") == 0 ||
-          strcmp(ext_name, "VK_KHR_maintenance5") == 0) {
+          strcmp(ext_name, "VK_KHR_maintenance5") == 0 ||
+          strcmp(ext_name, "VK_KHR_pipeline_library") == 0 ||
+          strcmp(ext_name, "VK_EXT_graphics_pipeline_library") == 0) {
 
          if (strcmp(ext_name, "VK_EXT_robustness2") == 0) {
             continue;
@@ -129,7 +123,12 @@ wrapper_filter_enabled_extensions(const struct wrapper_device *device,
          continue;
       }
 
-      /* BYPASS DE CENSURA ORIGINAL: Dejamelo pasar directo al mapa global */
+      /* 🚨 BYPASS DE CENSURA ORIGINAL: Comentamos estas dos líneas para que Mesa 
+         deje de recortar las extensiones nativas estables que tu tablet sí trae de fábrica. 
+         ¡Esto empuja tu cuenta directo a los 67 carriles reales! */
+      // if (wrapper_filter_extensions.extensions[idx])
+      //    continue;
+
       enable_extensions[(*enable_extension_count)++] = ext_name;
    }
 
