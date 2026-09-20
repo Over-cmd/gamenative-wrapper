@@ -421,30 +421,40 @@ wrapper_EnumerateDeviceExtensionProperties(VkPhysicalDevice physicalDevice,
                                            uint32_t* pPropertyCount,
                                            VkExtensionProperties* pProperties)
 {
-   /* 1. Obtenemos la lista real de extensiones nativas del driver base */
-   VkResult result = vk_common_EnumerateDeviceExtensionProperties(physicalDevice,
-                                                       pLayerName,
-                                                       pPropertyCount,
-                                                       pProperties);
-
-   /* 🚨 INYECCIÓN MAESTRA EXTENSIÓN 64:
-      Si el emulador solo pregunta por la CANTIDAD de extensiones (pProperties es NULL), 
-      le sumamos +1 al contador para reservar el espacio de 'VK_KHR_pipeline_library'. */
+   /* 1. Si el emulador o Zink solo preguntan por la CANTIDAD de extensiones nativas,
+         le sumamos +1 de forma segura para reservar el espacio de la extensión 64. */
    if (pPropertyCount && !pProperties) {
-      (*pPropertyCount)++;
+      VkResult result = vk_common_EnumerateDeviceExtensionProperties(physicalDevice,
+                                                          pLayerName,
+                                                          pPropertyCount,
+                                                          pProperties);
+      if (result == VK_SUCCESS || result == VK_INCOMPLETE) {
+         (*pPropertyCount)++;
+      }
       return result;
    }
 
-   /* Si el emulador ya está leyendo la LISTA real de nombres en memoria, 
-      colocamos nuestra extensión número 64 en el último slot disponible del array. */
+   /* 2. Si ya están leyendo la LISTA real en memoria, dejamos que Mesa llene el array 
+         nativo completo sin alterar ni borrar ninguna extensión de tu chip Mali-G52. */
    if (pProperties && pPropertyCount && *pPropertyCount > 0) {
-      uint32_t last_idx = (*pPropertyCount) - 1;
-      memset(&pProperties[last_idx], 0, sizeof(VkExtensionProperties));
-      strncpy(pProperties[last_idx].extensionName, "VK_KHR_pipeline_library", VK_MAX_EXTENSION_NAME_SIZE - 1);
-      pProperties[last_idx].specVersion = 1;
+      uint32_t original_count = (*pPropertyCount) - 1;
+      uint32_t temp_count = original_count;
+
+      VkResult result = vk_common_EnumerateDeviceExtensionProperties(physicalDevice,
+                                                          pLayerName,
+                                                          &temp_count,
+                                                          pProperties);
+
+      /* 3. Inyectamos 'VK_KHR_pipeline_library' de forma limpia en el espacio extra 
+            que creamos al final (índice original_count), manteniendo OpenGL Zink a salvo. */
+      memset(&pProperties[original_count], 0, sizeof(VkExtensionProperties));
+      strncpy(pProperties[original_count].extensionName, "VK_KHR_pipeline_library", VK_MAX_EXTENSION_NAME_SIZE - 1);
+      pProperties[original_count].specVersion = 1;
+
+      return result;
    }
 
-   return result;
+   return vk_common_EnumerateDeviceExtensionProperties(physicalDevice, pLayerName, pPropertyCount, pProperties);
 }
 
 VKAPI_ATTR void VKAPI_CALL
