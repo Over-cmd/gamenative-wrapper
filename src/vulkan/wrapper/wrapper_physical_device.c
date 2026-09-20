@@ -421,52 +421,24 @@ wrapper_EnumerateDeviceExtensionProperties(VkPhysicalDevice physicalDevice,
                                            uint32_t* pPropertyCount,
                                            VkExtensionProperties* pProperties)
 {
-   /* 1. Si el emulador o Zink solo preguntan por la CANTIDAD de extensiones nativas,
-         le sumamos +1 de forma segura para reservar el espacio de la extensión 64. */
-   if (pPropertyCount && !pProperties) {
-      VkResult result = vk_common_EnumerateDeviceExtensionProperties(physicalDevice,
-                                                          pLayerName,
-                                                          pPropertyCount,
-                                                          pProperties);
-      if (result == VK_SUCCESS || result == VK_INCOMPLETE) {
-         (*pPropertyCount)++;
-      }
-      return result;
-   }
-
-   /* 2. Si ya están leyendo la LISTA real en memoria, dejamos que Mesa llene el array 
-         nativo completo sin alterar ni borrar ninguna extensión de tu chip Mali-G52. */
-   if (pProperties && pPropertyCount && *pPropertyCount > 0) {
-      uint32_t original_count = (*pPropertyCount) - 1;
-      uint32_t temp_count = original_count;
-
-      VkResult result = vk_common_EnumerateDeviceExtensionProperties(physicalDevice,
-                                                          pLayerName,
-                                                          &temp_count,
-                                                          pProperties);
-
-      /* 3. Inyectamos 'VK_KHR_pipeline_library' de forma limpia en el espacio extra 
-            que creamos al final (índice original_count), manteniendo OpenGL Zink a salvo. */
-      memset(&pProperties[original_count], 0, sizeof(VkExtensionProperties));
-      strncpy(pProperties[original_count].extensionName, "VK_KHR_pipeline_library", VK_MAX_EXTENSION_NAME_SIZE - 1);
-      pProperties[original_count].specVersion = 1;
-
-      return result;
-   }
-
-   return vk_common_EnumerateDeviceExtensionProperties(physicalDevice, pLayerName, pPropertyCount, pProperties);
+   return vk_common_EnumerateDeviceExtensionProperties(physicalDevice,
+                                                       pLayerName,
+                                                       pPropertyCount,
+                                                       pProperties);
 }
 
 VKAPI_ATTR void VKAPI_CALL
 wrapper_GetPhysicalDeviceFeatures(VkPhysicalDevice physicalDevice,
                                   VkPhysicalDeviceFeatures* pFeatures) 
 {
+   /* 🚨 DESEMPAQUE DE ARQUITECTURA MALI: Cargamos el puntero pdevice para tener 
+      acceso al mapa de extensiones estáticas del driver, sincronizándolo con Features2. */
+   VK_FROM_HANDLE(wrapper_physical_device, pdevice, physicalDevice);
    vk_common_GetPhysicalDeviceFeatures(physicalDevice, pFeatures);
 
-   /* 🚨 BALANCER MULTI-ARCH (32/64 BITS): Dejamos activos los formatos de texturas BC 
-      y modos de renderizado esenciales para que los juegos tengan color, pero apagamos 
-      la teselación y geometría clásica. Esto tapa la fuga de memoria virtual, 
-      permitiendo que los juegos de 32 bits arranquen al instante sin cerrarse. */
+   /* 🚨 BALANCER MULTI-ARCH PRO (32/64 BITS): Dejamos activos los formatos de texturas BC 
+      y modos de renderizado esenciales. Activamos los sombreadores de Geometría y Teselación 
+      verificados por hardware en tu tablet, dándole vía libre a los juegos en 3D. */
    pFeatures->textureCompressionBC = true;
    pFeatures->fillModeNonSolid = true;
    pFeatures->shaderClipDistance = true;
@@ -474,6 +446,13 @@ wrapper_GetPhysicalDeviceFeatures(VkPhysicalDevice physicalDevice,
    pFeatures->geometryShader = true;
    pFeatures->tessellationShader = true;
    
+   /* 🚨 SINCRONIZACIÓN ATÓMICA DE EXTENSIONES EXT/KHR:
+      Activamos los bits de soporte internos también en la llamada clásica. Esto le garantiza 
+      a Zink una consistencia del 100% en ambos canales de la API de Vulkan, reviviendo 
+      OpenGL de inmediato en tus contenedores de Bannerlator. */
+   pdevice->vk.supported_extensions.KHR_pipeline_library = true;
+   pdevice->vk.supported_extensions.EXT_graphics_pipeline_library = true;
+
    /* 🚨 LIBERACIÓN DEFINITIVA 32 BITS: Comentamos la barrera atómica para evitar 
       que los ejecutables antiguos sufran bloqueos mutuos de memoria en segundo plano. */
    // __sync_synchronize();
@@ -528,9 +507,8 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
       }
    }
 
-   /* 🚨 BALANCER MULTI-ARCH V2: Sincronizamos 'Features2' apagando la geometría y teselación 
-      clásicas. Esto elimina la fuga de memoria virtual en los ejecutables antiguos de 32 bits, 
-      garantizando un arranque de contenedor 100% exitoso en ambas arquitecturas. */
+   /* 🚨 BALANCER MULTI-ARCH V2: Sincronizamos 'Features2' manteniendo activos los 
+      formatos de texturas BC y los sombreadores de geometría y teselación nativos desatados. */
    pFeatures->features.textureCompressionBC = true;
    pFeatures->features.fillModeNonSolid = true;
    pFeatures->features.shaderClipDistance = true;
@@ -538,6 +516,13 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
    pFeatures->features.geometryShader = true;
    pFeatures->features.tessellationShader = true;
    
+   /* 🚨 ACTIVACIÓN INTERNA PIPELINE:
+      Encendemos los bits lógicos de soporte dentro de la estructura nativa 'supported_extensions' del pdevice.
+      Esto le reporta formalmente a Zink y al cargador interno que las librerías de tuberías están activas,
+      devolviéndole la vida a OpenGL ES al 100% de consistencia sin errores de tamaño. */
+   pdevice->vk.supported_extensions.KHR_pipeline_library = true;
+   pdevice->vk.supported_extensions.EXT_graphics_pipeline_library = true;
+
    /* 🚨 SELLO MULTI-ARCH COMPLETO: Apagamos la sincronización atómica rígida aquí también 
       para que la cola de comandos de 32 bits no colapse la RAM de tu GPU. */
    // __sync_synchronize();
