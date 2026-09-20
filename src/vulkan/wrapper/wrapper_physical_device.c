@@ -445,13 +445,6 @@ wrapper_GetPhysicalDeviceFeatures(VkPhysicalDevice physicalDevice,
    pFeatures->shaderCullDistance = true;
    pFeatures->geometryShader = true;
    pFeatures->tessellationShader = true;
-   
-   /* 🚨 SINCRONIZACIÓN ATÓMICA DE EXTENSIONES EXT/KHR:
-      Activamos los bits de soporte internos también en la llamada clásica. Esto le garantiza 
-      a Zink una consistencia del 100% en ambos canales de la API de Vulkan, reviviendo 
-      OpenGL de inmediato en tus contenedores de Bannerlator. */
-   pdevice->vk.supported_extensions.KHR_pipeline_library = true;
-   pdevice->vk.supported_extensions.EXT_graphics_pipeline_library = true;
 
    /* 🚨 LIBERACIÓN DEFINITIVA 32 BITS: Comentamos la barrera atómica para evitar 
       que los ejecutables antiguos sufran bloqueos mutuos de memoria en segundo plano. */
@@ -515,13 +508,6 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
    pFeatures->features.shaderCullDistance = true;
    pFeatures->features.geometryShader = true;
    pFeatures->features.tessellationShader = true;
-   
-   /* 🚨 ACTIVACIÓN INTERNA PIPELINE:
-      Encendemos los bits lógicos de soporte dentro de la estructura nativa 'supported_extensions' del pdevice.
-      Esto le reporta formalmente a Zink y al cargador interno que las librerías de tuberías están activas,
-      devolviéndole la vida a OpenGL ES al 100% de consistencia sin errores de tamaño. */
-   pdevice->vk.supported_extensions.KHR_pipeline_library = true;
-   pdevice->vk.supported_extensions.EXT_graphics_pipeline_library = true;
 
    /* 🚨 SELLO MULTI-ARCH COMPLETO: Apagamos la sincronización atómica rígida aquí también 
       para que la cola de comandos de 32 bits no colapse la RAM de tu GPU. */
