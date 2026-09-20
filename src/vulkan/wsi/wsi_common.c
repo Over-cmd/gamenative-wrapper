@@ -601,17 +601,9 @@ wsi_swapchain_init(const struct wsi_device *wsi,
    if (result != VK_SUCCESS)
       goto fail;
 
-   /* 🚨 OPTIMIZACIÓN DEFINITIVA MALI (VÍDEO Y AUDIO FLUIDOS):
-      Rebajamos la alineación de Row Pitch de 256 a 16 bytes, y el Offset a 16 bytes.
-      Esto elimina la sobrecarga de datos en las cinemáticas dinámicas, permitiendo que 
-      la GPU Mali-G52 procese los frames de vídeo al vuelo y que los hilos de PulseAudio 
-      fluyan sincronizados sin micro-cortes ni caídas de sonido en tu tablet. */
-   const char *force_audio_sync = getenv("WRAPPER_AUDIO_SYNC");
-   if ((!force_audio_sync || atoi(force_audio_sync) != 0) && sizeof(void*) == 8) {
-      ((struct wsi_device *)wsi)->properties2.properties.limits.optimalBufferCopyRowPitchAlignment = 16;
-      ((struct wsi_device *)wsi)->properties2.properties.limits.optimalBufferCopyOffsetAlignment = 16;
-      __sync_synchronize();
-   }
+   /* 🚨 RESTAURACIÓN DE FÁBRICA: Devolvemos el Swapchain a su estado puro original.
+      Dejamos que las alineaciones se gestionen de forma dinámica para que bcn_layer 
+      y el Wrapper operen en perfecta armonía sin generar conflictos en tu tablet. */
 
    return VK_SUCCESS;
 
