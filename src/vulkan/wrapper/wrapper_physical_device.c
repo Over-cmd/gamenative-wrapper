@@ -421,10 +421,30 @@ wrapper_EnumerateDeviceExtensionProperties(VkPhysicalDevice physicalDevice,
                                            uint32_t* pPropertyCount,
                                            VkExtensionProperties* pProperties)
 {
-   return vk_common_EnumerateDeviceExtensionProperties(physicalDevice,
+   /* 1. Obtenemos la lista real de extensiones nativas del driver base */
+   VkResult result = vk_common_EnumerateDeviceExtensionProperties(physicalDevice,
                                                        pLayerName,
                                                        pPropertyCount,
                                                        pProperties);
+
+   /* 🚨 INYECCIÓN MAESTRA EXTENSIÓN 64:
+      Si el emulador solo pregunta por la CANTIDAD de extensiones (pProperties es NULL), 
+      le sumamos +1 al contador para reservar el espacio de 'VK_KHR_pipeline_library'. */
+   if (pPropertyCount && !pProperties) {
+      (*pPropertyCount)++;
+      return result;
+   }
+
+   /* Si el emulador ya está leyendo la LISTA real de nombres en memoria, 
+      colocamos nuestra extensión número 64 en el último slot disponible del array. */
+   if (pProperties && pPropertyCount && *pPropertyCount > 0) {
+      uint32_t last_idx = (*pPropertyCount) - 1;
+      memset(&pProperties[last_idx], 0, sizeof(VkExtensionProperties));
+      strncpy(pProperties[last_idx].extensionName, "VK_KHR_pipeline_library", VK_MAX_EXTENSION_NAME_SIZE - 1);
+      pProperties[last_idx].specVersion = 1;
+   }
+
+   return result;
 }
 
 VKAPI_ATTR void VKAPI_CALL
