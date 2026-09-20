@@ -89,16 +89,18 @@ wrapper_filter_enabled_extensions(const struct wrapper_device *device,
       if (!device->vk.enabled_extensions.extensions[idx])
          continue;
 
-      if (!device->physical->base_supported_extensions.extensions[idx])
+      /* 🚨 BYPASS PARA LA EXTENSIÓN 64:
+         Como 'VK_KHR_pipeline_library' fue inyectada manualmente por nosotros en el paso 
+         de enumeración física, el driver base de Mali no la tiene marcada en sus extensiones. 
+         Añadimos este filtro para que pase de largo sin ser rechazada por el hardware real. */
+      const char *ext_name = vk_device_extensions[idx].extensionName;
+      bool is_pipeline_lib = (strcmp(ext_name, "VK_KHR_pipeline_library") == 0);
+
+      if (!device->physical->base_supported_extensions.extensions[idx] && !is_pipeline_lib)
          continue;
 
-      const char *ext_name = vk_device_extensions[idx].extensionName;
-
-      /* 🚨 INTERCEPTOR FINAL DE RANGO TOTAL MALI: En lugar de usar IDs numéricas, 
-         comparamos los nombres de texto reales de tus extensiones premium. 
-         Si coincide con el grupo de PC que DXVK exige, se inyecta directo en caliente. 
-         Y mantenemos el escudo: si es 'pipeline_library' o 'robustness2', se bloquean 
-         de golpe (continue) para mantener OpenGL estable y el contenedor libre de fallos. */
+      /* 🚨 INTERCEPTOR INTEGRADO PIPELINE:
+         Añadimos de forma legal 'VK_KHR_pipeline_library' a tu grupo de inyección premium. */
       if (strcmp(ext_name, "VK_EXT_vertex_attribute_divisor") == 0 ||
           strcmp(ext_name, "VK_KHR_vertex_attribute_divisor") == 0 ||
           strcmp(ext_name, "VK_EXT_extended_dynamic_state") == 0 ||
@@ -111,10 +113,13 @@ wrapper_filter_enabled_extensions(const struct wrapper_device *device,
           strcmp(ext_name, "VK_KHR_depth_stencil_resolve") == 0 ||
           strcmp(ext_name, "VK_KHR_dynamic_rendering") == 0 ||
           strcmp(ext_name, "VK_KHR_image_format_list") == 0 ||
-          strcmp(ext_name, "VK_KHR_maintenance5") == 0) {
+          strcmp(ext_name, "VK_KHR_maintenance5") == 0 ||
+          is_pipeline_lib) {
 
-         if (strcmp(ext_name, "VK_KHR_pipeline_library") == 0 ||
-             strcmp(ext_name, "VK_EXT_robustness2") == 0) {
+         /* 🚨 ELIMINACIÓN DE CENSURA:
+            Removemos 'pipeline_library' de aquí. Ahora el escudo SOLO bloquea a 'robustness2', 
+            permitiendo que tu extensión 64 se inyecte en caliente hacia los juegos en 3D. */
+         if (strcmp(ext_name, "VK_EXT_robustness2") == 0) {
             continue;
          }
 
@@ -123,8 +128,7 @@ wrapper_filter_enabled_extensions(const struct wrapper_device *device,
       }
 
       /* 🚨 BYPASS DE CENSURA ORIGINAL: Comentamos estas dos líneas para que Mesa 
-         deje de recortar las extensiones nativas estables que tu tablet sí trae de fábrica. 
-         ¡Esto empuja tu cuenta directo a los 67 carriles reales! */
+         deje de recortar las extensiones nativas estables que tu tablet sí trae de fábrica. */
       // if (wrapper_filter_extensions.extensions[idx])
       //    continue;
 
