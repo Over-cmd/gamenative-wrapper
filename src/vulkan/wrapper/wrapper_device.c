@@ -94,11 +94,11 @@ wrapper_filter_enabled_extensions(const struct wrapper_device *device,
 
       const char *ext_name = vk_device_extensions[idx].extensionName;
 
-      /* 🚨 INTERCEPTOR FINAL DE RANGO TOTAL MALI CON PIPELINE LIBERADO: 
-         Mantenemos tu comparador por texto nativo de extensiones premium, pero 
-         añadimos 'pipeline_library' y 'graphics_pipeline_library' al grupo de inyección.
-         Al mismo tiempo, limpiamos el escudo interno para que SOLO descarte 'robustness2',
-         permitiendo que la tecnología GPL pase directo y destruya el shader stuttering. */
+      /* 🚨 INTERCEPTOR FINAL DE RANGO TOTAL MALI: En lugar de usar IDs numéricas, 
+         comparamos los nombres de texto reales de tus extensiones premium. 
+         Si coincide con el grupo de PC que DXVK exige, se inyecta directo en caliente. 
+         Y mantenemos el escudo: si es 'pipeline_library' o 'robustness2', se bloquean 
+         de golpe (continue) para mantener OpenGL estable y el contenedor libre de fallos. */
       if (strcmp(ext_name, "VK_EXT_vertex_attribute_divisor") == 0 ||
           strcmp(ext_name, "VK_KHR_vertex_attribute_divisor") == 0 ||
           strcmp(ext_name, "VK_EXT_extended_dynamic_state") == 0 ||
@@ -111,11 +111,10 @@ wrapper_filter_enabled_extensions(const struct wrapper_device *device,
           strcmp(ext_name, "VK_KHR_depth_stencil_resolve") == 0 ||
           strcmp(ext_name, "VK_KHR_dynamic_rendering") == 0 ||
           strcmp(ext_name, "VK_KHR_image_format_list") == 0 ||
-          strcmp(ext_name, "VK_KHR_maintenance5") == 0 ||
-          strcmp(ext_name, "VK_KHR_pipeline_library") == 0 ||
-          strcmp(ext_name, "VK_EXT_graphics_pipeline_library") == 0) {
+          strcmp(ext_name, "VK_KHR_maintenance5") == 0) {
 
-         if (strcmp(ext_name, "VK_EXT_robustness2") == 0) {
+         if (strcmp(ext_name, "VK_KHR_pipeline_library") == 0 ||
+             strcmp(ext_name, "VK_EXT_robustness2") == 0) {
             continue;
          }
 
