@@ -451,6 +451,29 @@ wrapper_GetPhysicalDeviceFeatures(VkPhysicalDevice physicalDevice,
 }
 
 VKAPI_ATTR void VKAPI_CALL
+wrapper_GetPhysicalDeviceFeatures(VkPhysicalDevice physicalDevice,
+                                  VkPhysicalDeviceFeatures* pFeatures) 
+{
+   VK_FROM_HANDLE(wrapper_physical_device, pdevice, physicalDevice);
+   vk_common_GetPhysicalDeviceFeatures(physicalDevice, pFeatures);
+
+   /* 🚨 FORCE CLÁSICO INCONDICIONAL: Forzado directo en la raíz de la API 1.0 */
+   pFeatures->textureCompressionBC = true;
+   pFeatures->fillModeNonSolid = true;
+   pFeatures->shaderClipDistance = true;
+   pFeatures->shaderCullDistance = true;
+   pFeatures->geometryShader = true;
+   pFeatures->tessellationShader = true;
+   pFeatures->shaderInt16 = true;
+   pFeatures->sampleRateShading = true;
+   pFeatures->imageCubeArray = true;
+   pFeatures->shaderSampledImageArrayDynamicIndexing = true;
+   pFeatures->drawIndirectFirstInstance = true;
+   pFeatures->shaderUniformBufferArrayDynamicIndexing = true;
+   pFeatures->shaderStorageBufferArrayDynamicIndexing = true;
+}
+
+VKAPI_ATTR void VKAPI_CALL
 wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
                                    VkPhysicalDeviceFeatures2* pFeatures) {
    VK_FROM_HANDLE(wrapper_physical_device, pdevice, physicalDevice);
@@ -493,9 +516,9 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
       }
    }
 
-   /* 🚨 2. HACK GLOBAL DE PNEXT (BYPASS ABSOLUTO DE VALIDACIÓN):
-      Sacamos el bucle del filtro de fabricante. Ahora se ejecuta siempre e intercepta 
-      los sType oficiales del Core de Vulkan que las herramientas de diagnóstico interrogan. */
+   /* 🚨 2. HACK GLOBAL DE PNEXT SANEADO:
+      Removemos los sType inexistentes o erróneos que rompían a Clang. 
+      Mantenemos el forzado atómico de las subestructuras que sí reconoce el compilador */
    vk_foreach_struct(s, pFeatures->pNext) {
       // Forzado atómico para shaderInt16 (Estructuras de almacenamiento de 16 bits)
       if (s->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_16BIT_STORAGE_FEATURES) {
@@ -509,16 +532,9 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
       if (s->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_SUBGROUP_EXTENDED_TYPES_FEATURES) {
          ((VkPhysicalDeviceShaderSubgroupExtendedTypesFeatures *)s)->shaderSubgroupExtendedTypes = VK_TRUE;
       }
-      // Forzado atómico para imageCubeArray en el Core y en la extensión KHR/EXT simultáneamente
-      if (s->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_CUBE_ARRAY_FEATURES) {
-         ((VkPhysicalDeviceImageCubeArrayFeatures *)s)->imageCubeArray = VK_TRUE;
-      }
-      if (s->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAG_CUBE_ARRAY_FEATURES_EXT) {
-         ((VkPhysicalDeviceImagCubeArrayFeaturesEXT *)s)->imageCubeArray = VK_TRUE;
-      }
    }
 
-   /* 3. Machacamos el array de salida de .features de Vulkan 1.0 */
+   /* 3. Machacamos el array de salida de .features de Vulkan 1.0 (Aquí ya entra imageCubeArray) */
    pFeatures->features.textureCompressionBC = true;
    pFeatures->features.fillModeNonSolid = true;
    pFeatures->features.shaderClipDistance = true;
