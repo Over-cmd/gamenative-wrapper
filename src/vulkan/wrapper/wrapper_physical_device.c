@@ -446,6 +446,8 @@ wrapper_GetPhysicalDeviceFeatures(VkPhysicalDevice physicalDevice,
    pFeatures->geometryShader = true;
    pFeatures->tessellationShader = true;
    pFeatures->shaderInt16 = true;
+   pFeatures->sampleRateShading = true;
+   pFeatures->imageCubeArray = true;
 
    /* 🚨 LIBERACIÓN DEFINITIVA 32 BITS: Comentamos la barrera atómica para evitar 
       que los ejecutables antiguos sufran bloqueos mutuos de memoria en segundo plano. */
@@ -520,6 +522,8 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
    pFeatures->features.geometryShader = true;
    pFeatures->features.tessellationShader = true;
    pFeatures->shaderInt16 = true;
+   pFeatures->sampleRateShading = true;
+   pFeatures->imageCubeArray = true;
 
    /* 🚨 SELLO MULTI-ARCH COMPLETO: Apagamos la sincronización atómica rígida aquí también 
       para que la cola de comandos de 32 bits no colapse la RAM de tu GPU. */
