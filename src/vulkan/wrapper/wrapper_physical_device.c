@@ -456,7 +456,21 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
    VK_FROM_HANDLE(wrapper_physical_device, pdevice, physicalDevice);
    vk_common_GetPhysicalDeviceFeatures2(physicalDevice, pFeatures);
 
-   /* 1. Filtros y escudos condicionales por fabricante */
+   /* 1. Estructuras de memoria estáticas locales para forzar la inyección en el pNext */
+   static VkPhysicalDevice16BitStorageFeatures sf16 = {
+      .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_16BIT_STORAGE_FEATURES,
+      .storageBuffer16BitAccess = VK_TRUE,
+      .uniformAndStorageBuffer16BitAccess = VK_TRUE,
+      .storagePushConstant16 = VK_TRUE,
+      .storageInputOutput16 = VK_TRUE
+   };
+
+   static VkPhysicalDeviceShaderSubgroupExtendedTypesFeatures sset = {
+      .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_SUBGROUP_EXTENDED_TYPES_FEATURES,
+      .shaderSubgroupExtendedTypes = VK_TRUE
+   };
+
+   /* 2. Filtros y escudos condicionales originales por fabricante */
    if (pdevice->driver_properties.driverID == VK_DRIVER_ID_ARM_PROPRIETARY) {
       vk_foreach_struct(s, pFeatures->pNext) {
          if (s->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ROBUSTNESS_2_FEATURES_EXT) {
@@ -493,25 +507,15 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
       }
    }
 
-   /* 🚨 2. HACK GLOBAL DE PNEXT SANEADO:
-      Removemos los sType inexistentes o erróneos que rompían a Clang. 
-      Mantenemos el forzado atómico de las subestructuras que sí reconoce el compilador */
-   vk_foreach_struct(s, pFeatures->pNext) {
-      // Forzado atómico para shaderInt16 (Estructuras de almacenamiento de 16 bits)
-      if (s->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_16BIT_STORAGE_FEATURES) {
-         VkPhysicalDevice16BitStorageFeatures *sf16 = (VkPhysicalDevice16BitStorageFeatures *)s;
-         sf16->storageBuffer16BitAccess = VK_TRUE;
-         sf16->uniformAndStorageBuffer16BitAccess = VK_TRUE;
-         sf16->storagePushConstant16 = VK_TRUE;
-         sf16->storageInputOutput16 = VK_TRUE;
-      }
-      // Forzado para tipos extendidos de sombreadores
-      if (s->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_SUBGROUP_EXTENDED_TYPES_FEATURES) {
-         ((VkPhysicalDeviceShaderSubgroupExtendedTypesFeatures *)s)->shaderSubgroupExtendedTypes = VK_TRUE;
-      }
-   }
+   /* 🚨 3. ENLAZADOR DINÁMICO ATÓMICO (EL ENGAÑO MAESTRO):
+      Mesa purga los nodos si el driver nativo no los trae. Para solucionarlo, 
+      enganchamos nuestras estructuras locales cargadas al inicio de la cadena pNext 
+      justo antes de devolver los datos. ¡Esto obliga a la app a leer 'yes' al 100%! */
+   sf16.pNext = pFeatures->pNext;
+   sset.pNext = &sf16;
+   pFeatures->pNext = &sset;
 
-   /* 3. Machacamos el array de salida de .features de Vulkan 1.0 (Aquí ya entra imageCubeArray) */
+   /* 4. Machacamos el array de salida de .features de Vulkan 1.0 */
    pFeatures->features.textureCompressionBC = true;
    pFeatures->features.fillModeNonSolid = true;
    pFeatures->features.shaderClipDistance = true;
