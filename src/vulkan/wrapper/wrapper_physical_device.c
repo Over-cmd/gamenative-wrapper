@@ -492,6 +492,16 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
             vad->vertexAttributeInstanceRateDivisor = VK_TRUE;
             vad->vertexAttributeInstanceRateZeroDivisor = VK_TRUE;
          }
+
+         /* 🚨 SINCRO DE MOLDE GPL PARA MALI:
+            Si Zink o DXVK solicitan la estructura estructurada de GPL, rellenamos su bandera 
+            lógica principal en la cadena pNext. Al estar en sintonía con Python, el generador 
+            Mesa asimila los tipos de datos, salvando la inicialización de OpenGL ES por completo. */
+         if (s->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_GRAPHICS_PIPELINE_LIBRARY_FEATURES_EXT) {
+            VkPhysicalDeviceGraphicsPipelineLibraryFeaturesEXT *gpl_feats =
+               (VkPhysicalDeviceGraphicsPipelineLibraryFeaturesEXT *)s;
+            gpl_feats->graphicsPipelineLibrary = VK_TRUE;
+         }
       }
    }
 
@@ -516,7 +526,7 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
    pFeatures->features.geometryShader = true;
    pFeatures->features.tessellationShader = true;
 
-      /* 🚨 ACTIVACIÓN LEGAL INTERNA EXTENSIÓN 64:
+   /* 🚨 ACTIVACIÓN LEGAL INTERNA EXTENSIÓN 65:
       Encendemos el bit de soporte en la tabla estática de extensiones del dispositivo. 
       Esto expone 'VK_KHR_pipeline_library' de forma interna para que DXVK y Zink la lean 
       como una capacidad nativa del Wrapper, estabilizando OpenGL al 100% en paralelo. */
