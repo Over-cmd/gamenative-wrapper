@@ -451,29 +451,6 @@ wrapper_GetPhysicalDeviceFeatures(VkPhysicalDevice physicalDevice,
 }
 
 VKAPI_ATTR void VKAPI_CALL
-wrapper_GetPhysicalDeviceFeatures(VkPhysicalDevice physicalDevice,
-                                  VkPhysicalDeviceFeatures* pFeatures) 
-{
-   VK_FROM_HANDLE(wrapper_physical_device, pdevice, physicalDevice);
-   vk_common_GetPhysicalDeviceFeatures(physicalDevice, pFeatures);
-
-   /* 🚨 FORCE CLÁSICO INCONDICIONAL: Forzado directo en la raíz de la API 1.0 */
-   pFeatures->textureCompressionBC = true;
-   pFeatures->fillModeNonSolid = true;
-   pFeatures->shaderClipDistance = true;
-   pFeatures->shaderCullDistance = true;
-   pFeatures->geometryShader = true;
-   pFeatures->tessellationShader = true;
-   pFeatures->shaderInt16 = true;
-   pFeatures->sampleRateShading = true;
-   pFeatures->imageCubeArray = true;
-   pFeatures->shaderSampledImageArrayDynamicIndexing = true;
-   pFeatures->drawIndirectFirstInstance = true;
-   pFeatures->shaderUniformBufferArrayDynamicIndexing = true;
-   pFeatures->shaderStorageBufferArrayDynamicIndexing = true;
-}
-
-VKAPI_ATTR void VKAPI_CALL
 wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
                                    VkPhysicalDeviceFeatures2* pFeatures) {
    VK_FROM_HANDLE(wrapper_physical_device, pdevice, physicalDevice);
