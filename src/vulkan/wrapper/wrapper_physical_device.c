@@ -452,7 +452,6 @@ wrapper_GetPhysicalDeviceFeatures(VkPhysicalDevice physicalDevice,
       como una capacidad nativa del Wrapper, estabilizando OpenGL al 100% en paralelo. */
    pdevice->vk.supported_extensions.KHR_pipeline_library = true;
    pdevice->vk.supported_extensions.EXT_graphics_pipeline_library = true;
-}
 
    /* 🚨 LIBERACIÓN DEFINITIVA 32 BITS: Comentamos la barrera atómica para evitar 
       que los ejecutables antiguos sufran bloqueos mutuos de memoria en segundo plano. */
@@ -523,7 +522,6 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
       como una capacidad nativa del Wrapper, estabilizando OpenGL al 100% en paralelo. */
    pdevice->vk.supported_extensions.KHR_pipeline_library = true;
    pdevice->vk.supported_extensions.EXT_graphics_pipeline_library = true;
-}
 
    /* 🚨 SELLO MULTI-ARCH COMPLETO: Apagamos la sincronización atómica rígida aquí también 
       para que la cola de comandos de 32 bits no colapse la RAM de tu GPU. */
