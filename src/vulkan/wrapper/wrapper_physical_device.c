@@ -449,6 +449,12 @@ wrapper_GetPhysicalDeviceFeatures(VkPhysicalDevice physicalDevice,
    pFeatures->sampleRateShading = true;
    pFeatures->imageCubeArray = true;
 
+   /* 🚨 LA LLAVE INYECTORA DE SAMPLERATESHADING:
+      Activamos la indexación dinámica de arrays de imágenes muestreadas por shader.
+      Esto le da a tu GPU Mali el carril lógico que exige para renderizar el suavizado 
+      multitasa, haciendo que sampleRateShading aparezca por fin activo. */
+   pFeatures->shaderSampledImageArrayDynamicIndexing = true;
+
    /* 🚨 LIBERACIÓN DEFINITIVA 32 BITS: Comentamos la barrera atómica para evitar 
       que los ejecutables antiguos sufran bloqueos mutuos de memoria en segundo plano. */
    // __sync_synchronize();
@@ -525,6 +531,9 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
    pFeatures->features.shaderInt16 = true;
    pFeatures->features.sampleRateShading = true;
    pFeatures->features.imageCubeArray = true;
+   
+   /* Sincronizamos el inyector dinámico en la sub-estructura features */
+   pFeatures->features.shaderSampledImageArrayDynamicIndexing = true;
 
    /* 🚨 SELLO MULTI-ARCH COMPLETO: Apagamos la sincronización atómica rígida aquí también 
       para que la cola de comandos de 32 bits no colapse la RAM de tu GPU. */
