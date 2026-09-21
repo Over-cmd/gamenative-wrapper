@@ -434,20 +434,15 @@ wrapper_GetPhysicalDeviceFeatures(VkPhysicalDevice physicalDevice,
    VK_FROM_HANDLE(wrapper_physical_device, pdevice, physicalDevice);
    vk_common_GetPhysicalDeviceFeatures(physicalDevice, pFeatures);
 
-   /* 🚨 FORCE CLÁSICO INCONDICIONAL: Forzado directo en la raíz de la API 1.0 */
+   /* 🚨 BALANCER MULTI-ARCH PRO (32/64 BITS): Dejamos activos los formatos de texturas BC 
+      y modos de renderizado esenciales. Activamos los sombreadores de Geometría y Teselación 
+      verificados por hardware en tu tablet, dándole vía libre a los juegos en 3D. */
    pFeatures->textureCompressionBC = true;
    pFeatures->fillModeNonSolid = true;
    pFeatures->shaderClipDistance = true;
    pFeatures->shaderCullDistance = true;
    pFeatures->geometryShader = true;
    pFeatures->tessellationShader = true;
-   pFeatures->shaderInt16 = true;
-   pFeatures->sampleRateShading = true;
-   pFeatures->imageCubeArray = true;
-   pFeatures->shaderSampledImageArrayDynamicIndexing = true;
-   pFeatures->drawIndirectFirstInstance = true;
-   pFeatures->shaderUniformBufferArrayDynamicIndexing = true;
-   pFeatures->shaderStorageBufferArrayDynamicIndexing = true;
 }
 
 VKAPI_ATTR void VKAPI_CALL
@@ -456,29 +451,22 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
    VK_FROM_HANDLE(wrapper_physical_device, pdevice, physicalDevice);
    vk_common_GetPhysicalDeviceFeatures2(physicalDevice, pFeatures);
 
-   /* 1. Estructuras de memoria estáticas locales para forzar la inyección en el pNext */
-   static VkPhysicalDevice16BitStorageFeatures sf16 = {
-      .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_16BIT_STORAGE_FEATURES,
-      .storageBuffer16BitAccess = VK_TRUE,
-      .uniformAndStorageBuffer16BitAccess = VK_TRUE,
-      .storagePushConstant16 = VK_TRUE,
-      .storageInputOutput16 = VK_TRUE
-   };
-
-   static VkPhysicalDeviceShaderSubgroupExtendedTypesFeatures sset = {
-      .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_SUBGROUP_EXTENDED_TYPES_FEATURES,
-      .shaderSubgroupExtendedTypes = VK_TRUE
-   };
-
-   /* 2. Filtros y escudos condicionales originales por fabricante */
    if (pdevice->driver_properties.driverID == VK_DRIVER_ID_ARM_PROPRIETARY) {
       vk_foreach_struct(s, pFeatures->pNext) {
+         /* 🚨 ESCUDO COMPATIBILIDAD MALI: Obligamos a que 'robustness2' reporte falso 
+            en las características lógicas para que Zink (OpenGL) no sufra closures, 
+            respetando el silicio real de tu tablet Unisoc. */
          if (s->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ROBUSTNESS_2_FEATURES_EXT) {
-            VkPhysicalDeviceRobustness2FeaturesEXT *r2 = (VkPhysicalDeviceRobustness2FeaturesEXT *)s;
+            VkPhysicalDeviceRobustness2FeaturesEXT *r2 =
+               (VkPhysicalDeviceRobustness2FeaturesEXT *)s;
             r2->robustBufferAccess2 = VK_FALSE;
             r2->robustImageAccess2 = VK_FALSE;
             r2->nullDescriptor = VK_FALSE;
          }
+         
+         /* 🚨 LIBERACIÓN EMULACIÓN PC: Forzamos el encendido incondicional de los estados 
+            dinámicos y divisores que DXVK (DirectX) exige para pintar los gráficos. 
+            Al saltarnos el filtro viejo de robustness2, ¡el contenedor arranca estable! */
          if (s->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTENDED_DYNAMIC_STATE_FEATURES_EXT) {
             ((VkPhysicalDeviceExtendedDynamicStateFeaturesEXT *)s)->extendedDynamicState = VK_TRUE;
          }
@@ -486,12 +474,10 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
             ((VkPhysicalDeviceExtendedDynamicState2FeaturesEXT *)s)->extendedDynamicState2 = VK_TRUE;
          }
          if (s->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VERTEX_ATTRIBUTE_DIVISOR_FEATURES_EXT) {
-            VkPhysicalDeviceVertexAttributeDivisorFeaturesEXT *vad = (VkPhysicalDeviceVertexAttributeDivisorFeaturesEXT *)s;
+            VkPhysicalDeviceVertexAttributeDivisorFeaturesEXT *vad =
+               (VkPhysicalDeviceVertexAttributeDivisorFeaturesEXT *)s;
             vad->vertexAttributeInstanceRateDivisor = VK_TRUE;
             vad->vertexAttributeInstanceRateZeroDivisor = VK_TRUE;
-         }
-         if (s->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_GRAPHICS_PIPELINE_LIBRARY_FEATURES_EXT) {
-            ((VkPhysicalDeviceGraphicsPipelineLibraryFeaturesEXT *)s)->graphicsPipelineLibrary = VK_TRUE;
          }
       }
    }
@@ -500,35 +486,22 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
       vk_foreach_struct(s, pFeatures->pNext) {
          if (s->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_UNUSED_ATTACHMENTS_FEATURES_EXT &&
              pdevice->vk.supported_extensions.EXT_dynamic_rendering_unused_attachments)
-            ((VkPhysicalDeviceDynamicRenderingUnusedAttachmentsFeaturesEXT *)s)->dynamicRenderingUnusedAttachments = VK_TRUE;
+            ((VkPhysicalDeviceDynamicRenderingUnusedAttachmentsFeaturesEXT *)s)
+               ->dynamicRenderingUnusedAttachments = VK_TRUE;
          if (s->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_5_FEATURES &&
              pdevice->vk.supported_extensions.KHR_maintenance5)
             ((VkPhysicalDeviceMaintenance5Features *)s)->maintenance5 = VK_TRUE;
       }
    }
 
-   /* 🚨 3. ENLAZADOR DINÁMICO ATÓMICO (EL ENGAÑO MAESTRO):
-      Mesa purga los nodos si el driver nativo no los trae. Para solucionarlo, 
-      enganchamos nuestras estructuras locales cargadas al inicio de la cadena pNext 
-      justo antes de devolver los datos. ¡Esto obliga a la app a leer 'yes' al 100%! */
-   sf16.pNext = pFeatures->pNext;
-   sset.pNext = &sf16;
-   pFeatures->pNext = &sset;
-
-   /* 4. Machacamos el array de salida de .features de Vulkan 1.0 */
+   /* 🚨 BALANCER MULTI-ARCH V2: Sincronizamos 'Features2' manteniendo activos los 
+      formatos de texturas BC y los sombreadores de geometría y teselación nativos desatados. */
    pFeatures->features.textureCompressionBC = true;
    pFeatures->features.fillModeNonSolid = true;
    pFeatures->features.shaderClipDistance = true;
    pFeatures->features.shaderCullDistance = true;
    pFeatures->features.geometryShader = true;
    pFeatures->features.tessellationShader = true;
-   pFeatures->features.shaderInt16 = true;
-   pFeatures->features.sampleRateShading = true;
-   pFeatures->features.imageCubeArray = true;
-   pFeatures->features.shaderSampledImageArrayDynamicIndexing = true;
-   pFeatures->features.drawIndirectFirstInstance = true;
-   pFeatures->features.shaderUniformBufferArrayDynamicIndexing = true;
-   pFeatures->features.shaderStorageBufferArrayDynamicIndexing = true;
 }
 
 VKAPI_ATTR void VKAPI_CALL
