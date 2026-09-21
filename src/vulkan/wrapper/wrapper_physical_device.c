@@ -497,14 +497,13 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
       }
    }
 
-   /* 🚨 2. BALANCER DE PRODUCCIÓN UNIFICADO EN .FEATURES. (ESTRUCTURADO):
-      Asignamos tu lista deseada utilizando estrictamente el subcampo '.features.'.
-      Al colocarse al final de la llamada, sobreescribimos cualquier limpieza de Mesa, 
-      fijando el 'yes' en la pantalla de tu tablet de forma 100% segura para la RAM. */
+   /* 🚨 2. BALANCER DE PRODUCCIÓN UNIFICADO EN .FEATURES. (ESTRUCTURADO CORREGIDO):
+      Asignamos tu lista deseada utilizando estrictamente un solo prefijo '.features.'.
+      La línea corrupta ha sido purgada por completo de raíz. */
    pFeatures->features.textureCompressionBC = true;
    pFeatures->features.fillModeNonSolid = true;
    pFeatures->features.shaderClipDistance = true;
-   pFeatures->features.features.shaderCullDistance = true; // Sello de Mesa
+   pFeatures->features.shaderCullDistance = true;
    pFeatures->features.geometryShader = true;
    pFeatures->features.tessellationShader = true;
    pFeatures->features.shaderInt16 = true;
