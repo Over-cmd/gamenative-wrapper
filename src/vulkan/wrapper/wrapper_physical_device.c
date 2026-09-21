@@ -513,17 +513,18 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
       }
    }
 
-   /* 🚨 BALANCER MULTI-ARCH V2: Sincronizamos 'Features2' manteniendo activos los 
-      formatos de texturas BC y los sombreadores de geometría y teselación nativos desatados. */
+   /* 🚨 BALANCER MULTI-ARCH V2 SIN ERRORES:
+      Asignamos obligatoriamente a través de '.features.' las tres nuevas propiedades reales.
+      Esto corrige de raíz los 3 fallos de golpe y alinea el tipado exigido por Clang. */
    pFeatures->features.textureCompressionBC = true;
    pFeatures->features.fillModeNonSolid = true;
    pFeatures->features.shaderClipDistance = true;
    pFeatures->features.shaderCullDistance = true;
    pFeatures->features.geometryShader = true;
    pFeatures->features.tessellationShader = true;
-   pFeatures->shaderInt16 = true;
-   pFeatures->sampleRateShading = true;
-   pFeatures->imageCubeArray = true;
+   pFeatures->features.shaderInt16 = true;
+   pFeatures->features.sampleRateShading = true;
+   pFeatures->features.imageCubeArray = true;
 
    /* 🚨 SELLO MULTI-ARCH COMPLETO: Apagamos la sincronización atómica rígida aquí también 
       para que la cola de comandos de 32 bits no colapse la RAM de tu GPU. */
