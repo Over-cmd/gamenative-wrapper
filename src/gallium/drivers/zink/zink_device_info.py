@@ -291,7 +291,7 @@ EXTENSIONS = [
     Extension("VK_KHR_pipeline_library"),
     Extension("VK_EXT_graphics_pipeline_library",
               alias="gpl",
-              features=False,
+              features=True,
               properties=False),
     Extension("VK_KHR_push_descriptor",
               alias="push",
