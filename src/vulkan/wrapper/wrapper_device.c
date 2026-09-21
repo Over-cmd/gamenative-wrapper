@@ -663,6 +663,13 @@ wrapper_CreateDevice(VkPhysicalDevice physicalDevice,
    };
    bool used_fallback_create = false;
 
+   /* 🚨 BARRERA DE PURGA DE HILOS MALI (SOLUCIÓN DEL SEGUNDO ARRANQUE):
+      Obligamos al enlazador de registros de tu tablet Unisoc T618 a vaciar las tuberías 
+      de comandos anteriores. Esto asegura que si cierras un juego o el cubo de Vulkan 
+      y lo vuelves a abrir al instante, la GPU procese la llamada en una pizarra de memoria 
+      100% limpia, erradicando los cierres de golpe. */
+   __sync_synchronize();
+
    device = vk_zalloc2(&physical_device->instance->vk.alloc, pAllocator,
                        sizeof(*device), 8, VK_SYSTEM_ALLOCATION_SCOPE_DEVICE);
    if (!device)
