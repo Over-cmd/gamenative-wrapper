@@ -445,13 +445,7 @@ wrapper_GetPhysicalDeviceFeatures(VkPhysicalDevice physicalDevice,
    pFeatures->shaderCullDistance = true;
    pFeatures->geometryShader = true;
    pFeatures->tessellationShader = true;
-
-      /* 🚨 ACTIVACIÓN LEGAL INTERNA EXTENSIÓN 64:
-      Encendemos el bit de soporte en la tabla estática de extensiones del dispositivo. 
-      Esto expone 'VK_KHR_pipeline_library' de forma interna para que DXVK y Zink la lean 
-      como una capacidad nativa del Wrapper, estabilizando OpenGL al 100% en paralelo. */
-   pdevice->vk.supported_extensions.KHR_pipeline_library = true;
-   pdevice->vk.supported_extensions.EXT_graphics_pipeline_library = true;
+   pFeatures->shaderInt16 = true;
 
    /* 🚨 LIBERACIÓN DEFINITIVA 32 BITS: Comentamos la barrera atómica para evitar 
       que los ejecutables antiguos sufran bloqueos mutuos de memoria en segundo plano. */
@@ -525,13 +519,7 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
    pFeatures->features.shaderCullDistance = true;
    pFeatures->features.geometryShader = true;
    pFeatures->features.tessellationShader = true;
-
-   /* 🚨 ACTIVACIÓN LEGAL INTERNA EXTENSIÓN 65:
-      Encendemos el bit de soporte en la tabla estática de extensiones del dispositivo. 
-      Esto expone 'VK_KHR_pipeline_library' de forma interna para que DXVK y Zink la lean 
-      como una capacidad nativa del Wrapper, estabilizando OpenGL al 100% en paralelo. */
-   pdevice->vk.supported_extensions.KHR_pipeline_library = true;
-   pdevice->vk.supported_extensions.EXT_graphics_pipeline_library = true;
+   pFeatures->shaderInt16 = true;
 
    /* 🚨 SELLO MULTI-ARCH COMPLETO: Apagamos la sincronización atómica rígida aquí también 
       para que la cola de comandos de 32 bits no colapse la RAM de tu GPU. */
