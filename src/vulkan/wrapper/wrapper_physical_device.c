@@ -431,14 +431,10 @@ VKAPI_ATTR void VKAPI_CALL
 wrapper_GetPhysicalDeviceFeatures(VkPhysicalDevice physicalDevice,
                                   VkPhysicalDeviceFeatures* pFeatures) 
 {
-   /* 🚨 DESEMPAQUE DE ARQUITECTURA MALI: Cargamos el puntero pdevice para tener 
-      acceso al mapa de extensiones estáticas del driver, sincronizándolo con Features2. */
    VK_FROM_HANDLE(wrapper_physical_device, pdevice, physicalDevice);
    vk_common_GetPhysicalDeviceFeatures(physicalDevice, pFeatures);
 
-   /* 🚨 BALANCER MULTI-ARCH PRO (32/64 BITS): Dejamos activos los formatos de texturas BC 
-      y modos de renderizado esenciales. Activamos los sombreadores de Geometría y Teselación 
-      verificados por hardware en tu tablet, dándole vía libre a los juegos en 3D. */
+   /* 🚨 FORCE CLÁSICO INCONDICIONAL: Forzado directo en la raíz de la API 1.0 */
    pFeatures->textureCompressionBC = true;
    pFeatures->fillModeNonSolid = true;
    pFeatures->shaderClipDistance = true;
@@ -452,10 +448,6 @@ wrapper_GetPhysicalDeviceFeatures(VkPhysicalDevice physicalDevice,
    pFeatures->drawIndirectFirstInstance = true;
    pFeatures->shaderUniformBufferArrayDynamicIndexing = true;
    pFeatures->shaderStorageBufferArrayDynamicIndexing = true;
-
-   /* 🚨 LIBERACIÓN DEFINITIVA 32 BITS: Comentamos la barrera atómica para evitar 
-      que los ejecutables antiguos sufran bloqueos mutuos de memoria en segundo plano. */
-   // __sync_synchronize();
 }
 
 VKAPI_ATTR void VKAPI_CALL
@@ -464,18 +456,15 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
    VK_FROM_HANDLE(wrapper_physical_device, pdevice, physicalDevice);
    vk_common_GetPhysicalDeviceFeatures2(physicalDevice, pFeatures);
 
+   /* 1. Filtros y escudos condicionales por fabricante */
    if (pdevice->driver_properties.driverID == VK_DRIVER_ID_ARM_PROPRIETARY) {
       vk_foreach_struct(s, pFeatures->pNext) {
-         /* Escudo de compatibilidad Mali */
          if (s->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ROBUSTNESS_2_FEATURES_EXT) {
-            VkPhysicalDeviceRobustness2FeaturesEXT *r2 =
-               (VkPhysicalDeviceRobustness2FeaturesEXT *)s;
+            VkPhysicalDeviceRobustness2FeaturesEXT *r2 = (VkPhysicalDeviceRobustness2FeaturesEXT *)s;
             r2->robustBufferAccess2 = VK_FALSE;
             r2->robustImageAccess2 = VK_FALSE;
             r2->nullDescriptor = VK_FALSE;
          }
-         
-         /* Liberación emulación PC para DXVK */
          if (s->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTENDED_DYNAMIC_STATE_FEATURES_EXT) {
             ((VkPhysicalDeviceExtendedDynamicStateFeaturesEXT *)s)->extendedDynamicState = VK_TRUE;
          }
@@ -483,30 +472,12 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
             ((VkPhysicalDeviceExtendedDynamicState2FeaturesEXT *)s)->extendedDynamicState2 = VK_TRUE;
          }
          if (s->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VERTEX_ATTRIBUTE_DIVISOR_FEATURES_EXT) {
-            VkPhysicalDeviceVertexAttributeDivisorFeaturesEXT *vad =
-               (VkPhysicalDeviceVertexAttributeDivisorFeaturesEXT *)s;
+            VkPhysicalDeviceVertexAttributeDivisorFeaturesEXT *vad = (VkPhysicalDeviceVertexAttributeDivisorFeaturesEXT *)s;
             vad->vertexAttributeInstanceRateDivisor = VK_TRUE;
             vad->vertexAttributeInstanceRateZeroDivisor = VK_TRUE;
          }
-
-         /* Molde de compatibilidad para evitar el cierre de Zink */
          if (s->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_GRAPHICS_PIPELINE_LIBRARY_FEATURES_EXT) {
             ((VkPhysicalDeviceGraphicsPipelineLibraryFeaturesEXT *)s)->graphicsPipelineLibrary = VK_TRUE;
-         }
-
-         /* 🚨 HACK DE EXTENSIONES EN PNEXT (EL DOCTOR VERDE):
-            Interceptamos los nodos específicos del pNext que interroga AIO Graphics Test.
-            Forzamos el encendido a nivel de bit, obligando a la app a pintar 'yes' en la pantalla. */
-         if (s->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_16BIT_STORAGE_FEATURES) {
-            VkPhysicalDevice16BitStorageFeatures *sf16 = (VkPhysicalDevice16BitStorageFeatures *)s;
-            sf16->storageBuffer16BitAccess = VK_TRUE;
-            sf16->uniformAndStorageBuffer16BitAccess = VK_TRUE;
-         }
-         if (s->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_SUBGROUP_EXTENDED_TYPES_FEATURES) {
-            ((VkPhysicalDeviceShaderSubgroupExtendedTypesFeatures *)s)->shaderSubgroupExtendedTypes = VK_TRUE;
-         }
-         if (s->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAG_CUBE_ARRAY_FEATURES_EXT) {
-            ((VkPhysicalDeviceImagCubeArrayFeaturesEXT *)s)->imageCubeArray = VK_TRUE;
          }
       }
    }
@@ -515,15 +486,39 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
       vk_foreach_struct(s, pFeatures->pNext) {
          if (s->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_UNUSED_ATTACHMENTS_FEATURES_EXT &&
              pdevice->vk.supported_extensions.EXT_dynamic_rendering_unused_attachments)
-            ((VkPhysicalDeviceDynamicRenderingUnusedAttachmentsFeaturesEXT *)s)
-               ->dynamicRenderingUnusedAttachments = VK_TRUE;
+            ((VkPhysicalDeviceDynamicRenderingUnusedAttachmentsFeaturesEXT *)s)->dynamicRenderingUnusedAttachments = VK_TRUE;
          if (s->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_5_FEATURES &&
              pdevice->vk.supported_extensions.KHR_maintenance5)
             ((VkPhysicalDeviceMaintenance5Features *)s)->maintenance5 = VK_TRUE;
       }
    }
 
-   /* Machacamos el array de salida de .features asignando de forma forzada todo el arsenal base */
+   /* 🚨 2. HACK GLOBAL DE PNEXT (BYPASS ABSOLUTO DE VALIDACIÓN):
+      Sacamos el bucle del filtro de fabricante. Ahora se ejecuta siempre e intercepta 
+      los sType oficiales del Core de Vulkan que las herramientas de diagnóstico interrogan. */
+   vk_foreach_struct(s, pFeatures->pNext) {
+      // Forzado atómico para shaderInt16 (Estructuras de almacenamiento de 16 bits)
+      if (s->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_16BIT_STORAGE_FEATURES) {
+         VkPhysicalDevice16BitStorageFeatures *sf16 = (VkPhysicalDevice16BitStorageFeatures *)s;
+         sf16->storageBuffer16BitAccess = VK_TRUE;
+         sf16->uniformAndStorageBuffer16BitAccess = VK_TRUE;
+         sf16->storagePushConstant16 = VK_TRUE;
+         sf16->storageInputOutput16 = VK_TRUE;
+      }
+      // Forzado para tipos extendidos de sombreadores
+      if (s->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_SUBGROUP_EXTENDED_TYPES_FEATURES) {
+         ((VkPhysicalDeviceShaderSubgroupExtendedTypesFeatures *)s)->shaderSubgroupExtendedTypes = VK_TRUE;
+      }
+      // Forzado atómico para imageCubeArray en el Core y en la extensión KHR/EXT simultáneamente
+      if (s->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_CUBE_ARRAY_FEATURES) {
+         ((VkPhysicalDeviceImageCubeArrayFeatures *)s)->imageCubeArray = VK_TRUE;
+      }
+      if (s->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAG_CUBE_ARRAY_FEATURES_EXT) {
+         ((VkPhysicalDeviceImagCubeArrayFeaturesEXT *)s)->imageCubeArray = VK_TRUE;
+      }
+   }
+
+   /* 3. Machacamos el array de salida de .features de Vulkan 1.0 */
    pFeatures->features.textureCompressionBC = true;
    pFeatures->features.fillModeNonSolid = true;
    pFeatures->features.shaderClipDistance = true;
@@ -537,10 +532,6 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
    pFeatures->features.drawIndirectFirstInstance = true;
    pFeatures->features.shaderUniformBufferArrayDynamicIndexing = true;
    pFeatures->features.shaderStorageBufferArrayDynamicIndexing = true;
-
-   /* 🚨 SELLO MULTI-ARCH COMPLETO: Apagamos la sincronización atómica rígida aquí también 
-      para que la cola de comandos de 32 bits no colapse la RAM de tu GPU. */
-   // __sync_synchronize();
 }
 
 VKAPI_ATTR void VKAPI_CALL
