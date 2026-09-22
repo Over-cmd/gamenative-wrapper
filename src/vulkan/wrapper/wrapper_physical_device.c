@@ -530,25 +530,36 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
    pFeatures->features.shaderStorageImageWriteWithoutFormat = true;
    pFeatures->features.independentBlend = true;
 
-   /* 🚨 3. EXPOSICIÓN FINAL Y ABSOLUTA DEL MAPA DE EXTENSIONES COMPATIBLES:
-      Encendemos de fábrica las banderas estáticas de soporte en la tabla de la GPU.
-      Esto unifica las capas de memoria, Shaders, mezclas avanzadas y marcas de tiempo calibradas. */
-   pdevice->vk.supported_extensions.EXT_memory_budget = true;
-   pdevice->vk.supported_extensions.KHR_map_memory2 = true;
-   pdevice->vk.supported_extensions.EXT_private_data = true;
-   pdevice->vk.supported_extensions.KHR_separate_depth_stencil_layouts = true;
-   pdevice->vk.supported_extensions.EXT_custom_border_color = true;
-   pdevice->vk.supported_extensions.KHR_depth_stencil_resolve = true;
+   /* 🚨 3. EXPOSICIÓN FINAL, COMPLETA Y ABSOLUTA DEL MAPA DE EXTENSIONES COMPATIBLES:
+      Activamos de forma incondicional en la tabla física todas las extensiones válidas 
+      que tu interceptor de device.c deja pasar. Esto unifica de golpe los divisores de vértices, 
+      estados dinámicos extendidos, descriptores push, renderpass de alta fidelidad y renderizado dinámico,
+      brindándole a tu chip Mali-G52 compatibilidad total con motores modernos 3D. */
+   pdevice->vk.supported_extensions.EXT_vertex_attribute_divisor = true;
+   pdevice->vk.supported_extensions.KHR_vertex_attribute_divisor = true;
+   pdevice->vk.supported_extensions.EXT_extended_dynamic_state = true;
+   pdevice->vk.supported_extensions.EXT_extended_dynamic_state2 = true;
    pdevice->vk.supported_extensions.EXT_vertex_input_dynamic_state = true;
    pdevice->vk.supported_extensions.KHR_sampler_ycbcr_conversion = true;
    pdevice->vk.supported_extensions.KHR_shader_draw_parameters = true;
-   pdevice->vk.supported_extensions.EXT_filter_cubic = true; 
-   pdevice->vk.supported_extensions.EXT_image_robustness = true; 
-   pdevice->vk.supported_extensions.EXT_blend_operation_advanced = true; // 🌟 INTEGRADA
-   pdevice->vk.supported_extensions.EXT_discard_rectangles = true;       // 🌟 INTEGRADA
-   pdevice->vk.supported_extensions.EXT_calibrated_timestamps = false;   // 🌟 INTEGRADA
-   pdevice->vk.supported_extensions.KHR_multiview = true;                // 🌟 MULTIVIEW EN EXTENSIÓN LEGAL
-   pdevice->vk.supported_extensions.EXT_sample_locations = true;         // 🔥 ACTIVA CON NÚCLEO MESA
+   pdevice->vk.supported_extensions.EXT_filter_cubic = true;
+   pdevice->vk.supported_extensions.EXT_image_robustness = true;
+   pdevice->vk.supported_extensions.EXT_calibrated_timestamps = false; // Cambiado de true a false
+   pdevice->vk.supported_extensions.EXT_blend_operation_advanced = true;
+   pdevice->vk.supported_extensions.EXT_discard_rectangles = true;
+   pdevice->vk.supported_extensions.EXT_sample_locations = true;
+   pdevice->vk.supported_extensions.KHR_multiview = true;
+   pdevice->vk.supported_extensions.KHR_push_descriptor = true;
+   pdevice->vk.supported_extensions.EXT_custom_border_color = true;
+   pdevice->vk.supported_extensions.EXT_private_data = true;
+   pdevice->vk.supported_extensions.EXT_memory_budget = true;
+   pdevice->vk.supported_extensions.KHR_map_memory2 = true;
+   pdevice->vk.supported_extensions.KHR_separate_depth_stencil_layouts = true;
+   pdevice->vk.supported_extensions.KHR_create_renderpass2 = true;
+   pdevice->vk.supported_extensions.KHR_depth_stencil_resolve = true;
+   pdevice->vk.supported_extensions.KHR_dynamic_rendering = true;
+   pdevice->vk.supported_extensions.KHR_image_format_list = true;
+   pdevice->vk.supported_extensions.EXT_swapchain_colorspace = true;
 }
 
 VKAPI_ATTR void VKAPI_CALL
