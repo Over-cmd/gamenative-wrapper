@@ -549,7 +549,7 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
    pdevice->vk.supported_extensions.EXT_discard_rectangles = true;
    pdevice->vk.supported_extensions.EXT_sample_locations = true;
    pdevice->vk.supported_extensions.KHR_multiview = true;
-   pdevice->vk.supported_extensions.KHR_push_descriptor = true;
+   pdevice->vk.supported_extensions.KHR_push_descriptor = false;
    pdevice->vk.supported_extensions.EXT_custom_border_color = true;
    pdevice->vk.supported_extensions.EXT_private_data = true;
    pdevice->vk.supported_extensions.EXT_memory_budget = true;
