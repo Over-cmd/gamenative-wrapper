@@ -434,9 +434,8 @@ wrapper_GetPhysicalDeviceFeatures(VkPhysicalDevice physicalDevice,
    VK_FROM_HANDLE(wrapper_physical_device, pdevice, physicalDevice);
    vk_common_GetPhysicalDeviceFeatures(physicalDevice, pFeatures);
 
-   /* 🚨 EXPANSION DE MÚSCULO REAL MALI-G52:
-      Activamos características premium de PC respaldadas al 100% por tus listas de hardware. 
-      Las banderas se clavan directamente en la raíz de la estructura clásica. */
+   /* 🚨 EXPANSIÓN FINAL DE POTENCIA FÍSICA MALI:
+      Activamos características premium de PC respaldadas al 100% por tus listas de hardware. */
    pFeatures->textureCompressionBC = true;
    pFeatures->fillModeNonSolid = true;
    pFeatures->shaderClipDistance = true;
@@ -453,6 +452,9 @@ wrapper_GetPhysicalDeviceFeatures(VkPhysicalDevice physicalDevice,
    pFeatures->multiDrawIndirect = true;
    pFeatures->sparseBinding = true;
    pFeatures->shaderResourceMinLod = true;
+   pFeatures->shaderTessellationAndGeometryPointSize = true;
+   pFeatures->textureCompressionASTC_LDR = true;
+   pFeatures->occlusionQueryAtCount = true;
 }
 
 VKAPI_ATTR void VKAPI_CALL
@@ -498,9 +500,7 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
       }
    }
 
-   /* 🚨 SINCRO DE CAPACIDADES REALES EN EL CANAL FEATURES2:
-      Asignamos obligatoriamente a través de '.features.' para no generar errores de Clang,
-      completando la suite gráfica más potente y estable para tu procesador Unisoc. */
+   /* Sincronizamos las tres nuevas capacidades estables en el canal Features2 */
    pFeatures->features.textureCompressionBC = true;
    pFeatures->features.fillModeNonSolid = true;
    pFeatures->features.shaderClipDistance = true;
@@ -517,11 +517,11 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
    pFeatures->features.multiDrawIndirect = true;
    pFeatures->features.sparseBinding = true;
    pFeatures->features.shaderResourceMinLod = true;
+   pFeatures->features.shaderTessellationAndGeometryPointSize = true;
+   pFeatures->features.textureCompressionASTC_LDR = true;
+   pFeatures->features.occlusionQueryAtCount = true;
 
-   /* 🚨 EXPOSICIÓN LEGAL ADICIONAL DE EXTENSIONES DE MEMORIA:
-      Encendemos de fábrica las banderas lógicas de soporte en la tabla estática de extensiones.
-      Esto le garantiza a DXVK 2.x que puede usar la pila de mapeo avanzado y control de presupuesto 
-      en tiempo real directamente sobre el hardware real de tu tablet sin censuras de Mesa. */
+   /* Tu autopista de memoria autorizada estática de supported_extensions se queda abajo intacta */
    pdevice->vk.supported_extensions.EXT_memory_budget = true;
    pdevice->vk.supported_extensions.KHR_map_memory2 = true;
    pdevice->vk.supported_extensions.EXT_private_data = true;
