@@ -100,8 +100,8 @@ wrapper_filter_enabled_extensions(const struct wrapper_device *device,
          continue;
 
       /* 🚨 INTERCEPTOR PREMIUM MALI UNIFICADO (CIERRE TOTAL DE EXTENSIONES):
-         Añadimos de forma legal tus dos últimas extensiones físicas al grupo de paso libre.
-         Inyectamos filter_cubic e image_robustness en el filtro del Swapchain. */
+         Añadimos de forma legal tus últimas extensiones físicas al grupo de paso libre.
+         Inyectamos filter_cubic, image_robustness, calibrated_timestamps y blend_operation_advanced. */
       if (strcmp(ext_name, "VK_EXT_vertex_attribute_divisor") == 0 ||
           strcmp(ext_name, "VK_KHR_vertex_attribute_divisor") == 0 ||
           strcmp(ext_name, "VK_EXT_extended_dynamic_state") == 0 ||
@@ -111,6 +111,8 @@ wrapper_filter_enabled_extensions(const struct wrapper_device *device,
           strcmp(ext_name, "VK_KHR_shader_draw_parameters") == 0 ||
           strcmp(ext_name, "VK_EXT_filter_cubic") == 0 ||
           strcmp(ext_name, "VK_EXT_image_robustness") == 0 ||
+          strcmp(ext_name, "VK_EXT_calibrated_timestamps") == 0 ||
+          strcmp(ext_name, "VK_EXT_blend_operation_advanced") == 0 ||
           strcmp(ext_name, "VK_KHR_push_descriptor") == 0 ||
           strcmp(ext_name, "VK_EXT_custom_border_color") == 0 ||
           strcmp(ext_name, "VK_EXT_private_data") == 0 ||
