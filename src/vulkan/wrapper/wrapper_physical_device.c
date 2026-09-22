@@ -532,7 +532,7 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
 
    /* 🚨 3. EXPOSICIÓN FINAL Y ABSOLUTA DEL MAPA DE EXTENSIONES COMPATIBLES:
       Encendemos de fábrica las banderas estáticas de soporte en la tabla de la GPU.
-      Esto unifica las capas de memoria, Shaders y filtrado cúbico de texturas real. */
+      Esto unifica las capas de memoria, Shaders, mezclas avanzadas y marcas de tiempo calibradas. */
    pdevice->vk.supported_extensions.EXT_memory_budget = true;
    pdevice->vk.supported_extensions.KHR_map_memory2 = true;
    pdevice->vk.supported_extensions.EXT_private_data = true;
@@ -544,6 +544,8 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
    pdevice->vk.supported_extensions.KHR_shader_draw_parameters = true;
    pdevice->vk.supported_extensions.EXT_filter_cubic = true; 
    pdevice->vk.supported_extensions.EXT_image_robustness = true; 
+   pdevice->vk.supported_extensions.EXT_calibrated_timestamps = true; // 🌟 INTEGRADA
+   pdevice->vk.supported_extensions.EXT_blend_operation_advanced = true; // 🌟 INTEGRADA
 }
 
 VKAPI_ATTR void VKAPI_CALL
