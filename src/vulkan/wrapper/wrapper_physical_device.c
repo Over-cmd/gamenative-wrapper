@@ -546,6 +546,7 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
    pdevice->vk.supported_extensions.EXT_image_robustness = true; 
    pdevice->vk.supported_extensions.EXT_blend_operation_advanced = true; // 🌟 INTEGRADA
    pdevice->vk.supported_extensions.EXT_discard_rectangles = true;       // 🌟 INTEGRADA
+   pdevice->vk.supported_extensions.EXT_calibrated_timestamps = true;    // 🌟 INTEGRADA
    pdevice->vk.supported_extensions.KHR_multiview = true;                // 🌟 MULTIVIEW EN EXTENSIÓN LEGAL
    pdevice->vk.supported_extensions.EXT_sample_locations = true;         // 🔥 ACTIVA CON NÚCLEO MESA
 }
