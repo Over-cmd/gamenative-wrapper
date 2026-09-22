@@ -555,10 +555,10 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
    pdevice->vk.supported_extensions.EXT_memory_budget = true;
    pdevice->vk.supported_extensions.KHR_map_memory2 = true;
    pdevice->vk.supported_extensions.KHR_separate_depth_stencil_layouts = true;
-   pdevice->vk.supported_extensions.KHR_create_renderpass2 = true;
+   pdevice->vk.supported_extensions.KHR_create_renderpass2 = false;
    pdevice->vk.supported_extensions.KHR_depth_stencil_resolve = true;
    pdevice->vk.supported_extensions.KHR_dynamic_rendering = false;
-   pdevice->vk.supported_extensions.KHR_image_format_list = false;
+   pdevice->vk.supported_extensions.KHR_image_format_list = true;
 }
 
 VKAPI_ATTR void VKAPI_CALL
