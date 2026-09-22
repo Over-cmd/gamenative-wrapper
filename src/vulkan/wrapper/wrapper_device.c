@@ -116,6 +116,9 @@ wrapper_filter_enabled_extensions(const struct wrapper_device *device,
           strcmp(ext_name, "VK_EXT_discard_rectangles") == 0 ||
           strcmp(ext_name, "VK_EXT_sample_locations") == 0 ||
           strcmp(ext_name, "VK_KHR_multiview") == 0 ||
+          strcmp(ext_name, "VK_EXT_color_write_enable") == 0 ||      // 🔥 AÑADIDA
+          strcmp(ext_name, "VK_KHR_shader_float_controls") == 0 ||   // 🔥 AÑADIDA
+          strcmp(ext_name, "VK_EXT_shader_subgroup_ballot") == 0 ||  // 🔥 AÑADIDA
           strcmp(ext_name, "VK_KHR_push_descriptor") == 0 ||
           strcmp(ext_name, "VK_EXT_custom_border_color") == 0 ||
           strcmp(ext_name, "VK_EXT_private_data") == 0 ||
