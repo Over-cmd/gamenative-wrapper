@@ -434,8 +434,9 @@ wrapper_GetPhysicalDeviceFeatures(VkPhysicalDevice physicalDevice,
    VK_FROM_HANDLE(wrapper_physical_device, pdevice, physicalDevice);
    vk_common_GetPhysicalDeviceFeatures(physicalDevice, pFeatures);
 
-   /* 🚨 EXPANSIÓN FINAL DE POTENCIA FÍSICA MALI:
-      Activamos características premium de PC respaldadas al 100% por tus listas de hardware. */
+   /* 🚨 EXPANSION DE MÚSCULO REAL MALI-G52:
+      Activamos características premium de PC respaldadas al 100% por tus listas de hardware. 
+      Las banderas se clavan directamente en la raíz de la estructura clásica. */
    pFeatures->textureCompressionBC = true;
    pFeatures->fillModeNonSolid = true;
    pFeatures->shaderClipDistance = true;
@@ -454,7 +455,7 @@ wrapper_GetPhysicalDeviceFeatures(VkPhysicalDevice physicalDevice,
    pFeatures->shaderResourceMinLod = true;
    pFeatures->shaderTessellationAndGeometryPointSize = true;
    pFeatures->textureCompressionASTC_LDR = true;
-   pFeatures->occlusionQueryAtCount = true;
+   pFeatures->occlusionQueryPrecise = true; // Corregido según el estándar Vulkan Core
 }
 
 VKAPI_ATTR void VKAPI_CALL
@@ -500,7 +501,9 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
       }
    }
 
-   /* Sincronizamos las tres nuevas capacidades estables en el canal Features2 */
+   /* 🚨 SINCRO DE CAPACIDADES REALES EN EL CANAL FEATURES2:
+      Asignamos obligatoriamente a través de '.features.' para no generar errores de Clang,
+      completando la suite gráfica más potente y estable para tu procesador Unisoc. */
    pFeatures->features.textureCompressionBC = true;
    pFeatures->features.fillModeNonSolid = true;
    pFeatures->features.shaderClipDistance = true;
@@ -519,7 +522,7 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
    pFeatures->features.shaderResourceMinLod = true;
    pFeatures->features.shaderTessellationAndGeometryPointSize = true;
    pFeatures->features.textureCompressionASTC_LDR = true;
-   pFeatures->features.occlusionQueryAtCount = true;
+   pFeatures->features.occlusionQueryPrecise = true; // Corregido según el estándar Vulkan Core
 
    /* Tu autopista de memoria autorizada estática de supported_extensions se queda abajo intacta */
    pdevice->vk.supported_extensions.EXT_memory_budget = true;
