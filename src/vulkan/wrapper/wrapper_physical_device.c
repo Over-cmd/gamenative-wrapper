@@ -459,8 +459,6 @@ wrapper_GetPhysicalDeviceFeatures(VkPhysicalDevice physicalDevice,
    pFeatures->shaderStorageImageExtendedFormats = true;
    pFeatures->shaderStorageImageWriteWithoutFormat = true;
    pFeatures->independentBlend = true;
-   pFeatures->multiview = true;               // 🌟 CAPTURA FINAL MALI
-   pFeatures->sampleRateInterpolation = true; // 🌟 EL CIERRE ABSOLUTO
 }
 
 VKAPI_ATTR void VKAPI_CALL
@@ -531,8 +529,6 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
    pFeatures->features.shaderStorageImageExtendedFormats = true;
    pFeatures->features.shaderStorageImageWriteWithoutFormat = true;
    pFeatures->features.independentBlend = true;
-   pFeatures->features.multiview = true;               // 🌟 CAPTURA FINAL MALI
-   pFeatures->features.sampleRateInterpolation = true; // 🌟 EL CIERRE ABSOLUTO
 
    /* 🚨 3. EXPOSICIÓN FINAL Y ABSOLUTA DEL MAPA DE EXTENSIONES COMPATIBLES:
       Encendemos de fábrica las banderas estáticas de soporte en la tabla de la GPU.
@@ -550,6 +546,8 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
    pdevice->vk.supported_extensions.EXT_image_robustness = true; 
    pdevice->vk.supported_extensions.EXT_blend_operation_advanced = true; // 🌟 INTEGRADA
    pdevice->vk.supported_extensions.EXT_discard_rectangles = true;       // 🌟 INTEGRADA
+   pdevice->vk.supported_extensions.KHR_multiview = true;                // 🌟 MULTIVIEW EN EXTENSIÓN LEGAL
+   pdevice->vk.supported_extensions.NV_sample_mask_override = true;      // 🌟 INTERPOLACIÓN EN EXTENSIÓN LEGAL
 }
 
 VKAPI_ATTR void VKAPI_CALL
