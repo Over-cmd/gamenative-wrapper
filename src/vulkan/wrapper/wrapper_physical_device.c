@@ -549,13 +549,13 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
    pdevice->vk.supported_extensions.EXT_discard_rectangles = true;
    pdevice->vk.supported_extensions.EXT_sample_locations = true;
    pdevice->vk.supported_extensions.KHR_multiview = true;
-   pdevice->vk.supported_extensions.KHR_push_descriptor = true;
+   pdevice->vk.supported_extensions.KHR_push_descriptor = false;
    pdevice->vk.supported_extensions.EXT_custom_border_color = true;
    pdevice->vk.supported_extensions.EXT_private_data = true;
    pdevice->vk.supported_extensions.EXT_memory_budget = true;
    pdevice->vk.supported_extensions.KHR_map_memory2 = true;
    pdevice->vk.supported_extensions.KHR_separate_depth_stencil_layouts = true;
-   pdevice->vk.supported_extensions.KHR_create_renderpass2 = false;
+   pdevice->vk.supported_extensions.KHR_create_renderpass2 = true;
    pdevice->vk.supported_extensions.KHR_depth_stencil_resolve = true;
    pdevice->vk.supported_extensions.KHR_dynamic_rendering = false;
    pdevice->vk.supported_extensions.KHR_image_format_list = true;
