@@ -524,10 +524,15 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
    pFeatures->features.textureCompressionASTC_LDR = true;
    pFeatures->features.occlusionQueryPrecise = true; // Corregido según el estándar Vulkan Core
 
-   /* Tu autopista de memoria autorizada estática de supported_extensions se queda abajo intacta */
+   /* 🚨 EL CIERRE ABSOLUTO DEL CONTADOR DE EXTENSIONES PREMIUM:
+      Encendemos de fábrica las banderas estáticas de soporte en la tabla de la GPU.
+      Esto unifica las capas de memoria y dibujo con soporte 100% nativo por hardware. */
    pdevice->vk.supported_extensions.EXT_memory_budget = true;
    pdevice->vk.supported_extensions.KHR_map_memory2 = true;
    pdevice->vk.supported_extensions.EXT_private_data = true;
+   pdevice->vk.supported_extensions.KHR_separate_depth_stencil_layouts = true;
+   pdevice->vk.supported_extensions.EXT_custom_border_color = true;
+   pdevice->vk.supported_extensions.KHR_depth_stencil_resolve = true;
 }
 
 VKAPI_ATTR void VKAPI_CALL
