@@ -537,8 +537,8 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
       brindándole a tu chip Mali-G52 compatibilidad total con motores modernos 3D. */
    pdevice->vk.supported_extensions.EXT_vertex_attribute_divisor = true;
    pdevice->vk.supported_extensions.KHR_vertex_attribute_divisor = true;
-   pdevice->vk.supported_extensions.EXT_extended_dynamic_state = true;
-   pdevice->vk.supported_extensions.EXT_extended_dynamic_state2 = true;
+   pdevice->vk.supported_extensions.EXT_extended_dynamic_state = false;
+   pdevice->vk.supported_extensions.EXT_extended_dynamic_state2 = false;
    pdevice->vk.supported_extensions.EXT_vertex_input_dynamic_state = true;
    pdevice->vk.supported_extensions.KHR_sampler_ycbcr_conversion = true;
    pdevice->vk.supported_extensions.KHR_shader_draw_parameters = true;
@@ -549,7 +549,7 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
    pdevice->vk.supported_extensions.EXT_discard_rectangles = true;
    pdevice->vk.supported_extensions.EXT_sample_locations = true;
    pdevice->vk.supported_extensions.KHR_multiview = true;
-   pdevice->vk.supported_extensions.KHR_push_descriptor = false;
+   pdevice->vk.supported_extensions.KHR_push_descriptor = true;
    pdevice->vk.supported_extensions.EXT_custom_border_color = true;
    pdevice->vk.supported_extensions.EXT_private_data = true;
    pdevice->vk.supported_extensions.EXT_memory_budget = true;
