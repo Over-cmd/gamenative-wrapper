@@ -545,6 +545,7 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
    pdevice->vk.supported_extensions.EXT_filter_cubic = true; 
    pdevice->vk.supported_extensions.EXT_image_robustness = true; 
    pdevice->vk.supported_extensions.EXT_blend_operation_advanced = true; // 🌟 INTEGRADA
+   pdevice->vk.supported_extensions.EXT_discard_rectangles = true;       // 🌟 INTEGRADA
 }
 
 VKAPI_ATTR void VKAPI_CALL
