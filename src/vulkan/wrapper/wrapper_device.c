@@ -114,6 +114,7 @@ wrapper_filter_enabled_extensions(const struct wrapper_device *device,
           strcmp(ext_name, "VK_EXT_calibrated_timestamps") == 0 ||
           strcmp(ext_name, "VK_EXT_blend_operation_advanced") == 0 ||
           strcmp(ext_name, "VK_EXT_discard_rectangles") == 0 ||
+          strcmp(ext_name, "VK_EXT_sample_locations") == 0 ||
           strcmp(ext_name, "VK_KHR_multiview") == 0 ||
           strcmp(ext_name, "VK_KHR_push_descriptor") == 0 ||
           strcmp(ext_name, "VK_EXT_custom_border_color") == 0 ||
