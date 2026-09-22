@@ -99,13 +99,16 @@ wrapper_filter_enabled_extensions(const struct wrapper_device *device,
       if (!device->physical->base_supported_extensions.extensions[idx] && !is_pipeline_lib)
          continue;
 
-      /* 🚨 INTERCEPTOR INTEGRADO PIPELINE Y COMBOS DE MEMORIA:
-         Añadimos de forma legal tus extensiones deseadas al grupo de inyección premium.
-         Inyectamos 'VK_EXT_memory_budget' y 'VK_KHR_map_memory2' en el filtro de paso. */
+      /* 🚨 INTERCEPTOR PREMIUM MALI UNIFICADO:
+         Añadimos de forma legal tus tres últimas extensiones físicas al grupo de paso libre.
+         Inyectamos vertex_input_dynamic_state, sampler_ycbcr y shader_draw_parameters. */
       if (strcmp(ext_name, "VK_EXT_vertex_attribute_divisor") == 0 ||
           strcmp(ext_name, "VK_KHR_vertex_attribute_divisor") == 0 ||
           strcmp(ext_name, "VK_EXT_extended_dynamic_state") == 0 ||
           strcmp(ext_name, "VK_EXT_extended_dynamic_state2") == 0 ||
+          strcmp(ext_name, "VK_EXT_vertex_input_dynamic_state") == 0 ||
+          strcmp(ext_name, "VK_KHR_sampler_ycbcr_conversion") == 0 ||
+          strcmp(ext_name, "VK_KHR_shader_draw_parameters") == 0 ||
           strcmp(ext_name, "VK_KHR_push_descriptor") == 0 ||
           strcmp(ext_name, "VK_EXT_custom_border_color") == 0 ||
           strcmp(ext_name, "VK_EXT_private_data") == 0 ||
