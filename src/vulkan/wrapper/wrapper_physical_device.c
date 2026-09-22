@@ -517,6 +517,14 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
    pFeatures->features.multiDrawIndirect = true;
    pFeatures->features.sparseBinding = true;
    pFeatures->features.shaderResourceMinLod = true;
+
+   /* 🚨 EXPOSICIÓN LEGAL ADICIONAL DE EXTENSIONES DE MEMORIA:
+      Encendemos de fábrica las banderas lógicas de soporte en la tabla estática de extensiones.
+      Esto le garantiza a DXVK 2.x que puede usar la pila de mapeo avanzado y control de presupuesto 
+      en tiempo real directamente sobre el hardware real de tu tablet sin censuras de Mesa. */
+   pdevice->vk.supported_extensions.EXT_memory_budget = true;
+   pdevice->vk.supported_extensions.KHR_map_memory2 = true;
+   pdevice->vk.supported_extensions.EXT_private_data = true;
 }
 
 VKAPI_ATTR void VKAPI_CALL
