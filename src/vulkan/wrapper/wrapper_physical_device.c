@@ -559,7 +559,6 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
    pdevice->vk.supported_extensions.KHR_depth_stencil_resolve = true;
    pdevice->vk.supported_extensions.KHR_dynamic_rendering = true;
    pdevice->vk.supported_extensions.KHR_image_format_list = true;
-   pdevice->vk.supported_extensions.EXT_swapchain_colorspace = true;
 }
 
 VKAPI_ATTR void VKAPI_CALL
