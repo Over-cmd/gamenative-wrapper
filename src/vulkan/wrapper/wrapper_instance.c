@@ -26,7 +26,6 @@ const struct vk_instance_extension_table wrapper_instance_extensions = {
    .KHR_external_memory_capabilities = true,
    .KHR_external_semaphore_capabilities = true,
    .KHR_device_group_creation = true,
-   .KHR_surface_capabilities2 = true,
    .EXT_debug_report = true,
    .EXT_debug_utils = true,
 
