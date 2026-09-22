@@ -562,6 +562,7 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
    pdevice->vk.supported_extensions.EXT_color_write_enable = true;      // 🌟 ACTIVA
    pdevice->vk.supported_extensions.KHR_shader_float_controls = true;   // 🌟 ACTIVA
    pdevice->vk.supported_extensions.EXT_shader_subgroup_ballot = true;  // 🌟 ACTIVA
+   pdevice->vk.supported_extensions.EXT_texture_compression_astc_hdr = true;  // 🌟 ACTIVA
 }
 
 VKAPI_ATTR void VKAPI_CALL
