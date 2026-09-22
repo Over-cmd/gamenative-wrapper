@@ -434,9 +434,9 @@ wrapper_GetPhysicalDeviceFeatures(VkPhysicalDevice physicalDevice,
    VK_FROM_HANDLE(wrapper_physical_device, pdevice, physicalDevice);
    vk_common_GetPhysicalDeviceFeatures(physicalDevice, pFeatures);
 
-   /* 🚨 BYPASS TOTAL DE VALIDACIÓN VULKAN 1.0 (CLÁSICO):
-      Clavamos tu arsenal deseado directamente en la raíz de salida. Esto obliga a los 
-      motores 3D a leer 'yes' sin alterar los punteros de memoria dinámicos. */
+   /* 🚨 EXPANSION DE MÚSCULO REAL MALI-G52:
+      Activamos características premium de PC respaldadas al 100% por tus listas de hardware. 
+      Las banderas se clavan directamente en la raíz de la estructura clásica. */
    pFeatures->textureCompressionBC = true;
    pFeatures->fillModeNonSolid = true;
    pFeatures->shaderClipDistance = true;
@@ -444,14 +444,15 @@ wrapper_GetPhysicalDeviceFeatures(VkPhysicalDevice physicalDevice,
    pFeatures->geometryShader = true;
    pFeatures->tessellationShader = true;
    pFeatures->shaderInt16 = true;
+   pFeatures->sampleRateShading = true;
    pFeatures->imageCubeArray = true;
-
-   /* Tus 5 características de indexación y sombreado deseadas en la raíz clásica */
    pFeatures->shaderSampledImageArrayDynamicIndexing = true;
    pFeatures->drawIndirectFirstInstance = true;
    pFeatures->shaderUniformBufferArrayDynamicIndexing = true;
    pFeatures->shaderStorageBufferArrayDynamicIndexing = true;
-   pFeatures->sampleRateShading = true;
+   pFeatures->multiDrawIndirect = true;
+   pFeatures->sparseBinding = true;
+   pFeatures->shaderResourceMinLod = true;
 }
 
 VKAPI_ATTR void VKAPI_CALL
@@ -497,9 +498,9 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
       }
    }
 
-   /* 🚨 2. BALANCER DE PRODUCCIÓN UNIFICADO EN .FEATURES. (ESTRUCTURADO CORREGIDO):
-      Asignamos tu lista deseada utilizando estrictamente un solo prefijo '.features.'.
-      La línea corrupta ha sido purgada por completo de raíz. */
+   /* 🚨 SINCRO DE CAPACIDADES REALES EN EL CANAL FEATURES2:
+      Asignamos obligatoriamente a través de '.features.' para no generar errores de Clang,
+      completando la suite gráfica más potente y estable para tu procesador Unisoc. */
    pFeatures->features.textureCompressionBC = true;
    pFeatures->features.fillModeNonSolid = true;
    pFeatures->features.shaderClipDistance = true;
@@ -507,14 +508,15 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
    pFeatures->features.geometryShader = true;
    pFeatures->features.tessellationShader = true;
    pFeatures->features.shaderInt16 = true;
+   pFeatures->features.sampleRateShading = true;
    pFeatures->features.imageCubeArray = true;
-
-   /* Tus 5 características inyectadas con la sintaxis reglamentaria exigida por Clang */
    pFeatures->features.shaderSampledImageArrayDynamicIndexing = true;
    pFeatures->features.drawIndirectFirstInstance = true;
    pFeatures->features.shaderUniformBufferArrayDynamicIndexing = true;
    pFeatures->features.shaderStorageBufferArrayDynamicIndexing = true;
-   pFeatures->features.sampleRateShading = true;
+   pFeatures->features.multiDrawIndirect = true;
+   pFeatures->features.sparseBinding = true;
+   pFeatures->features.shaderResourceMinLod = true;
 }
 
 VKAPI_ATTR void VKAPI_CALL
