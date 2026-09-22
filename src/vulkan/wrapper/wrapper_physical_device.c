@@ -456,6 +456,9 @@ wrapper_GetPhysicalDeviceFeatures(VkPhysicalDevice physicalDevice,
    pFeatures->shaderTessellationAndGeometryPointSize = true;
    pFeatures->textureCompressionASTC_LDR = true;
    pFeatures->occlusionQueryPrecise = true; // Corregido según el estándar Vulkan Core
+   pFeatures->shaderStorageImageExtendedFormats = true;
+   pFeatures->shaderStorageImageWriteWithoutFormat = true;
+   pFeatures->independentBlend = true;
 }
 
 VKAPI_ATTR void VKAPI_CALL
@@ -523,6 +526,9 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
    pFeatures->features.shaderTessellationAndGeometryPointSize = true;
    pFeatures->features.textureCompressionASTC_LDR = true;
    pFeatures->features.occlusionQueryPrecise = true; // Corregido según el estándar Vulkan Core
+   pFeatures->shaderStorageImageExtendedFormats = true;
+   pFeatures->shaderStorageImageWriteWithoutFormat = true;
+   pFeatures->independentBlend = true;
 
    /* 🚨 EXPOSICIÓN FINAL ABSOLUTA DE TU CONTADOR PREMIUM:
       Encendemos de fábrica las banderas estáticas de soporte real en la tabla de la GPU.
