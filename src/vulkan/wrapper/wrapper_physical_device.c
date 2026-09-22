@@ -455,7 +455,7 @@ wrapper_GetPhysicalDeviceFeatures(VkPhysicalDevice physicalDevice,
    pFeatures->shaderResourceMinLod = true;
    pFeatures->shaderTessellationAndGeometryPointSize = true;
    pFeatures->textureCompressionASTC_LDR = true;
-   pFeatures->occlusionQueryPrecise = true; // Corregido según el estándar Vulkan Core
+   pFeatures->occlusionQueryPrecise = true; 
    pFeatures->shaderStorageImageExtendedFormats = true;
    pFeatures->shaderStorageImageWriteWithoutFormat = true;
    pFeatures->independentBlend = true;
@@ -504,9 +504,9 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
       }
    }
 
-   /* 🚨 SINCRO DE CAPACIDADES REALES EN EL CANAL FEATURES2:
-      Asignamos obligatoriamente a través de '.features.' para no generar errores de Clang,
-      completando la suite gráfica más potente y estable para tu procesador Unisoc. */
+   /* 🚨 2. SINCRO DE CAPACIDADES REALES EN EL CANAL FEATURES2 (SANADA AL 100%):
+      Asignamos obligatoriamente a través de '.features.' todo el arsenal gráfico.
+      Las tres líneas problemáticas de abajo ahora heredan del carril reglamentario. */
    pFeatures->features.textureCompressionBC = true;
    pFeatures->features.fillModeNonSolid = true;
    pFeatures->features.shaderClipDistance = true;
@@ -525,12 +525,12 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
    pFeatures->features.shaderResourceMinLod = true;
    pFeatures->features.shaderTessellationAndGeometryPointSize = true;
    pFeatures->features.textureCompressionASTC_LDR = true;
-   pFeatures->features.occlusionQueryPrecise = true; // Corregido según el estándar Vulkan Core
-   pFeatures->shaderStorageImageExtendedFormats = true;
-   pFeatures->shaderStorageImageWriteWithoutFormat = true;
-   pFeatures->independentBlend = true;
+   pFeatures->features.occlusionQueryPrecise = true; 
+   pFeatures->features.shaderStorageImageExtendedFormats = true;
+   pFeatures->features.shaderStorageImageWriteWithoutFormat = true;
+   pFeatures->features.independentBlend = true;
 
-   /* 🚨 EXPOSICIÓN FINAL Y ABSOLUTA DEL MAPA DE EXTENSIONES COMPATIBLES:
+   /* 🚨 3. EXPOSICIÓN FINAL Y ABSOLUTA DEL MAPA DE EXTENSIONES COMPATIBLES:
       Encendemos de fábrica las banderas estáticas de soporte en la tabla de la GPU.
       Esto unifica las capas de memoria, Shaders y filtrado cúbico de texturas real. */
    pdevice->vk.supported_extensions.EXT_memory_budget = true;
@@ -542,11 +542,9 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
    pdevice->vk.supported_extensions.EXT_vertex_input_dynamic_state = true;
    pdevice->vk.supported_extensions.KHR_sampler_ycbcr_conversion = true;
    pdevice->vk.supported_extensions.KHR_shader_draw_parameters = true;
-   pdevice->vk.supported_extensions.EXT_filter_cubic = true; // 🔥 ACTIVA CON NÚCLEO MESA
-   pdevice->vk.supported_extensions.EXT_image_robustness = true; // 🔥 ACTIVA CON NÚCLEO MESA
+   pdevice->vk.supported_extensions.EXT_filter_cubic = true; 
+   pdevice->vk.supported_extensions.EXT_image_robustness = true; 
 }
-
-
 
 VKAPI_ATTR void VKAPI_CALL
 wrapper_GetPhysicalDeviceProperties(VkPhysicalDevice physicalDevice,
