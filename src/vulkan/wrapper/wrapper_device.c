@@ -99,8 +99,9 @@ wrapper_filter_enabled_extensions(const struct wrapper_device *device,
       if (!device->physical->base_supported_extensions.extensions[idx] && !is_pipeline_lib)
          continue;
 
-      /* 🚨 INTERCEPTOR INTEGRADO PIPELINE:
-         Añadimos de forma legal 'VK_KHR_pipeline_library' a tu grupo de inyección premium. */
+      /* 🚨 INTERCEPTOR INTEGRADO PIPELINE Y COMBOS DE MEMORIA:
+         Añadimos de forma legal tus extensiones deseadas al grupo de inyección premium.
+         Inyectamos 'VK_EXT_memory_budget' y 'VK_KHR_map_memory2' en el filtro de paso. */
       if (strcmp(ext_name, "VK_EXT_vertex_attribute_divisor") == 0 ||
           strcmp(ext_name, "VK_KHR_vertex_attribute_divisor") == 0 ||
           strcmp(ext_name, "VK_EXT_extended_dynamic_state") == 0 ||
@@ -108,6 +109,8 @@ wrapper_filter_enabled_extensions(const struct wrapper_device *device,
           strcmp(ext_name, "VK_KHR_push_descriptor") == 0 ||
           strcmp(ext_name, "VK_EXT_custom_border_color") == 0 ||
           strcmp(ext_name, "VK_EXT_private_data") == 0 ||
+          strcmp(ext_name, "VK_EXT_memory_budget") == 0 ||
+          strcmp(ext_name, "VK_KHR_map_memory2") == 0 ||
           strcmp(ext_name, "VK_KHR_separate_depth_stencil_layouts") == 0 ||
           strcmp(ext_name, "VK_KHR_create_renderpass2") == 0 ||
           strcmp(ext_name, "VK_KHR_depth_stencil_resolve") == 0 ||
@@ -117,8 +120,8 @@ wrapper_filter_enabled_extensions(const struct wrapper_device *device,
           is_pipeline_lib) {
 
          /* 🚨 ELIMINACIÓN DE CENSURA:
-            Removemos 'pipeline_library' de aquí. Ahora el escudo SOLO bloquea a 'robustness2', 
-            permitiendo que tu extensión 64 se inyecte en caliente hacia los juegos en 3D. */
+            Now the shield ONLY blocks 'robustness2', allowing your premium extensions
+            to inject dynamically into modern 3D games. */
          if (strcmp(ext_name, "VK_EXT_robustness2") == 0) {
             continue;
          }
