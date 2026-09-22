@@ -530,19 +530,22 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
    pFeatures->shaderStorageImageWriteWithoutFormat = true;
    pFeatures->independentBlend = true;
 
-   /* 🚨 EXPOSICIÓN FINAL ABSOLUTA DE TU CONTADOR PREMIUM:
-      Encendemos de fábrica las banderas estáticas de soporte real en la tabla de la GPU.
-      Esto unifica las capas de memoria, dibujo dinámico y cinemáticas con soporte de hardware. */
+   /* 🚨 EXPOSICIÓN FINAL Y ABSOLUTA DEL MAPA DE EXTENSIONES COMPATIBLES:
+      Encendemos de fábrica las banderas estáticas de soporte en la tabla de la GPU.
+      Esto unifica las capas de memoria, Shaders y filtrado cúbico de texturas real. */
    pdevice->vk.supported_extensions.EXT_memory_budget = true;
    pdevice->vk.supported_extensions.KHR_map_memory2 = true;
    pdevice->vk.supported_extensions.EXT_private_data = true;
    pdevice->vk.supported_extensions.KHR_separate_depth_stencil_layouts = true;
    pdevice->vk.supported_extensions.EXT_custom_border_color = true;
    pdevice->vk.supported_extensions.KHR_depth_stencil_resolve = true;
-   pdevice->vk.supported_extensions.EXT_vertex_input_dynamic_state = true; // 🔥 ACTIVA
-   pdevice->vk.supported_extensions.KHR_sampler_ycbcr_conversion = true;    // 🔥 ACTIVA
-   pdevice->vk.supported_extensions.KHR_shader_draw_parameters = true;      // 🔥 ACTIVA
+   pdevice->vk.supported_extensions.EXT_vertex_input_dynamic_state = true;
+   pdevice->vk.supported_extensions.KHR_sampler_ycbcr_conversion = true;
+   pdevice->vk.supported_extensions.KHR_shader_draw_parameters = true;
+   pdevice->vk.supported_extensions.EXT_filter_cubic = true; // 🔥 ACTIVA CON NÚCLEO MESA
+   pdevice->vk.supported_extensions.EXT_image_robustness = true; // 🔥 ACTIVA CON NÚCLEO MESA
 }
+
 
 
 VKAPI_ATTR void VKAPI_CALL
