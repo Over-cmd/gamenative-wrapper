@@ -459,6 +459,7 @@ wrapper_GetPhysicalDeviceFeatures(VkPhysicalDevice physicalDevice,
    pFeatures->shaderStorageImageExtendedFormats = true;
    pFeatures->shaderStorageImageWriteWithoutFormat = true;
    pFeatures->independentBlend = true;
+   pFeatures->multiview = true; // 🌟 CAPTURA FINAL MALI
 }
 
 VKAPI_ATTR void VKAPI_CALL
@@ -529,6 +530,7 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
    pFeatures->features.shaderStorageImageExtendedFormats = true;
    pFeatures->features.shaderStorageImageWriteWithoutFormat = true;
    pFeatures->features.independentBlend = true;
+   pFeatures->features.multiview = true; // 🌟 CAPTURA FINAL MALI
 
    /* 🚨 3. EXPOSICIÓN FINAL Y ABSOLUTA DEL MAPA DE EXTENSIONES COMPATIBLES:
       Encendemos de fábrica las banderas estáticas de soporte en la tabla de la GPU.
