@@ -2,12 +2,18 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <stdbool.h> // 🚨 CORRECCIÓN 1: Importamos el soporte para bool, true y false
 #include <pthread.h>
 #include <jni.h>
 
 #define NATIVE_AUDIO_BUFFER_SIZE 8192
 #define NATIVE_AUDIO_CHANNELS 2
 #define NATIVE_AUDIO_RATE 48000
+
+// 🚨 CORRECCIÓN 2: Declaramos las firmas públicas de función para erradicar el error -Wmissing-prototypes
+void wrapper_native_audio_init(void);
+void wrapper_native_audio_write(const int16_t *samples, int count);
+void wrapper_native_audio_terminate(void);
 
 typedef struct {
     int16_t data[NATIVE_AUDIO_BUFFER_SIZE];
@@ -42,7 +48,7 @@ static void* wrapper_audio_playback_loop(void *arg) {
             break;
         }
 
-        // 🚨 COJÍN NATIVO DE EMISIÓN ATÓMICA:
+        // COJÍN NATIVO DE EMISIÓN ATÓMICA:
         // Despachamos las muestras PCM directamente procesando el buffer circular
         int samples_to_play = (ctx->head - ctx->tail + NATIVE_AUDIO_BUFFER_SIZE) % NATIVE_AUDIO_BUFFER_SIZE;
         if (samples_to_play > 512) samples_to_play = 512; // Ráfagas equilibradas para ARM Mali
@@ -57,7 +63,7 @@ static void* wrapper_audio_playback_loop(void *arg) {
 }
 
 // Inicializador oficial del puente de sonido nativo
-void wrapper_native_audio_init() {
+void wrapper_native_audio_init(void) {
     if (g_audio_ctx) return;
 
     g_audio_ctx = (WrapperAudioBuffer*)calloc(1, sizeof(WrapperAudioBuffer));
@@ -91,7 +97,7 @@ void wrapper_native_audio_write(const int16_t *samples, int count) {
     pthread_mutex_unlock(&g_audio_ctx->mutex);
 }
 
-void wrapper_native_audio_terminate() {
+void wrapper_native_audio_terminate(void) {
     if (!g_audio_ctx) return;
 
     pthread_mutex_lock(&g_audio_ctx->mutex);
