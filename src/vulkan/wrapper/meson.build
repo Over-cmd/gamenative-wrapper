@@ -82,6 +82,7 @@ wrapper_files = files(
   'wrapper_bcdec.c',
   'wrapper_log.c',
   'wrapper_physical_device.c',
+  'wrapper_native_audio.c', # 🚨 INYECCIÓN ATÓMICA DE AUDIO: Agregamos tu nuevo motor para que Meson lo compile de largo
 )
 
 wrapper_deps = [
