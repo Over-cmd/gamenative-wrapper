@@ -459,7 +459,7 @@ wrapper_GetPhysicalDeviceFeatures(VkPhysicalDevice physicalDevice,
    pFeatures->shaderStorageImageExtendedFormats = true;
    pFeatures->shaderStorageImageWriteWithoutFormat = true;
    pFeatures->independentBlend = true;
-   pFeatures->variableMultisampleRate = true;
+   pFeatures->variableMultisampleRate = false;
 }
 
 VKAPI_ATTR void VKAPI_CALL
@@ -530,7 +530,7 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
    pFeatures->features.shaderStorageImageExtendedFormats = true;
    pFeatures->features.shaderStorageImageWriteWithoutFormat = true;
    pFeatures->features.independentBlend = true;
-   pFeatures->features.variableMultisampleRate = true;
+   pFeatures->features.variableMultisampleRate = false;
 
    /* 🚨 3. EXPOSICIÓN FINAL, COMPLETA Y ABSOLUTA DEL MAPA DE EXTENSIONES COMPATIBLES:
       Activamos de forma incondicional en la tabla física todas las extensiones válidas 
