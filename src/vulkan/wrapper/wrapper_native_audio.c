@@ -2,15 +2,15 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <stdbool.h> // 🚨 CORRECCIÓN 1: Importamos el soporte para bool, true y false
+#include <stdbool.h>
 #include <pthread.h>
 #include <jni.h>
+#include <aaudio/AAudio.h> // 🚀 CONEXIÓN FÍSICA: Cargamos la API AAudio de baja latencia de Android
 
 #define NATIVE_AUDIO_BUFFER_SIZE 8192
 #define NATIVE_AUDIO_CHANNELS 2
 #define NATIVE_AUDIO_RATE 48000
 
-// 🚨 CORRECCIÓN 2: Declaramos las firmas públicas de función para erradicar el error -Wmissing-prototypes
 void wrapper_native_audio_init(void);
 void wrapper_native_audio_write(const int16_t *samples, int count);
 void wrapper_native_audio_terminate(void);
@@ -22,6 +22,7 @@ typedef struct {
     pthread_mutex_t mutex;
     pthread_cond_t cond;
     bool is_running;
+    AAudioStream *aaudio_stream; // 🎛️ MANEJADOR DE HARDWARE: Puntero del flujo físico de Android
 } WrapperAudioBuffer;
 
 static WrapperAudioBuffer *g_audio_ctx = NULL;
@@ -31,10 +32,12 @@ static pthread_t g_audio_thread;
 static void* wrapper_audio_playback_loop(void *arg) {
     WrapperAudioBuffer *ctx = (WrapperAudioBuffer*)arg;
     
-    // Elevamos la prioridad del hilo al máximo nivel de tiempo real en Unix
     struct sched_param param;
     param.sched_priority = sched_get_priority_max(SCHED_FIFO);
     pthread_setschedparam(pthread_self(), SCHED_FIFO, &param);
+
+    // Búfer local de transferencia temporal para el silicio
+    int16_t temp_buffer[512];
 
     while (ctx->is_running) {
         pthread_mutex_lock(&ctx->mutex);
@@ -48,16 +51,28 @@ static void* wrapper_audio_playback_loop(void *arg) {
             break;
         }
 
-        // COJÍN NATIVO DE EMISIÓN ATÓMICA:
-        // Despachamos las muestras PCM directamente procesando el buffer circular
         int samples_to_play = (ctx->head - ctx->tail + NATIVE_AUDIO_BUFFER_SIZE) % NATIVE_AUDIO_BUFFER_SIZE;
-        if (samples_to_play > 512) samples_to_play = 512; // Ráfagas equilibradas para ARM Mali
+        if (samples_to_play > 512) samples_to_play = 512;
 
-        // Aquí el driver se conecta directamente al sumidero físico de AAudio / OpenSL nativo
-        ctx->tail = (ctx->tail + samples_to_play) % NATIVE_AUDIO_BUFFER_SIZE;
+        // Volcamos los bytes desde el búfer circular al búfer temporal local
+        for (int i = 0; i < samples_to_play; i++) {
+            temp_buffer[i] = ctx->data[ctx->tail];
+            ctx->tail = (ctx->tail + 1) % NATIVE_AUDIO_BUFFER_SIZE;
+        }
 
         pthread_mutex_unlock(&ctx->mutex);
-        usleep(10000); // Ritmo de pacer de baja latencia (~10ms)
+
+        // 🔊 JAKE MATE AL SILENCIO: Inyectamos el sonido directamente en la GPU/Hardware de audio
+        if (ctx->aaudio_stream && samples_to_play > 0) {
+            // Calculamos el número de frames (Cada frame estéreo tiene 2 muestras)
+            int32_t num_frames = samples_to_play / NATIVE_AUDIO_CHANNELS;
+            if (num_frames > 0) {
+                // Escribimos los datos en modo bloqueante de baja latencia con un timeout de 10ms
+                AAudioStream_write(ctx->aaudio_stream, temp_buffer, num_frames, 10000000);
+            }
+        }
+
+        // Eliminamos el usleep genérico de 10ms ya que AAudio gestiona el ritmo del pacer de forma automática
     }
     return NULL;
 }
@@ -70,6 +85,22 @@ void wrapper_native_audio_init(void) {
     g_audio_ctx->head = 0;
     g_audio_ctx->tail = 0;
     g_audio_ctx->is_running = true;
+    g_audio_ctx->aaudio_stream = NULL;
+
+    // 🏗️ CONSTRUCCIÓN DEL SUMIDERO AAUDIO:
+    AAudioStreamBuilder *builder = NULL;
+    if (AAudio_createStreamBuilder(&builder) == AAUDIO_OK) {
+        AAudioStreamBuilder_setSampleRate(builder, NATIVE_AUDIO_RATE);
+        AAudioStreamBuilder_setChannelCount(builder, NATIVE_AUDIO_CHANNELS);
+        AAudioStreamBuilder_setFormat(builder, AAUDIO_FORMAT_PCM_I16);
+        AAudioStreamBuilder_setPerformanceMode(builder, AAUDIO_PERFORMANCE_MODE_LOW_LATENCY); // Modo Ultra-Baja Latencia
+        AAudioStreamBuilder_setSharingMode(builder, AAUDIO_SHARING_MODE_SHARED);
+
+        if (AAudioStreamBuilder_openStream(builder, &g_audio_ctx->aaudio_stream) == AAUDIO_OK) {
+            AAudioStream_requestStart(g_audio_ctx->aaudio_stream);
+        }
+        AAudioStreamBuilder_delete(builder);
+    }
 
     pthread_mutex_init(&g_audio_ctx->mutex, NULL);
     pthread_cond_init(&g_audio_ctx->cond, NULL);
@@ -77,7 +108,6 @@ void wrapper_native_audio_init(void) {
     pthread_create(&g_audio_thread, NULL, wrapper_audio_playback_loop, g_audio_ctx);
 }
 
-// Inyección de muestras PCM desde el juego de PC hacia el silicio
 void wrapper_native_audio_write(const int16_t *samples, int count) {
     if (!g_audio_ctx || !g_audio_ctx->is_running) return;
 
@@ -86,7 +116,6 @@ void wrapper_native_audio_write(const int16_t *samples, int count) {
     for (int i = 0; i < count; i++) {
         int next_head = (g_audio_ctx->head + 1) % NATIVE_AUDIO_BUFFER_SIZE;
         if (next_head == g_audio_ctx->tail) {
-            // Buffer lleno (Underrun guard): descartamos muestras viejas para evitar saturación metálica
             g_audio_ctx->tail = (g_audio_ctx->tail + 1) % NATIVE_AUDIO_BUFFER_SIZE;
         }
         g_audio_ctx->data[g_audio_ctx->head] = samples[i];
@@ -94,7 +123,7 @@ void wrapper_native_audio_write(const int16_t *samples, int count) {
     }
 
     pthread_cond_signal(&g_audio_ctx->cond);
-    pthread_mutex_unlock(&g_audio_ctx->mutex);
+    pthread_mutex_unlock(&g_audio_ctx->unlock);
 }
 
 void wrapper_native_audio_terminate(void) {
@@ -106,6 +135,12 @@ void wrapper_native_audio_terminate(void) {
     pthread_mutex_unlock(&g_audio_ctx->mutex);
 
     pthread_join(g_audio_thread, NULL);
+
+    // 🛑 CIERRE SEGURO DEL HARDWARE: Apagamos y destruimos el flujo físico
+    if (g_audio_ctx->aaudio_stream) {
+        AAudioStream_requestStop(g_audio_ctx->aaudio_stream);
+        AAudioStream_close(g_audio_ctx->aaudio_stream);
+    }
 
     pthread_mutex_destroy(&g_audio_ctx->mutex);
     pthread_cond_destroy(&g_audio_ctx->cond);
