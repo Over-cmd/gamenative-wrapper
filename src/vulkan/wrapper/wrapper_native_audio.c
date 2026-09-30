@@ -123,7 +123,9 @@ void wrapper_native_audio_write(const int16_t *samples, int count) {
     }
 
     pthread_cond_signal(&g_audio_ctx->cond);
-    pthread_mutex_unlock(&g_audio_ctx->unlock);
+    // 🚀 REPARACIÓN DE SIMBOLO MALI: 
+    // Cambiamos 'unlock' por 'mutex' para cerrar el candado asíncrono de forma correcta.
+    pthread_mutex_unlock(&g_audio_ctx->mutex);
 }
 
 void wrapper_native_audio_terminate(void) {
