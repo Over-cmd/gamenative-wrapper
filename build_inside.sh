@@ -3,7 +3,11 @@ set -e
 
 BUILD_DIR="${1:-${BUILD_DIR:-build}}"
 
-BUILD_DIR="${1:-${BUILD_DIR:-build}}"
+# 🚀 INYECCIÓN MAESTRA DE ENLACE AAUDIO:
+# Forzamos las banderas del compilador y del linker para arrastrar las firmas
+# de la API AAudio de baja latencia del NDK de Android.
+export CFLAGS="$CFLAGS -laaudio"
+export LDFLAGS="$LDFLAGS -laaudio"
 
 # 🟢 1. MOTOR DE CONFIGURACIÓN DE MESON PARA TERMUX-X11 EMULADO (v51)
 if [ ! -d "${BUILD_DIR}" ]; then
