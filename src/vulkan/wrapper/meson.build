@@ -73,6 +73,10 @@ adrenotools_dep = declare_dependency(
   link_with: adrenotools_subproj.get_variable('adrenotools_lib'),
 )
 
+# 🚀 BUSCADOR NATIVO DE AUDIO ANDROID:
+# Localizamos la librería física de AAudio del NDK para resolver los símbolos en el Linker
+dep_aaudio = cc.find_library('aaudio', required : true)
+
 wrapper_files = files(
   'wrapper_device.c',
   'wrapper_device_memory.c',
@@ -82,7 +86,7 @@ wrapper_files = files(
   'wrapper_bcdec.c',
   'wrapper_log.c',
   'wrapper_physical_device.c',
-  'wrapper_native_audio.c', # 🚨 INYECCIÓN ATÓMICA DE AUDIO: Agregamos tu nuevo motor para que Meson lo compile de largo
+  'wrapper_native_audio.c',
 )
 
 wrapper_deps = [
@@ -91,6 +95,7 @@ wrapper_deps = [
   idep_vulkan_wsi,
   adrenotools_dep,
   dep_android,
+  dep_aaudio, # 🚀 COMPILACIÓN INDESTRUCTIBLE: Fuerza el linkeo de AAudio en libvulkan_wrapper.so
 ]
 
 libvulkan_wrapper = shared_library(
