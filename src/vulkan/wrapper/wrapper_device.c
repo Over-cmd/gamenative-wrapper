@@ -20,27 +20,6 @@
 #include "util/list.h"
 #include "util/simple_mtx.h"
 
-#include <stdarg.h>
-#include <stdio.h>
-#include <stdlib.h>
-
-static void wrapper_dbg(const char *fmt, ...) {
-   static int enabled = -1;
-   if (enabled < 0) enabled = getenv("WRAPPER_DEBUG_FILE") ? 1 : 0;
-   if (!enabled) return;
-   const char *dir = getenv("TMPDIR");
-   char path[512];
-   snprintf(path, sizeof(path), "%s/wrapper_debug.log", dir ? dir : "/data/local/tmp");
-   FILE *f = fopen(path, "a");
-   if (!f) return;
-   va_list ap;
-   va_start(ap, fmt);
-   vfprintf(f, fmt, ap);
-   va_end(ap);
-   fputc('\n', f);
-   fclose(f);
-}
-
 const struct vk_device_extension_table wrapper_device_extensions =
 {
    .KHR_swapchain = true,
