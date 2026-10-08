@@ -253,6 +253,7 @@ struct wrapper_device_memory {
    struct AHardwareBuffer *ahardware_buffer;
    struct wrapper_device *device;
    struct list_head link;
+   bool cpu_cached;
    int fd;
    void *map_address;
    size_t map_size;
