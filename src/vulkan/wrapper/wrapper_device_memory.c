@@ -13,6 +13,27 @@
 #include <fcntl.h>
 #include <errno.h>
 
+#include <stdarg.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+static void wrapper_dbg(const char *fmt, ...) {
+   static int enabled = -1;
+   if (enabled < 0) enabled = getenv("WRAPPER_DEBUG_FILE") ? 1 : 0;
+   if (!enabled) return;
+   const char *dir = getenv("TMPDIR");
+   char path[512];
+   snprintf(path, sizeof(path), "%s/wrapper_debug.log", dir ? dir : "/data/local/tmp");
+   FILE *f = fopen(path, "a");
+   if (!f) return;
+   va_list ap;
+   va_start(ap, fmt);
+   vfprintf(f, fmt, ap);
+   va_end(ap);
+   fputc('\n', f);
+   fclose(f);
+}
+
 static int
 safe_ioctl(int fd, unsigned long request, void *arg)
 {
@@ -554,6 +575,11 @@ wrapper_AllocateMemory(VkDevice _device,
    
    WRAPPER_LOG(info, "Emulating vkAllocateMemory");
 
+   wrapper_dbg("alloc: size=%llu type=%u flags=0x%x backend=%s",
+               (unsigned long long) pAllocateInfo->allocationSize,
+               pAllocateInfo->memoryTypeIndex, (unsigned) property_flags,
+               device->physical->resource_type);
+
    simple_mtx_lock(&device->resource_mutex);
 
    result = wrapper_device_memory_create(device, pAllocator, &mem);
@@ -769,6 +795,15 @@ wrapper_MapMemory2KHR(VkDevice _device,
       mem->map_size = 0;
       result = VK_ERROR_MEMORY_MAP_FAILED;
       goto fail;
+   }
+
+   if (mem->ahardware_buffer) {
+      AHardwareBuffer_Desc desc;
+      AHardwareBuffer_describe(mem->ahardware_buffer, &desc);
+      wrapper_dbg("map ahb: size=%zu usage=0x%llx", mem->map_size,
+                  (unsigned long long) desc.usage);
+   } else {
+      wrapper_dbg("map fd: size=%zu", mem->map_size);
    }
 
    out:
