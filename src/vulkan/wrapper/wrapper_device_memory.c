@@ -105,10 +105,18 @@ struct ion_heap_query_2 {
 #define ION_IOC_ALLOC_2       _IOWR(ION_IOC_MAGIC, 0, struct ion_allocation_data_2)
 #define ION_IOC_HEAP_QUERY_2     _IOWR(ION_IOC_MAGIC, 8, struct ion_heap_query_2)
 
-static unsigned int wrapper_ion_flags(void) {
-   static int v = -1;
-   if (v < 0) v = getenv("WRAPPER_ION_CACHED") ? 1 : 0; /* ION_FLAG_CACHED = 1 */
-   return v;
+static unsigned int wrapper_ion_flags(size_t size) {
+   static int init = 0, on = 0;
+   static size_t minsz = 0, maxsz = (size_t) -1;
+   if (!init) {
+      on = getenv("WRAPPER_ION_CACHED") ? 1 : 0;
+      const char *a = getenv("WRAPPER_ION_CACHED_MIN");
+      const char *b = getenv("WRAPPER_ION_CACHED_MAX");
+      if (a) minsz = (size_t) strtoull(a, NULL, 0);
+      if (b) maxsz = (size_t) strtoull(b, NULL, 0);
+      init = 1;
+   }
+   return (on && size >= minsz && size <= maxsz) ? 1 : 0;
 }
 
 static int
@@ -117,7 +125,7 @@ ion_heap_alloc_2(int heap_fd, size_t size) {
       .len = size,
       /* ION_HEAP_SYSTEM | ION_SYSTEM_HEAP_ID (Qcom) */
       .heap_id_mask = (1U << 0) | (1U << 25),
-      .flags = wrapper_ion_flags(),
+      .flags = wrapper_ion_flags(size),
    };
 
    if (safe_ioctl(heap_fd, ION_IOC_ALLOC_2, &alloc_data) < 0) {
@@ -154,7 +162,7 @@ ion_heap_alloc(int heap_fd, size_t size) {
       .len = size,
       .align = 0,
       .heap_id_mask = (1U << 0) | (1U << 25) /* QCom specific */,
-      .flags = wrapper_ion_flags(),
+      .flags = wrapper_ion_flags(size),
    };
 
    if (safe_ioctl(heap_fd, ION_IOC_ALLOC_1, &alloc_data) < 0) {
