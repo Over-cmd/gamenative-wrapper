@@ -16,6 +16,7 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <linux/dma-buf.h>
 
 static void wrapper_dbg(const char *fmt, ...) {
    const char *env = getenv("WRAPPER_DEBUG_FILE");
@@ -106,12 +107,13 @@ struct ion_heap_query_2 {
 #define ION_IOC_HEAP_QUERY_2     _IOWR(ION_IOC_MAGIC, 8, struct ion_heap_query_2)
 
 static unsigned int wrapper_ion_flags(size_t size) {
-   static int init = 0, on = 0;
-   static size_t minsz = 0, maxsz = (size_t) -1;
+   static int init = 0, on = 1;
+   static size_t minsz = 16777216, maxsz = (size_t) -1;
    if (!init) {
-      on = getenv("WRAPPER_ION_CACHED") ? 1 : 0;
+      const char *c = getenv("WRAPPER_ION_CACHED");
       const char *a = getenv("WRAPPER_ION_CACHED_MIN");
       const char *b = getenv("WRAPPER_ION_CACHED_MAX");
+      if (c) on = atoi(c);
       if (a) minsz = (size_t) strtoull(a, NULL, 0);
       if (b) maxsz = (size_t) strtoull(b, NULL, 0);
       init = 1;
@@ -545,6 +547,19 @@ wrapper_device_memory_from_handle(struct wrapper_device *device,
    return mem;
 }
 
+void
+wrapper_sync_cached_memory(struct wrapper_device *device)
+{
+   struct dma_buf_sync sync = { .flags = DMA_BUF_SYNC_END | DMA_BUF_SYNC_WRITE };
+   simple_mtx_lock(&device->resource_mutex);
+   list_for_each_entry(struct wrapper_device_memory, m,
+                       &device->device_memory_list, link) {
+      if (m->cpu_cached && m->map_address && m->fd >= 0)
+         ioctl(m->fd, DMA_BUF_IOCTL_SYNC, &sync);
+   }
+   simple_mtx_unlock(&device->resource_mutex);
+}
+
 VKAPI_ATTR VkResult VKAPI_CALL
 wrapper_AllocateMemory(VkDevice _device,
                        const VkMemoryAllocateInfo* pAllocateInfo,
@@ -600,6 +615,9 @@ wrapper_AllocateMemory(VkDevice _device,
    simple_mtx_lock(&device->resource_mutex);
 
    result = wrapper_device_memory_create(device, pAllocator, &mem);
+   if (result == VK_SUCCESS && mem->fd >= 0 && !mem->ahardware_buffer)
+      mem->cpu_cached = wrapper_ion_flags(pAllocateInfo->allocationSize) != 0;
+   
    if (result != VK_SUCCESS) {
       vk_error(device, result);
       goto out;
