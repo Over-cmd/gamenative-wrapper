@@ -18,12 +18,15 @@
 #include <stdlib.h>
 
 static void wrapper_dbg(const char *fmt, ...) {
-   static int enabled = -1;
-   if (enabled < 0) enabled = getenv("WRAPPER_DEBUG_FILE") ? 1 : 0;
-   if (!enabled) return;
-   const char *dir = getenv("TMPDIR");
+   const char *env = getenv("WRAPPER_DEBUG_FILE");
+   if (!env) return;
    char path[512];
-   snprintf(path, sizeof(path), "%s/wrapper_debug.log", dir ? dir : "/data/local/tmp");
+   if (env[0] == '/') {
+      snprintf(path, sizeof(path), "%s", env);
+   } else {
+      const char *dir = getenv("TMPDIR");
+      snprintf(path, sizeof(path), "%s/wrapper_debug.log", dir ? dir : "/data/local/tmp");
+   }
    FILE *f = fopen(path, "a");
    if (!f) return;
    va_list ap;
