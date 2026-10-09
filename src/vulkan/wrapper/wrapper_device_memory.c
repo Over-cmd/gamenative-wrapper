@@ -18,6 +18,7 @@
 #include <stdlib.h>
 #include <linux/dma-buf.h>
 #include <time.h>
+#include <stdatomic.h>
 
 static void wrapper_dbg(const char *fmt, ...) {
    const char *env = getenv("WRAPPER_DEBUG_FILE");
@@ -107,19 +108,27 @@ struct ion_heap_query_2 {
 #define ION_IOC_ALLOC_2       _IOWR(ION_IOC_MAGIC, 0, struct ion_allocation_data_2)
 #define ION_IOC_HEAP_QUERY_2     _IOWR(ION_IOC_MAGIC, 8, struct ion_heap_query_2)
 
+static atomic_int wrapper_cached_count = 0;
+static _Thread_local int wrapper_last_cached = 0;
+
 static unsigned int wrapper_ion_flags(size_t size) {
-   static int init = 0, on = 1;
+   static int init = 0, on = 1, max_count = -1;
    static size_t minsz = 16777216, maxsz = (size_t) -1;
    if (!init) {
       const char *c = getenv("WRAPPER_ION_CACHED");
       const char *a = getenv("WRAPPER_ION_CACHED_MIN");
       const char *b = getenv("WRAPPER_ION_CACHED_MAX");
+      const char *n = getenv("WRAPPER_ION_CACHED_MAX_COUNT");
       if (c) on = atoi(c);
       if (a) minsz = (size_t) strtoull(a, NULL, 0);
       if (b) maxsz = (size_t) strtoull(b, NULL, 0);
+      if (n) max_count = atoi(n);
       init = 1;
    }
-   return (on && size >= minsz && size <= maxsz) ? 1 : 0;
+   int ok = on && size >= minsz && size <= maxsz &&
+            (max_count < 0 || atomic_load(&wrapper_cached_count) < max_count);
+   wrapper_last_cached = ok;
+   return ok ? 1 : 0;
 }
 
 static int
@@ -486,6 +495,10 @@ wrapper_allocate_memory_ahardware_buffer(struct wrapper_device *device,
 static void
 wrapper_device_memory_reset(struct wrapper_device_memory *mem) {
    struct wrapper_device *device = mem->device;
+   if (mem->cpu_cached) {
+      atomic_fetch_sub(&wrapper_cached_count, 1);
+      mem->cpu_cached = false;
+      }
    if (mem->ahardware_buffer) {
       AHardwareBuffer_release(mem->ahardware_buffer);
       mem->ahardware_buffer = NULL;
@@ -716,6 +729,8 @@ wrapper_AllocateMemory(VkDevice _device,
       // VkImportMemoryFdInfoKHR / VkExportMemoryAllocateInfo could crash the driver
       unlink_memory_alloc_info_pnext(&memory_allocate_info, VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO);
    }
+
+   wrapper_last_cached = 0;
    
    if (strstr(device->physical->resource_type, "ahb")) {
       WRAPPER_LOG(info, "Using AHardwareBuffer memory backend");
@@ -777,11 +792,10 @@ wrapper_AllocateMemory(VkDevice _device,
       vk_error(device, result);
    } else {
       *pMemory = mem->dispatch_handle;
-      if (mem->fd >= 0 && !mem->ahardware_buffer)
-         mem->cpu_cached = wrapper_ion_flags(pAllocateInfo->allocationSize) != 0;
-      wrapper_dbg("cpu_cached=%d fd=%d size=%llu", mem->cpu_cached, mem->fd,
-                  (unsigned long long) pAllocateInfo->allocationSize);
-   }
+      if (mem->fd >= 0 && !mem->ahardware_buffer && wrapper_last_cached) {
+         mem->cpu_cached = true;
+         atomic_fetch_add(&wrapper_cached_count, 1);
+      }
 
 out:
    simple_mtx_unlock(&device->resource_mutex);
