@@ -550,7 +550,20 @@ wrapper_device_memory_from_handle(struct wrapper_device *device,
 
 void
 wrapper_sync_cached_memory(struct wrapper_device *device)
-{
+{  
+   static struct timespec last = {0};
+   static long interval_ms = -1;
+   if (interval_ms < 0)
+      interval_ms = getenv("WRAPPER_SYNC_INTERVAL_MS") ? atol(getenv("WRAPPER_SYNC_INTERVAL_MS")) : 0;
+   if (interval_ms > 0) {
+      struct timespec now;
+      clock_gettime(CLOCK_MONOTONIC, &now);
+      long dt = (now.tv_sec - last.tv_sec) * 1000 + (now.tv_nsec - last.tv_nsec) / 1000000;
+      if (dt < interval_ms)
+         return;
+      last = now;
+   }
+   
    static unsigned calls = 0, total_bufs = 0;
    static double total_ms = 0, max_ms = 0;
    struct timespec t0, t1;
