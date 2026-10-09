@@ -775,17 +775,12 @@ wrapper_AllocateMemory(VkDevice _device,
       wrapper_device_memory_destroy(mem);
 
       if (dedicated_allocate_info && dedicated_allocate_info->image != VK_NULL_HANDLE) {
-         /* resource_mutex is already held here and simple_mtx is not
-          * recursive, so search the image table directly instead of
-          * going through get_wrapper_image_from_handle. */
          struct wrapper_image *img = get_wrapper_image_from_handle_locked(
             device, dedicated_allocate_info->image);
          if (img && img->is_wsi_image) {
-            // Fixes failure to blit on ion-heap (< GKI 5.10) Mali devices at the cost of
-            // not being able to mmap these.
             WRAPPER_LOG(error, "EXT_map_memory_placed emulation failed for swapchain image, bypassing emulation");
             simple_mtx_unlock(&device->resource_mutex);
-            goto fallback; // TODO: the VkMemoryAllocateInfo may have been unlinked here
+            goto fallback;
          }
       }
 
@@ -796,6 +791,9 @@ wrapper_AllocateMemory(VkDevice _device,
          mem->cpu_cached = true;
          atomic_fetch_add(&wrapper_cached_count, 1);
       }
+      wrapper_dbg("cpu_cached=%d fd=%d size=%llu", mem->cpu_cached, mem->fd,
+                  (unsigned long long) pAllocateInfo->allocationSize);
+   }
 
 out:
    simple_mtx_unlock(&device->resource_mutex);
