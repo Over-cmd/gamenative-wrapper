@@ -547,7 +547,7 @@ wrapper_device_memory_from_handle(struct wrapper_device *device,
    return mem;
 }
 
-static void
+void
 wrapper_sync_cached_memory(struct wrapper_device *device)
 {
    struct dma_buf_sync sync = { .flags = DMA_BUF_SYNC_END | DMA_BUF_SYNC_WRITE };
