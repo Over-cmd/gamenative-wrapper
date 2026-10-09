@@ -594,13 +594,6 @@ wrapper_AllocateMemory(VkDevice _device,
    if (vk_find_struct_const(pAllocateInfo, EXPORT_MEMORY_ALLOCATE_INFO))
       goto fallback;
 
-   // 👇 INICIO DEL PARCHE: Bypass de ION para proteger la GPU Mali del Unisoc T618 👇
-   if (pAllocateInfo->allocationSize >= 16777216) {
-      wrapper_dbg("BYPASS ACTIVO: Forzando fallback nativo para tamaño %llu", (unsigned long long)pAllocateInfo->allocationSize);
-      goto fallback;
-   }
-   // 👆 FIN DEL PARCHE 👆
-
    const VkMemoryDedicatedAllocateInfo *dedicated_allocate_info =
          vk_find_struct_const((void*) pAllocateInfo->pNext, MEMORY_DEDICATED_ALLOCATE_INFO);
    
