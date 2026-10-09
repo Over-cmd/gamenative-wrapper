@@ -550,12 +550,13 @@ wrapper_device_memory_from_handle(struct wrapper_device *device,
 
 void
 wrapper_sync_cached_memory(struct wrapper_device *device)
-{  
+{
    static int on = -1;
    if (on < 0)
       on = getenv("WRAPPER_ION_CACHED") ? atoi(getenv("WRAPPER_ION_CACHED")) : 1;
    if (!on)
       return;
+
    static struct timespec last = {0};
    static long interval_ms = -1;
    if (interval_ms < 0)
@@ -563,36 +564,72 @@ wrapper_sync_cached_memory(struct wrapper_device *device)
    if (interval_ms > 0) {
       struct timespec now;
       clock_gettime(CLOCK_MONOTONIC, &now);
-      long dt = (now.tv_sec - last.tv_sec) * 1000 + (now.tv_nsec - last.tv_nsec) / 1000000;
+      long dt = (now.tv_sec - last.tv_sec) * 1000 +
+                (now.tv_nsec - last.tv_nsec) / 1000000;
       if (dt < interval_ms)
          return;
       last = now;
    }
-   
+
    static unsigned calls = 0, total_bufs = 0;
    static double total_ms = 0, max_ms = 0;
    struct timespec t0, t1;
    unsigned n = 0;
    struct dma_buf_sync sync = { .flags = DMA_BUF_SYNC_END | DMA_BUF_SYNC_WRITE };
 
-   clock_gettime(CLOCK_MONOTONIC, &t0);
+   int *fds = NULL;
+   size_t count = 0;
+   size_t capacity = 0;
+
+   // 1) Snapshot de los fd bajo lock
    simple_mtx_lock(&device->resource_mutex);
    list_for_each_entry(struct wrapper_device_memory, m,
                        &device->device_memory_list, link) {
-      if (m->cpu_cached && m->map_address && m->fd >= 0) {
-         ioctl(m->fd, DMA_BUF_IOCTL_SYNC, &sync);
-         n++;
+      if (!m->cpu_cached || !m->map_address || m->fd < 0)
+         continue;
+
+      int dupfd = dup(m->fd);
+      if (dupfd < 0)
+         continue;
+
+      if (count == capacity) {
+         size_t new_capacity = capacity ? capacity * 2 : 8;
+         int *new_fds = realloc(fds, new_capacity * sizeof(*new_fds));
+         if (!new_fds) {
+            close(dupfd);
+            break;
+         }
+         fds = new_fds;
+         capacity = new_capacity;
       }
+
+      fds[count++] = dupfd;
    }
    simple_mtx_unlock(&device->resource_mutex);
+
+   // 2) Sincronizar fuera del mutex
+   clock_gettime(CLOCK_MONOTONIC, &t0);
+   for (size_t i = 0; i < count; i++) {
+      if (safe_ioctl(fds[i], DMA_BUF_IOCTL_SYNC, &sync) == 0)
+         n++;
+      close(fds[i]);
+   }
    clock_gettime(CLOCK_MONOTONIC, &t1);
 
-   double ms = (t1.tv_sec - t0.tv_sec) * 1000.0 + (t1.tv_nsec - t0.tv_nsec) / 1e6;
-   calls++; total_bufs += n; total_ms += ms;
-   if (ms > max_ms) max_ms = ms;
+   free(fds);
+
+   double ms = (t1.tv_sec - t0.tv_sec) * 1000.0 +
+               (t1.tv_nsec - t0.tv_nsec) / 1e6;
+   calls++;
+   total_bufs += n;
+   total_ms += ms;
+   if (ms > max_ms)
+      max_ms = ms;
+
    if (calls % 200 == 0)
       wrapper_dbg("sync: %u envios, media %.2f ms, max %.2f ms, bufs/envio %.1f",
-                  calls, total_ms / calls, max_ms, (double) total_bufs / calls);
+                  calls, total_ms / calls, max_ms,
+                  (double) total_bufs / calls);
 }
 
 VKAPI_ATTR VkResult VKAPI_CALL
