@@ -17,6 +17,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <linux/dma-buf.h>
+#include <time.h>
 
 static void wrapper_dbg(const char *fmt, ...) {
    const char *env = getenv("WRAPPER_DEBUG_FILE");
@@ -550,19 +551,30 @@ wrapper_device_memory_from_handle(struct wrapper_device *device,
 void
 wrapper_sync_cached_memory(struct wrapper_device *device)
 {
-   static int warned = 0;
+   static unsigned calls = 0, total_bufs = 0;
+   static double total_ms = 0, max_ms = 0;
+   struct timespec t0, t1;
+   unsigned n = 0;
    struct dma_buf_sync sync = { .flags = DMA_BUF_SYNC_END | DMA_BUF_SYNC_WRITE };
+
+   clock_gettime(CLOCK_MONOTONIC, &t0);
    simple_mtx_lock(&device->resource_mutex);
    list_for_each_entry(struct wrapper_device_memory, m,
                        &device->device_memory_list, link) {
       if (m->cpu_cached && m->map_address && m->fd >= 0) {
-         if (ioctl(m->fd, DMA_BUF_IOCTL_SYNC, &sync) < 0 && !warned) {
-            warned = 1;
-            wrapper_dbg("DMA_BUF_IOCTL_SYNC fallo errno=%d", errno);
-         }
+         ioctl(m->fd, DMA_BUF_IOCTL_SYNC, &sync);
+         n++;
       }
    }
    simple_mtx_unlock(&device->resource_mutex);
+   clock_gettime(CLOCK_MONOTONIC, &t1);
+
+   double ms = (t1.tv_sec - t0.tv_sec) * 1000.0 + (t1.tv_nsec - t0.tv_nsec) / 1e6;
+   calls++; total_bufs += n; total_ms += ms;
+   if (ms > max_ms) max_ms = ms;
+   if (calls % 200 == 0)
+      wrapper_dbg("sync: %u envios, media %.2f ms, max %.2f ms, bufs/envio %.1f",
+                  calls, total_ms / calls, max_ms, (double) total_bufs / calls);
 }
 
 VKAPI_ATTR VkResult VKAPI_CALL
