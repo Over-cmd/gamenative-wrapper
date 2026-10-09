@@ -550,12 +550,17 @@ wrapper_device_memory_from_handle(struct wrapper_device *device,
 void
 wrapper_sync_cached_memory(struct wrapper_device *device)
 {
+   static int warned = 0;
    struct dma_buf_sync sync = { .flags = DMA_BUF_SYNC_END | DMA_BUF_SYNC_WRITE };
    simple_mtx_lock(&device->resource_mutex);
    list_for_each_entry(struct wrapper_device_memory, m,
                        &device->device_memory_list, link) {
-      if (m->cpu_cached && m->map_address && m->fd >= 0)
-         ioctl(m->fd, DMA_BUF_IOCTL_SYNC, &sync);
+      if (m->cpu_cached && m->map_address && m->fd >= 0) {
+         if (ioctl(m->fd, DMA_BUF_IOCTL_SYNC, &sync) < 0 && !warned) {
+            warned = 1;
+            wrapper_dbg("DMA_BUF_IOCTL_SYNC fallo errno=%d", errno);
+         }
+      }
    }
    simple_mtx_unlock(&device->resource_mutex);
 }
