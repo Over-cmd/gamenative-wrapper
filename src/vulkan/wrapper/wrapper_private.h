@@ -299,4 +299,7 @@ wrapper_device_memory_create(struct wrapper_device *device,
 void
 wrapper_device_memory_destroy(struct wrapper_device_memory *mem);
 
+void 
+wrapper_sync_cached_memory(struct wrapper_device *device);
+
 #endif
