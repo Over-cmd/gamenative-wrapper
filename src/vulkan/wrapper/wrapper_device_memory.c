@@ -615,8 +615,6 @@ wrapper_AllocateMemory(VkDevice _device,
    simple_mtx_lock(&device->resource_mutex);
 
    result = wrapper_device_memory_create(device, pAllocator, &mem);
-   if (result == VK_SUCCESS && mem->fd >= 0 && !mem->ahardware_buffer)
-      mem->cpu_cached = wrapper_ion_flags(pAllocateInfo->allocationSize) != 0;
    
    if (result != VK_SUCCESS) {
       vk_error(device, result);
@@ -707,6 +705,10 @@ wrapper_AllocateMemory(VkDevice _device,
       vk_error(device, result);
    } else {
       *pMemory = mem->dispatch_handle;
+      if (mem->fd >= 0 && !mem->ahardware_buffer)
+         mem->cpu_cached = wrapper_ion_flags(pAllocateInfo->allocationSize) != 0;
+      wrapper_dbg("cpu_cached=%d fd=%d size=%llu", mem->cpu_cached, mem->fd,
+                  (unsigned long long) pAllocateInfo->allocationSize);
    }
 
 out:
