@@ -551,6 +551,11 @@ wrapper_device_memory_from_handle(struct wrapper_device *device,
 void
 wrapper_sync_cached_memory(struct wrapper_device *device)
 {  
+   static int on = -1;
+   if (on < 0)
+      on = getenv("WRAPPER_ION_CACHED") ? atoi(getenv("WRAPPER_ION_CACHED")) : 1;
+   if (!on)
+      return;
    static struct timespec last = {0};
    static long interval_ms = -1;
    if (interval_ms < 0)
