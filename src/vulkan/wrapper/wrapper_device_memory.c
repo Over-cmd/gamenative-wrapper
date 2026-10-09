@@ -556,7 +556,6 @@ wrapper_sync_cached_memory(struct wrapper_device *device)
       on = getenv("WRAPPER_ION_CACHED") ? atoi(getenv("WRAPPER_ION_CACHED")) : 1;
    if (!on)
       return;
-   
    static struct timespec last = {0};
    static long interval_ms = -1;
    if (interval_ms < 0)
@@ -576,39 +575,16 @@ wrapper_sync_cached_memory(struct wrapper_device *device)
    unsigned n = 0;
    struct dma_buf_sync sync = { .flags = DMA_BUF_SYNC_END | DMA_BUF_SYNC_WRITE };
 
-   // 🟢 SNAPSHOT: Count + collect fds SIN hacer ioctl
-   int *fds_to_sync = NULL;
-   unsigned count = 0;
-   
+   clock_gettime(CLOCK_MONOTONIC, &t0);
    simple_mtx_lock(&device->resource_mutex);
-   // First pass: count
    list_for_each_entry(struct wrapper_device_memory, m,
                        &device->device_memory_list, link) {
       if (m->cpu_cached && m->map_address && m->fd >= 0) {
-         count++;
+         ioctl(m->fd, DMA_BUF_IOCTL_SYNC, &sync);
+         n++;
       }
    }
-   
-   if (count > 0) {
-      fds_to_sync = alloca(count * sizeof(int));
-      unsigned i = 0;
-      list_for_each_entry(struct wrapper_device_memory, m,
-                          &device->device_memory_list, link) {
-         if (m->cpu_cached && m->map_address && m->fd >= 0) {
-            fds_to_sync[i++] = m->fd;
-         }
-      }
-   }
-   simple_mtx_unlock(&device->resource_mutex); // 🟢 LIBERAR TEMPRANO
-
-   clock_gettime(CLOCK_MONOTONIC, &t0);
-   
-   // 🟢 SINCRONIZAR: Sin mutex, en paralelo si quieres
-   for (unsigned i = 0; i < count; i++) {
-      ioctl(fds_to_sync[i], DMA_BUF_IOCTL_SYNC, &sync);
-      n++;
-   }
-   
+   simple_mtx_unlock(&device->resource_mutex);
    clock_gettime(CLOCK_MONOTONIC, &t1);
 
    double ms = (t1.tv_sec - t0.tv_sec) * 1000.0 + (t1.tv_nsec - t0.tv_nsec) / 1e6;
