@@ -676,9 +676,6 @@ wrapper_AllocateMemory(VkDevice _device,
       }
    }
 
-   /* Detectamos si el tipo de memoria elegido por la app/DXVK tiene caché de host (0x8) */
-   bool host_cached = (property_flags & VK_MEMORY_PROPERTY_HOST_CACHED_BIT) != 0;
-
 #define VALID_HANDLE(type) (valid_handle_types == 0 || (type & valid_handle_types) != 0)
 
    VkMemoryAllocateInfo memory_allocate_info = *pAllocateInfo;
@@ -687,6 +684,8 @@ wrapper_AllocateMemory(VkDevice _device,
       // VkImportMemoryFdInfoKHR / VkExportMemoryAllocateInfo could crash the driver
       unlink_memory_alloc_info_pnext(&memory_allocate_info, VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO);
    }
+
+   bool host_cached = (property_flags & VK_MEMORY_PROPERTY_HOST_CACHED_BIT) != 0;
    
    if (strstr(device->physical->resource_type, "ahb")) {
       WRAPPER_LOG(info, "Using AHardwareBuffer memory backend");
