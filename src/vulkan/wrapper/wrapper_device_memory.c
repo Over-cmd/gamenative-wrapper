@@ -691,7 +691,7 @@ wrapper_AllocateMemory(VkDevice _device,
    else if (strstr(device->physical->resource_type, "dmabuf")) {
       WRAPPER_LOG(info, "Using DMABUF memory backend");
       result = wrapper_allocate_memory_dmaheap(device,
-         &memory_allocate_info, pAllocator, &mem->dispatch_handle, &mem->fd, host_cached); // <-- Añadido host_cached
+         &memory_allocate_info, pAllocator, &mem->dispatch_handle, &mem->fd, host_cached);
    }
    else if (strstr(device->physical->resource_type, "opaque")) {
       WRAPPER_LOG(info, "Using opaque fd memory backend");
@@ -704,7 +704,7 @@ wrapper_AllocateMemory(VkDevice _device,
 #define VALID_HANDLE(type) (valid_handle_types == 0 || (type & valid_handle_types) != 0)
       if (VALID_HANDLE(VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT)) {
          result = wrapper_allocate_memory_dmaheap(device,
-            &memory_allocate_info, pAllocator, &mem->dispatch_handle, &mem->fd, host_cached); // <-- Añadido host_cached
+            &memory_allocate_info, pAllocator, &mem->dispatch_handle, &mem->fd, host_cached);
       }
 
       if (result != VK_SUCCESS && VALID_HANDLE(VK_EXTERNAL_MEMORY_HANDLE_TYPE_ANDROID_HARDWARE_BUFFER_BIT_ANDROID)) {
