@@ -570,6 +570,12 @@ wrapper_sync_cached_memory(struct wrapper_device *device)
    if (!on)
       return;
 
+   static int nosync = -1;
+   if (nosync < 0)
+      nosync = getenv("WRAPPER_NO_SYNC") ? atoi(getenv("WRAPPER_NO_SYNC")) : 0;
+   if (nosync)
+      return;
+
    static struct timespec last = {0};
    static long interval_ms = -1;
    if (interval_ms < 0)
