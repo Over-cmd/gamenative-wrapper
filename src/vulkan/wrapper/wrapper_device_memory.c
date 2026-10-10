@@ -20,26 +20,6 @@
 #include <time.h>
 #include <stdatomic.h>
 
-static void wrapper_dbg(const char *fmt, ...) {
-   const char *env = getenv("WRAPPER_DEBUG_FILE");
-   if (!env) return;
-   char path[512];
-   if (env[0] == '/') {
-      snprintf(path, sizeof(path), "%s", env);
-   } else {
-      const char *dir = getenv("TMPDIR");
-      snprintf(path, sizeof(path), "%s/wrapper_debug.log", dir ? dir : "/data/local/tmp");
-   }
-   FILE *f = fopen(path, "a");
-   if (!f) return;
-   va_list ap;
-   va_start(ap, fmt);
-   vfprintf(f, fmt, ap);
-   va_end(ap);
-   fputc('\n', f);
-   fclose(f);
-}
-
 static int
 safe_ioctl(int fd, unsigned long request, void *arg)
 {
@@ -109,7 +89,6 @@ struct ion_heap_query_2 {
 #define ION_IOC_HEAP_QUERY_2     _IOWR(ION_IOC_MAGIC, 8, struct ion_heap_query_2)
 
 static atomic_int wrapper_cached_count = 0;
-static _Thread_local int wrapper_last_cached = 0;
 
 static unsigned int wrapper_ion_flags(size_t size) {
    static int init = 0, on = 1, max_count = -1;
@@ -125,17 +104,14 @@ static unsigned int wrapper_ion_flags(size_t size) {
       if (n) max_count = atoi(n);
       init = 1;
    }
-   int ok = on && size >= minsz && size <= maxsz &&
-            (max_count < 0 || atomic_load(&wrapper_cached_count) < max_count);
-   wrapper_last_cached = ok;
-   return ok ? 1 : 0;
+   return (on && size >= minsz && size <= maxsz &&
+           (max_count < 0 || atomic_load(&wrapper_cached_count) < max_count)) ? 1 : 0;
 }
 
 static int
 ion_heap_alloc_2(int heap_fd, size_t size) {
    struct ion_allocation_data_2 alloc_data = {
       .len = size,
-      /* ION_HEAP_SYSTEM | ION_SYSTEM_HEAP_ID (Qcom) */
       .heap_id_mask = (1U << 0) | (1U << 25),
       .flags = wrapper_ion_flags(size),
    };
@@ -154,7 +130,6 @@ static int
 ion_heap_alloc(int heap_fd, size_t size) {
    static int ion_iface = 0;
    if (!ion_iface) {
-      // See https://github.com/mirror/mesa/blob/e24dc5bd1e7fe6101bdc866fb16a15a8fcae1aae/src/freedreno/vulkan/tu_knl_kgsl.cc#L1789
       struct ion_handle_data_1 probe = { .handle = 0 };
       if (safe_ioctl(heap_fd, ION_IOC_FREE_1, &probe) >= 0 || errno != ENOTTY) {
          ion_iface = 1;
@@ -168,12 +143,10 @@ ion_heap_alloc(int heap_fd, size_t size) {
       return ion_heap_alloc_2(heap_fd, size);
    }
 
-   // see https://github.com/mirror/mesa/blob/e24dc5bd1e7fe6101bdc866fb16a15a8fcae1aae/src/freedreno/vulkan/tu_knl_kgsl.cc#L122
-   // bo_init_new_ion_legacy
    struct ion_allocation_data_1 alloc_data = {
       .len = size,
       .align = 0,
-      .heap_id_mask = (1U << 0) | (1U << 25) /* QCom specific */,
+      .heap_id_mask = (1U << 0) | (1U << 25),
       .flags = wrapper_ion_flags(size),
    };
 
@@ -249,37 +222,6 @@ wrapper_select_allowed_device_memory_type(struct wrapper_device *device,
          return idx;
       }
    }
-   return UINT32_MAX;
-}
-
-static uint32_t
-wrapper_select_allowed_device_memory_type_non_coherent(struct wrapper_device *device,
-                                                       uint32_t allowed_type_bits,
-                                                       VkMemoryPropertyFlags flags) {
-   VkPhysicalDeviceMemoryProperties *props =
-      &device->physical->memory_properties;
-   int idx;
-
-   // Prefiere: HOST_VISIBLE + HOST_CACHED, pero NO HOST_COHERENT
-   for (idx = 0; idx < props->memoryTypeCount; idx++) {
-      if (!(allowed_type_bits & (1U << idx))) {
-         continue;
-      }
-
-      VkMemoryPropertyFlags type_flags = props->memoryTypes[idx].propertyFlags;
-      
-      // Requiere HOST_VISIBLE, excluye HOST_COHERENT
-      if (!(type_flags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT))
-         continue;
-      if (type_flags & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)
-         continue;
-
-      // Preferiblemente DEVICE_LOCAL y HOST_CACHED
-      if ((type_flags & flags) == flags) {
-         return idx;
-      }
-   }
-   
    return UINT32_MAX;
 }
 
@@ -361,27 +303,11 @@ wrapper_allocate_memory_dmaheap(struct wrapper_device *device,
       return VK_ERROR_INVALID_EXTERNAL_HANDLE;
    }
    
-   // Check if non-coherent memory is forced
-   static int force_non_coherent = -1;
-   if (force_non_coherent < 0)
-      force_non_coherent = getenv("WRAPPER_FORCE_NON_COHERENT") ? 
-                           atoi(getenv("WRAPPER_FORCE_NON_COHERENT")) : 0;
-
-   int memory_type_index;
-   if (force_non_coherent) {
-      WRAPPER_LOG(info, "Forcing non-coherent memory selection");
-      memory_type_index = wrapper_select_allowed_device_memory_type_non_coherent(device,
-         memory_fd_props.memoryTypeBits,
-         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT |
-         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-         VK_MEMORY_PROPERTY_HOST_CACHED_BIT);
-   } else {
-      memory_type_index = wrapper_select_allowed_device_memory_type(device,
-         memory_fd_props.memoryTypeBits,
-         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT |
-         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-         VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-   }
+   int memory_type_index = wrapper_select_allowed_device_memory_type(device,
+      memory_fd_props.memoryTypeBits,
+      VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT |
+      VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+      VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
    if (memory_type_index == UINT32_MAX) {
       WRAPPER_LOG(error, "No compatible memory type found for fd %d", *out_fd);
@@ -606,37 +532,6 @@ wrapper_device_memory_from_handle(struct wrapper_device *device,
    return mem;
 }
 
-static void
-flush_invalidate_memory(struct wrapper_device *device,
-                       struct wrapper_device_memory *mem,
-                       VkDeviceSize offset, VkDeviceSize size,
-                       int is_flush)
-{
-   if (!mem->dispatch_handle || mem->is_coherent)
-      return;
-
-   VkMappedMemoryRange range = {
-      .sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
-      .memory = mem->dispatch_handle,
-      .offset = offset,
-      .size = size == VK_WHOLE_SIZE ? VK_WHOLE_SIZE : size,
-   };
-
-   if (is_flush) {
-      VkResult res = device->dispatch_table.FlushMappedMemoryRanges(
-         device->dispatch_handle, 1, &range);
-      if (res != VK_SUCCESS) {
-         WRAPPER_LOG(error, "FlushMappedMemoryRanges failed: %d", res);
-      }
-   } else {
-      VkResult res = device->dispatch_table.InvalidateMappedMemoryRanges(
-         device->dispatch_handle, 1, &range);
-      if (res != VK_SUCCESS) {
-         WRAPPER_LOG(error, "InvalidateMappedMemoryRanges failed: %d", res);
-      }
-   }
-}
-
 void
 wrapper_sync_cached_memory(struct wrapper_device *device)
 {
@@ -646,32 +541,7 @@ wrapper_sync_cached_memory(struct wrapper_device *device)
    if (!on)
       return;
 
-   static int nosync = -1;
-   if (nosync < 0)
-      nosync = getenv("WRAPPER_NO_SYNC") ? atoi(getenv("WRAPPER_NO_SYNC")) : 0;
-   if (nosync)
-      return;
-
-   static struct timespec last = {0};
-   static long interval_ms = -1;
-   if (interval_ms < 0)
-      interval_ms = getenv("WRAPPER_SYNC_INTERVAL_MS") ? atol(getenv("WRAPPER_SYNC_INTERVAL_MS")) : 0;
-   if (interval_ms > 0) {
-      struct timespec now;
-      clock_gettime(CLOCK_MONOTONIC, &now);
-      long dt = (now.tv_sec - last.tv_sec) * 1000 +
-                (now.tv_nsec - last.tv_nsec) / 1000000;
-      if (dt < interval_ms)
-         return;
-      last = now;
-   }
-
-   static unsigned calls = 0, total_bufs = 0;
-   static double total_ms = 0, max_ms = 0;
-   struct timespec t0, t1;
-   unsigned n = 0;
    struct dma_buf_sync sync = { .flags = DMA_BUF_SYNC_END | DMA_BUF_SYNC_WRITE };
-
    int *fds = NULL;
    size_t count = 0;
    size_t capacity = 0;
@@ -701,44 +571,12 @@ wrapper_sync_cached_memory(struct wrapper_device *device)
    }
    simple_mtx_unlock(&device->resource_mutex);
 
-   clock_gettime(CLOCK_MONOTONIC, &t0);
    for (size_t i = 0; i < count; i++) {
-      if (safe_ioctl(fds[i], DMA_BUF_IOCTL_SYNC, &sync) == 0)
-         n++;
+      safe_ioctl(fds[i], DMA_BUF_IOCTL_SYNC, &sync);
       close(fds[i]);
    }
-   clock_gettime(CLOCK_MONOTONIC, &t1);
 
    free(fds);
-
-   double ms = (t1.tv_sec - t0.tv_sec) * 1000.0 +
-               (t1.tv_nsec - t0.tv_nsec) / 1e6;
-   calls++;
-   total_bufs += n;
-   total_ms += ms;
-   if (ms > max_ms)
-      max_ms = ms;
-
-   if (calls % 200 == 0)
-      wrapper_dbg("sync: %u envios, media %.2f ms, max %.2f ms, bufs/envio %.1f",
-                  calls, total_ms / calls, max_ms,
-                  (double) total_bufs / calls);
-}
-
-static void wrapper_dump_memtypes(struct wrapper_device *device)
-{
-   static int done = 0;
-   if (done) return;
-   done = 1;
-   const VkPhysicalDeviceMemoryProperties *p = &device->physical->memory_properties;
-   wrapper_dbg("memtypes: count=%u heaps=%u", p->memoryTypeCount, p->memoryHeapCount);
-   for (uint32_t i = 0; i < p->memoryTypeCount; i++)
-      wrapper_dbg("  type[%u] flags=0x%x heap=%u", i,
-                  (unsigned) p->memoryTypes[i].propertyFlags, p->memoryTypes[i].heapIndex);
-   for (uint32_t i = 0; i < p->memoryHeapCount; i++)
-      wrapper_dbg("  heap[%u] size=%llu flags=0x%x", i,
-                  (unsigned long long) p->memoryHeaps[i].size,
-                  (unsigned) p->memoryHeaps[i].flags);
 }
 
 VKAPI_ATTR VkResult VKAPI_CALL
@@ -749,8 +587,6 @@ wrapper_AllocateMemory(VkDevice _device,
    VK_FROM_HANDLE(wrapper_device, device, _device);
    struct wrapper_device_memory *mem;
    VkResult result;
-
-   wrapper_dump_memtypes(device);
 
    VkMemoryPropertyFlags property_flags =
       device->physical->memory_properties.memoryTypes[
@@ -775,25 +611,7 @@ wrapper_AllocateMemory(VkDevice _device,
    const VkMemoryDedicatedAllocateInfo *dedicated_allocate_info =
          vk_find_struct_const((void*) pAllocateInfo->pNext, MEMORY_DEDICATED_ALLOCATE_INFO);
    
-   static int bypass_swapchains = -1;
-   if (bypass_swapchains == -1) 
-      bypass_swapchains = getenv("WRAPPER_BYPASS_SWAPCHAIN_PLACED") ?
-                          atoi(getenv("WRAPPER_BYPASS_SWAPCHAIN_PLACED")) : 0;
-
-   if (bypass_swapchains && dedicated_allocate_info && dedicated_allocate_info->image != VK_NULL_HANDLE) {
-      struct wrapper_image *img = get_wrapper_image_from_handle(device, dedicated_allocate_info->image);
-      if (img && img->is_wsi_image) {
-         WRAPPER_LOG(info, "Bypassing EXT_map_memory_placed emulation for swapchain image");
-         goto fallback;
-      }
-   }
-   
    WRAPPER_LOG(info, "Emulating vkAllocateMemory");
-
-   wrapper_dbg("alloc: size=%llu type=%u flags=0x%x backend=%s",
-               (unsigned long long) pAllocateInfo->allocationSize,
-               pAllocateInfo->memoryTypeIndex, (unsigned) property_flags,
-               device->physical->resource_type);
 
    simple_mtx_lock(&device->resource_mutex);
 
@@ -825,8 +643,6 @@ wrapper_AllocateMemory(VkDevice _device,
       unlink_memory_alloc_info_pnext(&memory_allocate_info, VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO);
    }
 
-   wrapper_last_cached = 0;
-   
    if (strstr(device->physical->resource_type, "ahb")) {
       WRAPPER_LOG(info, "Using AHardwareBuffer memory backend");
       result = wrapper_allocate_memory_ahardware_buffer(device,
@@ -882,17 +698,13 @@ wrapper_AllocateMemory(VkDevice _device,
       vk_error(device, result);
    } else {
       *pMemory = mem->dispatch_handle;
-      if (mem->fd >= 0 && !mem->ahardware_buffer && wrapper_last_cached) {
-         mem->cpu_cached = true;
-         atomic_fetch_add(&wrapper_cached_count, 1);
+      if (mem->fd >= 0 && !mem->ahardware_buffer) {
+         bool should_cache = wrapper_ion_flags(pAllocateInfo->allocationSize) != 0;
+         if (should_cache) {
+            mem->cpu_cached = true;
+            atomic_fetch_add(&wrapper_cached_count, 1);
+         }
       }
-      
-      // Track memory coherence
-      mem->is_coherent = (property_flags & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT) != 0;
-      
-      wrapper_dbg("cpu_cached=%d coherent=%d fd=%d size=%llu", 
-                  mem->cpu_cached, mem->is_coherent, mem->fd,
-                  (unsigned long long) pAllocateInfo->allocationSize);
    }
 
 out:
@@ -1016,16 +828,9 @@ wrapper_MapMemory2KHR(VkDevice _device,
       goto fail;
    }
 
-   // Invalidate cache after mapping (CPU read after GPU write)
-   flush_invalidate_memory(device, mem, pMemoryMapInfo->offset, pMemoryMapInfo->size, 0);
-
    if (mem->ahardware_buffer) {
       AHardwareBuffer_Desc desc;
       AHardwareBuffer_describe(mem->ahardware_buffer, &desc);
-      wrapper_dbg("map ahb: size=%zu usage=0x%llx", mem->map_size,
-                  (unsigned long long) desc.usage);
-   } else {
-      wrapper_dbg("map fd: size=%zu", mem->map_size);
    }
 
    out:
@@ -1057,9 +862,6 @@ wrapper_UnmapMemory2KHR(VkDevice _device,
    }
 
    WRAPPER_LOG(info, "Emulating vkUnmapMemory2KHR");
-
-   // Flush cache before unmapping (CPU write before GPU read)
-   flush_invalidate_memory(device, mem, 0, VK_WHOLE_SIZE, 1);
 
    if (pMemoryUnmapInfo->flags & VK_MEMORY_UNMAP_RESERVE_BIT_EXT) {
       mem->map_address = mmap(mem->map_address, mem->map_size,
