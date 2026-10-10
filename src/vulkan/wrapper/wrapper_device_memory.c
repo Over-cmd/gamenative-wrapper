@@ -676,24 +676,9 @@ wrapper_AllocateMemory(VkDevice _device,
       }
    }
 
-   VkExternalMemoryHandleTypeFlags valid_handle_types = 0;
-   if (dedicated_allocate_info) {
-      // Note that buffer/image are mutually exclusive
-      if (dedicated_allocate_info->image != VK_NULL_HANDLE) {
-         struct wrapper_image *img = get_wrapper_image_from_handle_locked(device, dedicated_allocate_info->image);
-         if (img) {
-            valid_handle_types |= img->handle_types;
-         }
-      }
-      if (dedicated_allocate_info->buffer != VK_NULL_HANDLE) {
-         struct wrapper_buffer *buf = get_wrapper_buffer_from_handle_locked(device, dedicated_allocate_info->buffer);
-         if (buf) {
-            valid_handle_types |= buf->handle_types;
-         }
-      }
-   }
+   /* Detectamos si el tipo de memoria elegido por la app/DXVK tiene caché de host (0x8) */
+   bool host_cached = (property_flags & VK_MEMORY_PROPERTY_HOST_CACHED_BIT) != 0;
 
-   /* Definimos la macro aquí arriba para que esté disponible en cualquier bloque */
 #define VALID_HANDLE(type) (valid_handle_types == 0 || (type & valid_handle_types) != 0)
 
    VkMemoryAllocateInfo memory_allocate_info = *pAllocateInfo;
@@ -741,7 +726,7 @@ wrapper_AllocateMemory(VkDevice _device,
    }
 
 #undef VALID_HANDLE
-   
+
    if (result != VK_SUCCESS) {
       WRAPPER_LOG(error, "Failed to allocate memory, res %d", result);
       wrapper_device_memory_destroy(mem);
