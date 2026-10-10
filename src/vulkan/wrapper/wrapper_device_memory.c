@@ -676,6 +676,26 @@ wrapper_AllocateMemory(VkDevice _device,
       }
    }
 
+   VkExternalMemoryHandleTypeFlags valid_handle_types = 0;
+   if (dedicated_allocate_info) {
+      // Note that buffer/image are mutually exclusive
+      if (dedicated_allocate_info->image != VK_NULL_HANDLE) {
+         struct wrapper_image *img = get_wrapper_image_from_handle_locked(device, dedicated_allocate_info->image);
+         if (img) {
+            valid_handle_types |= img->handle_types;
+         }
+      }
+      if (dedicated_allocate_info->buffer != VK_NULL_HANDLE) {
+         struct wrapper_buffer *buf = get_wrapper_buffer_from_handle_locked(device, dedicated_allocate_info->buffer);
+         if (buf) {
+            valid_handle_types |= buf->handle_types;
+         }
+      }
+   }
+
+   /* Definimos la macro aquí arriba para que esté disponible en cualquier bloque */
+#define VALID_HANDLE(type) (valid_handle_types == 0 || (type & valid_handle_types) != 0)
+
    VkMemoryAllocateInfo memory_allocate_info = *pAllocateInfo;
    if (dedicated_allocate_info && valid_handle_types == 0) {
       // Driver "bug" on some mobile drivers - providing an empty dedicate memory hint in conjunction with the
@@ -701,7 +721,7 @@ wrapper_AllocateMemory(VkDevice _device,
    else {
       WRAPPER_LOG(info, "Using auto memory backend");
       result = VK_ERROR_INVALID_EXTERNAL_HANDLE;
-#define VALID_HANDLE(type) (valid_handle_types == 0 || (type & valid_handle_types) != 0)
+
       if (VALID_HANDLE(VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT)) {
          result = wrapper_allocate_memory_dmaheap(device,
             &memory_allocate_info, pAllocator, &mem->dispatch_handle, &mem->fd, host_cached);
@@ -718,8 +738,9 @@ wrapper_AllocateMemory(VkDevice _device,
          result = wrapper_allocate_memory_opaque_fd(device,
             &memory_allocate_info, pAllocator, &mem->dispatch_handle, &mem->fd);
       }
-#undef VALID_HANDLE
    }
+
+#undef VALID_HANDLE
    
    if (result != VK_SUCCESS) {
       WRAPPER_LOG(error, "Failed to allocate memory, res %d", result);
