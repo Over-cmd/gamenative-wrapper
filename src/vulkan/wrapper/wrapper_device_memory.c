@@ -1,3 +1,16 @@
+/*
+ * wrapper_device_memory.c
+ *
+ * Variables de entorno (todas opcionales):
+ *   WRAPPER_ION_CACHED=0|1        1 (por defecto): reservas grandes con cache de CPU.
+ *                                 0: todo sin cache (juego fluido, videos lentos).
+ *   WRAPPER_ION_CACHED_MIN=<n>    tamano minimo en bytes para usar cache (16777216).
+ *   WRAPPER_ION_CACHED_MAX=<n>    tamano maximo en bytes para usar cache (sin limite).
+ *   WRAPPER_SYNC=0|1              1: sincroniza la cache en cada QueueSubmit
+ *                                 (quita las rayas pero baja mucho los FPS).
+ *   WRAPPER_DEBUG_FILE=<ruta>     escribe un log de depuracion en esa ruta.
+ */
+
 #include "wrapper_private.h"
 #include "wrapper_log.h"
 #include "wrapper_entrypoints.h"
@@ -17,8 +30,26 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <linux/dma-buf.h>
-#include <time.h>
-#include <stdatomic.h>
+
+static void wrapper_dbg(const char *fmt, ...) {
+   const char *env = getenv("WRAPPER_DEBUG_FILE");
+   if (!env) return;
+   char path[512];
+   if (env[0] == '/') {
+      snprintf(path, sizeof(path), "%s", env);
+   } else {
+      const char *dir = getenv("TMPDIR");
+      snprintf(path, sizeof(path), "%s/wrapper_debug.log", dir ? dir : "/data/local/tmp");
+   }
+   FILE *f = fopen(path, "a");
+   if (!f) return;
+   va_list ap;
+   va_start(ap, fmt);
+   vfprintf(f, fmt, ap);
+   va_end(ap);
+   fputc('\n', f);
+   fclose(f);
+}
 
 static int
 safe_ioctl(int fd, unsigned long request, void *arg)
@@ -88,30 +119,27 @@ struct ion_heap_query_2 {
 #define ION_IOC_ALLOC_2       _IOWR(ION_IOC_MAGIC, 0, struct ion_allocation_data_2)
 #define ION_IOC_HEAP_QUERY_2     _IOWR(ION_IOC_MAGIC, 8, struct ion_heap_query_2)
 
-static atomic_int wrapper_cached_count = 0;
-
+/* Devuelve ION_FLAG_CACHED (1) para las reservas grandes, 0 para el resto. */
 static unsigned int wrapper_ion_flags(size_t size) {
-   static int init = 0, on = 1, max_count = -1;
+   static int init = 0, on = 1;
    static size_t minsz = 16777216, maxsz = (size_t) -1;
    if (!init) {
       const char *c = getenv("WRAPPER_ION_CACHED");
       const char *a = getenv("WRAPPER_ION_CACHED_MIN");
       const char *b = getenv("WRAPPER_ION_CACHED_MAX");
-      const char *n = getenv("WRAPPER_ION_CACHED_MAX_COUNT");
       if (c) on = atoi(c);
       if (a) minsz = (size_t) strtoull(a, NULL, 0);
       if (b) maxsz = (size_t) strtoull(b, NULL, 0);
-      if (n) max_count = atoi(n);
       init = 1;
    }
-   return (on && size >= minsz && size <= maxsz &&
-           (max_count < 0 || atomic_load(&wrapper_cached_count) < max_count)) ? 1 : 0;
+   return (on && size >= minsz && size <= maxsz) ? 1 : 0;
 }
 
 static int
 ion_heap_alloc_2(int heap_fd, size_t size) {
    struct ion_allocation_data_2 alloc_data = {
       .len = size,
+      /* ION_HEAP_SYSTEM | ION_SYSTEM_HEAP_ID (Qcom) */
       .heap_id_mask = (1U << 0) | (1U << 25),
       .flags = wrapper_ion_flags(size),
    };
@@ -130,6 +158,7 @@ static int
 ion_heap_alloc(int heap_fd, size_t size) {
    static int ion_iface = 0;
    if (!ion_iface) {
+      // See https://github.com/mirror/mesa/blob/e24dc5bd1e7fe6101bdc866fb16a15a8fcae1aae/src/freedreno/vulkan/tu_knl_kgsl.cc#L1789
       struct ion_handle_data_1 probe = { .handle = 0 };
       if (safe_ioctl(heap_fd, ION_IOC_FREE_1, &probe) >= 0 || errno != ENOTTY) {
          ion_iface = 1;
@@ -143,10 +172,12 @@ ion_heap_alloc(int heap_fd, size_t size) {
       return ion_heap_alloc_2(heap_fd, size);
    }
 
+   // see https://github.com/mirror/mesa/blob/e24dc5bd1e7fe6101bdc866fb16a15a8fcae1aae/src/freedreno/vulkan/tu_knl_kgsl.cc#L122
+   // bo_init_new_ion_legacy
    struct ion_allocation_data_1 alloc_data = {
       .len = size,
       .align = 0,
-      .heap_id_mask = (1U << 0) | (1U << 25),
+      .heap_id_mask = (1U << 0) | (1U << 25) /* QCom specific */,
       .flags = wrapper_ion_flags(size),
    };
 
@@ -238,7 +269,7 @@ unlink_memory_alloc_info_pnext(VkMemoryAllocateInfo *alloc_info, VkStructureType
    vk_foreach_struct(s, (void *)alloc_info->pNext) {
       if (s->sType == sType) {
          if (prev) {
-            prev->pNext = s->pNext;
+            prev->pNext = s->pNext; // modifies application owned memory, but it should be okay
          }
          return;
       }
@@ -257,6 +288,7 @@ static VkResult check_dedicated_allocate_info_for(struct wrapper_device *device,
       struct wrapper_image *img = get_wrapper_image_from_handle_locked(
          device, memory_dedicated_info->image);
       if (img && img->handle_types && !(img->handle_types & handle_types)) {
+         // Shouldn't happen anymore
          WRAPPER_LOG(error, "Dedicated image handle type mismatch (0x%x vs required 0x%x)",
                      img ? img->handle_types : 0, handle_types);
          return VK_ERROR_INVALID_EXTERNAL_HANDLE;
@@ -267,6 +299,7 @@ static VkResult check_dedicated_allocate_info_for(struct wrapper_device *device,
       struct wrapper_buffer *buf = get_wrapper_buffer_from_handle_locked(
          device, memory_dedicated_info->buffer);
       if (buf && buf->handle_types && !(buf->handle_types & handle_types)) {
+         // Shouldn't happen anymore
          WRAPPER_LOG(error, "Dedicated buffer handle type mismatch (0x%x vs required 0x%x)",
                      buf ? buf->handle_types : 0, handle_types);
          return VK_ERROR_INVALID_EXTERNAL_HANDLE;
@@ -466,10 +499,6 @@ wrapper_allocate_memory_ahardware_buffer(struct wrapper_device *device,
 static void
 wrapper_device_memory_reset(struct wrapper_device_memory *mem) {
    struct wrapper_device *device = mem->device;
-   if (mem->cpu_cached) {
-      atomic_fetch_sub(&wrapper_cached_count, 1);
-      mem->cpu_cached = false;
-   }
    if (mem->ahardware_buffer) {
       AHardwareBuffer_release(mem->ahardware_buffer);
       mem->ahardware_buffer = NULL;
@@ -532,51 +561,27 @@ wrapper_device_memory_from_handle(struct wrapper_device *device,
    return mem;
 }
 
+/* Sincroniza la cache de CPU de las reservas cacheadas.
+ * Por defecto NO hace nada (WRAPPER_SYNC=1 para activarlo): sincronizar en cada
+ * QueueSubmit quita las rayas de los videos pero deja el juego a 4-5 FPS.
+ * wrapper_device.c sigue llamando a esta funcion en QueueSubmit/QueueSubmit2. */
 void
 wrapper_sync_cached_memory(struct wrapper_device *device)
 {
    static int on = -1;
    if (on < 0)
-      on = getenv("WRAPPER_ION_CACHED") ? atoi(getenv("WRAPPER_ION_CACHED")) : 1;
+      on = getenv("WRAPPER_SYNC") ? atoi(getenv("WRAPPER_SYNC")) : 0;
    if (!on)
       return;
 
    struct dma_buf_sync sync = { .flags = DMA_BUF_SYNC_END | DMA_BUF_SYNC_WRITE };
-   int *fds = NULL;
-   size_t count = 0;
-   size_t capacity = 0;
-
    simple_mtx_lock(&device->resource_mutex);
    list_for_each_entry(struct wrapper_device_memory, m,
                        &device->device_memory_list, link) {
-      if (!m->cpu_cached || !m->map_address || m->fd < 0)
-         continue;
-
-      int dupfd = dup(m->fd);
-      if (dupfd < 0)
-         continue;
-
-      if (count == capacity) {
-         size_t new_capacity = capacity ? capacity * 2 : 8;
-         int *new_fds = realloc(fds, new_capacity * sizeof(*new_fds));
-         if (!new_fds) {
-            close(dupfd);
-            break;
-         }
-         fds = new_fds;
-         capacity = new_capacity;
-      }
-
-      fds[count++] = dupfd;
+      if (m->cpu_cached && m->map_address && m->fd >= 0)
+         ioctl(m->fd, DMA_BUF_IOCTL_SYNC, &sync);
    }
    simple_mtx_unlock(&device->resource_mutex);
-
-   for (size_t i = 0; i < count; i++) {
-      safe_ioctl(fds[i], DMA_BUF_IOCTL_SYNC, &sync);
-      close(fds[i]);
-   }
-
-   free(fds);
 }
 
 VKAPI_ATTR VkResult VKAPI_CALL
@@ -611,7 +616,25 @@ wrapper_AllocateMemory(VkDevice _device,
    const VkMemoryDedicatedAllocateInfo *dedicated_allocate_info =
          vk_find_struct_const((void*) pAllocateInfo->pNext, MEMORY_DEDICATED_ALLOCATE_INFO);
    
+   static int bypass_swapchains = -1;
+   if (bypass_swapchains == -1) 
+      bypass_swapchains = getenv("WRAPPER_BYPASS_SWAPCHAIN_PLACED") ?
+                          atoi(getenv("WRAPPER_BYPASS_SWAPCHAIN_PLACED")) : 0; // TODO: turn on by default if safe
+
+   if (bypass_swapchains && dedicated_allocate_info && dedicated_allocate_info->image != VK_NULL_HANDLE) {
+      struct wrapper_image *img = get_wrapper_image_from_handle(device, dedicated_allocate_info->image);
+      if (img && img->is_wsi_image) {
+         WRAPPER_LOG(info, "Bypassing EXT_map_memory_placed emulation for swapchain image");
+         goto fallback;
+      }
+   }
+   
    WRAPPER_LOG(info, "Emulating vkAllocateMemory");
+
+   wrapper_dbg("alloc: size=%llu type=%u flags=0x%x backend=%s",
+               (unsigned long long) pAllocateInfo->allocationSize,
+               pAllocateInfo->memoryTypeIndex, (unsigned) property_flags,
+               device->physical->resource_type);
 
    simple_mtx_lock(&device->resource_mutex);
 
@@ -624,6 +647,7 @@ wrapper_AllocateMemory(VkDevice _device,
 
    VkExternalMemoryHandleTypeFlags valid_handle_types = 0;
    if (dedicated_allocate_info) {
+      // Note that buffer/image are mutually exclusive
       if (dedicated_allocate_info->image != VK_NULL_HANDLE) {
          struct wrapper_image *img = get_wrapper_image_from_handle_locked(device, dedicated_allocate_info->image);
          if (img) {
@@ -640,9 +664,11 @@ wrapper_AllocateMemory(VkDevice _device,
 
    VkMemoryAllocateInfo memory_allocate_info = *pAllocateInfo;
    if (dedicated_allocate_info && valid_handle_types == 0) {
+      // Driver "bug" on some mobile drivers - providing an empty dedicate memory hint in conjunction with the
+      // VkImportMemoryFdInfoKHR / VkExportMemoryAllocateInfo could crash the driver
       unlink_memory_alloc_info_pnext(&memory_allocate_info, VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO);
    }
-
+   
    if (strstr(device->physical->resource_type, "ahb")) {
       WRAPPER_LOG(info, "Using AHardwareBuffer memory backend");
       result = wrapper_allocate_memory_ahardware_buffer(device,
@@ -686,25 +712,27 @@ wrapper_AllocateMemory(VkDevice _device,
       wrapper_device_memory_destroy(mem);
 
       if (dedicated_allocate_info && dedicated_allocate_info->image != VK_NULL_HANDLE) {
+         /* resource_mutex is already held here and simple_mtx is not
+          * recursive, so search the image table directly instead of
+          * going through get_wrapper_image_from_handle. */
          struct wrapper_image *img = get_wrapper_image_from_handle_locked(
             device, dedicated_allocate_info->image);
          if (img && img->is_wsi_image) {
+            // Fixes failure to blit on ion-heap (< GKI 5.10) Mali devices at the cost of
+            // not being able to mmap these.
             WRAPPER_LOG(error, "EXT_map_memory_placed emulation failed for swapchain image, bypassing emulation");
             simple_mtx_unlock(&device->resource_mutex);
-            goto fallback;
+            goto fallback; // TODO: the VkMemoryAllocateInfo may have been unlinked here
          }
       }
 
       vk_error(device, result);
    } else {
       *pMemory = mem->dispatch_handle;
-      if (mem->fd >= 0 && !mem->ahardware_buffer) {
-         bool should_cache = wrapper_ion_flags(pAllocateInfo->allocationSize) != 0;
-         if (should_cache) {
-            mem->cpu_cached = true;
-            atomic_fetch_add(&wrapper_cached_count, 1);
-         }
-      }
+      if (mem->fd >= 0 && !mem->ahardware_buffer)
+         mem->cpu_cached = wrapper_ion_flags(pAllocateInfo->allocationSize) != 0;
+      wrapper_dbg("cpu_cached=%d fd=%d size=%llu", mem->cpu_cached, mem->fd,
+                  (unsigned long long) pAllocateInfo->allocationSize);
    }
 
 out:
@@ -776,6 +804,9 @@ wrapper_MapMemory2KHR(VkDevice _device,
       int idx;
 
       handle = AHardwareBuffer_getNativeHandle(mem->ahardware_buffer);
+      /* The AHB native handle may carry several fds (e.g. metadata pipes
+       * alongside the actual memory fd); pick the first one that is
+       * seekable and large enough to back the allocation. */
       for (idx = 0; idx < handle->numFds; idx++) {
          off_t size = lseek(handle->data[idx], 0, SEEK_END);
          if (size < 0) {
@@ -813,8 +844,7 @@ wrapper_MapMemory2KHR(VkDevice _device,
    else
       mem->map_size = pMemoryMapInfo->size;
 
-   WRAPPER_LOG(info, "Mapping memory %p, address %p size %zu\n", 
-               pMemoryMapInfo->memory, placed_info->pPlacedAddress, mem->map_size);
+   WRAPPER_LOG(info, "Mapping memory %p, address %p size %zu\n", pMemoryMapInfo->memory, placed_info->pPlacedAddress, mem->map_size);
 
    mem->map_address = mmap(placed_info->pPlacedAddress,
       mem->map_size, PROT_READ | PROT_WRITE,
@@ -831,6 +861,10 @@ wrapper_MapMemory2KHR(VkDevice _device,
    if (mem->ahardware_buffer) {
       AHardwareBuffer_Desc desc;
       AHardwareBuffer_describe(mem->ahardware_buffer, &desc);
+      wrapper_dbg("map ahb: size=%zu usage=0x%llx", mem->map_size,
+                  (unsigned long long) desc.usage);
+   } else {
+      wrapper_dbg("map fd: size=%zu", mem->map_size);
    }
 
    out:
