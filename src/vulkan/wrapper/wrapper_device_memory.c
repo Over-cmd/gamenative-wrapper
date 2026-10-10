@@ -361,11 +361,27 @@ wrapper_allocate_memory_dmaheap(struct wrapper_device *device,
       return VK_ERROR_INVALID_EXTERNAL_HANDLE;
    }
    
-   int memory_type_index = wrapper_select_allowed_device_memory_type(device,
-      memory_fd_props.memoryTypeBits,
-      VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT |
-      VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-      VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+   // Check if non-coherent memory is forced
+   static int force_non_coherent = -1;
+   if (force_non_coherent < 0)
+      force_non_coherent = getenv("WRAPPER_FORCE_NON_COHERENT") ? 
+                           atoi(getenv("WRAPPER_FORCE_NON_COHERENT")) : 0;
+
+   int memory_type_index;
+   if (force_non_coherent) {
+      WRAPPER_LOG(info, "Forcing non-coherent memory selection");
+      memory_type_index = wrapper_select_allowed_device_memory_type_non_coherent(device,
+         memory_fd_props.memoryTypeBits,
+         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT |
+         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+         VK_MEMORY_PROPERTY_HOST_CACHED_BIT);
+   } else {
+      memory_type_index = wrapper_select_allowed_device_memory_type(device,
+         memory_fd_props.memoryTypeBits,
+         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT |
+         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+         VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+   }
 
    if (memory_type_index == UINT32_MAX) {
       WRAPPER_LOG(error, "No compatible memory type found for fd %d", *out_fd);
