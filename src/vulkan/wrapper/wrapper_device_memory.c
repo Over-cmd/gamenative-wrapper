@@ -651,6 +651,22 @@ wrapper_sync_cached_memory(struct wrapper_device *device)
                   (double) total_bufs / calls);
 }
 
+static void wrapper_dump_memtypes(struct wrapper_device *device)
+{
+   static int done = 0;
+   if (done) return;
+   done = 1;
+   const VkPhysicalDeviceMemoryProperties *p = &device->physical->memory_properties;
+   wrapper_dbg("memtypes: count=%u heaps=%u", p->memoryTypeCount, p->memoryHeapCount);
+   for (uint32_t i = 0; i < p->memoryTypeCount; i++)
+      wrapper_dbg("  type[%u] flags=0x%x heap=%u", i,
+                  (unsigned) p->memoryTypes[i].propertyFlags, p->memoryTypes[i].heapIndex);
+   for (uint32_t i = 0; i < p->memoryHeapCount; i++)
+      wrapper_dbg("  heap[%u] size=%llu flags=0x%x", i,
+                  (unsigned long long) p->memoryHeaps[i].size,
+                  (unsigned) p->memoryHeaps[i].flags);
+}
+
 VKAPI_ATTR VkResult VKAPI_CALL
 wrapper_AllocateMemory(VkDevice _device,
                        const VkMemoryAllocateInfo* pAllocateInfo,
@@ -659,6 +675,8 @@ wrapper_AllocateMemory(VkDevice _device,
    VK_FROM_HANDLE(wrapper_device, device, _device);
    struct wrapper_device_memory *mem;
    VkResult result;
+
+      wrapper_dump_memtypes(device);
 
    VkMemoryPropertyFlags property_flags =
       device->physical->memory_properties.memoryTypes[
