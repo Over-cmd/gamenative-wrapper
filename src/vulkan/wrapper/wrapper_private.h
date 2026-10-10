@@ -254,7 +254,6 @@ struct wrapper_device_memory {
    struct wrapper_device *device;
    struct list_head link;
    bool cpu_cached;
-   bool is_coherent;  /* Track if memory is HOST_COHERENT for flush/invalidate decisions */
    int fd;
    void *map_address;
    size_t map_size;
