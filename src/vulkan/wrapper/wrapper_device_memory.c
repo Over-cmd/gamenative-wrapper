@@ -12,7 +12,7 @@
  */
 
 #include "wrapper_private.h"
-#include "wrapper_log.h"
+#include "wrapper_log.h"mi
 #include "wrapper_entrypoints.h"
 #include "vk_common_entrypoints.h"
 #include "util/os_file.h"
@@ -602,14 +602,6 @@ wrapper_AllocateMemory(VkDevice _device,
    VkMemoryPropertyFlags property_flags =
       device->physical->memory_properties.memoryTypes[
          pAllocateInfo->memoryTypeIndex].propertyFlags;
-
-   /* Detectamos si el tipo de memoria elegido por la app/DXVK tiene caché de host (0x8) */
-   bool host_cached = (property_flags & VK_MEMORY_PROPERTY_HOST_CACHED_BIT) != 0;
-
-   if (VALID_HANDLE(VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT)) {
-      result = wrapper_allocate_memory_dmaheap(device,
-         &memory_allocate_info, pAllocator, &mem->dispatch_handle, &mem->fd, host_cached);
-     }
    
    if (!(property_flags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT))
       goto fallback;
@@ -633,7 +625,7 @@ wrapper_AllocateMemory(VkDevice _device,
    static int bypass_swapchains = -1;
    if (bypass_swapchains == -1) 
       bypass_swapchains = getenv("WRAPPER_BYPASS_SWAPCHAIN_PLACED") ?
-                          atoi(getenv("WRAPPER_BYPASS_SWAPCHAIN_PLACED")) : 0; // TODO: turn on by default if safe
+                          atoi(getenv("WRAPPER_BYPASS_SWAPCHAIN_PLACED")) : 0;
 
    if (bypass_swapchains && dedicated_allocate_info && dedicated_allocate_info->image != VK_NULL_HANDLE) {
       struct wrapper_image *img = get_wrapper_image_from_handle(device, dedicated_allocate_info->image);
@@ -661,7 +653,6 @@ wrapper_AllocateMemory(VkDevice _device,
 
    VkExternalMemoryHandleTypeFlags valid_handle_types = 0;
    if (dedicated_allocate_info) {
-      // Note that buffer/image are mutually exclusive
       if (dedicated_allocate_info->image != VK_NULL_HANDLE) {
          struct wrapper_image *img = get_wrapper_image_from_handle_locked(device, dedicated_allocate_info->image);
          if (img) {
@@ -676,16 +667,14 @@ wrapper_AllocateMemory(VkDevice _device,
       }
    }
 
+   bool host_cached = (property_flags & VK_MEMORY_PROPERTY_HOST_CACHED_BIT) != 0;
+
 #define VALID_HANDLE(type) (valid_handle_types == 0 || (type & valid_handle_types) != 0)
 
    VkMemoryAllocateInfo memory_allocate_info = *pAllocateInfo;
    if (dedicated_allocate_info && valid_handle_types == 0) {
-      // Driver "bug" on some mobile drivers - providing an empty dedicate memory hint in conjunction with the
-      // VkImportMemoryFdInfoKHR / VkExportMemoryAllocateInfo could crash the driver
       unlink_memory_alloc_info_pnext(&memory_allocate_info, VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO);
    }
-
-   bool host_cached = (property_flags & VK_MEMORY_PROPERTY_HOST_CACHED_BIT) != 0;
    
    if (strstr(device->physical->resource_type, "ahb")) {
       WRAPPER_LOG(info, "Using AHardwareBuffer memory backend");
@@ -725,29 +714,24 @@ wrapper_AllocateMemory(VkDevice _device,
    }
 
 #undef VALID_HANDLE
-
+   
    if (result != VK_SUCCESS) {
       WRAPPER_LOG(error, "Failed to allocate memory, res %d", result);
       wrapper_device_memory_destroy(mem);
 
       if (dedicated_allocate_info && dedicated_allocate_info->image != VK_NULL_HANDLE) {
-         /* resource_mutex is already held here and simple_mtx is not
-          * recursive, so search the image table directly instead of
-          * going through get_wrapper_image_from_handle. */
          struct wrapper_image *img = get_wrapper_image_from_handle_locked(
             device, dedicated_allocate_info->image);
          if (img && img->is_wsi_image) {
-            // Fixes failure to blit on ion-heap (< GKI 5.10) Mali devices at the cost of
-            // not being able to mmap these.
             WRAPPER_LOG(error, "EXT_map_memory_placed emulation failed for swapchain image, bypassing emulation");
             simple_mtx_unlock(&device->resource_mutex);
-            goto fallback; // TODO: the VkMemoryAllocateInfo may have been unlinked here
+            goto fallback;
          }
       }
 
       vk_error(device, result);
    } else {
-     *pMemory = mem->dispatch_handle;
+      *pMemory = mem->dispatch_handle;
       if (mem->fd >= 0 && !mem->ahardware_buffer)
          mem->cpu_cached = wrapper_ion_flags(pAllocateInfo->allocationSize, host_cached) != 0;
       wrapper_dbg("cpu_cached=%d fd=%d size=%llu", mem->cpu_cached, mem->fd,
