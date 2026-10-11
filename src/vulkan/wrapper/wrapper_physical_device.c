@@ -1090,27 +1090,27 @@ wrapper_apply_noncoherent(VkPhysicalDeviceMemoryProperties *p)
 
 VKAPI_ATTR void VKAPI_CALL
 wrapper_GetPhysicalDeviceMemoryProperties(VkPhysicalDevice physicalDevice,
-										  VkPhysicalDeviceMemoryProperties *pMemoryProperties)
-wrapper_apply_noncoherent(pMemoryProperties);
+                                          VkPhysicalDeviceMemoryProperties *pMemoryProperties)
 {
    VK_FROM_HANDLE(wrapper_physical_device, pdevice, physicalDevice);
 
    static int wrapper_vmem_max_size = -1;
-   
+
    pdevice->dispatch_table.GetPhysicalDeviceMemoryProperties(
       pdevice->dispatch_handle, pMemoryProperties);
+
+   wrapper_apply_noncoherent(pMemoryProperties);
 
    if (wrapper_vmem_max_size == -1)
       wrapper_vmem_max_size = getenv("WRAPPER_VMEM_MAX_SIZE") ? atoi(getenv("WRAPPER_VMEM_MAX_SIZE")) : 0;
 
    if (wrapper_vmem_max_size > 0)
-      pMemoryProperties->memoryHeaps[0].size = (VkDeviceSize)wrapper_vmem_max_size * 1048576;   
+      pMemoryProperties->memoryHeaps[0].size = (VkDeviceSize)wrapper_vmem_max_size * 1048576;
 }
 
-VKAPI_ATTR void VKAPI_CALL                                                                                      
+VKAPI_ATTR void VKAPI_CALL
 wrapper_GetPhysicalDeviceMemoryProperties2(VkPhysicalDevice physicalDevice,
                                            VkPhysicalDeviceMemoryProperties2 *pMemoryProperties)
-wrapper_apply_noncoherent(&pMemoryProperties->memoryProperties);
 {
    VK_FROM_HANDLE(wrapper_physical_device, pdevice, physicalDevice);
 
@@ -1118,6 +1118,8 @@ wrapper_apply_noncoherent(&pMemoryProperties->memoryProperties);
 
    pdevice->dispatch_table.GetPhysicalDeviceMemoryProperties2(
       pdevice->dispatch_handle, pMemoryProperties);
+
+   wrapper_apply_noncoherent(&pMemoryProperties->memoryProperties);
 
    if (wrapper_vmem_max_size == -1)
       wrapper_vmem_max_size = getenv("WRAPPER_VMEM_MAX_SIZE") ? atoi(getenv("WRAPPER_VMEM_MAX_SIZE")) : 0;
