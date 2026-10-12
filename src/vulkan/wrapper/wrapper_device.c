@@ -1902,7 +1902,7 @@ wrapper_QueueSubmit(VkQueue _queue, uint32_t submitCount,
                     const VkSubmitInfo* pSubmits, VkFence fence)
 {
    VK_FROM_HANDLE(wrapper_queue, queue, _queue);
-   VkSubmitInfo wrapper_submits[submitCount];
+   VkSubmitInfo wrapper_submits[submitCount ? submitCount : 1];
    VkCommandBuffer *command_buffers;
    VkResult result;
 
@@ -1923,7 +1923,7 @@ wrapper_QueueSubmit(VkQueue _queue, uint32_t submitCount,
       wrapper_submits[i].pCommandBuffers = command_buffers;
    }
 
-      wrapper_sync_cached_memory(queue->device);
+   wrapper_sync_cached_memory(queue->device);
 
    result = queue->device->dispatch_table.QueueSubmit(
       queue->dispatch_handle, submitCount, wrapper_submits, fence);
@@ -1942,7 +1942,7 @@ wrapper_QueueSubmit2(VkQueue _queue, uint32_t submitCount,
                      const VkSubmitInfo2* pSubmits, VkFence fence)
 {
    VK_FROM_HANDLE(wrapper_queue, queue, _queue);
-   VkSubmitInfo2 wrapper_submits[submitCount];
+   VkSubmitInfo2 wrapper_submits[submitCount ? submitCount : 1];
    VkCommandBufferSubmitInfo *command_buffers;
    VkResult result;
 
@@ -1963,7 +1963,7 @@ wrapper_QueueSubmit2(VkQueue _queue, uint32_t submitCount,
       wrapper_submits[i].pCommandBufferInfos = command_buffers;
    }
 
-      wrapper_sync_cached_memory(queue->device);
+   wrapper_sync_cached_memory(queue->device);
 
    result = queue->device->dispatch_table.QueueSubmit2(
       queue->dispatch_handle, submitCount, wrapper_submits, fence);
@@ -2014,7 +2014,7 @@ wrapper_fence_destroy(struct wrapper_device *device,
    if (wf == NULL)
       return;
 
-      wrapper_release_staging(device, wf);
+   wrapper_release_staging(device, wf);
 
    simple_mtx_lock(&device->resource_mutex);
 
@@ -2097,6 +2097,19 @@ wrapper_WaitForFences(VkDevice _device,
    return res;
 }
 
+/* Quien consulta con vkGetFenceStatus en vez de esperar tambien libera los
+ * buffers de transcodificacion. Si el enlazador se queja de un simbolo
+ * duplicado (wrapper_GetFenceStatus definido en otro archivo), borra esta funcion. */
+VKAPI_ATTR VkResult VKAPI_CALL
+wrapper_GetFenceStatus(VkDevice _device, VkFence fence)
+{
+   VK_FROM_HANDLE(wrapper_device, device, _device);
+   VkResult res = device->dispatch_table.GetFenceStatus(device->dispatch_handle, fence);
+   if (res == VK_SUCCESS && device->physical->emulate_bcn >= 2)
+      wrapper_release_staging(device, get_wrapper_fence_from_handle(device, fence));
+   return res;
+}
+
 VKAPI_ATTR void VKAPI_CALL
 wrapper_DestroyFence(VkDevice _device,
 					 VkFence fence,
@@ -2114,7 +2127,7 @@ wrapper_CmdExecuteCommands(VkCommandBuffer commandBuffer,
                            const VkCommandBuffer* pCommandBuffers)
 {
    VK_FROM_HANDLE(wrapper_command_buffer, wcb, commandBuffer);
-   VkCommandBuffer command_buffers[commandBufferCount];
+   VkCommandBuffer command_buffers[commandBufferCount ? commandBufferCount : 1];
 
    for (int i = 0; i < commandBufferCount; i++) {
       command_buffers[i] =
@@ -2900,6 +2913,7 @@ wrapper_CmdBlitImage2(
          free(regions);
       }
    }
+}
 
 VKAPI_ATTR void VKAPI_CALL
 wrapper_FreeCommandBuffers(VkDevice _device,
@@ -2944,10 +2958,6 @@ VKAPI_ATTR void VKAPI_CALL
 wrapper_DestroyDevice(VkDevice _device, const VkAllocationCallbacks* pAllocator)
 {
    VK_FROM_HANDLE(wrapper_device, device, _device);
-
-   _mesa_hash_table_u64_destroy(device->image_table);
-   _mesa_hash_table_u64_destroy(device->buffer_table);
-   _mesa_hash_table_u64_destroy(device->fence_table);
 
    simple_mtx_lock(&device->resource_mutex);
 
@@ -2998,6 +3008,13 @@ wrapper_DestroyDevice(VkDevice _device, const VkAllocationCallbacks* pAllocator)
       _mesa_hash_table_u64_destroy(device->push_template_table);
       simple_mtx_destroy(&device->push_mutex);
    }
+
+   /* Las tablas se destruyen al final: los bucles de arriba las siguen usando. */
+   _mesa_hash_table_u64_destroy(device->image_table);
+   _mesa_hash_table_u64_destroy(device->buffer_table);
+   _mesa_hash_table_u64_destroy(device->fence_table);
+
+   simple_mtx_destroy(&device->bcn_gpu_mutex);
    simple_mtx_destroy(&device->resource_mutex);
    vk_device_finish(&device->vk);
    vk_free2(&device->vk.alloc, pAllocator, device);
