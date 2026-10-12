@@ -93,19 +93,23 @@ wrapper_filter_enabled_extensions(const struct wrapper_device *device,
 
 static void
 wrapper_apply_device_extension_blacklist(struct wrapper_physical_device *physical_device) {
-   char *blacklist = getenv("WRAPPER_EXTENSION_BLACKLIST");
-   if (!blacklist)
+   const char *env = getenv("WRAPPER_EXTENSION_BLACKLIST");
+   if (!env)
       return;
-   char *extension = strtok(blacklist, ",");
-   while (extension != NULL) {
+   char *copy = strdup(env);
+   if (!copy)
+      return;
+   char *save = NULL;
+   for (char *extension = strtok_r(copy, ",", &save); extension != NULL;
+        extension = strtok_r(NULL, ",", &save)) {
       for (int i = 0; i < VK_DEVICE_EXTENSION_COUNT; i++) {
-         if (strstr(extension, vk_device_extensions[i].extensionName)) {
+         if (strcmp(extension, vk_device_extensions[i].extensionName) == 0) {
             WRAPPER_LOG(info, "Blacklisting extension %s", extension);
             physical_device->vk.supported_extensions.extensions[i] = false;
          }
       }
-      extension = strtok(NULL, ",");
    }
+   free(copy);
 }
 
 static VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL
@@ -140,7 +144,8 @@ VkResult enumerate_physical_device(struct vk_instance *_instance)
       instance->dispatch_handle, &physical_device_count, physical_devices);
       
    if (result!= VK_SUCCESS) {
-      WRAPPER_LOG(error, "Failed to enumerate physical devices, res %d", result);	
+      WRAPPER_LOG(error, "Failed to enumerate physical devices, res %d", result);
+      free(physical_devices);
       return result;
    }
    
@@ -402,6 +407,8 @@ VkResult enumerate_physical_device(struct vk_instance *_instance)
       list_addtail(&pdevice->vk.link, &_instance->physical_devices.list);
    }
 
+   free(physical_devices);
+
    return VK_SUCCESS;
 }
 
@@ -588,8 +595,10 @@ wrapper_GetPhysicalDeviceProperties(VkPhysicalDevice physicalDevice,
       pdevice->dispatch_handle, pProperties);
 
    char *device_name_env = getenv("WRAPPER_DEVICE_NAME");
-   asprintf(&device_name, "Wrapper(%s)", (device_name_env) ? device_name_env : pProperties->deviceName);
-   strcpy(pProperties->deviceName, device_name);
+   char name_tmp[VK_MAX_PHYSICAL_DEVICE_NAME_SIZE];
+   snprintf(name_tmp, sizeof(name_tmp), "Wrapper(%s)",
+            device_name_env ? device_name_env : pProperties->deviceName);
+   memcpy(pProperties->deviceName, name_tmp, sizeof(name_tmp));
 
    device_id = getenv("WRAPPER_DEVICE_ID") ? atoi(getenv("WRAPPER_DEVICE_ID")) : 0;
    vendor_id = getenv("WRAPPER_VENDOR_ID") ? atoi(getenv("WRAPPER_VENDOR_ID")) : 0;
@@ -663,8 +672,10 @@ wrapper_GetPhysicalDeviceProperties2(VkPhysicalDevice physicalDevice,
    bool is_d3d = eng && (strstr(eng, "DXVK") || strstr(eng, "vkd3d"));
 
    char *device_name_env = getenv("WRAPPER_DEVICE_NAME");
-   asprintf(&device_name, "Wrapper(%s)", (device_name_env) ? device_name_env : pProperties->properties.deviceName);   
-   strcpy(pProperties->properties.deviceName, device_name);
+   char name_tmp[VK_MAX_PHYSICAL_DEVICE_NAME_SIZE];
+   snprintf(name_tmp, sizeof(name_tmp), "Wrapper(%s)",
+            device_name_env ? device_name_env : pProperties->properties.deviceName);
+   memcpy(pProperties->properties.deviceName, name_tmp, sizeof(name_tmp));
 
    device_id = getenv("WRAPPER_DEVICE_ID") ? atoi(getenv("WRAPPER_DEVICE_ID")) : 0;
    vendor_id = getenv("WRAPPER_VENDOR_ID") ? atoi(getenv("WRAPPER_VENDOR_ID")) : 0;
@@ -779,13 +790,11 @@ wrapper_GetPhysicalDeviceProperties2(VkPhysicalDevice physicalDevice,
          if (driver_id > 0)
          	vk12_prop->driverID = driver_id;
          
-         asprintf(&driver_info, "%d.%d.%d", 
+         snprintf(vk12_prop->driverInfo, VK_MAX_DRIVER_INFO_SIZE, "%d.%d.%d",
             VK_VERSION_MAJOR(pProperties->properties.driverVersion),
             VK_VERSION_MINOR(pProperties->properties.driverVersion),
             VK_VERSION_PATCH(pProperties->properties.driverVersion));
-         
-         strcpy(vk12_prop->driverInfo, driver_info);
-         strcpy(vk12_prop->driverName, "Wrapper driver");
+         snprintf(vk12_prop->driverName, VK_MAX_DRIVER_NAME_SIZE, "Wrapper driver");
 
          /* Vulkan12Properties folds in the descriptor-indexing limits. */
          if (is_d3d)
