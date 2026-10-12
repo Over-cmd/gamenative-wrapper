@@ -2879,8 +2879,27 @@ wrapper_CmdBlitImage2(
 
    if (device->dispatch_table.CmdBlitImage2) {
       device->dispatch_table.CmdBlitImage2(wcb->dispatch_handle, pBlitImageInfo);
+   } else if (device->dispatch_table.CmdBlitImage2KHR) {
+      device->dispatch_table.CmdBlitImage2KHR(wcb->dispatch_handle, pBlitImageInfo);
+   } else {
+      VkImageBlit *regions = malloc(sizeof(VkImageBlit) * pBlitImageInfo->regionCount);
+      if (regions) {
+         for (uint32_t i = 0; i < pBlitImageInfo->regionCount; i++) {
+            const VkImageBlit2 *r = &pBlitImageInfo->pRegions[i];
+            regions[i].srcSubresource = r->srcSubresource;
+            regions[i].srcOffsets[0] = r->srcOffsets[0];
+            regions[i].srcOffsets[1] = r->srcOffsets[1];
+            regions[i].dstSubresource = r->dstSubresource;
+            regions[i].dstOffsets[0] = r->dstOffsets[0];
+            regions[i].dstOffsets[1] = r->dstOffsets[1];
+         }
+         device->dispatch_table.CmdBlitImage(wcb->dispatch_handle,
+            pBlitImageInfo->srcImage, pBlitImageInfo->srcImageLayout,
+            pBlitImageInfo->dstImage, pBlitImageInfo->dstImageLayout,
+            pBlitImageInfo->regionCount, regions, pBlitImageInfo->filter);
+         free(regions);
+      }
    }
-}
 
 VKAPI_ATTR void VKAPI_CALL
 wrapper_FreeCommandBuffers(VkDevice _device,
