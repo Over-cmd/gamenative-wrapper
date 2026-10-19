@@ -82,7 +82,6 @@ struct wsi_surface_supported_counters {
    const void *pNext;
 
    VkSurfaceCounterFlagsEXT supported_surface_counters;
-
 };
 
 /* To be chained into VkSubmitInfo */
@@ -222,9 +221,6 @@ struct wsi_device {
     *
     * This can be used to prune BO lists without too many adverse affects on
     * implicit sync.
-    *
-    * Side note: care needs to be taken for internally delayed submissions wrt
-    * timeline semaphores.
     */
    void (*set_memory_ownership)(VkDevice device,
                                 VkDeviceMemory memory,
