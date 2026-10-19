@@ -916,6 +916,47 @@ wrapper_buffer_destroy(struct wrapper_device *device,
    vk_object_free(&device->vk, &device->vk.alloc, wb);
 }
 
+/* Libera una lista de buffers de transcodificacion BCn. El llamador NO debe
+ * tener resource_mutex cogido (wrapper_buffer_destroy lo coge). */
+static void
+wrapper_free_staging_list(struct wrapper_device *device, struct list_head *pending)
+{
+   list_for_each_entry_safe(struct wrapper_buffer, wb, pending, link) {
+      VkDeviceMemory memory = wb->memory;
+      if (wb->desc_pool)
+         device->dispatch_table.DestroyDescriptorPool(device->dispatch_handle,
+            wb->desc_pool, NULL);
+      if (wb->bcn_inflight) {
+         simple_mtx_lock(&device->bcn_gpu_mutex);
+         device->bcn_gpu_inflight -= wb->bcn_inflight;
+         simple_mtx_unlock(&device->bcn_gpu_mutex);
+      }
+      wrapper_buffer_destroy(device, wb, NULL);
+      device->dispatch_table.FreeMemory(device->dispatch_handle, memory, NULL);
+   }
+}
+
+/* Mueve los buffers de transcodificacion de un command buffer a `pending`. */
+static void
+wrapper_cb_take_staging(struct wrapper_command_buffer *wcb, struct list_head *pending)
+{
+   if (wcb && !list_is_empty(&wcb->staging_buffers_list)) {
+      list_splicetail(&wcb->staging_buffers_list, pending);
+      list_inithead(&wcb->staging_buffers_list);
+   }
+}
+
+/* Libera los buffers pendientes de un command buffer que ya no esta en
+ * ejecucion (Begin/Reset: Vulkan no permite hacerlo con el CB pendiente). */
+static void
+wrapper_cb_release_staging(struct wrapper_command_buffer *wcb)
+{
+   struct list_head pending;
+   list_inithead(&pending);
+   wrapper_cb_take_staging(wcb, &pending);
+   wrapper_free_staging_list(wcb->device, &pending);
+}
+
 VKAPI_ATTR VkResult VKAPI_CALL
 wrapper_CreateBuffer(VkDevice _device,
 					 const VkBufferCreateInfo *pCreateInfo,
@@ -1779,6 +1820,7 @@ wrapper_BeginCommandBuffer(VkCommandBuffer commandBuffer,
                           const VkCommandBufferBeginInfo *pBeginInfo)
 {
    VK_FROM_HANDLE(wrapper_command_buffer, wcb, commandBuffer);
+   wrapper_cb_release_staging(wcb);
    if (wcb->device->emulate_push_descriptor)
       wrapper_push_pool_reset_all(wcb);
    return wcb->device->dispatch_table.BeginCommandBuffer(wcb->dispatch_handle,
@@ -1790,6 +1832,7 @@ wrapper_ResetCommandBuffer(VkCommandBuffer commandBuffer,
                           VkCommandBufferResetFlags flags)
 {
    VK_FROM_HANDLE(wrapper_command_buffer, wcb, commandBuffer);
+   wrapper_cb_release_staging(wcb);
    if (wcb->device->emulate_push_descriptor)
       wrapper_push_pool_reset_all(wcb);
    return wcb->device->dispatch_table.ResetCommandBuffer(wcb->dispatch_handle,
@@ -1801,14 +1844,23 @@ wrapper_ResetCommandPool(VkDevice _device, VkCommandPool commandPool,
                         VkCommandPoolResetFlags flags)
 {
    VK_FROM_HANDLE(wrapper_device, device, _device);
-   if (device->emulate_push_descriptor) {
-      simple_mtx_lock(&device->resource_mutex);
-      list_for_each_entry(struct wrapper_command_buffer, wcb,
-                          &device->command_buffer_list, link)
-         if (wcb->pool == commandPool)
-            wrapper_push_pool_reset_all(wcb);
-      simple_mtx_unlock(&device->resource_mutex);
+   struct list_head pending;
+   list_inithead(&pending);
+
+   simple_mtx_lock(&device->resource_mutex);
+   list_for_each_entry(struct wrapper_command_buffer, wcb,
+                       &device->command_buffer_list, link) {
+      if (wcb->pool != commandPool)
+         continue;
+      if (device->emulate_push_descriptor)
+         wrapper_push_pool_reset_all(wcb);
+      wrapper_cb_take_staging(wcb, &pending);
    }
+   simple_mtx_unlock(&device->resource_mutex);
+
+   /* wrapper_buffer_destroy coge resource_mutex: hay que soltarlo antes. */
+   wrapper_free_staging_list(device, &pending);
+
    return device->dispatch_table.ResetCommandPool(device->dispatch_handle,
                                                   commandPool, flags);
 }
@@ -1916,6 +1968,12 @@ wrapper_QueueSubmit(VkQueue _queue, uint32_t submitCount,
          VK_FROM_HANDLE(wrapper_command_buffer, wcb,
                         submit_info->pCommandBuffers[j]);
          wcb->fence = wf;
+         if (wf && !list_is_empty(&wcb->staging_buffers_list)) {
+            simple_mtx_lock(&queue->device->resource_mutex);
+            list_splicetail(&wcb->staging_buffers_list, &wf->staging_buffers_list);
+            list_inithead(&wcb->staging_buffers_list);
+            simple_mtx_unlock(&queue->device->resource_mutex);
+         }
          command_buffers[j] = wcb->dispatch_handle;
          
       }
@@ -1956,6 +2014,12 @@ wrapper_QueueSubmit2(VkQueue _queue, uint32_t submitCount,
          VK_FROM_HANDLE(wrapper_command_buffer, wcb,
                         submit_info->pCommandBufferInfos[j].commandBuffer);
          wcb->fence = wf;
+         if (wf && !list_is_empty(&wcb->staging_buffers_list)) {
+            simple_mtx_lock(&queue->device->resource_mutex);
+            list_splicetail(&wcb->staging_buffers_list, &wf->staging_buffers_list);
+            list_inithead(&wcb->staging_buffers_list);
+            simple_mtx_unlock(&queue->device->resource_mutex);
+         }
          command_buffers[j] = pSubmits[i].pCommandBufferInfos[j];
          command_buffers[j].commandBuffer = wcb->dispatch_handle;
       }
@@ -1991,19 +2055,7 @@ wrapper_release_staging(struct wrapper_device *device, struct wrapper_fence *wf)
    }
    simple_mtx_unlock(&device->resource_mutex);
 
-   list_for_each_entry_safe(struct wrapper_buffer, wb, &pending, link) {
-      VkDeviceMemory memory = wb->memory;
-      if (wb->desc_pool)
-         device->dispatch_table.DestroyDescriptorPool(device->dispatch_handle,
-            wb->desc_pool, NULL);
-      if (wb->bcn_inflight) {
-         simple_mtx_lock(&device->bcn_gpu_mutex);
-         device->bcn_gpu_inflight -= wb->bcn_inflight;
-         simple_mtx_unlock(&device->bcn_gpu_mutex);
-      }
-      wrapper_buffer_destroy(device, wb, NULL);
-      device->dispatch_table.FreeMemory(device->dispatch_handle, memory, NULL);
-   }
+   wrapper_free_staging_list(device, &pending);
 }
 
 static void 
@@ -2196,6 +2248,7 @@ wrapper_command_buffer_create(struct wrapper_device *device,
    wcb->device = device;
    wcb->pool = pool;
    wcb->dispatch_handle = dispatch_handle;
+   list_inithead(&wcb->staging_buffers_list);
    list_add(&wcb->link, &device->command_buffer_list);
 
    *pCommandBuffers = wrapper_command_buffer_to_handle(wcb);
@@ -2572,10 +2625,10 @@ wrapper_bcn_gpu_copy(struct wrapper_command_buffer *wcb,
       srcb->wcb = wcb;
       dstb->wcb = wcb;
       dstb->desc_pool = pool;
-      if (wcb->fence) {
-         list_add(&srcb->link, &wcb->fence->staging_buffers_list);
-         list_add(&dstb->link, &wcb->fence->staging_buffers_list);
-      }
+      /* El fence aun no se conoce al grabar: se guardan en el command buffer y
+       * pasan al fence en vkQueueSubmit. */
+      list_add(&srcb->link, &wcb->staging_buffers_list);
+      list_add(&dstb->link, &wcb->staging_buffers_list);
    }
    return true;
 }
@@ -2729,8 +2782,7 @@ wrapper_bcn_do_copy(struct wrapper_command_buffer *wcb,
       staging_wb->wcb = wcb;
       staging_wb->device = device;
 
-      if (wcb->fence)
-         list_add(&staging_wb->link, &wcb->fence->staging_buffers_list);
+      list_add(&staging_wb->link, &wcb->staging_buffers_list);
    }
 
    if (wb->is_mapped) {
@@ -2922,15 +2974,20 @@ wrapper_FreeCommandBuffers(VkDevice _device,
                            const VkCommandBuffer* pCommandBuffers)
 {
    VK_FROM_HANDLE(wrapper_device, device, _device);
+   struct list_head pending;
+   list_inithead(&pending);
 
    simple_mtx_lock(&device->resource_mutex);
 
    for (int i = 0; i < commandBufferCount; i++) {
       VK_FROM_HANDLE(wrapper_command_buffer, wcb, pCommandBuffers[i]);
+      wrapper_cb_take_staging(wcb, &pending);
       wrapper_command_buffer_destroy(device, wcb);
    }
 
    simple_mtx_unlock(&device->resource_mutex);
+
+   wrapper_free_staging_list(device, &pending);
 }
 
 VKAPI_ATTR void VKAPI_CALL
@@ -2938,17 +2995,22 @@ wrapper_DestroyCommandPool(VkDevice _device, VkCommandPool commandPool,
                            const VkAllocationCallbacks* pAllocator)
 {
    VK_FROM_HANDLE(wrapper_device, device, _device);
+   struct list_head pending;
+   list_inithead(&pending);
 
    simple_mtx_lock(&device->resource_mutex);
 
    list_for_each_entry_safe(struct wrapper_command_buffer, wcb,
                             &device->command_buffer_list, link) {
       if (wcb->pool == commandPool) {
+         wrapper_cb_take_staging(wcb, &pending);
          wrapper_command_buffer_destroy(device, wcb);
       }
    }
 
    simple_mtx_unlock(&device->resource_mutex);
+
+   wrapper_free_staging_list(device, &pending);
 
    device->dispatch_table.DestroyCommandPool(device->dispatch_handle,
                                              commandPool, pAllocator);
@@ -2958,11 +3020,14 @@ VKAPI_ATTR void VKAPI_CALL
 wrapper_DestroyDevice(VkDevice _device, const VkAllocationCallbacks* pAllocator)
 {
    VK_FROM_HANDLE(wrapper_device, device, _device);
+   struct list_head pending_staging;
+   list_inithead(&pending_staging);
 
    simple_mtx_lock(&device->resource_mutex);
 
    list_for_each_entry_safe(struct wrapper_command_buffer, wcb,
                             &device->command_buffer_list, link) {
+      wrapper_cb_take_staging(wcb, &pending_staging);
       wrapper_command_buffer_destroy(device, wcb);
    }
    list_for_each_entry_safe(struct wrapper_device_memory, mem,
@@ -2972,6 +3037,8 @@ wrapper_DestroyDevice(VkDevice _device, const VkAllocationCallbacks* pAllocator)
    
    simple_mtx_unlock(&device->resource_mutex);
    
+   wrapper_free_staging_list(device, &pending_staging);
+
    list_for_each_entry_safe(struct wrapper_buffer, wb,
                             &device->buffer_list, link) {
       wrapper_buffer_destroy(device, wb, pAllocator);
