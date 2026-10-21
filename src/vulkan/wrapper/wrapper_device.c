@@ -2076,7 +2076,8 @@ wrapper_bcn_gpu_copy(struct wrapper_command_buffer *wcb,
    int astc8 = is_astc_8x8(get_format_for_bcn(format)) ? 1 : 0;
    static VkDeviceSize CAP = 0;
    if (CAP == 0) {
-      int mb = getenv("WRAPPER_BCN_GPU_CAP_MB") ? atoi(getenv("WRAPPER_BCN_GPU_CAP_MB")) : 128;
+      /* 🟢 OPTIMIZACIÓN 8GB RAM: Establecido por defecto a 512MB para evitar purgas y stuttering */
+      int mb = getenv("WRAPPER_BCN_GPU_CAP_MB") ? atoi(getenv("WRAPPER_BCN_GPU_CAP_MB")) : 512;
       if (mb < 16) mb = 16;
       CAP = (VkDeviceSize)mb * 1024 * 1024;
    }
