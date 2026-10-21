@@ -33,6 +33,10 @@ namespace OpType {
 	static const uint32_t OpTypeVector = 23;
 }
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 void
 remove_ClipDistance(uint32_t *pCode, size_t *codeSize)
 {
@@ -43,7 +47,6 @@ remove_ClipDistance(uint32_t *pCode, size_t *codeSize)
 
    while (offset < code.size()) {
       uint32_t instruction = code[offset];
-      // CORREGIDO: En SPIR-V, el Word Count está en los 16 bits inferiores y el Opcode en los superiores
       uint32_t length = instruction & 0xffffu;
       uint32_t opcode = instruction >> 16;
 
@@ -79,17 +82,16 @@ remove_ClipDistance(uint32_t *pCode, size_t *codeSize)
 }
 
 void 
-patch_OpConstantComposite_to_OpSpecConstantComposite(uint32_t *pCode, uint32_t codeSize)
+patch_OpConstantComposite_to_OpSpecConstantComposite(uint32_t *pCode, size_t codeSize)
 {
    std::unordered_set<uint32_t> bool_constants;
    std::unordered_map<uint32_t, uint32_t> vector_bool_constants;
    std::unordered_set<uint32_t> spec_constants;
    uint32_t offset = 5;
-   uint32_t totalWords = codeSize / sizeof(uint32_t); // CORREGIDO: Convertir bytes a palabras
+   size_t totalWords = codeSize / sizeof(uint32_t); // Corregido a size_t para coincidir con el header
 
    while (offset < totalWords) {
       uint32_t instruction = pCode[offset];
-      // CORREGIDO: Extracción correcta de longitud y opcode según el estándar SPIR-V
       uint32_t length = instruction & 0xffffu;
       uint32_t opcode = instruction >> 16;
 
@@ -129,3 +131,7 @@ patch_OpConstantComposite_to_OpSpecConstantComposite(uint32_t *pCode, uint32_t c
       offset += length;
    }
 }
+
+#ifdef __cplusplus
+}
+#endif
