@@ -14,8 +14,8 @@
 extern "C" {
 #endif
 
-/* Prototipos de funciones del parcheador de SPIR-V expuestos hacia C */
-bool patch_spirv_shader(uint32_t *code, size_t size, uint32_t *out_size);
+void patch_OpConstantComposite_to_OpSpecConstantComposite(uint32_t *code, size_t size);
+void remove_ClipDistance(uint32_t *code, size_t *size);
 
 #ifdef __cplusplus
 }
