@@ -2524,17 +2524,17 @@ wrapper_DestroyDevice(VkDevice _device, const VkAllocationCallbacks* pAllocator)
          dispatch_handle, pAllocator);
    }
    if (device->emulate_push_descriptor) {
-      HASH_TABLE_FOREACH(device->push_dsl_table, entry, {
+      hash_table_foreach(device->push_dsl_table->table, entry) {
          free(entry->data);
-      })
-      HASH_TABLE_FOREACH(device->push_pl_table, entry, {
+      }
+      hash_table_foreach(device->push_pl_table->table, entry) {
          struct wrapper_push_pl *r = entry->data;
          free(r->set_layouts);
          free(r);
-      })
-      HASH_TABLE_FOREACH(device->push_template_table, entry, {
+      }
+      hash_table_foreach(device->push_template_table->table, entry) {
          free(entry->data);
-      })
+      }
       _mesa_hash_table_u64_destroy(device->push_dsl_table);
       _mesa_hash_table_u64_destroy(device->push_pl_table);
       _mesa_hash_table_u64_destroy(device->push_template_table);
