@@ -1,29 +1,24 @@
-#ifndef __SPIRV_PATCHER_HPP
-#define __SPIRV_PATCHER_HPP
+#ifndef SPIRV_PATCHER_HPP
+#define SPIRV_PATCHER_HPP
 
-#pragma once
-
+#ifdef __cplusplus
 #include <cstdint>
 #include <cstddef>
+#else
+#include <stdint.h>
+#include <stddef.h>
+#include <stdbool.h>
+#endif
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#if defined(__GNUC__) && __GNUC__ >= 4
-  __attribute__((visibility("default")))
-#endif
-void
-remove_ClipDistance(uint32_t *pCode, size_t *codeSize);
-
-#if defined(__GNUC__) && __GNUC__ >= 4
-  __attribute__((visibility("default")))
-#endif
-void
-patch_OpConstantComposite_to_OpSpecConstantComposite(uint32_t *pCode, uint32_t codeSize);
+/* Prototipos de funciones del parcheador de SPIR-V expuestos hacia C */
+bool patch_spirv_shader(uint32_t *code, size_t size, uint32_t *out_size);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* __SPIRV_PATCHER_HPP */
+#endif /* SPIRV_PATCHER_HPP */
