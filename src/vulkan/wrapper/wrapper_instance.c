@@ -278,7 +278,8 @@ wrapper_CreateInstance(const VkInstanceCreateInfo *pCreateInfo,
    instance->vk.physical_devices.enumerate = enumerate_physical_device;
    instance->vk.physical_devices.destroy = destroy_physical_device;
 
-   for (int idx = 0; idx < pCreateInfo->enabledExtensionCount; idx++) {
+   // 🟢 CORRECCIÓN MESA 25: Iterar correctamente por el tamaño total de la tabla de extensiones de instancia
+   for (int idx = 0; idx < VK_INSTANCE_EXTENSION_COUNT; idx++) {
       if (wrapper_instance_extensions.extensions[idx])
          continue;
 
