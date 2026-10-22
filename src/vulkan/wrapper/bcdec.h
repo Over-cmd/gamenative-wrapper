@@ -250,7 +250,7 @@ static void bcdec__bc4_block(const void* compressedBlock, void* decompressedBloc
 
     indices = block >> 16;
     if (isSigned) {
-        sblock = (char*)decompressedBlock;
+        sblock = (signed char*)decompressedBlock;
         for (i = 0; i < 4; ++i) {
             for (j = 0; j < 4; ++j) {
                 sblock[j * pixelSize] = (char)alpha[indices & 0x07];
@@ -444,7 +444,7 @@ static int bcdec__unquantize(int val, int bits, int isSigned) {
     return unq;
 }
 
-static int bcdec__interpolate(int a, int b, int* weights, int index) {
+static int bcdec__interpolate(int a, int b, const int* weights, int index) {
     return (a * (64 - weights[index]) + b * weights[index] + 32) >> 6;
 }
 
@@ -540,6 +540,7 @@ BCDECDEF void bcdec_bc6h_half(const void* compressedBlock, void* decompressedBlo
     int mode, partition, numPartitions, i, j, partitionSet, indexBits, index, ep_i, actualBits0Mode;
     int r[4], g[4], b[4];
     unsigned short* decompressed;
+    const int *weights;
 
     decompressed = (unsigned short*)decompressedBlock;
 
@@ -1109,7 +1110,7 @@ BCDECDEF void bcdec_bc7(const void* compressedBlock, void* decompressedBlock, in
     int endpoints[6][4];
     char indices[4][4];
     int r, g, b, a;
-    int* weights, * weights2;
+    const int *weights, *weights2;
     unsigned char* decompressed;
 
     decompressed = (unsigned char*)decompressedBlock;
