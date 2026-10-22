@@ -2528,15 +2528,16 @@ wrapper_DestroyDevice(VkDevice _device, const VkAllocationCallbacks* pAllocator)
          dispatch_handle, pAllocator);
    }
    if (device->emulate_push_descriptor) {
-      hash_table_foreach(device->push_dsl_table, entry) {
+      // 🟢 CORRECCIÓN MESA 25: Uso de hash_table_u64_foreach para tablas u64
+      hash_table_u64_foreach(device->push_dsl_table, entry) {
          free(entry->data);
       }
-      hash_table_foreach(device->push_pl_table, entry) {
+      hash_table_u64_foreach(device->push_pl_table, entry) {
          struct wrapper_push_pl *r = entry->data;
          free(r->set_layouts);
          free(r);
       }
-      hash_table_foreach(device->push_template_table, entry) {
+      hash_table_u64_foreach(device->push_template_table, entry) {
          free(entry->data);
       }
       _mesa_hash_table_u64_destroy(device->push_dsl_table);
