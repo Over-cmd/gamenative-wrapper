@@ -419,12 +419,12 @@ void encode_rgba_8x8() {
    int s1=int(astc_ce_unq[q[1]])+int(astc_ce_unq[q[3]])+int(astc_ce_unq[q[5]]);
    int swap=(s1<s0)?1:0;
    if(swap!=0)for(int k=0;k<8;k+=2){int tmp=q[k];q[k]=q[k+1];q[k+1]=tmp;}
->   write_trit_ep(q);
+   
+   write_trit_ep(q);
    set_bits(62,2,3u);
    int dir[3],dlen2=0;for(uint c=0u;c<3u;c++){dir[c]=e1[c]-e0[c];dlen2+=dir[c]*dir[c];}
    int arange=amax-amin;
    for(int g=0;g<16;g++){
-      // Corrección de sintaxis de precisión para compatibilidad con Mesa/Mali
       mediump float a0 = 0.0;
       mediump float a1 = 0.0;
       for(int t=0;t<64;t++){
