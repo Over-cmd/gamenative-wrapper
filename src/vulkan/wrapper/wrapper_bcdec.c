@@ -118,6 +118,7 @@ get_block_size(VkFormat format)
 static void *
 decompression_routine(void *args)
 {
+   if (!args) return NULL;
    struct decompression_params *params = (struct decompression_params *)args;
 
    char *dst_base = params->dst;
@@ -327,6 +328,7 @@ get_texel_size_for_format(VkFormat format)
 int
 is_emulated_bcn(struct wrapper_physical_device *pdev, VkFormat format)
 {
+   if (!pdev) return 0;
    switch(format) {
       case VK_FORMAT_BC1_RGB_UNORM_BLOCK:
       case VK_FORMAT_BC1_RGB_SRGB_BLOCK:
@@ -374,7 +376,10 @@ decompress_bcn_format(void *srcBuffer,
 					  VkFormat format,
 					  int offset)
 {
-   static int wrapper_mark_bcn =  -1;
+   if (!srcBuffer || !dstBuffer || w <= 0 || h <= 0)
+      return;
+
+   static int wrapper_mark_bcn = -1;
    static int wrapper_no_bcn_thread = -1;
    static int wrapper_use_bcn_cache = -1;
    static char *wrapper_cache_path = NULL;
@@ -406,7 +411,6 @@ decompress_bcn_format(void *srcBuffer,
    size_t uncompressed_size = astc8 ? (size_t)(block_x8 * block_y8 * 16)
                                    : (astc ? (size_t)(block_x * block_y * 16) : (size_t)(w * h * texel_size));
    
-   /* CORREGIDO: Aritmética segura de punteros con void* */
    char *src = (char *)srcBuffer + offset;
    char *dst = (char *)dstBuffer;
 
@@ -478,7 +482,7 @@ decompress_bcn_format(void *srcBuffer,
       asprintf(&cache_filename, "%s/%s_%llu.cache", wrapper_cache_path,
          get_executable_name(), (unsigned long long)hash);
 
-      if (access(cache_filename, F_OK) == 0) {
+      if (cache_filename && access(cache_filename, F_OK) == 0) {
          FILE *fp = fopen(cache_filename, "rb");
          if (fp) {
             size_t length = fread(dst, 1, uncompressed_size, fp);
@@ -496,9 +500,18 @@ decompress_bcn_format(void *srcBuffer,
    if (astc8) {
       int core_count = (int)sysconf(_SC_NPROCESSORS_CONF);
       int num_threads = (block_y8 >= core_count) ? core_count : (block_y8 >= 4 ? 4 : 1);
+      if (num_threads < 1) num_threads = 1;
       int rows_per = block_y8 / num_threads, rem = block_y8 % num_threads;
       pthread_t *threads = (pthread_t *)malloc(sizeof(pthread_t) * (size_t)num_threads);
       struct decompression_params *args = (struct decompression_params *)malloc(sizeof(struct decompression_params) * (size_t)num_threads);
+      
+      if (!threads || !args) {
+         free(threads);
+         free(args);
+         free(cache_filename);
+         return;
+      }
+
       int cur = 0;
       for (int i = 0; i < num_threads; i++) {
          int rows = rows_per + ((i < rem) ? 1 : 0);
@@ -549,11 +562,21 @@ decompress_bcn_format(void *srcBuffer,
       else
          num_threads = 1;
       
+      if (num_threads < 1) num_threads = 1;
+
       int rows_per_thread = block_y / num_threads;
       int rem = block_y % num_threads;
 
       pthread_t *threads = (pthread_t *)malloc(sizeof(pthread_t) * (size_t)num_threads);
       struct decompression_params *args = (struct decompression_params *)malloc(sizeof(struct decompression_params) * (size_t)num_threads);
+      
+      if (!threads || !args) {
+         free(threads);
+         free(args);
+         free(cache_filename);
+         return;
+      }
+
       int current_row = 0;
 
       WRAPPER_LOG(bcn, "Decompressing %dx%d BCN %d texture using %d threads",
