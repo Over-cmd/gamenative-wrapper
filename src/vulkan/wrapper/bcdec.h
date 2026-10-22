@@ -524,7 +524,7 @@ BCDECDEF void bcdec_bc6h_half(const void* compressedBlock, void* decompressedBlo
         { {128, 0,   0, 0}, {0, 0, 0, 0}, {129, 0, 0, 0}, {1, 1, 0,   0} },
         { {128, 1,   1, 1}, {0, 0, 1, 1}, {  0, 0, 1, 1}, {0, 0, 0, 129} },
         { {128, 0, 129, 1}, {0, 0, 0, 1}, {  0, 0, 0, 1}, {0, 0, 0,   0} },
-        { {128, 0,   0, 0}, {1, 0, 0, 0}, {129, 0, 0, 0}, {1, 1, 0, 129} }, /* Fixed partition 25 fix-up */
+        { {128, 0,   0, 0}, {1, 0, 0, 0}, {129, 0, 0, 0}, {1, 1, 0, 129} },
         { {128, 1, 129, 0}, {0, 1, 1, 0}, {  0, 1, 1, 0}, {0, 1, 1,   0} },
         { {128, 0, 129, 1}, {0, 1, 1, 0}, {  0, 1, 1, 0}, {1, 1, 0,   0} },
         { {128, 0,   0, 1}, {0, 1, 1, 1}, {129, 1, 1, 0}, {1, 0, 0,   0} },
@@ -540,7 +540,6 @@ BCDECDEF void bcdec_bc6h_half(const void* compressedBlock, void* decompressedBlo
     int mode, partition, numPartitions, i, j, partitionSet, indexBits, index, ep_i, actualBits0Mode;
     int r[4], g[4], b[4];
     unsigned short* decompressed;
-    int* weights;
 
     decompressed = (unsigned short*)decompressedBlock;
 
@@ -559,7 +558,7 @@ BCDECDEF void bcdec_bc6h_half(const void* compressedBlock, void* decompressedBlo
     partition = 0;
 
     switch (mode) {
-        case 0b00: {
+        case 0: {
             g[2] |= bcdec__bitstream_read_bit(&bstream) << 4;
             b[2] |= bcdec__bitstream_read_bit(&bstream) << 4;
             b[3] |= bcdec__bitstream_read_bit(&bstream) << 4;
@@ -583,7 +582,7 @@ BCDECDEF void bcdec_bc6h_half(const void* compressedBlock, void* decompressedBlo
             mode = 0;
         } break;
 
-        case 0b01: {
+        case 1: {
             g[2] |= bcdec__bitstream_read_bit(&bstream) << 5;
             g[3] |= bcdec__bitstream_read_bit(&bstream) << 4;
             g[3] |= bcdec__bitstream_read_bit(&bstream) << 5;
@@ -611,7 +610,7 @@ BCDECDEF void bcdec_bc6h_half(const void* compressedBlock, void* decompressedBlo
             mode = 1;
         } break;
 
-        case 0b00010: {
+        case 2: {
             r[0] |= bcdec__bitstream_read_bits(&bstream, 10);
             g[0] |= bcdec__bitstream_read_bits(&bstream, 10);
             b[0] |= bcdec__bitstream_read_bits(&bstream, 10);
@@ -634,7 +633,7 @@ BCDECDEF void bcdec_bc6h_half(const void* compressedBlock, void* decompressedBlo
             mode = 2;
         } break;
 
-        case 0b00110: {
+        case 6: {
             r[0] |= bcdec__bitstream_read_bits(&bstream, 10);
             g[0] |= bcdec__bitstream_read_bits(&bstream, 10);
             b[0] |= bcdec__bitstream_read_bits(&bstream, 10);
@@ -659,7 +658,7 @@ BCDECDEF void bcdec_bc6h_half(const void* compressedBlock, void* decompressedBlo
             mode = 3;
         } break;
 
-        case 0b01010: {
+        case 10: {
             r[0] |= bcdec__bitstream_read_bits(&bstream, 10);
             g[0] |= bcdec__bitstream_read_bits(&bstream, 10);
             b[0] |= bcdec__bitstream_read_bits(&bstream, 10);
@@ -684,7 +683,7 @@ BCDECDEF void bcdec_bc6h_half(const void* compressedBlock, void* decompressedBlo
             mode = 4;
         } break;
 
-        case 0b01110: {
+        case 14: {
             r[0] |= bcdec__bitstream_read_bits(&bstream, 9);
             b[2] |= bcdec__bitstream_read_bit(&bstream) << 4;
             g[0] |= bcdec__bitstream_read_bits(&bstream, 9);
@@ -708,7 +707,7 @@ BCDECDEF void bcdec_bc6h_half(const void* compressedBlock, void* decompressedBlo
             mode = 5;
         } break;
 
-        case 0b10010: {
+        case 18: {
             r[0] |= bcdec__bitstream_read_bits(&bstream, 8);
             g[3] |= bcdec__bitstream_read_bit(&bstream) << 4;
             b[2] |= bcdec__bitstream_read_bit(&bstream) << 4;
@@ -732,7 +731,7 @@ BCDECDEF void bcdec_bc6h_half(const void* compressedBlock, void* decompressedBlo
             mode = 6;
         } break;
 
-        case 0b10110: {
+        case 22: {
             r[0] |= bcdec__bitstream_read_bits(&bstream, 8);
             b[3] |= bcdec__bitstream_read_bit(&bstream);
             b[2] |= bcdec__bitstream_read_bit(&bstream) << 4;
@@ -746,7 +745,7 @@ BCDECDEF void bcdec_bc6h_half(const void* compressedBlock, void* decompressedBlo
             g[3] |= bcdec__bitstream_read_bit(&bstream) << 4;
             g[2] |= bcdec__bitstream_read_bits(&bstream, 4);
             g[1] |= bcdec__bitstream_read_bits(&bstream, 6);
-            g[3] |= bcdec__bitstream_read_bits(&bstream, 4); /* Fixed comment typo */
+            g[3] |= bcdec__bitstream_read_bits(&bstream, 4);
             b[1] |= bcdec__bitstream_read_bits(&bstream, 5);
             b[3] |= bcdec__bitstream_read_bit(&bstream) << 1;
             b[2] |= bcdec__bitstream_read_bits(&bstream, 4);
@@ -758,7 +757,7 @@ BCDECDEF void bcdec_bc6h_half(const void* compressedBlock, void* decompressedBlo
             mode = 7;
         } break;
 
-        case 0b11010: {
+        case 26: {
             r[0] |= bcdec__bitstream_read_bits(&bstream, 8);
             b[3] |= bcdec__bitstream_read_bit(&bstream) << 1;
             b[2] |= bcdec__bitstream_read_bit(&bstream) << 4;
@@ -784,7 +783,7 @@ BCDECDEF void bcdec_bc6h_half(const void* compressedBlock, void* decompressedBlo
             mode = 8;
         } break;
 
-        case 0b11110: {
+        case 30: {
             r[0] |= bcdec__bitstream_read_bits(&bstream, 6);
             g[3] |= bcdec__bitstream_read_bit(&bstream) << 4;
             b[3] |= bcdec__bitstream_read_bit(&bstream);
@@ -812,7 +811,7 @@ BCDECDEF void bcdec_bc6h_half(const void* compressedBlock, void* decompressedBlo
             mode = 9;
         } break;
 
-        case 0b00011: {
+        case 3: {
             r[0] |= bcdec__bitstream_read_bits(&bstream, 10);
             g[0] |= bcdec__bitstream_read_bits(&bstream, 10);
             b[0] |= bcdec__bitstream_read_bits(&bstream, 10);
@@ -822,7 +821,7 @@ BCDECDEF void bcdec_bc6h_half(const void* compressedBlock, void* decompressedBlo
             mode = 10;
         } break;
 
-        case 0b00111: {
+        case 7: {
             r[0] |= bcdec__bitstream_read_bits(&bstream, 10);
             g[0] |= bcdec__bitstream_read_bits(&bstream, 10);
             b[0] |= bcdec__bitstream_read_bits(&bstream, 10);
@@ -835,7 +834,7 @@ BCDECDEF void bcdec_bc6h_half(const void* compressedBlock, void* decompressedBlo
             mode = 11;
         } break;
 
-        case 0b01011: {
+        case 11: {
             r[0] |= bcdec__bitstream_read_bits(&bstream, 10);
             g[0] |= bcdec__bitstream_read_bits(&bstream, 10);
             b[0] |= bcdec__bitstream_read_bits(&bstream, 10);
@@ -848,7 +847,7 @@ BCDECDEF void bcdec_bc6h_half(const void* compressedBlock, void* decompressedBlo
             mode = 12;
         } break;
 
-        case 0b01111: {
+        case 15: {
             r[0] |= bcdec__bitstream_read_bits(&bstream, 10);
             g[0] |= bcdec__bitstream_read_bits(&bstream, 10);
             b[0] |= bcdec__bitstream_read_bits(&bstream, 10);
@@ -1102,7 +1101,7 @@ BCDECDEF void bcdec_bc7(const void* compressedBlock, void* decompressedBlock, in
     static int aWeight3[] = { 0, 9, 18, 27, 37, 46, 55, 64 };
     static int aWeight4[] = { 0, 4, 9, 13, 17, 21, 26, 30, 34, 38, 43, 47, 51, 55, 60, 64 };
 
-    static unsigned char sModeHasPBits = 0b11001011;
+    static unsigned char sModeHasPBits = 0xCB; // 0b11001011 replacement for strict ISO C compatibility
 
     bcdec__bitstream_t bstream;
     int mode, partition, numPartitions, numEndpoints, i, j, k, rotation, partitionSet;
