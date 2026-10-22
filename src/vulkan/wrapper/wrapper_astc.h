@@ -1,5 +1,5 @@
 /*
- * Minimal ASTC 4x4 LDR encoder for transcoding BCn textures.
+ * Minimal ASTC 4x4 / 8x8 LDR encoder for transcoding BCn textures.
  *
  * Two per-block configurations, both matching the block layout parsed by
  * Mesa's _mesa_unpack_astc_2d_ldr decoder (validated offline by round-trip):
@@ -9,7 +9,7 @@
  *
  *   RGBA (has_alpha==1): DUAL plane so alpha gets its own interpolation weight
  *      (independent of RGB). CEM 12 (LDR RGBA direct), 4-level (2-bit) weights
- *      per plane, colour-component-selector = alpha. The 4x4 dual-plane bit
+ *      per plane, colour-component-selector = alpha. The dual-plane bit
  *      budget forces trit-encoded endpoints (range 47); the trit ISE tables and
  *      the endpoint unquantization table below were derived from Mesa's decoder.
  *      block mode 0x442.
@@ -81,6 +81,7 @@ static const uint8_t astc_ce_quant[256] = {
 static inline void
 astc_set_bits(uint8_t *blk, int pos, int count, uint32_t value)
 {
+   if (!blk || count <= 0) return;
    for (int i = 0; i < count; i++) {
       if (value & (1u << i))
          blk[(pos + i) >> 3] = (uint8_t)(blk[(pos + i) >> 3] | (1u << ((pos + i) & 7)));
@@ -91,6 +92,7 @@ static inline uint32_t
 astc_reverse_bits(uint32_t v, int count)
 {
    uint32_t out = 0;
+   if (count <= 0 || count > 32) return 0;
    for (int i = 0; i < count; i++)
       out |= ((v >> i) & 1u) << (count - 1 - i);
    return out;
@@ -118,7 +120,7 @@ astc_encode_rgb_4x4(const uint8_t texels[64], uint8_t out[16])
 {
    memset(out, 0, 16);
 
-   int ai, bi;
+   int ai = 0, bi = 0;
    astc_rgb_endpoints(texels, &ai, &bi);
    const uint8_t *pa = &texels[ai * 4];
    const uint8_t *pb = &texels[bi * 4];
@@ -195,7 +197,7 @@ astc_encode_rgba_4x4(const uint8_t texels[64], uint8_t out[16])
    astc_set_bits(out, 0, 11, 0x442);
    astc_set_bits(out, 13, 4, 12);
 
-   int ai, bi;
+   int ai = 0, bi = 0;
    astc_rgb_endpoints(texels, &ai, &bi);
    const uint8_t *pa = &texels[ai * 4];
    const uint8_t *pb = &texels[bi * 4];
@@ -270,6 +272,7 @@ astc_encode_block_4x4(const uint8_t texels[64], int has_alpha, uint8_t out[16])
       astc_encode_rgb_4x4(texels, out);
 }
 
+/* Matriz estática inline para evitar duplicidad de símbolos globales al incluir la cabecera */
 static const int16_t astc_pinv8[16][64] = {
   {166,75,-16,-25,-4,10,4,-3,75,33,-9,-10,-3,5,2,-2,-16,-9,-2,5,-1,-1,0,0,-25,-10,5,5,0,-2,-1,0,-4,-3,-1,0,1,0,0,0,10,5,-1,-2,0,0,0,0,4,2,0,-1,0,0,0,0,-3,-2,0,0,0,0,0,0},
   {-42,45,132,93,17,-39,-14,12,-20,21,62,39,10,-19,-6,6,3,-3,-8,-15,4,1,1,0,5,-8,-21,-16,-1,6,2,-1,1,-1,-3,-1,-2,1,0,0,-2,3,7,6,1,-2,-1,0,-1,1,2,2,0,-1,0,0,1,-1,-2,-2,-1,0,0,0},
@@ -311,7 +314,7 @@ static inline void
 astc_encode_rgb_8x8(const uint8_t texels[256], uint8_t out[16])
 {
    memset(out, 0, 16);
-   int ai, bi;
+   int ai = 0, bi = 0;
    astc_rgb_endpoints64(texels, &ai, &bi);
    const uint8_t *pa = &texels[ai * 4], *pb = &texels[bi * 4];
    int sa = pa[0] + pa[1] + pa[2], sb = pb[0] + pb[1] + pb[2];
@@ -329,7 +332,7 @@ astc_encode_rgb_8x8(const uint8_t texels[256], uint8_t out[16])
 
    double ideal[64];
    for (int t = 0; t < 64; t++) {
-      double w;
+      double w = 0;
       if (dlen2 == 0) w = 0;
       else {
          long dot = 0;
@@ -355,7 +358,7 @@ astc_encode_rgba_8x8(const uint8_t texels[256], uint8_t out[16])
    memset(out, 0, 16);
    astc_set_bits(out, 0, 11, 0x442);
    astc_set_bits(out, 13, 4, 12);
-   int ai, bi;
+   int ai = 0, bi = 0;
    astc_rgb_endpoints64(texels, &ai, &bi);
    const uint8_t *pa = &texels[ai * 4], *pb = &texels[bi * 4];
    int sa = pa[0] + pa[1] + pa[2], sb = pb[0] + pb[1] + pb[2];
@@ -384,7 +387,7 @@ astc_encode_rgba_8x8(const uint8_t texels[256], uint8_t out[16])
 
    double id0[64], id1[64];
    for (int t = 0; t < 64; t++) {
-      double w0;
+      double w0 = 0;
       if (dlen2 == 0) w0 = 0;
       else {
          long dot = 0;
@@ -393,7 +396,7 @@ astc_encode_rgba_8x8(const uint8_t texels[256], uint8_t out[16])
          if (f < 0) f = 0; if (f > 1) f = 1;
          w0 = f * 3.0;
       }
-      double w1;
+      double w1 = 0;
       if (arange == 0) w1 = 0;
       else {
          double f = (double)(texels[t * 4 + 3] - amin) / (double)arange;
