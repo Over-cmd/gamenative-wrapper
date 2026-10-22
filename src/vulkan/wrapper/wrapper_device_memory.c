@@ -701,6 +701,9 @@ wrapper_AllocateMemory(VkDevice _device,
       goto out;
    }
 
+   // 🟢 CORRECCIÓN MESA 25: Guardar correctamente el tamaño de asignación para los mapeos placed
+   mem->alloc_size = pAllocateInfo->allocationSize;
+
    VkExternalMemoryHandleTypeFlags valid_handle_types = 0;
    if (dedicated_allocate_info) {
       if (dedicated_allocate_info->image != VK_NULL_HANDLE) {
@@ -780,7 +783,7 @@ fallback:
       pAllocateInfo, pAllocator, pMemory);
 }
 
-VKAPI_ATTR void VKAPI_CALL
+VKAPI_ATTR VkResult VKAPI_CALL
 wrapper_FreeMemory(VkDevice _device, VkDeviceMemory _memory,
                    const VkAllocationCallbacks* pAllocator)
 {
