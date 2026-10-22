@@ -598,10 +598,9 @@ wrapper_mapped_ranges(VkDevice _device, uint32_t count,
                       const VkMappedMemoryRange *ranges, bool invalidate)
 {
    VK_FROM_HANDLE(wrapper_device, device, _device);
-   static unsigned calls[2], nranges[2], shown[2];
+   static unsigned calls[2], nranges[2];
    static unsigned long long bytes[2], cbytes[2];
    const int k = invalidate ? 1 : 0;
-   const char *name = invalidate ? "invalidate" : "flush";
    VkResult result = VK_SUCCESS;
 
    calls[k]++;
@@ -701,7 +700,6 @@ wrapper_AllocateMemory(VkDevice _device,
       goto out;
    }
 
-   // 🟢 CORRECCIÓN MESA 25: Guardar correctamente el tamaño de asignación para los mapeos placed
    mem->alloc_size = pAllocateInfo->allocationSize;
 
    VkExternalMemoryHandleTypeFlags valid_handle_types = 0;
@@ -783,7 +781,7 @@ fallback:
       pAllocateInfo, pAllocator, pMemory);
 }
 
-VKAPI_ATTR VkResult VKAPI_CALL
+VKAPI_ATTR void VKAPI_CALL
 wrapper_FreeMemory(VkDevice _device, VkDeviceMemory _memory,
                    const VkAllocationCallbacks* pAllocator)
 {
@@ -793,7 +791,8 @@ wrapper_FreeMemory(VkDevice _device, VkDeviceMemory _memory,
    mem = wrapper_device_memory_from_handle(device, _memory);
    if (mem) {
       mem->alloc = pAllocator;
-      return wrapper_device_memory_destroy(mem);
+      wrapper_device_memory_destroy(mem);
+      return;
    }
 
    device->dispatch_table.FreeMemory(device->dispatch_handle,
