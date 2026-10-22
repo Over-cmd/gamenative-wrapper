@@ -48,7 +48,7 @@ wrapper_debug_utils_messenger(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeve
 
 #define WRAPPER_LOG_LEVEL(s) (get_wrapper_log_level(#s))
 
-/* 🚀 RENDIMIENTO EXTREMO MALI: Vaciamos por completo la macro de logging.
+/* 🚀 RENDIMIENTO EXTREMO MALI: Macro de logging optimizada y vaciada.
    Al no evaluar los argumentos como expresiones, evitamos errores con identificadores 
    sueltos (como error, info) y liberamos totalmente a la CPU ARM de carga en disco. */
 #define WRAPPER_LOG(level, fmt, ...) do { } while (0)
