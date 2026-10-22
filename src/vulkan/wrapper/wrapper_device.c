@@ -2076,7 +2076,6 @@ wrapper_bcn_gpu_copy(struct wrapper_command_buffer *wcb,
    int astc8 = is_astc_8x8(get_format_for_bcn(format)) ? 1 : 0;
    static VkDeviceSize CAP = 0;
    if (CAP == 0) {
-      /* 🟢 OPTIMIZACIÓN 8GB RAM: Establecido por defecto a 512MB para evitar purgas y stuttering */
       int mb = getenv("WRAPPER_BCN_GPU_CAP_MB") ? atoi(getenv("WRAPPER_BCN_GPU_CAP_MB")) : 512;
       if (mb < 16) mb = 16;
       CAP = (VkDeviceSize)mb * 1024 * 1024;
@@ -2367,7 +2366,10 @@ wrapper_CmdCopyBufferToImage2(VkCommandBuffer commandBuffer,
       return;
    }
 
-   VkBufferImageCopy regions[pInfo->regionCount];
+   VkBufferImageCopy *regions = malloc(sizeof(VkBufferImageCopy) * pInfo->regionCount);
+   if (!regions)
+      return;
+
    for (uint32_t i = 0; i < pInfo->regionCount; i++) {
       const VkBufferImageCopy2 *r = &pInfo->pRegions[i];
       regions[i] = (VkBufferImageCopy){
@@ -2382,6 +2384,7 @@ wrapper_CmdCopyBufferToImage2(VkCommandBuffer commandBuffer,
 
    wrapper_bcn_do_copy(wcb, device, wb, pInfo->dstImage, pInfo->dstImageLayout,
       format, pInfo->regionCount, regions);
+   free(regions);
 }
 
 VKAPI_ATTR void VKAPI_CALL 
@@ -2525,15 +2528,15 @@ wrapper_DestroyDevice(VkDevice _device, const VkAllocationCallbacks* pAllocator)
          dispatch_handle, pAllocator);
    }
    if (device->emulate_push_descriptor) {
-      hash_table_foreach(device->push_dsl_table->table, entry) {
+      hash_table_foreach(device->push_dsl_table, entry) {
          free(entry->data);
       }
-      hash_table_foreach(device->push_pl_table->table, entry) {
+      hash_table_foreach(device->push_pl_table, entry) {
          struct wrapper_push_pl *r = entry->data;
          free(r->set_layouts);
          free(r);
       }
-      hash_table_foreach(device->push_template_table->table, entry) {
+      hash_table_foreach(device->push_template_table, entry) {
          free(entry->data);
       }
       _mesa_hash_table_u64_destroy(device->push_dsl_table);
