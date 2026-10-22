@@ -7,6 +7,8 @@
 #include <stdlib.h>
 #include <stdarg.h>
 
+#include <vulkan/vulkan.h>
+
 #include "wrapper_log.h"
 #include "wrapper_util.h"
 
@@ -116,21 +118,27 @@ void write_to_logfile(const char *fmt, const char *level, ...)  {
    va_start(va_args, level);
 
    if (!wrapper_log_file) {
-      char *wrapper_log_filename = getenv("WRAPPER_LOG_FILE");
+      const char *env_filename = getenv("WRAPPER_LOG_FILE");
       char date[256];
 
       get_formatted_date_time(date, sizeof(date));
       
-      if (!wrapper_log_filename)
+      if (env_filename) {
+         if (!strcmp("stdout", env_filename)) {
+            wrapper_log_file = stdout;
+         } else {
+            wrapper_log_file = fopen(env_filename, "w");
+         }
+      } else {
+         char *wrapper_log_filename = NULL;
          asprintf(&wrapper_log_filename, "%s/%s_%s", WRAPPER_LOG_PATH, get_executable_name(), date);
-         
-      if (wrapper_log_filename && !strcmp("stdout", wrapper_log_filename)) {
-         wrapper_log_file = stdout;
-      } else if (wrapper_log_filename) {
-         wrapper_log_file = fopen(wrapper_log_filename, "w");
+         if (wrapper_log_filename) {
+            wrapper_log_file = fopen(wrapper_log_filename, "w");
+            free(wrapper_log_filename);
+         }
       }
       
-      if (!wrapper_log_filename) {
+      if (!wrapper_log_file) {
          wrapper_log_file = stdout;
       }
    }
