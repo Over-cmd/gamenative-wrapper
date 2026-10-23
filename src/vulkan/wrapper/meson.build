@@ -52,7 +52,8 @@ wrapper_trampolines = custom_target(
   depend_files: vk_dispatch_trampolines_gen_depend_files,
 )
 
-wrapper_features_gen = files('vk_wrapper_features_gen.py')
+# 🚀 CORRECCIÓN MESA 25: Apuntando al generador oficial de características de Vulkan
+wrapper_features_gen = files('../../util/vk_physical_device_features_gen.py')
 
 wrapper_features = custom_target(
   'vk_wrapper_features',
@@ -97,7 +98,7 @@ wrapper_deps = [
   idep_vulkan_wsi,
   adrenotools_dep,
   dep_android,
-  dep_aaudio, # 🚀 COMPILACIÓN INDESTRUCTIBLE: Fuerza el linkeo de AAudio en libvulkan_wrapper.so
+  dep_aaudio, # 🚀 Enlace obligatorio de AAudio en libvulkan_wrapper.so
 ]
 
 libvulkan_wrapper = shared_library(
