@@ -39,52 +39,22 @@ wrapper_filter_enabled_extensions(const struct wrapper_device *device,
                                   uint32_t *enable_extension_count,
                                   const char **enable_extensions)
 {
-#define CHECK_FILTER_EXT(ext) \
-   if (device->vk.enabled_extensions.ext && \
-       device->physical->base_supported_extensions.ext && \
-       !wrapper_device_extensions.ext && \
-       !wrapper_filter_extensions.ext) { \
-      enable_extensions[(*enable_extension_count)++] = "VK_" #ext; \
-   }
+   for (int idx = 0; idx < VK_DEVICE_EXTENSION_COUNT; idx++) {
+      if (!device->vk.enabled_extensions.extensions[idx])
+         continue;
 
-   CHECK_FILTER_EXT(KHR_swapchain)
-   CHECK_FILTER_EXT(EXT_vertex_attribute_divisor)
-   CHECK_FILTER_EXT(KHR_vertex_attribute_divisor)
-   CHECK_FILTER_EXT(EXT_map_memory_placed)
-   CHECK_FILTER_EXT(KHR_map_memory2)
-   CHECK_FILTER_EXT(EXT_robustness2)
-   CHECK_FILTER_EXT(KHR_pipeline_library)
-   CHECK_FILTER_EXT(EXT_line_rasterization)
-   CHECK_FILTER_EXT(KHR_shader_float_controls)
-   CHECK_FILTER_EXT(EXT_calibrated_timestamps)
-   CHECK_FILTER_EXT(EXT_extended_dynamic_state)
-   CHECK_FILTER_EXT(EXT_extended_dynamic_state2)
-   CHECK_FILTER_EXT(EXT_dynamic_rendering_unused_attachments)
-   CHECK_FILTER_EXT(KHR_maintenance5)
-   CHECK_FILTER_EXT(KHR_push_descriptor)
-   CHECK_FILTER_EXT(EXT_vertex_input_dynamic_state)
-   CHECK_FILTER_EXT(KHR_sampler_ycbcr_conversion)
-   CHECK_FILTER_EXT(KHR_shader_draw_parameters)
-   CHECK_FILTER_EXT(EXT_filter_cubic)
-   CHECK_FILTER_EXT(EXT_image_robustness)
-   CHECK_FILTER_EXT(EXT_blend_operation_advanced)
-   CHECK_FILTER_EXT(EXT_discard_rectangles)
-   CHECK_FILTER_EXT(EXT_sample_locations)
-   CHECK_FILTER_EXT(KHR_multiview)
-   CHECK_FILTER_EXT(EXT_custom_border_color)
-   CHECK_FILTER_EXT(EXT_private_data)
-   CHECK_FILTER_EXT(EXT_memory_budget)
-   CHECK_FILTER_EXT(KHR_separate_depth_stencil_layouts)
-   CHECK_FILTER_EXT(KHR_create_renderpass2)
-   CHECK_FILTER_EXT(KHR_depth_stencil_resolve)
-   CHECK_FILTER_EXT(KHR_dynamic_rendering)
-   CHECK_FILTER_EXT(KHR_image_format_list)
-   CHECK_FILTER_EXT(EXT_color_write_enable)
-   CHECK_FILTER_EXT(EXT_shader_subgroup_ballot)
-   CHECK_FILTER_EXT(EXT_texture_compression_astc_hdr)
-   CHECK_FILTER_EXT(KHR_present_wait)
-   CHECK_FILTER_EXT(KHR_timeline_semaphore)
-#undef CHECK_FILTER_EXT
+      if (!device->physical->base_supported_extensions.extensions[idx])
+         continue;
+
+      if (wrapper_device_extensions.extensions[idx])
+         continue;
+
+      if (wrapper_filter_extensions.extensions[idx])
+         continue;
+
+      enable_extensions[(*enable_extension_count)++] =
+         vk_device_extensions[idx].extensionName;
+   }
 
    if (device->vk.enabled_extensions.EXT_vertex_attribute_divisor &&
        !device->vk.enabled_extensions.KHR_vertex_attribute_divisor &&
@@ -112,48 +82,11 @@ wrapper_apply_device_extension_blacklist(struct wrapper_physical_device *physica
    char *save = NULL;
    for (char *extension = strtok_r(copy, ",", &save); extension != NULL;
         extension = strtok_r(NULL, ",", &save)) {
-#define BLACKLIST_EXT(ext) \
-      if (strcmp(extension, "VK_" #ext) == 0 || strcmp(extension, #ext) == 0) { \
-         physical_device->vk.supported_extensions.ext = false; \
+      for (int i = 0; i < VK_DEVICE_EXTENSION_COUNT; i++) {
+         if (strcmp(extension, vk_device_extensions[i].extensionName) == 0) {
+            physical_device->vk.supported_extensions.extensions[i] = false;
+         }
       }
-      BLACKLIST_EXT(KHR_swapchain)
-      BLACKLIST_EXT(EXT_vertex_attribute_divisor)
-      BLACKLIST_EXT(KHR_vertex_attribute_divisor)
-      BLACKLIST_EXT(EXT_map_memory_placed)
-      BLACKLIST_EXT(KHR_map_memory2)
-      BLACKLIST_EXT(EXT_robustness2)
-      BLACKLIST_EXT(KHR_pipeline_library)
-      BLACKLIST_EXT(EXT_line_rasterization)
-      BLACKLIST_EXT(KHR_shader_float_controls)
-      BLACKLIST_EXT(EXT_calibrated_timestamps)
-      BLACKLIST_EXT(EXT_extended_dynamic_state)
-      BLACKLIST_EXT(EXT_extended_dynamic_state2)
-      BLACKLIST_EXT(EXT_dynamic_rendering_unused_attachments)
-      BLACKLIST_EXT(KHR_maintenance5)
-      BLACKLIST_EXT(KHR_push_descriptor)
-      BLACKLIST_EXT(EXT_vertex_input_dynamic_state)
-      BLACKLIST_EXT(KHR_sampler_ycbcr_conversion)
-      BLACKLIST_EXT(KHR_shader_draw_parameters)
-      BLACKLIST_EXT(EXT_filter_cubic)
-      BLACKLIST_EXT(EXT_image_robustness)
-      BLACKLIST_EXT(EXT_blend_operation_advanced)
-      BLACKLIST_EXT(EXT_discard_rectangles)
-      BLACKLIST_EXT(EXT_sample_locations)
-      BLACKLIST_EXT(KHR_multiview)
-      BLACKLIST_EXT(EXT_custom_border_color)
-      BLACKLIST_EXT(EXT_private_data)
-      BLACKLIST_EXT(EXT_memory_budget)
-      BLACKLIST_EXT(KHR_separate_depth_stencil_layouts)
-      BLACKLIST_EXT(KHR_create_renderpass2)
-      BLACKLIST_EXT(KHR_depth_stencil_resolve)
-      BLACKLIST_EXT(KHR_dynamic_rendering)
-      BLACKLIST_EXT(KHR_image_format_list)
-      BLACKLIST_EXT(EXT_color_write_enable)
-      BLACKLIST_EXT(EXT_shader_subgroup_ballot)
-      BLACKLIST_EXT(EXT_texture_compression_astc_hdr)
-      BLACKLIST_EXT(KHR_present_wait)
-      BLACKLIST_EXT(KHR_timeline_semaphore)
-#undef BLACKLIST_EXT
    }
    free(copy);
 }
@@ -247,7 +180,32 @@ VkResult enumerate_physical_device(struct vk_instance *_instance)
       supported_features->presentId = true;
       supported_features->multiViewport = true;
       supported_features->depthClamp = true;
+      
+      // Features activadas requeridas
       supported_features->depthBiasClamp = true;
+      supported_features->drawIndirectFirstInstance = true;
+      supported_features->fragmentStoresAndAtomics = true;
+      supported_features->fullDrawIndexUint32 = true;
+      supported_features->geometryShader = true;
+      supported_features->imageCubeArray = true;
+      supported_features->independentBlend = true;
+      supported_features->largePoints = true;
+      supported_features->occlusionQueryPrecise = true;
+      supported_features->robustBufferAccess = true;
+      supported_features->sampleRateShading = true;
+      supported_features->samplerAnisotropy = true;
+      supported_features->shaderImageGatherExtended = true;
+      supported_features->shaderInt16 = true;
+      supported_features->shaderSampledImageArrayDynamicIndexing = true;
+      supported_features->shaderStorageBufferArrayDynamicIndexing = true;
+      supported_features->shaderStorageImageArrayDynamicIndexing = true;
+      supported_features->shaderStorageImageExtendedFormats = true;
+      supported_features->shaderStorageImageReadWithoutFormat = true;
+      supported_features->shaderStorageImageWriteWithoutFormat = true;
+      supported_features->shaderUniformBufferArrayDynamicIndexing = true;
+      supported_features->tessellationShader = true;
+      supported_features->textureCompressionASTC_LDR = true;
+      supported_features->textureCompressionETC2 = true;
 
       if (!wrapper_disable_placed) {
         pdevice->vk.supported_extensions.EXT_map_memory_placed = true;
@@ -444,24 +402,37 @@ wrapper_GetPhysicalDeviceFeatures(VkPhysicalDevice physicalDevice,
    pFeatures->fillModeNonSolid = true;
    pFeatures->shaderClipDistance = true;
    pFeatures->shaderCullDistance = true;
-   pFeatures->geometryShader = true;
-   pFeatures->tessellationShader = true;
-   pFeatures->shaderInt16 = true;
-   pFeatures->sampleRateShading = true;
-   pFeatures->imageCubeArray = true;
-   pFeatures->shaderSampledImageArrayDynamicIndexing = true;
-   pFeatures->drawIndirectFirstInstance = true;
-   pFeatures->shaderUniformBufferArrayDynamicIndexing = true;
-   pFeatures->shaderStorageBufferArrayDynamicIndexing = true;
    pFeatures->multiDrawIndirect = true;
    pFeatures->sparseBinding = true;
    pFeatures->shaderResourceMinLod = true;
    pFeatures->shaderTessellationAndGeometryPointSize = true;
-   pFeatures->textureCompressionASTC_LDR = true;
-   pFeatures->occlusionQueryPrecise = true; 
-   pFeatures->shaderStorageImageExtendedFormats = true;
-   pFeatures->shaderStorageImageWriteWithoutFormat = true;
+
+   // Todas las features requeridas activadas a true
+   pFeatures->depthBiasClamp = true;
+   pFeatures->drawIndirectFirstInstance = true;
+   pFeatures->fragmentStoresAndAtomics = true;
+   pFeatures->fullDrawIndexUint32 = true;
+   pFeatures->geometryShader = true;
+   pFeatures->imageCubeArray = true;
    pFeatures->independentBlend = true;
+   pFeatures->largePoints = true;
+   pFeatures->occlusionQueryPrecise = true;
+   pFeatures->robustBufferAccess = true;
+   pFeatures->sampleRateShading = true;
+   pFeatures->samplerAnisotropy = true;
+   pFeatures->shaderImageGatherExtended = true;
+   pFeatures->shaderInt16 = true;
+   pFeatures->shaderSampledImageArrayDynamicIndexing = true;
+   pFeatures->shaderStorageBufferArrayDynamicIndexing = true;
+   pFeatures->shaderStorageImageArrayDynamicIndexing = true;
+   pFeatures->shaderStorageImageExtendedFormats = true;
+   pFeatures->shaderStorageImageReadWithoutFormat = true;
+   pFeatures->shaderStorageImageWriteWithoutFormat = true;
+   pFeatures->shaderUniformBufferArrayDynamicIndexing = true;
+   pFeatures->tessellationShader = true;
+   pFeatures->textureCompressionASTC_LDR = true;
+   pFeatures->textureCompressionETC2 = true;
+   
    pFeatures->variableMultisampleRate = false;
 }
 
@@ -511,24 +482,37 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
    pFeatures->features.fillModeNonSolid = true;
    pFeatures->features.shaderClipDistance = true;
    pFeatures->features.shaderCullDistance = true;
-   pFeatures->features.geometryShader = true;
-   pFeatures->features.tessellationShader = true;
-   pFeatures->features.shaderInt16 = true;
-   pFeatures->features.sampleRateShading = true;
-   pFeatures->features.imageCubeArray = true;
-   pFeatures->features.shaderSampledImageArrayDynamicIndexing = true;
-   pFeatures->features.drawIndirectFirstInstance = true;
-   pFeatures->features.shaderUniformBufferArrayDynamicIndexing = true;
-   pFeatures->features.shaderStorageBufferArrayDynamicIndexing = true;
    pFeatures->features.multiDrawIndirect = true;
    pFeatures->features.sparseBinding = true;
    pFeatures->features.shaderResourceMinLod = true;
    pFeatures->features.shaderTessellationAndGeometryPointSize = true;
-   pFeatures->features.textureCompressionASTC_LDR = true;
-   pFeatures->features.occlusionQueryPrecise = true; 
-   pFeatures->features.shaderStorageImageExtendedFormats = true;
-   pFeatures->features.shaderStorageImageWriteWithoutFormat = true;
+
+   // Todas las features requeridas activadas a true en features2
+   pFeatures->features.depthBiasClamp = true;
+   pFeatures->features.drawIndirectFirstInstance = true;
+   pFeatures->features.fragmentStoresAndAtomics = true;
+   pFeatures->features.fullDrawIndexUint32 = true;
+   pFeatures->features.geometryShader = true;
+   pFeatures->features.imageCubeArray = true;
    pFeatures->features.independentBlend = true;
+   pFeatures->features.largePoints = true;
+   pFeatures->features.occlusionQueryPrecise = true;
+   pFeatures->features.robustBufferAccess = true;
+   pFeatures->features.sampleRateShading = true;
+   pFeatures->features.samplerAnisotropy = true;
+   pFeatures->features.shaderImageGatherExtended = true;
+   pFeatures->features.shaderInt16 = true;
+   pFeatures->features.shaderSampledImageArrayDynamicIndexing = true;
+   pFeatures->features.shaderStorageBufferArrayDynamicIndexing = true;
+   pFeatures->features.shaderStorageImageArrayDynamicIndexing = true;
+   pFeatures->features.shaderStorageImageExtendedFormats = true;
+   pFeatures->features.shaderStorageImageReadWithoutFormat = true;
+   pFeatures->features.shaderStorageImageWriteWithoutFormat = true;
+   pFeatures->features.shaderUniformBufferArrayDynamicIndexing = true;
+   pFeatures->features.tessellationShader = true;
+   pFeatures->features.textureCompressionASTC_LDR = true;
+   pFeatures->features.textureCompressionETC2 = true;
+
    pFeatures->features.variableMultisampleRate = false;
 
    pdevice->vk.supported_extensions.EXT_vertex_attribute_divisor = true;
@@ -1087,82 +1071,35 @@ wrapper_GetPhysicalDeviceMemoryProperties2(VkPhysicalDevice physicalDevice,
 static VkResult
 wrapper_setup_device_extensions(struct wrapper_physical_device *pdevice) {
    struct vk_device_extension_table *exts = &pdevice->vk.supported_extensions;
-   uint32_t pdevice_extension_count = 0;
+   VkExtensionProperties pdevice_extensions[VK_DEVICE_EXTENSION_COUNT];
+   uint32_t pdevice_extension_count = VK_DEVICE_EXTENSION_COUNT;
    VkResult result;
-
-   result = pdevice->dispatch_table.EnumerateDeviceExtensionProperties(
-      pdevice->dispatch_handle, NULL, &pdevice_extension_count, NULL);
-
-   if (result != VK_SUCCESS)
-      return result;
-
-   VkExtensionProperties *pdevice_extensions = malloc(sizeof(VkExtensionProperties) * pdevice_extension_count);
-   if (!pdevice_extensions)
-      return VK_ERROR_OUT_OF_HOST_MEMORY;
 
    result = pdevice->dispatch_table.EnumerateDeviceExtensionProperties(
       pdevice->dispatch_handle, NULL, &pdevice_extension_count, pdevice_extensions);
 
-   if (result != VK_SUCCESS) {
-      free(pdevice_extensions);
+   if (result != VK_SUCCESS)
       return result;
-   }
 
-   memset(exts, 0, sizeof(*exts));
-   memset(&pdevice->base_supported_extensions, 0, sizeof(pdevice->base_supported_extensions));
+   *exts = wrapper_device_extensions;
 
    for (uint32_t i = 0; i < pdevice_extension_count; i++) {
-      const char *name = pdevice_extensions[i].extensionName;
-
-#define ENABLE_DEVICE_EXT(ext) \
-      if (strcmp(name, "VK_" #ext) == 0) { \
-         if (!wrapper_filter_extensions.ext) { \
-            exts->ext = true; \
-            pdevice->base_supported_extensions.ext = true; \
-         } \
+      int idx;
+      for (idx = 0; idx < VK_DEVICE_EXTENSION_COUNT; idx++) {
+         if (strcmp(vk_device_extensions[idx].extensionName,
+                     pdevice_extensions[i].extensionName) == 0)
+            break;
       }
 
-      ENABLE_DEVICE_EXT(KHR_swapchain)
-      ENABLE_DEVICE_EXT(EXT_vertex_attribute_divisor)
-      ENABLE_DEVICE_EXT(KHR_vertex_attribute_divisor)
-      ENABLE_DEVICE_EXT(EXT_map_memory_placed)
-      ENABLE_DEVICE_EXT(KHR_map_memory2)
-      ENABLE_DEVICE_EXT(EXT_robustness2)
-      ENABLE_DEVICE_EXT(KHR_pipeline_library)
-      ENABLE_DEVICE_EXT(EXT_line_rasterization)
-      ENABLE_DEVICE_EXT(KHR_shader_float_controls)
-      ENABLE_DEVICE_EXT(EXT_calibrated_timestamps)
-      ENABLE_DEVICE_EXT(EXT_extended_dynamic_state)
-      ENABLE_DEVICE_EXT(EXT_extended_dynamic_state2)
-      ENABLE_DEVICE_EXT(EXT_dynamic_rendering_unused_attachments)
-      ENABLE_DEVICE_EXT(KHR_maintenance5)
-      ENABLE_DEVICE_EXT(KHR_push_descriptor)
-      ENABLE_DEVICE_EXT(EXT_vertex_input_dynamic_state)
-      ENABLE_DEVICE_EXT(KHR_sampler_ycbcr_conversion)
-      ENABLE_DEVICE_EXT(KHR_shader_draw_parameters)
-      ENABLE_DEVICE_EXT(EXT_filter_cubic)
-      ENABLE_DEVICE_EXT(EXT_image_robustness)
-      ENABLE_DEVICE_EXT(EXT_blend_operation_advanced)
-      ENABLE_DEVICE_EXT(EXT_discard_rectangles)
-      ENABLE_DEVICE_EXT(EXT_sample_locations)
-      ENABLE_DEVICE_EXT(KHR_multiview)
-      ENABLE_DEVICE_EXT(EXT_custom_border_color)
-      ENABLE_DEVICE_EXT(EXT_private_data)
-      ENABLE_DEVICE_EXT(EXT_memory_budget)
-      ENABLE_DEVICE_EXT(KHR_separate_depth_stencil_layouts)
-      ENABLE_DEVICE_EXT(KHR_create_renderpass2)
-      ENABLE_DEVICE_EXT(KHR_depth_stencil_resolve)
-      ENABLE_DEVICE_EXT(KHR_dynamic_rendering)
-      ENABLE_DEVICE_EXT(KHR_image_format_list)
-      ENABLE_DEVICE_EXT(EXT_color_write_enable)
-      ENABLE_DEVICE_EXT(EXT_shader_subgroup_ballot)
-      ENABLE_DEVICE_EXT(EXT_texture_compression_astc_hdr)
-      ENABLE_DEVICE_EXT(KHR_present_wait)
-      ENABLE_DEVICE_EXT(KHR_timeline_semaphore)
-#undef ENABLE_DEVICE_EXT
-   }
+      if (idx >= VK_DEVICE_EXTENSION_COUNT)
+         continue;
 
-   free(pdevice_extensions);
+      if (wrapper_filter_extensions.extensions[idx])
+         continue;
+
+      pdevice->base_supported_extensions.extensions[idx] =
+         exts->extensions[idx] = true;
+   }
 
    exts->KHR_present_wait = exts->KHR_timeline_semaphore;
    return VK_SUCCESS;
