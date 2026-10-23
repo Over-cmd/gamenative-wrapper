@@ -206,6 +206,7 @@ VkResult enumerate_physical_device(struct vk_instance *_instance)
       supported_features->tessellationShader = true;
       supported_features->textureCompressionASTC_LDR = true;
       supported_features->textureCompressionETC2 = true;
+      supported_features->logicOp = true; // <--- Añadido
 
       if (!wrapper_disable_placed) {
         pdevice->vk.supported_extensions.EXT_map_memory_placed = true;
@@ -406,6 +407,7 @@ wrapper_GetPhysicalDeviceFeatures(VkPhysicalDevice physicalDevice,
    pFeatures->sparseBinding = true;
    pFeatures->shaderResourceMinLod = true;
    pFeatures->shaderTessellationAndGeometryPointSize = true;
+   pFeatures->logicOp = true; // <--- Añadido
 
    // Todas las features requeridas activadas a true
    pFeatures->depthBiasClamp = true;
@@ -478,6 +480,15 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
       }
    }
 
+   // Interceptor universal para activar las características de custom border color en pNext
+   vk_foreach_struct(s, pFeatures->pNext) {
+      if (s->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_CUSTOM_BORDER_COLOR_FEATURES_EXT) {
+         VkPhysicalDeviceCustomBorderColorFeaturesEXT *cbc = (VkPhysicalDeviceCustomBorderColorFeaturesEXT *)s;
+         cbc->customBorderColors = VK_TRUE;
+         cbc->customBorderColorWithoutFormat = VK_TRUE;
+      }
+   }
+
    pFeatures->features.textureCompressionBC = true;
    pFeatures->features.fillModeNonSolid = true;
    pFeatures->features.shaderClipDistance = true;
@@ -486,6 +497,7 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
    pFeatures->features.sparseBinding = true;
    pFeatures->features.shaderResourceMinLod = true;
    pFeatures->features.shaderTessellationAndGeometryPointSize = true;
+   pFeatures->features.logicOp = true; // <--- Añadido
 
    // Todas las features requeridas activadas a true en features2
    pFeatures->features.depthBiasClamp = true;
