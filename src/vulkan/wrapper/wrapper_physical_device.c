@@ -181,7 +181,7 @@ VkResult enumerate_physical_device(struct vk_instance *_instance)
       supported_features->multiViewport = true;
       supported_features->depthClamp = true;
       
-      // Forzar todas las features a true
+      // Forzar características compatibles generalizadas
       supported_features->depthBiasClamp = true;
       supported_features->drawIndirectFirstInstance = true;
       supported_features->fragmentStoresAndAtomics = true;
@@ -195,7 +195,7 @@ VkResult enumerate_physical_device(struct vk_instance *_instance)
       supported_features->depthBounds = true;
       supported_features->pipelineStatisticsQuery = true;
       supported_features->shaderInt64 = true;
-      supported_features->shaderFloat64 = true;
+      supported_features->shaderFloat64 = pdevice->base_supported_features.shaderFloat64; // Protegido
       supported_features->shaderInt16 = true;
       supported_features->shaderImageGatherExtended = true;
       supported_features->shaderStorageImageExtendedFormats = true;
@@ -409,7 +409,6 @@ wrapper_GetPhysicalDeviceFeatures(VkPhysicalDevice physicalDevice,
    VK_FROM_HANDLE(wrapper_physical_device, pdevice, physicalDevice);
    vk_common_GetPhysicalDeviceFeatures(physicalDevice, pFeatures);
 
-   // Forzar todas las features posibles a true
    pFeatures->textureCompressionBC = true;
    pFeatures->fillModeNonSolid = true;
    pFeatures->shaderClipDistance = true;
@@ -431,7 +430,7 @@ wrapper_GetPhysicalDeviceFeatures(VkPhysicalDevice physicalDevice,
    pFeatures->depthBounds = true;
    pFeatures->pipelineStatisticsQuery = true;
    pFeatures->shaderInt64 = true;
-   pFeatures->shaderFloat64 = true;
+   pFeatures->shaderFloat64 = pdevice->base_supported_features.shaderFloat64;
 
    pFeatures->depthBiasClamp = true;
    pFeatures->fullDrawIndexUint32 = true;
@@ -496,7 +495,6 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
       }
    }
 
-   // Interceptor universal para activar las características de custom border color en pNext
    vk_foreach_struct(s, pFeatures->pNext) {
       if (s->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_CUSTOM_BORDER_COLOR_FEATURES_EXT) {
          VkPhysicalDeviceCustomBorderColorFeaturesEXT *cbc = (VkPhysicalDeviceCustomBorderColorFeaturesEXT *)s;
@@ -505,7 +503,6 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
       }
    }
 
-   // Forzar todas las features en pFeatures->features a true
    pFeatures->features.textureCompressionBC = true;
    pFeatures->features.fillModeNonSolid = true;
    pFeatures->features.shaderClipDistance = true;
@@ -527,7 +524,7 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
    pFeatures->features.depthBounds = true;
    pFeatures->features.pipelineStatisticsQuery = true;
    pFeatures->features.shaderInt64 = true;
-   pFeatures->features.shaderFloat64 = true;
+   pFeatures->features.shaderFloat64 = pdevice->base_supported_features.shaderFloat64;
 
    pFeatures->features.depthBiasClamp = true;
    pFeatures->features.fullDrawIndexUint32 = true;
@@ -549,7 +546,7 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
 
    pFeatures->features.variableMultisampleRate = false;
 
-   // Todas las extensiones requeridas activadas a true
+   // Extensiones estándar habilitadas (las de 8bit, 16bit y float16_int8 ahora dependen del soporte base de la GPU)
    pdevice->vk.supported_extensions.ANDROID_external_memory_android_hardware_buffer = true;
    pdevice->vk.supported_extensions.EXT_astc_decode_mode = true;
    pdevice->vk.supported_extensions.EXT_external_memory_dma_buf = true;
@@ -568,8 +565,12 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
    pdevice->vk.supported_extensions.EXT_texture_compression_astc_hdr = true;
    pdevice->vk.supported_extensions.EXT_transform_feedback = true;
    pdevice->vk.supported_extensions.GOOGLE_display_timing = true;
-   pdevice->vk.supported_extensions.KHR_16bit_storage = true;
-   pdevice->vk.supported_extensions.KHR_8bit_storage = true;
+   
+   // 🛡️ PROTECCIÓN CRÍTICA: Restringidas al soporte real de la GPU (evita res -8 en Mali-G52)
+   pdevice->vk.supported_extensions.KHR_16bit_storage = pdevice->base_supported_extensions.KHR_16bit_storage;
+   pdevice->vk.supported_extensions.KHR_8bit_storage = pdevice->base_supported_extensions.KHR_8bit_storage;
+   pdevice->vk.supported_extensions.KHR_shader_float16_int8 = pdevice->base_supported_extensions.KHR_shader_float16_int8;
+
    pdevice->vk.supported_extensions.KHR_bind_memory2 = true;
    pdevice->vk.supported_extensions.KHR_buffer_device_address = true;
    pdevice->vk.supported_extensions.KHR_create_renderpass2 = true;
@@ -597,7 +598,6 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
    pdevice->vk.supported_extensions.KHR_sampler_ycbcr_conversion = true;
    pdevice->vk.supported_extensions.KHR_separate_depth_stencil_layouts = true;
    pdevice->vk.supported_extensions.KHR_shader_draw_parameters = true;
-   pdevice->vk.supported_extensions.KHR_shader_float16_int8 = true;
    pdevice->vk.supported_extensions.KHR_shader_float_controls = true;
    pdevice->vk.supported_extensions.KHR_shader_subgroup_extended_types = true;
    pdevice->vk.supported_extensions.KHR_shared_presentable_image = true;
