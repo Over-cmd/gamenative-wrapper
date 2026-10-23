@@ -124,8 +124,6 @@ wrapper_filter_enabled_extensions(const struct wrapper_device *device,
           strcmp(ext_name, "VK_KHR_dynamic_rendering") == 0 ||
           strcmp(ext_name, "VK_KHR_image_format_list") == 0 ||
           strcmp(ext_name, "VK_KHR_maintenance5") == 0 ||
-          strcmp(ext_name, "VK_KHR_8bit_storage") == 0 ||
-          strcmp(ext_name, "VK_KHR_shader_float16_int8") == 0 ||
           is_pipeline_lib) {
 
          if (strcmp(ext_name, "VK_EXT_robustness2") == 0) {
@@ -242,50 +240,9 @@ static void process_pnext_chain(VkBaseInStructure *create_info, struct wrapper_p
              unlink_vk_struct(create_info, &current, &prev);
              continue;
           case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES:
-             if (api_version >= VK_MAKE_VERSION(1, 2, 0)) {
-                VkPhysicalDeviceVulkan12Features *features12 =
-                   (VkPhysicalDeviceVulkan12Features *)current;
-                features12->storageBuffer8BitAccess = VK_FALSE;
-                features12->uniformAndStorageBuffer8BitAccess = VK_FALSE;
-                features12->storagePushConstant8 = VK_FALSE;
+             if (api_version >= VK_MAKE_VERSION(1, 2, 0))
                 break;
-             }
-             WRAPPER_LOG(info, "Unlinking VkPhysicalDeviceVulkan12Features from pNext chain (device is Vulkan 1.1)");
-             unlink_vk_struct(create_info, &current, &prev);
-             continue;
-          case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_FLOAT16_INT8_FEATURES:
-             if (api_version >= VK_MAKE_VERSION(1, 2, 0)) {
-                VkPhysicalDeviceShaderFloat16Int8Features *features_f16 =
-                   (VkPhysicalDeviceShaderFloat16Int8Features *)current;
-                features_f16->shaderFloat16 = VK_FALSE;
-                features_f16->shaderInt8 = VK_FALSE;
-                break;
-             }
-             WRAPPER_LOG(info, "Unlinking VkPhysicalDeviceShaderFloat16Int8Features from pNext chain (device is Vulkan 1.1)");
-             unlink_vk_struct(create_info, &current, &prev);
-             continue;
-          case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_8BIT_STORAGE_FEATURES:
-             if (api_version >= VK_MAKE_VERSION(1, 2, 0)) {
-                VkPhysicalDevice8BitStorageFeatures *features8 =
-                   (VkPhysicalDevice8BitStorageFeatures *)current;
-                features8->storageBuffer8BitAccess = VK_FALSE;
-                features8->uniformAndStorageBuffer8BitAccess = VK_FALSE;
-                features8->storagePushConstant8 = VK_FALSE;
-                break;
-             }
-             WRAPPER_LOG(info, "Unlinking VkPhysicalDevice8BitStorageFeatures from pNext chain (device is Vulkan 1.1)");
-             unlink_vk_struct(create_info, &current, &prev);
-             continue;
-          case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_16BIT_STORAGE_FEATURES:
-             if (api_version >= VK_MAKE_VERSION(1, 1, 0)) {
-                VkPhysicalDevice16BitStorageFeatures *features16 =
-                   (VkPhysicalDevice16BitStorageFeatures *)current;
-                features16->storageBuffer16BitAccess = VK_FALSE;
-                features16->uniformAndStorageBuffer16BitAccess = VK_FALSE;
-                features16->storageInputOutput16 = VK_FALSE;
-                break;
-             }
-             WRAPPER_LOG(info, "Unlinking VkPhysicalDevice16BitStorageFeatures from pNext chain");
+             WRAPPER_LOG(info, "Unlinking VkPhysicalDeviceVulkan12Features from pNext chain");
              unlink_vk_struct(create_info, &current, &prev);
              continue;
           case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES:
