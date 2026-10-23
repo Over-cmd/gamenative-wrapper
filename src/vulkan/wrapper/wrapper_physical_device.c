@@ -98,61 +98,6 @@ wrapper_wsi_proc_addr(VkPhysicalDevice physicalDevice, const char *pName)
    return vk_instance_get_proc_addr_unchecked(pdevice->instance, pName);
 }
 
-VKAPI_ATTR VkResult VKAPI_CALL
-wrapper_CreateDevice(VkPhysicalDevice physicalDevice,
-                     const VkDeviceCreateInfo *pCreateInfo,
-                     const VkAllocationCallbacks *pAllocator,
-                     VkDevice *pDevice)
-{
-   VK_FROM_HANDLE(wrapper_physical_device, pdevice, physicalDevice);
-
-   // Saneamiento de características base (VkPhysicalDeviceFeatures)
-   if (pCreateInfo->pEnabledFeatures) {
-      VkPhysicalDeviceFeatures *mutable_features = (VkPhysicalDeviceFeatures *)pCreateInfo->pEnabledFeatures;
-      if (!pdevice->base_supported_features.shaderInt64)
-         mutable_features->shaderInt64 = VK_FALSE;
-      if (!pdevice->base_supported_features.shaderFloat64)
-         mutable_features->shaderFloat64 = VK_FALSE;
-      if (!pdevice->base_supported_features.shaderInt16)
-         mutable_features->shaderInt16 = VK_FALSE;
-   }
-
-   // Saneamiento de estructuras en la cadena pNext para evitar VK_ERROR_FEATURE_NOT_PRESENT (-8)
-   VkBaseOutStructure *s = (VkBaseOutStructure *)pCreateInfo->pNext;
-   while (s) {
-      if (s->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES) {
-         VkPhysicalDeviceVulkan12Features *vk12 = (VkPhysicalDeviceVulkan12Features *)s;
-         if (!pdevice->base_supported_features.shaderInt16)
-            vk12->shaderFloat16 = VK_FALSE;
-         if (!pdevice->base_supported_extensions.KHR_8bit_storage) {
-            vk12->storageBuffer8BitAccess = VK_FALSE;
-            vk12->uniformAndStorageBuffer8BitAccess = VK_FALSE;
-            vk12->storagePushConstant8 = VK_FALSE;
-         }
-      }
-      if (s->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_16BIT_STORAGE_FEATURES) {
-         VkPhysicalDevice16BitStorageFeatures *storage16 = (VkPhysicalDevice16BitStorageFeatures *)s;
-         if (!pdevice->base_supported_extensions.KHR_16bit_storage) {
-            storage16->storageBuffer16BitAccess = VK_FALSE;
-            storage16->uniformAndStorageBuffer16BitAccess = VK_FALSE;
-            storage16->storagePushConstant16 = VK_FALSE;
-            storage16->storageInputOutput16 = VK_FALSE;
-         }
-      }
-      if (s->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_FLOAT16_INT8_FEATURES_KHR) {
-         VkPhysicalDeviceShaderFloat16Int8FeaturesKHR *float16_int8 = (VkPhysicalDeviceShaderFloat16Int8FeaturesKHR *)s;
-         if (!pdevice->base_supported_extensions.KHR_shader_float16_int8) {
-            float16_int8->shaderFloat16 = VK_FALSE;
-            float16_int8->shaderInt8 = VK_FALSE;
-         }
-      }
-      s = s->pNext;
-   }
-
-   return pdevice->dispatch_table.CreateDevice(
-      pdevice->dispatch_handle, pCreateInfo, pAllocator, pDevice);
-}
-
 VkResult enumerate_physical_device(struct vk_instance *_instance)
 {
    struct wrapper_instance *instance = (struct wrapper_instance *)_instance;
