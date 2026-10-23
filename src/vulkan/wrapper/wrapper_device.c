@@ -87,7 +87,7 @@ wrapper_filter_enabled_extensions(const struct wrapper_device *device,
 {
    // Iteración corregida para Mesa 25 utilizando la tabla de extensiones soportadas
    for (uint32_t i = 0; i < VK_DEVICE_EXTENSION_COUNT; i++) {
-      const char *ext_name = vk_device_extensions[i].name;
+      const char *ext_name = vk_device_extensions[i].extensionName;
       bool enabled = false;
 
       // Verificación dinámica segura de campos en vk_device_extension_table
@@ -2512,16 +2512,16 @@ wrapper_DestroyDevice(VkDevice _device, const VkAllocationCallbacks* pAllocator)
          dispatch_handle, pAllocator);
    }
    if (device->emulate_push_descriptor) {
-      // Iteración segura corregida para _mesa_hash_table_u64 en Mesa 25
-      hash_table_foreach(&device->push_dsl_table->ht, entry) {
+      // Iteración segura corregida para _mesa_hash_table_u64 en Mesa 25 (.table en lugar de .ht)
+      hash_table_foreach(&device->push_dsl_table->table, entry) {
          free(entry->data);
       }
-      hash_table_foreach(&device->push_pl_table->ht, entry) {
+      hash_table_foreach(&device->push_pl_table->table, entry) {
          struct wrapper_push_pl *r = entry->data;
          free(r->set_layouts);
          free(r);
       }
-      hash_table_foreach(&device->push_template_table->ht, entry) {
+      hash_table_foreach(&device->push_template_table->table, entry) {
          free(entry->data);
       }
       _mesa_hash_table_u64_destroy(device->push_dsl_table);
