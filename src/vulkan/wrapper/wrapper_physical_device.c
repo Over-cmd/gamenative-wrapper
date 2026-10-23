@@ -181,12 +181,26 @@ VkResult enumerate_physical_device(struct vk_instance *_instance)
       supported_features->multiViewport = true;
       supported_features->depthClamp = true;
       
-      // Features activadas requeridas
+      // Forzar todas las features a true
       supported_features->depthBiasClamp = true;
       supported_features->drawIndirectFirstInstance = true;
       supported_features->fragmentStoresAndAtomics = true;
+      supported_features->vertexPipelineStoresAndAtomics = true;
       supported_features->fullDrawIndexUint32 = true;
       supported_features->geometryShader = true;
+      supported_features->tessellationShader = true;
+      supported_features->dualSrcBlend = true;
+      supported_features->logicOp = true;
+      supported_features->multiDrawIndirect = true;
+      supported_features->depthBounds = true;
+      supported_features->pipelineStatisticsQuery = true;
+      supported_features->shaderInt64 = true;
+      supported_features->shaderFloat64 = true;
+      supported_features->shaderInt16 = true;
+      supported_features->shaderImageGatherExtended = true;
+      supported_features->shaderStorageImageExtendedFormats = true;
+      supported_features->shaderStorageImageReadWithoutFormat = true;
+      supported_features->shaderStorageImageWriteWithoutFormat = true;
       supported_features->imageCubeArray = true;
       supported_features->independentBlend = true;
       supported_features->largePoints = true;
@@ -194,19 +208,15 @@ VkResult enumerate_physical_device(struct vk_instance *_instance)
       supported_features->robustBufferAccess = true;
       supported_features->sampleRateShading = true;
       supported_features->samplerAnisotropy = true;
-      supported_features->shaderImageGatherExtended = true;
-      supported_features->shaderInt16 = true;
       supported_features->shaderSampledImageArrayDynamicIndexing = true;
       supported_features->shaderStorageBufferArrayDynamicIndexing = true;
       supported_features->shaderStorageImageArrayDynamicIndexing = true;
-      supported_features->shaderStorageImageExtendedFormats = true;
-      supported_features->shaderStorageImageReadWithoutFormat = true;
-      supported_features->shaderStorageImageWriteWithoutFormat = true;
       supported_features->shaderUniformBufferArrayDynamicIndexing = true;
-      supported_features->tessellationShader = true;
       supported_features->textureCompressionASTC_LDR = true;
       supported_features->textureCompressionETC2 = true;
-      supported_features->logicOp = true; // <--- Añadido
+      supported_features->sparseBinding = true;
+      supported_features->shaderResourceMinLod = true;
+      supported_features->shaderTessellationAndGeometryPointSize = true;
 
       if (!wrapper_disable_placed) {
         pdevice->vk.supported_extensions.EXT_map_memory_placed = true;
@@ -399,6 +409,7 @@ wrapper_GetPhysicalDeviceFeatures(VkPhysicalDevice physicalDevice,
    VK_FROM_HANDLE(wrapper_physical_device, pdevice, physicalDevice);
    vk_common_GetPhysicalDeviceFeatures(physicalDevice, pFeatures);
 
+   // Forzar todas las features posibles a true
    pFeatures->textureCompressionBC = true;
    pFeatures->fillModeNonSolid = true;
    pFeatures->shaderClipDistance = true;
@@ -407,12 +418,22 @@ wrapper_GetPhysicalDeviceFeatures(VkPhysicalDevice physicalDevice,
    pFeatures->sparseBinding = true;
    pFeatures->shaderResourceMinLod = true;
    pFeatures->shaderTessellationAndGeometryPointSize = true;
-   pFeatures->logicOp = true; // <--- Añadido
-
-   // Todas las features requeridas activadas a true
-   pFeatures->depthBiasClamp = true;
+   pFeatures->logicOp = true;
+   pFeatures->tessellationShader = true;
+   pFeatures->dualSrcBlend = true;
    pFeatures->drawIndirectFirstInstance = true;
    pFeatures->fragmentStoresAndAtomics = true;
+   pFeatures->vertexPipelineStoresAndAtomics = true;
+   pFeatures->shaderImageGatherExtended = true;
+   pFeatures->shaderStorageImageExtendedFormats = true;
+   pFeatures->shaderStorageImageReadWithoutFormat = true;
+   pFeatures->shaderStorageImageWriteWithoutFormat = true;
+   pFeatures->depthBounds = true;
+   pFeatures->pipelineStatisticsQuery = true;
+   pFeatures->shaderInt64 = true;
+   pFeatures->shaderFloat64 = true;
+
+   pFeatures->depthBiasClamp = true;
    pFeatures->fullDrawIndexUint32 = true;
    pFeatures->geometryShader = true;
    pFeatures->imageCubeArray = true;
@@ -422,16 +443,11 @@ wrapper_GetPhysicalDeviceFeatures(VkPhysicalDevice physicalDevice,
    pFeatures->robustBufferAccess = true;
    pFeatures->sampleRateShading = true;
    pFeatures->samplerAnisotropy = true;
-   pFeatures->shaderImageGatherExtended = true;
    pFeatures->shaderInt16 = true;
    pFeatures->shaderSampledImageArrayDynamicIndexing = true;
    pFeatures->shaderStorageBufferArrayDynamicIndexing = true;
    pFeatures->shaderStorageImageArrayDynamicIndexing = true;
-   pFeatures->shaderStorageImageExtendedFormats = true;
-   pFeatures->shaderStorageImageReadWithoutFormat = true;
-   pFeatures->shaderStorageImageWriteWithoutFormat = true;
    pFeatures->shaderUniformBufferArrayDynamicIndexing = true;
-   pFeatures->tessellationShader = true;
    pFeatures->textureCompressionASTC_LDR = true;
    pFeatures->textureCompressionETC2 = true;
    
@@ -489,6 +505,7 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
       }
    }
 
+   // Forzar todas las features en pFeatures->features a true
    pFeatures->features.textureCompressionBC = true;
    pFeatures->features.fillModeNonSolid = true;
    pFeatures->features.shaderClipDistance = true;
@@ -497,12 +514,22 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
    pFeatures->features.sparseBinding = true;
    pFeatures->features.shaderResourceMinLod = true;
    pFeatures->features.shaderTessellationAndGeometryPointSize = true;
-   pFeatures->features.logicOp = true; // <--- Añadido
-
-   // Todas las features requeridas activadas a true en features2
-   pFeatures->features.depthBiasClamp = true;
+   pFeatures->features.logicOp = true;
+   pFeatures->features.tessellationShader = true;
+   pFeatures->features.dualSrcBlend = true;
    pFeatures->features.drawIndirectFirstInstance = true;
    pFeatures->features.fragmentStoresAndAtomics = true;
+   pFeatures->features.vertexPipelineStoresAndAtomics = true;
+   pFeatures->features.shaderImageGatherExtended = true;
+   pFeatures->features.shaderStorageImageExtendedFormats = true;
+   pFeatures->features.shaderStorageImageReadWithoutFormat = true;
+   pFeatures->features.shaderStorageImageWriteWithoutFormat = true;
+   pFeatures->features.depthBounds = true;
+   pFeatures->features.pipelineStatisticsQuery = true;
+   pFeatures->features.shaderInt64 = true;
+   pFeatures->features.shaderFloat64 = true;
+
+   pFeatures->features.depthBiasClamp = true;
    pFeatures->features.fullDrawIndexUint32 = true;
    pFeatures->features.geometryShader = true;
    pFeatures->features.imageCubeArray = true;
@@ -512,16 +539,11 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
    pFeatures->features.robustBufferAccess = true;
    pFeatures->features.sampleRateShading = true;
    pFeatures->features.samplerAnisotropy = true;
-   pFeatures->features.shaderImageGatherExtended = true;
    pFeatures->features.shaderInt16 = true;
    pFeatures->features.shaderSampledImageArrayDynamicIndexing = true;
    pFeatures->features.shaderStorageBufferArrayDynamicIndexing = true;
    pFeatures->features.shaderStorageImageArrayDynamicIndexing = true;
-   pFeatures->features.shaderStorageImageExtendedFormats = true;
-   pFeatures->features.shaderStorageImageReadWithoutFormat = true;
-   pFeatures->features.shaderStorageImageWriteWithoutFormat = true;
    pFeatures->features.shaderUniformBufferArrayDynamicIndexing = true;
-   pFeatures->features.tessellationShader = true;
    pFeatures->features.textureCompressionASTC_LDR = true;
    pFeatures->features.textureCompressionETC2 = true;
 
