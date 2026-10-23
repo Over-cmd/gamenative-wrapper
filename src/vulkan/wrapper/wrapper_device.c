@@ -244,22 +244,15 @@ static void process_pnext_chain(VkBaseInStructure *create_info, struct wrapper_p
           case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES: {
              VkPhysicalDeviceVulkan12Features *features12 =
                 (VkPhysicalDeviceVulkan12Features *)current;
-             // Permitimos shaderFloat16 y shaderInt8 (soportados por Mali-G52)
-             // Desactivamos almacenamiento 8/16 bits para evitar error -8 en el driver
              features12->storageBuffer8BitAccess = VK_FALSE;
              features12->uniformAndStorageBuffer8BitAccess = VK_FALSE;
              features12->storagePushConstant8 = VK_FALSE;
-             features12->storageBuffer16BitAccess = VK_FALSE;
-             features12->uniformAndStorageBuffer16BitAccess = VK_FALSE;
-             features12->storageInputOutput16 = VK_FALSE;
              break;
           }
           case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_FLOAT16_INT8_FEATURES: {
-             // Mantiene shaderFloat16 y shaderInt8 activos
              break;
           }
-          case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_8BIT_STORAGE_FEATURES:
-          case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_8BIT_STORAGE_FEATURES_KHR: {
+          case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_8BIT_STORAGE_FEATURES: {
              VkPhysicalDevice8BitStorageFeatures *features8 =
                 (VkPhysicalDevice8BitStorageFeatures *)current;
              features8->storageBuffer8BitAccess = VK_FALSE;
