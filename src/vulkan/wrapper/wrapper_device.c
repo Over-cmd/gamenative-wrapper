@@ -85,12 +85,10 @@ wrapper_filter_enabled_extensions(const struct wrapper_device *device,
                                   uint32_t *enable_extension_count,
                                   const char **enable_extensions)
 {
-   // Iteración corregida para Mesa 25 utilizando la tabla de extensiones soportadas
    for (uint32_t i = 0; i < VK_DEVICE_EXTENSION_COUNT; i++) {
       const char *ext_name = vk_device_extensions[i].extensionName;
       bool enabled = false;
 
-      // Verificación dinámica segura de campos en vk_device_extension_table
       if (strcmp(ext_name, "VK_KHR_swapchain") == 0) enabled = device->vk.enabled_extensions.KHR_swapchain;
       else if (strcmp(ext_name, "VK_EXT_swapchain_maintenance1") == 0) enabled = device->vk.enabled_extensions.EXT_swapchain_maintenance1;
       else if (strcmp(ext_name, "VK_KHR_swapchain_mutable_format") == 0) enabled = device->vk.enabled_extensions.KHR_swapchain_mutable_format;
@@ -102,7 +100,6 @@ wrapper_filter_enabled_extensions(const struct wrapper_device *device,
       else if (strcmp(ext_name, "VK_KHR_shared_presentable_image") == 0) enabled = device->vk.enabled_extensions.KHR_shared_presentable_image;
       else if (strcmp(ext_name, "VK_EXT_image_compression_control_swapchain") == 0) enabled = device->vk.enabled_extensions.EXT_image_compression_control_swapchain;
       else {
-         // Para cualquier otra extensión genérica solicitada por la aplicación
          continue;
       }
 
@@ -111,7 +108,6 @@ wrapper_filter_enabled_extensions(const struct wrapper_device *device,
 
       bool is_pipeline_lib = (strcmp(ext_name, "VK_KHR_pipeline_library") == 0);
       if (!device->physical->base_supported_extensions.KHR_pipeline_library && !is_pipeline_lib && !device->physical->base_supported_extensions.KHR_swapchain) {
-         // Permitir extensiones seguras por defecto si el físico las soporta
       }
 
       if (strcmp(ext_name, "VK_EXT_robustness2") == 0) {
@@ -2512,16 +2508,15 @@ wrapper_DestroyDevice(VkDevice _device, const VkAllocationCallbacks* pAllocator)
          dispatch_handle, pAllocator);
    }
    if (device->emulate_push_descriptor) {
-      // Iteración segura corregida para _mesa_hash_table_u64 en Mesa 25 (.table en lugar de .ht)
-      hash_table_foreach(&device->push_dsl_table->table, entry) {
+      hash_table_foreach(device->push_dsl_table->table, entry) {
          free(entry->data);
       }
-      hash_table_foreach(&device->push_pl_table->table, entry) {
+      hash_table_foreach(device->push_pl_table->table, entry) {
          struct wrapper_push_pl *r = entry->data;
          free(r->set_layouts);
          free(r);
       }
-      hash_table_foreach(&device->push_template_table->table, entry) {
+      hash_table_foreach(device->push_template_table->table, entry) {
          free(entry->data);
       }
       _mesa_hash_table_u64_destroy(device->push_dsl_table);
