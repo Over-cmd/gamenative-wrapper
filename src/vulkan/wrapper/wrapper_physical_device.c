@@ -129,10 +129,14 @@ wrapper_CreateDevice(VkPhysicalDevice physicalDevice,
             vk12->uniformAndStorageBuffer8BitAccess = VK_FALSE;
             vk12->storagePushConstant8 = VK_FALSE;
          }
+      }
+      if (s->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_16BIT_STORAGE_FEATURES) {
+         VkPhysicalDevice16BitStorageFeatures *storage16 = (VkPhysicalDevice16BitStorageFeatures *)s;
          if (!pdevice->base_supported_extensions.KHR_16bit_storage) {
-            vk12->storageBuffer16BitAccess = VK_FALSE;
-            vk12->uniformAndStorageBuffer16BitAccess = VK_FALSE;
-            vk12->storagePushConstant16 = VK_FALSE;
+            storage16->storageBuffer16BitAccess = VK_FALSE;
+            storage16->uniformAndStorageBuffer16BitAccess = VK_FALSE;
+            storage16->storagePushConstant16 = VK_FALSE;
+            storage16->storageInputOutput16 = VK_FALSE;
          }
       }
       if (s->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_FLOAT16_INT8_FEATURES_KHR) {
