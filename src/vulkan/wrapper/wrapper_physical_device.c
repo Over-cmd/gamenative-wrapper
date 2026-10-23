@@ -48,7 +48,6 @@ wrapper_filter_enabled_extensions(const struct wrapper_device *device,
    }
 
    CHECK_FILTER_EXT(KHR_swapchain)
-   CHECK_FILTER_EXT(EXT_swapchain_colorspace)
    CHECK_FILTER_EXT(EXT_vertex_attribute_divisor)
    CHECK_FILTER_EXT(KHR_vertex_attribute_divisor)
    CHECK_FILTER_EXT(EXT_map_memory_placed)
@@ -118,7 +117,6 @@ wrapper_apply_device_extension_blacklist(struct wrapper_physical_device *physica
          physical_device->vk.supported_extensions.ext = false; \
       }
       BLACKLIST_EXT(KHR_swapchain)
-      BLACKLIST_EXT(EXT_swapchain_colorspace)
       BLACKLIST_EXT(EXT_vertex_attribute_divisor)
       BLACKLIST_EXT(KHR_vertex_attribute_divisor)
       BLACKLIST_EXT(EXT_map_memory_placed)
@@ -1125,7 +1123,6 @@ wrapper_setup_device_extensions(struct wrapper_physical_device *pdevice) {
       }
 
       ENABLE_DEVICE_EXT(KHR_swapchain)
-      ENABLE_DEVICE_EXT(EXT_swapchain_colorspace)
       ENABLE_DEVICE_EXT(EXT_vertex_attribute_divisor)
       ENABLE_DEVICE_EXT(KHR_vertex_attribute_divisor)
       ENABLE_DEVICE_EXT(EXT_map_memory_placed)
