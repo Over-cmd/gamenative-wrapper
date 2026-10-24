@@ -395,6 +395,8 @@ wrapper_GetPhysicalDeviceFeatures(VkPhysicalDevice physicalDevice,
    pFeatures->shaderStorageImageExtendedFormats = true;
    pFeatures->shaderStorageImageWriteWithoutFormat = true;
    pFeatures->independentBlend = true;
+   pFeatures->logicOp = true;
+   pFeatures->dualSrcBlend = true;
    pFeatures->variableMultisampleRate = false;
 }
 
@@ -462,6 +464,8 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
    pFeatures->features.shaderStorageImageExtendedFormats = true;
    pFeatures->features.shaderStorageImageWriteWithoutFormat = true;
    pFeatures->features.independentBlend = true;
+   pFeatures->features.logicOp = true;
+   pFeatures->features.dualSrcBlend = true;
    pFeatures->features.variableMultisampleRate = false;
 
    pdevice->vk.supported_extensions.EXT_vertex_attribute_divisor = true;
