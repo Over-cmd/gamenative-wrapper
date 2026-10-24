@@ -446,8 +446,7 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
    VK_FROM_HANDLE(wrapper_physical_device, pdevice, physicalDevice);
    vk_common_GetPhysicalDeviceFeatures2(physicalDevice, pFeatures);
 
-   if (pdevice->driver_properties.driverID == VK_DRIVER_ID_ARM_PROPRIETARY &&
-       pdevice->vk.supported_extensions.EXT_robustness2) {
+   if (pdevice->driver_properties.driverID == VK_DRIVER_ID_ARM_PROPRIETARY) {
       vk_foreach_struct(s, pFeatures->pNext) {
          if (s->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ROBUSTNESS_2_FEATURES_EXT) {
             VkPhysicalDeviceRobustness2FeaturesEXT *r2 = (VkPhysicalDeviceRobustness2FeaturesEXT *)s;
@@ -466,6 +465,22 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
             vad->vertexAttributeInstanceRateDivisor = VK_TRUE;
             vad->vertexAttributeInstanceRateZeroDivisor = VK_TRUE;
          }
+         if (s->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_GRAPHICS_PIPELINE_LIBRARY_FEATURES_EXT) {
+            ((VkPhysicalDeviceGraphicsPipelineLibraryFeaturesEXT *)s)->graphicsPipelineLibrary = VK_TRUE;
+         }
+         if (s->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_CUSTOM_BORDER_COLOR_FEATURES_EXT) {
+            VkPhysicalDeviceCustomBorderColorFeaturesEXT *cbc = (VkPhysicalDeviceCustomBorderColorFeaturesEXT *)s;
+            cbc->customBorderColors = VK_TRUE;
+            cbc->customBorderColorWithoutFormat = VK_TRUE;
+         }
+         if (s->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DEPTH_CLIP_ENABLE_FEATURES_EXT) {
+            VkPhysicalDeviceDepthClipEnableFeaturesEXT *dce = (VkPhysicalDeviceDepthClipEnableFeaturesEXT *)s;
+            dce->depthClipEnable = VK_TRUE;
+         }
+         if (s->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_NON_SEAMLESS_CUBE_MAP_FEATURES_EXT) {
+            VkPhysicalDeviceNonSeamlessCubeMapFeaturesEXT *nsm = (VkPhysicalDeviceNonSeamlessCubeMapFeaturesEXT *)s;
+            nsm->nonSeamlessCubeMap = VK_TRUE;
+         }
       }
    }
 
@@ -479,6 +494,37 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
             ((VkPhysicalDeviceMaintenance5Features *)s)->maintenance5 = VK_TRUE;
       }
    }
+
+   pdevice->vk.supported_extensions.EXT_vertex_attribute_divisor = true;
+   pdevice->vk.supported_extensions.KHR_vertex_attribute_divisor = true;
+   pdevice->vk.supported_extensions.EXT_extended_dynamic_state = false;
+   pdevice->vk.supported_extensions.EXT_extended_dynamic_state2 = true;
+   pdevice->vk.supported_extensions.EXT_vertex_input_dynamic_state = true;
+   pdevice->vk.supported_extensions.KHR_sampler_ycbcr_conversion = true;
+   pdevice->vk.supported_extensions.KHR_shader_draw_parameters = true;
+   pdevice->vk.supported_extensions.EXT_filter_cubic = true;
+   pdevice->vk.supported_extensions.EXT_image_robustness = true;
+   pdevice->vk.supported_extensions.EXT_calibrated_timestamps = false;
+   pdevice->vk.supported_extensions.EXT_blend_operation_advanced = true;
+   pdevice->vk.supported_extensions.EXT_discard_rectangles = true;
+   pdevice->vk.supported_extensions.EXT_sample_locations = true;
+   pdevice->vk.supported_extensions.KHR_multiview = true;
+   pdevice->vk.supported_extensions.KHR_push_descriptor = true;
+   pdevice->vk.supported_extensions.EXT_custom_border_color = true;
+   pdevice->vk.supported_extensions.EXT_private_data = true;
+   pdevice->vk.supported_extensions.EXT_memory_budget = true;
+   pdevice->vk.supported_extensions.KHR_map_memory2 = true;
+   pdevice->vk.supported_extensions.KHR_separate_depth_stencil_layouts = true;
+   pdevice->vk.supported_extensions.KHR_create_renderpass2 = true;
+   pdevice->vk.supported_extensions.KHR_depth_stencil_resolve = true;
+   pdevice->vk.supported_extensions.KHR_dynamic_rendering = false;
+   pdevice->vk.supported_extensions.KHR_image_format_list = true;
+   pdevice->vk.supported_extensions.EXT_color_write_enable = true;
+   pdevice->vk.supported_extensions.KHR_shader_float_controls = true;
+   pdevice->vk.supported_extensions.EXT_shader_subgroup_ballot = true;
+   pdevice->vk.supported_extensions.EXT_texture_compression_astc_hdr = true;
+   pdevice->vk.supported_extensions.EXT_depth_clip_enable = true;
+   pdevice->vk.supported_extensions.EXT_non_seamless_cube_map = true;
 }
 
 VKAPI_ATTR void VKAPI_CALL
