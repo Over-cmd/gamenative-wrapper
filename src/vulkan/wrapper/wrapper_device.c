@@ -684,6 +684,23 @@ if (pdf2 && pdf2->features.f) { \
    DISABLE_FEATURE(shaderCullDistance);
    DISABLE_FEATURE(dualSrcBlend);
    DISABLE_FEATURE(multiDrawIndirect);
+   DISABLE_FEATURE(robustBufferAccess);
+   DISABLE_FEATURE(fullDrawIndexUint32);
+   DISABLE_FEATURE(independentBlending);
+   DISABLE_FEATURE(geometryShader);
+   DISABLE_FEATURE(tessellationShader);
+   DISABLE_FEATURE(sampleRateShading);
+   DISABLE_FEATURE(logicOp);
+   DISABLE_FEATURE(drawIndirectFirstInstance);
+   DISABLE_FEATURE(depthBounds);
+   DISABLE_FEATURE(wideLines);
+   DISABLE_FEATURE(largePoints);
+   DISABLE_FEATURE(alphaToOne);
+   DISABLE_FEATURE(samplerAnisotropy);
+   DISABLE_FEATURE(occlusionQueryPrecise);
+   DISABLE_FEATURE(pipelineStatisticsQuery);
+   DISABLE_FEATURE(vertexPipelineStoresAndAtomics);
+   DISABLE_FEATURE(fragmentStoresAndAtomics);
 #undef DISABLE_FEATURE
 
    process_pnext_chain((VkBaseInStructure *)&wrapper_create_info, device->physical);
