@@ -380,6 +380,7 @@ wrapper_GetPhysicalDeviceFeatures(VkPhysicalDevice physicalDevice,
    pFeatures->geometryShader = true;
    pFeatures->tessellationShader = true;
    pFeatures->shaderInt16 = true;
+   pFeatures->shaderInt64 = true;
    pFeatures->sampleRateShading = true;
    pFeatures->imageCubeArray = true;
    pFeatures->shaderSampledImageArrayDynamicIndexing = true;
@@ -397,6 +398,8 @@ wrapper_GetPhysicalDeviceFeatures(VkPhysicalDevice physicalDevice,
    pFeatures->independentBlend = true;
    pFeatures->logicOp = true;
    pFeatures->dualSrcBlend = true;
+   pFeatures->depthClamp = true;
+   pFeatures->depthBiasClamp = true;
    pFeatures->variableMultisampleRate = false;
 }
 
@@ -449,6 +452,7 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
    pFeatures->features.geometryShader = true;
    pFeatures->features.tessellationShader = true;
    pFeatures->features.shaderInt16 = true;
+   pFeatures->features.shaderInt64 = true;
    pFeatures->features.sampleRateShading = true;
    pFeatures->features.imageCubeArray = true;
    pFeatures->features.shaderSampledImageArrayDynamicIndexing = true;
@@ -466,6 +470,8 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
    pFeatures->features.independentBlend = true;
    pFeatures->features.logicOp = true;
    pFeatures->features.dualSrcBlend = true;
+   pFeatures->features.depthClamp = true;
+   pFeatures->features.depthBiasClamp = true;
    pFeatures->features.variableMultisampleRate = false;
 
    pdevice->vk.supported_extensions.EXT_vertex_attribute_divisor = true;
