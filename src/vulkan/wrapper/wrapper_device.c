@@ -198,6 +198,27 @@ static void process_pnext_chain(VkBaseInStructure *create_info, struct wrapper_p
              WRAPPER_LOG(info, "Unlinking VertexAttributeDivisorFeaturesEXT (base lacks it)");
              unlink_vk_struct(create_info, &current, &prev);
              continue;
+
+          /* --- DESVINCULACIÓN DE EXTENSIONES SPOOFEADAS QUE EL DRIVER REAL NO SOPORTA --- */
+          case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_CUSTOM_BORDER_COLOR_FEATURES_EXT:
+             if (pdevice->base_supported_extensions.EXT_custom_border_color)
+                break;
+             WRAPPER_LOG(info, "Unlinking VkPhysicalDeviceCustomBorderColorFeaturesEXT from pNext chain");
+             unlink_vk_struct(create_info, &current, &prev);
+             continue;
+          case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DEPTH_CLIP_ENABLE_FEATURES_EXT:
+             if (pdevice->base_supported_extensions.EXT_depth_clip_enable)
+                break;
+             WRAPPER_LOG(info, "Unlinking VkPhysicalDeviceDepthClipEnableFeaturesEXT from pNext chain");
+             unlink_vk_struct(create_info, &current, &prev);
+             continue;
+          case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_NON_SEAMLESS_CUBE_MAP_FEATURES_EXT:
+             if (pdevice->base_supported_extensions.EXT_non_seamless_cube_map)
+                break;
+             WRAPPER_LOG(info, "Unlinking VkPhysicalDeviceNonSeamlessCubeMapFeaturesEXT from pNext chain");
+             unlink_vk_struct(create_info, &current, &prev);
+             continue;
+
           case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES:
              if (api_version >= VK_MAKE_VERSION(1, 1, 0))
                 break;
