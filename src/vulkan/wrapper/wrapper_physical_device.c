@@ -383,7 +383,6 @@ wrapper_GetPhysicalDeviceFeatures(VkPhysicalDevice physicalDevice,
    pFeatures->sampleRateShading = true;
    pFeatures->imageCubeArray = true;
    pFeatures->shaderSampledImageArrayDynamicIndexing = true;
-   pFeatures->shaderStorageImageArrayDynamicIndexing = true;
    pFeatures->drawIndirectFirstInstance = true;
    pFeatures->shaderUniformBufferArrayDynamicIndexing = true;
    pFeatures->shaderStorageBufferArrayDynamicIndexing = true;
@@ -392,19 +391,10 @@ wrapper_GetPhysicalDeviceFeatures(VkPhysicalDevice physicalDevice,
    pFeatures->shaderResourceMinLod = true;
    pFeatures->shaderTessellationAndGeometryPointSize = true;
    pFeatures->textureCompressionASTC_LDR = true;
-   pFeatures->textureCompressionETC2 = true;
    pFeatures->occlusionQueryPrecise = true; 
    pFeatures->shaderStorageImageExtendedFormats = true;
-   pFeatures->shaderStorageImageReadWithoutFormat = true;
    pFeatures->shaderStorageImageWriteWithoutFormat = true;
    pFeatures->independentBlend = true;
-   pFeatures->depthBiasClamp = true;
-   pFeatures->fragmentStoresAndAtomics = true;
-   pFeatures->fullDrawIndexUint32 = true;
-   pFeatures->shaderImageGatherExtended = true;
-   pFeatures->largePoints = true;
-   pFeatures->robustBufferAccess = true;
-   pFeatures->samplerAnisotropy = true;
    pFeatures->variableMultisampleRate = false;
 }
 
@@ -460,7 +450,6 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
    pFeatures->features.sampleRateShading = true;
    pFeatures->features.imageCubeArray = true;
    pFeatures->features.shaderSampledImageArrayDynamicIndexing = true;
-   pFeatures->features.shaderStorageImageArrayDynamicIndexing = true;
    pFeatures->features.drawIndirectFirstInstance = true;
    pFeatures->features.shaderUniformBufferArrayDynamicIndexing = true;
    pFeatures->features.shaderStorageBufferArrayDynamicIndexing = true;
@@ -469,50 +458,40 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
    pFeatures->features.shaderResourceMinLod = true;
    pFeatures->features.shaderTessellationAndGeometryPointSize = true;
    pFeatures->features.textureCompressionASTC_LDR = true;
-   pFeatures->features.textureCompressionETC2 = true;
    pFeatures->features.occlusionQueryPrecise = true; 
    pFeatures->features.shaderStorageImageExtendedFormats = true;
-   pFeatures->features.shaderStorageImageReadWithoutFormat = true;
    pFeatures->features.shaderStorageImageWriteWithoutFormat = true;
    pFeatures->features.independentBlend = true;
-   pFeatures->features.depthBiasClamp = true;
-   pFeatures->features.fragmentStoresAndAtomics = true;
-   pFeatures->features.fullDrawIndexUint32 = true;
-   pFeatures->features.shaderImageGatherExtended = true;
-   pFeatures->features.largePoints = true;
-   pFeatures->features.robustBufferAccess = true;
-   pFeatures->features.samplerAnisotropy = true;
    pFeatures->features.variableMultisampleRate = false;
 
-   // Activación segura de extensiones basada en lo que soporta la GPU subyacente
-   pdevice->vk.supported_extensions.EXT_vertex_attribute_divisor = pdevice->base_supported_extensions.EXT_vertex_attribute_divisor;
-   pdevice->vk.supported_extensions.KHR_vertex_attribute_divisor = pdevice->base_supported_extensions.KHR_vertex_attribute_divisor;
-   pdevice->vk.supported_extensions.EXT_extended_dynamic_state = pdevice->base_supported_extensions.EXT_extended_dynamic_state;
-   pdevice->vk.supported_extensions.EXT_extended_dynamic_state2 = pdevice->base_supported_extensions.EXT_extended_dynamic_state2;
-   pdevice->vk.supported_extensions.EXT_vertex_input_dynamic_state = pdevice->base_supported_extensions.EXT_vertex_input_dynamic_state;
-   pdevice->vk.supported_extensions.KHR_sampler_ycbcr_conversion = pdevice->base_supported_extensions.KHR_sampler_ycbcr_conversion;
-   pdevice->vk.supported_extensions.KHR_shader_draw_parameters = pdevice->base_supported_extensions.KHR_shader_draw_parameters;
-   pdevice->vk.supported_extensions.EXT_filter_cubic = pdevice->base_supported_extensions.EXT_filter_cubic;
-   pdevice->vk.supported_extensions.EXT_image_robustness = pdevice->base_supported_extensions.EXT_image_robustness;
+   pdevice->vk.supported_extensions.EXT_vertex_attribute_divisor = true;
+   pdevice->vk.supported_extensions.KHR_vertex_attribute_divisor = true;
+   pdevice->vk.supported_extensions.EXT_extended_dynamic_state = false;
+   pdevice->vk.supported_extensions.EXT_extended_dynamic_state2 = true;
+   pdevice->vk.supported_extensions.EXT_vertex_input_dynamic_state = true;
+   pdevice->vk.supported_extensions.KHR_sampler_ycbcr_conversion = true;
+   pdevice->vk.supported_extensions.KHR_shader_draw_parameters = true;
+   pdevice->vk.supported_extensions.EXT_filter_cubic = true;
+   pdevice->vk.supported_extensions.EXT_image_robustness = true;
    pdevice->vk.supported_extensions.EXT_calibrated_timestamps = false;
-   pdevice->vk.supported_extensions.EXT_blend_operation_advanced = pdevice->base_supported_extensions.EXT_blend_operation_advanced;
-   pdevice->vk.supported_extensions.EXT_discard_rectangles = pdevice->base_supported_extensions.EXT_discard_rectangles;
-   pdevice->vk.supported_extensions.EXT_sample_locations = pdevice->base_supported_extensions.EXT_sample_locations;
-   pdevice->vk.supported_extensions.KHR_multiview = pdevice->base_supported_extensions.KHR_multiview;
-   pdevice->vk.supported_extensions.KHR_push_descriptor = pdevice->base_supported_extensions.KHR_push_descriptor;
-   pdevice->vk.supported_extensions.EXT_custom_border_color = pdevice->base_supported_extensions.EXT_custom_border_color;
-   pdevice->vk.supported_extensions.EXT_private_data = pdevice->base_supported_extensions.EXT_private_data;
-   pdevice->vk.supported_extensions.EXT_memory_budget = pdevice->base_supported_extensions.EXT_memory_budget;
-   pdevice->vk.supported_extensions.KHR_map_memory2 = pdevice->base_supported_extensions.KHR_map_memory2;
-   pdevice->vk.supported_extensions.KHR_separate_depth_stencil_layouts = pdevice->base_supported_extensions.KHR_separate_depth_stencil_layouts;
-   pdevice->vk.supported_extensions.KHR_create_renderpass2 = pdevice->base_supported_extensions.KHR_create_renderpass2;
-   pdevice->vk.supported_extensions.KHR_depth_stencil_resolve = pdevice->base_supported_extensions.KHR_depth_stencil_resolve;
+   pdevice->vk.supported_extensions.EXT_blend_operation_advanced = true;
+   pdevice->vk.supported_extensions.EXT_discard_rectangles = true;
+   pdevice->vk.supported_extensions.EXT_sample_locations = true;
+   pdevice->vk.supported_extensions.KHR_multiview = true;
+   pdevice->vk.supported_extensions.KHR_push_descriptor = true;
+   pdevice->vk.supported_extensions.EXT_custom_border_color = true;
+   pdevice->vk.supported_extensions.EXT_private_data = true;
+   pdevice->vk.supported_extensions.EXT_memory_budget = true;
+   pdevice->vk.supported_extensions.KHR_map_memory2 = true;
+   pdevice->vk.supported_extensions.KHR_separate_depth_stencil_layouts = true;
+   pdevice->vk.supported_extensions.KHR_create_renderpass2 = true;
+   pdevice->vk.supported_extensions.KHR_depth_stencil_resolve = true;
    pdevice->vk.supported_extensions.KHR_dynamic_rendering = false;
-   pdevice->vk.supported_extensions.KHR_image_format_list = pdevice->base_supported_extensions.KHR_image_format_list;
-   pdevice->vk.supported_extensions.EXT_color_write_enable = pdevice->base_supported_extensions.EXT_color_write_enable;
-   pdevice->vk.supported_extensions.KHR_shader_float_controls = pdevice->base_supported_extensions.KHR_shader_float_controls;
-   pdevice->vk.supported_extensions.EXT_shader_subgroup_ballot = pdevice->base_supported_extensions.EXT_shader_subgroup_ballot;
-   pdevice->vk.supported_extensions.EXT_texture_compression_astc_hdr = pdevice->base_supported_extensions.EXT_texture_compression_astc_hdr;
+   pdevice->vk.supported_extensions.KHR_image_format_list = true;
+   pdevice->vk.supported_extensions.EXT_color_write_enable = true;
+   pdevice->vk.supported_extensions.KHR_shader_float_controls = true;
+   pdevice->vk.supported_extensions.EXT_shader_subgroup_ballot = true;
+   pdevice->vk.supported_extensions.EXT_texture_compression_astc_hdr = true;
 }
 
 VKAPI_ATTR void VKAPI_CALL
