@@ -89,52 +89,17 @@ wrapper_filter_enabled_extensions(const struct wrapper_device *device,
       if (!device->vk.enabled_extensions.extensions[idx])
          continue;
 
-      const char *ext_name = vk_device_extensions[idx].extensionName;
-      bool is_pipeline_lib = (strcmp(ext_name, "VK_KHR_pipeline_library") == 0);
-
-      if (!device->physical->base_supported_extensions.extensions[idx] && !is_pipeline_lib)
+      if (!device->physical->base_supported_extensions.extensions[idx])
          continue;
 
-      if (strcmp(ext_name, "VK_EXT_vertex_attribute_divisor") == 0 ||
-          strcmp(ext_name, "VK_KHR_vertex_attribute_divisor") == 0 ||
-          strcmp(ext_name, "VK_EXT_texture_compression_astc_hdr") == 0 ||
-          strcmp(ext_name, "VK_EXT_extended_dynamic_state") == 0 ||
-          strcmp(ext_name, "VK_EXT_extended_dynamic_state2") == 0 ||
-          strcmp(ext_name, "VK_EXT_vertex_input_dynamic_state") == 0 ||
-          strcmp(ext_name, "VK_KHR_sampler_ycbcr_conversion") == 0 ||
-          strcmp(ext_name, "VK_KHR_shader_draw_parameters") == 0 ||
-          strcmp(ext_name, "VK_EXT_filter_cubic") == 0 ||
-          strcmp(ext_name, "VK_EXT_image_robustness") == 0 ||
-          strcmp(ext_name, "VK_EXT_calibrated_timestamps") == 0 ||
-          strcmp(ext_name, "VK_EXT_blend_operation_advanced") == 0 ||
-          strcmp(ext_name, "VK_EXT_discard_rectangles") == 0 ||
-          strcmp(ext_name, "VK_EXT_sample_locations") == 0 ||
-          strcmp(ext_name, "VK_KHR_multiview") == 0 ||
-          strcmp(ext_name, "VK_EXT_color_write_enable") == 0 ||
-          strcmp(ext_name, "VK_KHR_shader_float_controls") == 0 ||
-          strcmp(ext_name, "VK_EXT_shader_subgroup_ballot") == 0 ||
-          strcmp(ext_name, "VK_KHR_push_descriptor") == 0 ||
-          strcmp(ext_name, "VK_EXT_custom_border_color") == 0 ||
-          strcmp(ext_name, "VK_EXT_private_data") == 0 ||
-          strcmp(ext_name, "VK_EXT_memory_budget") == 0 ||
-          strcmp(ext_name, "VK_KHR_map_memory2") == 0 ||
-          strcmp(ext_name, "VK_KHR_separate_depth_stencil_layouts") == 0 ||
-          strcmp(ext_name, "VK_KHR_create_renderpass2") == 0 ||
-          strcmp(ext_name, "VK_KHR_depth_stencil_resolve") == 0 ||
-          strcmp(ext_name, "VK_KHR_dynamic_rendering") == 0 ||
-          strcmp(ext_name, "VK_KHR_image_format_list") == 0 ||
-          strcmp(ext_name, "VK_KHR_maintenance5") == 0 ||
-          is_pipeline_lib) {
-
-         if (strcmp(ext_name, "VK_EXT_robustness2") == 0) {
-            continue;
-         }
-
-         enable_extensions[(*enable_extension_count)++] = ext_name;
+      if (wrapper_device_extensions.extensions[idx])
          continue;
-      }
 
-      enable_extensions[(*enable_extension_count)++] = ext_name;
+      if (wrapper_filter_extensions.extensions[idx])
+         continue;
+
+      enable_extensions[(*enable_extension_count)++] =
+         vk_device_extensions[idx].extensionName;
    }
 
    if (device->vk.enabled_extensions.EXT_vertex_attribute_divisor &&
@@ -571,7 +536,53 @@ wrapper_emit_diag(struct wrapper_physical_device *pdev,
    D("  vendorID=0x%04x deviceID=0x%04x\n", p->vendorID, p->deviceID);
    D("engine: '%s' -> detected %s (app '%s')\n", eng, detected,
      pdev->instance->vk.app_info.app_name ? pdev->instance->vk.app_info.app_name : "");
+   D("--- native capabilities (what THIS device actually has) ---\n");
+   D("  textureCompressionBC       : %d\n", pdev->base_supported_features.textureCompressionBC);
+   D("  textureCompressionASTC_LDR : %d\n", pdev->base_supported_features.textureCompressionASTC_LDR);
+   D("  robustBufferAccess2        : %d\n", pdev->base_supported_features.robustBufferAccess2);
+   D("  nullDescriptor             : %d\n", pdev->base_supported_features.nullDescriptor);
+   D("  robustImageAccess2         : %d\n", pdev->base_supported_features.robustImageAccess2);
+   D("  extendedDynamicState       : %d\n", pdev->base_supported_features.extendedDynamicState);
+   D("  extendedDynamicState2      : %d\n", pdev->base_supported_features.extendedDynamicState2);
+   D("  dualSrcBlend               : %d\n", pdev->base_supported_features.dualSrcBlend);
+   D("  multiDrawIndirect          : %d\n", pdev->base_supported_features.multiDrawIndirect);
+   D("  ext EXT_robustness2              : %d\n", pdev->base_supported_extensions.EXT_robustness2);
+   D("  ext EXT_vertex_attribute_divisor : %d\n", pdev->base_supported_extensions.EXT_vertex_attribute_divisor);
+   D("  ext KHR_vertex_attribute_divisor : %d\n", pdev->base_supported_extensions.KHR_vertex_attribute_divisor);
+   D("--- wrapper overrides advertised to the D3D layer ---\n");
+   D("  WRAPPER_VK_VERSION advertised : %s\n",
+     getenv("WRAPPER_VK_VERSION") ? getenv("WRAPPER_VK_VERSION") : "(driver default)");
+   D("  faking VK_EXT_robustness2     : %s\n",
+     (pdev->vk.supported_extensions.EXT_robustness2 && !pdev->base_supported_extensions.EXT_robustness2) ? "YES" : "no");
+   D("  vertex_attr_divisor EXT alias : %s\n",
+     (pdev->vk.supported_extensions.EXT_vertex_attribute_divisor && !pdev->base_supported_extensions.EXT_vertex_attribute_divisor) ? "YES (aliased from KHR)" : "no");
+   D("  BCn: emulate=%d  ASTC=%s  transcode=%s  cache=%s\n",
+     pdev->emulate_bcn,
+     getenv("WRAPPER_ASTC_BLOCK") ? getenv("WRAPPER_ASTC_BLOCK") : "4x4",
+     (getenv("WRAPPER_BCN_GPU") && atoi(getenv("WRAPPER_BCN_GPU"))) ? "GPU" : "CPU",
+     (getenv("WRAPPER_USE_BCN_CACHE") && atoi(getenv("WRAPPER_USE_BCN_CACHE"))) ? "on" : "off");
+   D("  VK_EXT_device_fault report    : %s\n",
+     !pdev->base_supported_extensions.EXT_device_fault ? "unsupported by base driver" :
+     (!getenv("WRAPPER_DEVICE_FAULT") || atoi(getenv("WRAPPER_DEVICE_FAULT")))
+        ? "ON (GPU fault dumped on device loss)" : "off (WRAPPER_DEVICE_FAULT=0)");
+   D("  push_descriptor emulation     : %s\n",
+     (getenv("WRAPPER_EMULATE_PUSH_DESCRIPTOR") && atoi(getenv("WRAPPER_EMULATE_PUSH_DESCRIPTOR")))
+        ? "ON (forced)" :
+     (pdev->vk.supported_extensions.KHR_push_descriptor && !pdev->base_supported_extensions.KHR_push_descriptor)
+        ? "ON (base lacks it)" :
+     pdev->base_supported_extensions.KHR_push_descriptor ? "off (native)" : "off");
+   D("--- vkCreateDevice ---\n");
+   D("  result: %d (%s)\n", result, result == VK_SUCCESS ? "VK_SUCCESS" : "FAILED");
+   D("  requested device extensions (%u):\n", ci ? ci->enabledExtensionCount : 0);
+   if (ci)
+      for (uint32_t i = 0; i < ci->enabledExtensionCount; i++)
+         D("    %s\n", ci->ppEnabledExtensionNames[i]);
+   D("NOTE: seeing this block means a VkDevice was created. If a game fails\n");
+   D("  and this block never appears, the D3D layer rejected caps BEFORE\n");
+   D("  device creation -- the VKD3D_DEBUG/DXVK logs will show which.\n");
+   D("full diagnosis also needs (app-side): VKD3D_DEBUG=warn DXVK_LOG_LEVEL=info WINEDEBUG=+vulkan\n");
    D("====================================================\n");
+
 #undef D
 }
 
@@ -596,8 +607,6 @@ wrapper_CreateDevice(VkPhysicalDevice physicalDevice,
       .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FAULT_FEATURES_EXT,
    };
    bool used_fallback_create = false;
-
-   __sync_synchronize();
 
    device = vk_zalloc2(&physical_device->instance->vk.alloc, pAllocator,
                        sizeof(*device), 8, VK_SYSTEM_ALLOCATION_SCOPE_DEVICE);
@@ -630,11 +639,6 @@ wrapper_CreateDevice(VkPhysicalDevice physicalDevice,
 
    if (result != VK_SUCCESS) {
       WRAPPER_LOG(error, "Failed to init Vulkan device, res %d", result);
-      _mesa_hash_table_u64_destroy(device->image_table);
-      _mesa_hash_table_u64_destroy(device->buffer_table);
-      _mesa_hash_table_u64_destroy(device->fence_table);
-      simple_mtx_destroy(&device->resource_mutex);
-      simple_mtx_destroy(&device->bcn_gpu_mutex);
       vk_free2(&physical_device->instance->vk.alloc, pAllocator,
                device);
       return vk_error(physical_device, result);
@@ -686,12 +690,19 @@ if (pdf2 && pdf2->features.f) { \
 
    if (enable_device_fault &&
        !vk_find_struct_const(wrapper_create_info.pNext, PHYSICAL_DEVICE_FAULT_FEATURES_EXT)) {
+      WRAPPER_LOG(info, "Enabling VK_EXT_device_fault for GPU fault reporting");
       fault_features_ext.deviceFault =
          physical_device->base_supported_features.deviceFault;
       fault_features_ext.deviceFaultVendorBinary =
          physical_device->base_supported_features.deviceFaultVendorBinary;
       fault_features_ext.pNext = (void *)wrapper_create_info.pNext;
       wrapper_create_info.pNext = &fault_features_ext;
+   }
+
+   if (WRAPPER_LOG_LEVEL(info)) {
+      for (int i = 0; i < wrapper_enable_extension_count; i++) {
+         WRAPPER_LOG(info, "Enabling device extension %s", wrapper_enable_extensions[i]);
+      }
    }
 
    if (wrapper_safe_create_device == -1) {
@@ -704,6 +715,7 @@ if (pdf2 && pdf2->features.f) { \
 
    if (result != VK_SUCCESS) {
       if (wrapper_safe_create_device) {
+         WRAPPER_LOG(info, "Forcing device creation with a NULL pNext chain");
          wrapper_create_info.pNext = NULL;
          used_fallback_create = true;
          result = physical_device->dispatch_table.CreateDevice(
@@ -731,6 +743,7 @@ if (pdf2 && pdf2->features.f) { \
       physical_device->vk.supported_extensions.EXT_robustness2 &&
       !physical_device->base_supported_features.nullDescriptor;
    if (device->emulate_null_descriptor) {
+      WRAPPER_LOG(info, "Emulating nullDescriptor with canonical zero resources");
       wrapper_create_null_resources(device);
    }
 
@@ -743,6 +756,8 @@ if (pdf2 && pdf2->features.f) { \
       bool base_has = physical_device->base_supported_extensions.KHR_push_descriptor;
       device->emulate_push_descriptor = app_wants && (force || !base_has);
       if (device->emulate_push_descriptor) {
+         WRAPPER_LOG(info, "Emulating VK_KHR_push_descriptor%s",
+                     (base_has && force) ? " (forced; base has it natively)" : "");
          device->max_push_descriptors = WRAPPER_MAX_PUSH_DESCRIPTORS;
          simple_mtx_init(&device->push_mutex, mtx_plain);
          device->push_dsl_table = _mesa_hash_table_u64_create(NULL);
@@ -758,7 +773,7 @@ if (pdf2 && pdf2->features.f) { \
       return vk_error(physical_device, result);
    }
 
-   if (!physical_device->vk.supported_features.memoryMapPlaced && sizeof(void*) == 8) {
+   if (!physical_device->vk.supported_features.memoryMapPlaced) {
       device->vk.dispatch_table.AllocateMemory =
          wrapper_device_trampolines.AllocateMemory;
       device->vk.dispatch_table.MapMemory2 =
@@ -864,8 +879,10 @@ wrapper_CreateBuffer(VkDevice _device,
    res = device->dispatch_table.CreateBuffer(device->dispatch_handle,
       pCreateInfo, pAllocator, pBuffer);
 
-   if (res != VK_SUCCESS)
+   if (res != VK_SUCCESS) {
+      WRAPPER_LOG(error, "Failed to create buffer, res %d", res);
       return res;
+   }
 
    simple_mtx_lock(&device->resource_mutex);
 
@@ -873,6 +890,7 @@ wrapper_CreateBuffer(VkDevice _device,
       &device->vk.alloc, sizeof(struct wrapper_buffer), VK_OBJECT_TYPE_BUFFER);
 
    if (!wb) {
+      WRAPPER_LOG(error, "Failed to allocate wrapper_buffer");
       simple_mtx_unlock(&device->resource_mutex);
       return VK_ERROR_OUT_OF_HOST_MEMORY;
    }
@@ -900,12 +918,17 @@ wrapper_BindBufferMemory(VkDevice _device,
    VkResult res = device->dispatch_table.BindBufferMemory(device->dispatch_handle,
       buffer, memory, memoryOffset);
    
-   if (res != VK_SUCCESS)
+   if (res != VK_SUCCESS) {
+      WRAPPER_LOG(error, "Failed to bind buffer memory, res %d", res);
       return res;
+   }
 
    struct wrapper_buffer *wb = get_wrapper_buffer_from_handle(device, buffer);
-   if (wb == NULL)
-      return VK_SUCCESS;
+   if (wb == NULL) {
+      WRAPPER_LOG(error, "Failed to query wrapper_buffer");
+      simple_mtx_unlock(&device->resource_mutex);
+      return VK_ERROR_INITIALIZATION_FAILED;
+   }
 
    wb->memory = memory;
    wb->offset = memoryOffset;
@@ -922,8 +945,10 @@ wrapper_BindBufferMemory2(VkDevice _device,
    VkResult res = device->dispatch_table.BindBufferMemory2(device->dispatch_handle,
       bindInfoCount, pBindInfos);
 
-   if (res != VK_SUCCESS)
+   if (res != VK_SUCCESS) {
+      WRAPPER_LOG(error, "Failed to bind buffer memory2, res %d", res);
       return res;
+   }
 
    for (uint32_t i = 0; i < bindInfoCount; i++) {
       struct wrapper_buffer *wb =
@@ -1024,8 +1049,10 @@ wrapper_CreateImage(VkDevice _device,
    res = device->dispatch_table.CreateImage(device->dispatch_handle,
       &create_info, pAllocator, pImage);
 
-   if (res != VK_SUCCESS)
+   if (res != VK_SUCCESS) {
+      WRAPPER_LOG(error, "Failed to create image, res %d", res);
       return res;
+   }
 
    simple_mtx_lock(&device->resource_mutex);
 
@@ -1033,6 +1060,7 @@ wrapper_CreateImage(VkDevice _device,
       &device->vk.alloc, sizeof(struct wrapper_image), VK_OBJECT_TYPE_IMAGE);
 
    if (!wi) {
+      WRAPPER_LOG(error, "Failed to allocate wrapper_image");
       simple_mtx_unlock(&device->resource_mutex);
       return VK_ERROR_OUT_OF_HOST_MEMORY;
    }
@@ -1089,13 +1117,19 @@ wrapper_CreateImageView(VkDevice _device,
 {
    VK_FROM_HANDLE(wrapper_device, device, _device);
    VkImageViewCreateInfo create_info = *pCreateInfo;
+   VkResult result;
 
    if (is_emulated_bcn(device->physical, pCreateInfo->format)) {
       create_info.format = get_format_for_bcn(pCreateInfo->format);
    }
 
-   return device->dispatch_table.CreateImageView(device->dispatch_handle,
+   result = device->dispatch_table.CreateImageView(device->dispatch_handle,
      &create_info, pAllocator, pView);
+
+   if (result != VK_SUCCESS)
+      WRAPPER_LOG(error, "Failed to create image view, res %d", result);
+
+   return result;
 }
 
 VKAPI_ATTR void VKAPI_CALL
@@ -1323,6 +1357,8 @@ wrapper_emulate_push_descriptor(struct wrapper_command_buffer *wcb,
       if (dt->CmdPushDescriptorSetKHR)
          dt->CmdPushDescriptorSetKHR(wcb->dispatch_handle, bindPoint, layout,
                                      set, writeCount, pWrites);
+      else
+         WRAPPER_LOG(error, "push descriptor: no layout record for set %u", set);
       return;
    }
 
@@ -1370,6 +1406,12 @@ wrapper_emulate_push_descriptor_template(struct wrapper_command_buffer *wcb,
    struct wrapper_device *device = wcb->device;
    const struct vk_device_dispatch_table *dt = &device->dispatch_table;
 
+   simple_mtx_lock(&device->push_mutex);
+   struct wrapper_push_template *tpl =
+      _mesa_hash_table_u64_search(device->push_template_table, (uint64_t)tpl_handle);
+   VkPipelineBindPoint bp = tpl ? tpl->bind_point : VK_PIPELINE_BIND_POINT_GRAPHICS;
+   simple_mtx_unlock(&device->push_mutex);
+
    VkDescriptorSetLayout dsl_handle;
    struct wrapper_push_dsl *dsl =
       wrapper_push_resolve(device, layout, set, &dsl_handle);
@@ -1389,7 +1431,7 @@ wrapper_emulate_push_descriptor_template(struct wrapper_command_buffer *wcb,
       dt->UpdateDescriptorSetWithTemplate ? dt->UpdateDescriptorSetWithTemplate
                                           : dt->UpdateDescriptorSetWithTemplateKHR;
    upd(device->dispatch_handle, dset, tpl_handle, pData);
-   dt->CmdBindDescriptorSets(wcb->dispatch_handle, VK_PIPELINE_BIND_POINT_GRAPHICS, layout, set,
+   dt->CmdBindDescriptorSets(wcb->dispatch_handle, bp, layout, set,
                              1, &dset, 0, NULL);
 }
 
@@ -1532,6 +1574,91 @@ wrapper_DestroyPipelineLayout(VkDevice _device, VkPipelineLayout pipelineLayout,
       pipelineLayout, pAllocator);
 }
 
+static VkResult
+wrapper_create_update_template(struct wrapper_device *device,
+   const VkDescriptorUpdateTemplateCreateInfo *pCreateInfo,
+   const VkAllocationCallbacks *pAllocator,
+   VkDescriptorUpdateTemplate *pTemplate)
+{
+   const struct vk_device_dispatch_table *dt = &device->dispatch_table;
+   PFN_vkCreateDescriptorUpdateTemplate create_fn =
+      dt->CreateDescriptorUpdateTemplate ? dt->CreateDescriptorUpdateTemplate
+                                         : dt->CreateDescriptorUpdateTemplateKHR;
+
+   if (!device->emulate_push_descriptor)
+      return create_fn(device->dispatch_handle, pCreateInfo, pAllocator, pTemplate);
+
+   VkDescriptorUpdateTemplateCreateInfo ci = *pCreateInfo;
+   bool is_push =
+      ci.templateType == VK_DESCRIPTOR_UPDATE_TEMPLATE_TYPE_PUSH_DESCRIPTORS;
+   if (is_push) {
+      ci.templateType = VK_DESCRIPTOR_UPDATE_TEMPLATE_TYPE_DESCRIPTOR_SET;
+      VkDescriptorSetLayout dsl_handle;
+      wrapper_push_resolve(device, ci.pipelineLayout, ci.set, &dsl_handle);
+      ci.descriptorSetLayout = dsl_handle;
+   }
+
+   VkResult r = create_fn(device->dispatch_handle, &ci, pAllocator, pTemplate);
+   if (r != VK_SUCCESS)
+      return r;
+
+   struct wrapper_push_template *rec = calloc(1, sizeof(*rec));
+   if (rec) {
+      rec->is_push = is_push;
+      rec->bind_point = pCreateInfo->pipelineBindPoint;
+      rec->pipeline_layout = pCreateInfo->pipelineLayout;
+      rec->set = pCreateInfo->set;
+      simple_mtx_lock(&device->push_mutex);
+      _mesa_hash_table_u64_insert(device->push_template_table,
+                                  (uint64_t)*pTemplate, rec);
+      simple_mtx_unlock(&device->push_mutex);
+   }
+   return VK_SUCCESS;
+}
+
+VKAPI_ATTR VkResult VKAPI_CALL
+wrapper_CreateDescriptorUpdateTemplate(VkDevice _device,
+   const VkDescriptorUpdateTemplateCreateInfo *pCreateInfo,
+   const VkAllocationCallbacks *pAllocator,
+   VkDescriptorUpdateTemplate *pDescriptorUpdateTemplate)
+{
+   VK_FROM_HANDLE(wrapper_device, device, _device);
+   return wrapper_create_update_template(device, pCreateInfo, pAllocator,
+                                         pDescriptorUpdateTemplate);
+}
+
+static void
+wrapper_destroy_update_template(struct wrapper_device *device,
+   VkDescriptorUpdateTemplate descriptorUpdateTemplate,
+   const VkAllocationCallbacks *pAllocator)
+{
+   const struct vk_device_dispatch_table *dt = &device->dispatch_table;
+   if (device->emulate_push_descriptor && descriptorUpdateTemplate) {
+      simple_mtx_lock(&device->push_mutex);
+      struct wrapper_push_template *rec = _mesa_hash_table_u64_search(
+         device->push_template_table, (uint64_t)descriptorUpdateTemplate);
+      if (rec) {
+         _mesa_hash_table_u64_remove(device->push_template_table,
+                                     (uint64_t)descriptorUpdateTemplate);
+         free(rec);
+      }
+      simple_mtx_unlock(&device->push_mutex);
+   }
+   PFN_vkDestroyDescriptorUpdateTemplate destroy_fn =
+      dt->DestroyDescriptorUpdateTemplate ? dt->DestroyDescriptorUpdateTemplate
+                                          : dt->DestroyDescriptorUpdateTemplateKHR;
+   destroy_fn(device->dispatch_handle, descriptorUpdateTemplate, pAllocator);
+}
+
+VKAPI_ATTR void VKAPI_CALL
+wrapper_DestroyDescriptorUpdateTemplate(VkDevice _device,
+   VkDescriptorUpdateTemplate descriptorUpdateTemplate,
+   const VkAllocationCallbacks *pAllocator)
+{
+   VK_FROM_HANDLE(wrapper_device, device, _device);
+   wrapper_destroy_update_template(device, descriptorUpdateTemplate, pAllocator);
+}
+
 VKAPI_ATTR VkResult VKAPI_CALL
 wrapper_BeginCommandBuffer(VkCommandBuffer commandBuffer,
                           const VkCommandBufferBeginInfo *pBeginInfo)
@@ -1581,12 +1708,86 @@ wrapper_ResetCommandPool(VkDevice _device, VkCommandPool commandPool,
                                                   commandPool, flags);
 }
 
+static const char *
+wrapper_fault_addr_type_str(VkDeviceFaultAddressTypeEXT t)
+{
+   switch (t) {
+   case VK_DEVICE_FAULT_ADDRESS_TYPE_NONE_EXT:                        return "none";
+   case VK_DEVICE_FAULT_ADDRESS_TYPE_READ_INVALID_EXT:               return "read-invalid";
+   case VK_DEVICE_FAULT_ADDRESS_TYPE_WRITE_INVALID_EXT:              return "write-invalid";
+   case VK_DEVICE_FAULT_ADDRESS_TYPE_EXECUTE_INVALID_EXT:            return "execute-invalid";
+   case VK_DEVICE_FAULT_ADDRESS_TYPE_INSTRUCTION_POINTER_UNKNOWN_EXT: return "ip-unknown";
+   case VK_DEVICE_FAULT_ADDRESS_TYPE_INSTRUCTION_POINTER_INVALID_EXT: return "ip-invalid";
+   case VK_DEVICE_FAULT_ADDRESS_TYPE_INSTRUCTION_POINTER_FAULT_EXT:  return "ip-fault";
+   default:                                                          return "unknown";
+   }
+}
+
+static void
+wrapper_log_device_fault(struct wrapper_device *device)
+{
+   PFN_vkGetDeviceFaultInfoEXT get_fault_info =
+      device->dispatch_table.GetDeviceFaultInfoEXT;
+
+   if (!device->device_fault_enabled || !get_fault_info)
+      return;
+
+   static int diag = -1;
+   if (diag == -1)
+      diag = getenv("WRAPPER_DIAG") ? atoi(getenv("WRAPPER_DIAG")) : 0;
+   if (!diag)
+      return;
+
+   VkDeviceFaultCountsEXT counts = {
+      .sType = VK_STRUCTURE_TYPE_DEVICE_FAULT_COUNTS_EXT,
+   };
+   if (get_fault_info(device->dispatch_handle, &counts, NULL) != VK_SUCCESS)
+      return;
+
+   VkDeviceFaultInfoEXT info = {
+      .sType = VK_STRUCTURE_TYPE_DEVICE_FAULT_INFO_EXT,
+   };
+   if (counts.addressInfoCount)
+      info.pAddressInfos =
+         calloc(counts.addressInfoCount, sizeof(VkDeviceFaultAddressInfoEXT));
+   if (counts.vendorInfoCount)
+      info.pVendorInfos =
+         calloc(counts.vendorInfoCount, sizeof(VkDeviceFaultVendorInfoEXT));
+   counts.vendorBinarySize = 0;
+
+#define DF(...) fprintf(stderr, "[WRAPPER_DIAG] " __VA_ARGS__)
+   if (get_fault_info(device->dispatch_handle, &counts, &info) == VK_SUCCESS) {
+      DF("==== VK_ERROR_DEVICE_LOST: GPU fault report ====\n");
+      DF("  description: %s\n", info.description);
+
+      for (uint32_t i = 0; info.pAddressInfos && i < counts.addressInfoCount; i++) {
+         const VkDeviceFaultAddressInfoEXT *a = &info.pAddressInfos[i];
+         DF("  address fault[%u]: type=%s reportedAddress=0x%llx precision=0x%llx\n",
+            i, wrapper_fault_addr_type_str(a->addressType),
+            (unsigned long long)a->reportedAddress,
+            (unsigned long long)a->addressPrecision);
+      }
+      for (uint32_t i = 0; info.pVendorInfos && i < counts.vendorInfoCount; i++) {
+         const VkDeviceFaultVendorInfoEXT *v = &info.pVendorInfos[i];
+         DF("  vendor fault[%u]: %s code=0x%llx data=0x%llx\n",
+            i, v->description,
+            (unsigned long long)v->vendorFaultCode,
+            (unsigned long long)v->vendorFaultData);
+      }
+      DF("================================================\n");
+   }
+#undef DF
+
+   free(info.pAddressInfos);
+   free(info.pVendorInfos);
+}
+
 VKAPI_ATTR VkResult VKAPI_CALL
 wrapper_QueueSubmit(VkQueue _queue, uint32_t submitCount,
                     const VkSubmitInfo* pSubmits, VkFence fence)
 {
    VK_FROM_HANDLE(wrapper_queue, queue, _queue);
-   VkSubmitInfo *wrapper_submits = malloc(sizeof(VkSubmitInfo) * (submitCount ? submitCount : 1));
+   VkSubmitInfo wrapper_submits[submitCount ? submitCount : 1];
    VkResult result;
 
    struct wrapper_fence *wf = get_wrapper_fence_from_handle(queue->device, fence);
@@ -1616,9 +1817,11 @@ wrapper_QueueSubmit(VkQueue _queue, uint32_t submitCount,
    result = queue->device->dispatch_table.QueueSubmit(
       queue->dispatch_handle, submitCount, wrapper_submits, fence);
 
+   if (result == VK_ERROR_DEVICE_LOST)
+      wrapper_log_device_fault(queue->device);
+
    for (int i = 0; i < submitCount; i++)
       free((void *)wrapper_submits[i].pCommandBuffers);
-   free(wrapper_submits);
 
    return result;
 }
@@ -1628,7 +1831,7 @@ wrapper_QueueSubmit2(VkQueue _queue, uint32_t submitCount,
                      const VkSubmitInfo2* pSubmits, VkFence fence)
 {
    VK_FROM_HANDLE(wrapper_queue, queue, _queue);
-   VkSubmitInfo2 *wrapper_submits = malloc(sizeof(VkSubmitInfo2) * (submitCount ? submitCount : 1));
+   VkSubmitInfo2 wrapper_submits[submitCount ? submitCount : 1];
    VkResult result;
 
    struct wrapper_fence *wf = get_wrapper_fence_from_handle(queue->device, fence);
@@ -1659,9 +1862,11 @@ wrapper_QueueSubmit2(VkQueue _queue, uint32_t submitCount,
    result = queue->device->dispatch_table.QueueSubmit2(
       queue->dispatch_handle, submitCount, wrapper_submits, fence);
 
+   if (result == VK_ERROR_DEVICE_LOST)
+      wrapper_log_device_fault(queue->device);
+
    for (int i = 0; i < submitCount; i++)
       free((void *)wrapper_submits[i].pCommandBufferInfos);
-   free(wrapper_submits);
 
    return result;
 }
@@ -1714,13 +1919,16 @@ wrapper_CreateFence(VkDevice _device,
    VkResult res = device->dispatch_table.CreateFence(device->dispatch_handle,
       pCreateInfo, pAllocator, pFence);
 
-   if (res != VK_SUCCESS)
+   if (res != VK_SUCCESS) {
+      WRAPPER_LOG(error, "Failed to create fence, res %d", res);
       return res;
+   }
 
    simple_mtx_lock(&device->resource_mutex);
    struct wrapper_fence *wf = vk_object_zalloc(&device->vk,
       &device->vk.alloc, sizeof(struct wrapper_fence), VK_OBJECT_TYPE_FENCE);
    if (!wf) {
+      WRAPPER_LOG(error, "Failed to allocate wrapper_fence");
       simple_mtx_unlock(&device->resource_mutex);
       return VK_ERROR_OUT_OF_HOST_MEMORY;
    }
@@ -1787,7 +1995,7 @@ wrapper_CmdExecuteCommands(VkCommandBuffer commandBuffer,
                            const VkCommandBuffer* pCommandBuffers)
 {
    VK_FROM_HANDLE(wrapper_command_buffer, wcb, commandBuffer);
-   VkCommandBuffer *command_buffers = malloc(sizeof(VkCommandBuffer) * (commandBufferCount ? commandBufferCount : 1));
+   VkCommandBuffer command_buffers[commandBufferCount ? commandBufferCount : 1];
 
    for (int i = 0; i < commandBufferCount; i++) {
       command_buffers[i] =
@@ -1795,7 +2003,6 @@ wrapper_CmdExecuteCommands(VkCommandBuffer commandBuffer,
    }
    wcb->device->dispatch_table.CmdExecuteCommands(
       wcb->dispatch_handle, commandBufferCount, command_buffers);
-   free(command_buffers);
 }
 
 VKAPI_ATTR VkResult VKAPI_CALL
@@ -1831,6 +2038,9 @@ wrapper_CreateShaderModule(VkDevice _device,
          create_info.pCode = patched_code;
       }
    }
+
+   if (WRAPPER_LOG_LEVEL(shader))
+      dump_shader_code(create_info.pCode, create_info.codeSize);
 
    result = device->dispatch_table.CreateShaderModule(
       device->dispatch_handle, &create_info, pAllocator, pShaderModule);
@@ -2076,7 +2286,7 @@ wrapper_bcn_gpu_copy(struct wrapper_command_buffer *wcb,
    int astc8 = is_astc_8x8(get_format_for_bcn(format)) ? 1 : 0;
    static VkDeviceSize CAP = 0;
    if (CAP == 0) {
-      int mb = getenv("WRAPPER_BCN_GPU_CAP_MB") ? atoi(getenv("WRAPPER_BCN_GPU_CAP_MB")) : 512;
+      int mb = getenv("WRAPPER_BCN_GPU_CAP_MB") ? atoi(getenv("WRAPPER_BCN_GPU_CAP_MB")) : 128;
       if (mb < 16) mb = 16;
       CAP = (VkDeviceSize)mb * 1024 * 1024;
    }
@@ -2209,8 +2419,13 @@ wrapper_bcn_gpu_copy(struct wrapper_command_buffer *wcb,
       srcb->wcb = wcb;
       dstb->wcb = wcb;
       dstb->desc_pool = pool;
-      list_add(&srcb->link, &wcb->staging_buffers_list);
-      list_add(&dstb->link, &wcb->staging_buffers_list);
+      if (wcb->fence) {
+         list_add(&srcb->link, &wcb->fence->staging_buffers_list);
+         list_add(&dstb->link, &wcb->fence->staging_buffers_list);
+      } else {
+         list_add(&srcb->link, &wcb->staging_buffers_list);
+         list_add(&dstb->link, &wcb->staging_buffers_list);
+      }
    }
    return true;
 }
@@ -2240,6 +2455,7 @@ wrapper_bcn_do_copy(struct wrapper_command_buffer *wcb,
          wb->memory, wb->offset, wb->size, 0, &wb->mapped_address);
 
       if (res != VK_SUCCESS) {
+         WRAPPER_LOG(error, "Failed to map source buffer memory, res %d", res);
          simple_mtx_unlock(&device->resource_mutex);
          return;
       }
@@ -2268,6 +2484,7 @@ wrapper_bcn_do_copy(struct wrapper_command_buffer *wcb,
          &buffer_create_info, NULL, &staging_wb->dispatch_handle);
 
       if (res != VK_SUCCESS) {
+         WRAPPER_LOG(error, "Failed to create staging buffer, res %d", res);
          simple_mtx_unlock(&device->resource_mutex);
          return;
       }
@@ -2283,6 +2500,7 @@ wrapper_bcn_do_copy(struct wrapper_command_buffer *wcb,
          &allocate_info, NULL, &staging_wb->memory);
 
       if (res != VK_SUCCESS) {
+         WRAPPER_LOG(error, "Failed to allocate staging buffer memory, res %d", res);
          simple_mtx_unlock(&device->resource_mutex);
          return;
       }
@@ -2291,6 +2509,7 @@ wrapper_bcn_do_copy(struct wrapper_command_buffer *wcb,
          staging_wb->dispatch_handle, staging_wb->memory, 0);
 
       if (res != VK_SUCCESS) {
+         WRAPPER_LOG(error, "Failed to bind staging buffer memory, res %d", res);
          simple_mtx_unlock(&device->resource_mutex);
          return;
       }
@@ -2299,12 +2518,47 @@ wrapper_bcn_do_copy(struct wrapper_command_buffer *wcb,
          staging_wb->memory, 0, upload_size, 0, &staging_wb->mapped_address);
 
       if (res != VK_SUCCESS) {
+         WRAPPER_LOG(error, "Failed to map staging buffer memory, res %d", res);
          simple_mtx_unlock(&device->resource_mutex);
          return;
       }
 
       int src_w = copy_region.bufferRowLength ? (int)copy_region.bufferRowLength : w;
       decompress_bcn_format(wb->mapped_address, staging_wb->mapped_address, w, h, src_w, format, offset);
+
+      {
+         static int tex_diag = -1;
+         if (tex_diag == -1)
+            tex_diag = getenv("WRAPPER_DIAG") ? atoi(getenv("WRAPPER_DIAG")) : 0;
+         if (tex_diag) {
+            static int tex_n = 0;
+            struct wrapper_image *twi = get_wrapper_image_from_handle(device, dstImage);
+            VkFormat tgt = get_format_for_bcn(format);
+            fprintf(stderr,
+               "[WRAPPER_TEX %d] bc=%d %dx%d mip=%u rowLen=%u imgH=%u off=%d srcStride=%d"
+               " -> target=%d uploadSize=%llu",
+               tex_n, format, w, h, copy_region.imageSubresource.mipLevel,
+               copy_region.bufferRowLength, copy_region.bufferImageHeight,
+               offset, src_w, tgt, (unsigned long long)upload_size);
+            if (twi)
+               fprintf(stderr, " | img: fmt=%d extent=%ux%ux%u mips=%u tiling=%d usage=0x%x flags=0x%x",
+                  twi->info.format, twi->info.extent.width, twi->info.extent.height,
+                  twi->info.extent.depth, twi->info.mipLevels, twi->info.tiling,
+                  twi->info.usage, twi->info.flags);
+            fprintf(stderr, "\n");
+            if (tex_n < 4) {
+               unsigned char *src = (unsigned char *)wb->mapped_address + offset;
+               unsigned char *out = (unsigned char *)staging_wb->mapped_address;
+               int ns = 96, no = (upload_size < 256) ? (int)upload_size : 256;
+               fprintf(stderr, "  src:");
+               for (int b = 0; b < ns; b++) fprintf(stderr, "%02x", src[b]);
+               fprintf(stderr, "\n  out:");
+               for (int b = 0; b < no; b++) fprintf(stderr, "%02x", out[b]);
+               fprintf(stderr, "\n");
+            }
+            tex_n++;
+         }
+      }
 
       copy_region.bufferOffset = 0;
       copy_region.bufferRowLength = 0;
@@ -2315,7 +2569,11 @@ wrapper_bcn_do_copy(struct wrapper_command_buffer *wcb,
 
       staging_wb->wcb = wcb;
       staging_wb->device = device;
-      list_add(&staging_wb->link, &wcb->staging_buffers_list);
+      
+      if (wcb->fence)
+         list_add(&staging_wb->link, &wcb->fence->staging_buffers_list);
+      else
+         list_add(&staging_wb->link, &wcb->staging_buffers_list);
    }
 
    if (wb->is_mapped) {
@@ -2325,6 +2583,44 @@ wrapper_bcn_do_copy(struct wrapper_command_buffer *wcb,
    }
 
    simple_mtx_unlock(&device->resource_mutex);
+}
+
+static void
+wrapper_diag_append(const char *fmt, ...)
+{
+   static int on = -1;
+   if (on == -1)
+      on = getenv("WRAPPER_DIAG") ? atoi(getenv("WRAPPER_DIAG")) : 0;
+   if (!on)
+      return;
+   const char *aid = getenv("WRAPPER_DIAG_APPID");
+   char tp[256];
+   snprintf(tp, sizeof(tp),
+      "/data/data/app.gamenative/files/imagefs/usr/tmp/wrapper_diag_%s.txt",
+      (aid && aid[0]) ? aid : "unknown");
+   FILE *f = fopen(tp, "a");
+   va_list ap;
+   va_start(ap, fmt); vfprintf(stderr, fmt, ap); va_end(ap);
+   if (f) { va_start(ap, fmt); vfprintf(f, fmt, ap); va_end(ap); fclose(f); }
+}
+
+static void
+wrapper_diag_log_copy(struct wrapper_device *device, VkImage dstImage,
+                      struct wrapper_image *wi, struct wrapper_buffer *wb,
+                      uint32_t w, uint32_t h, uint32_t mip, uint32_t rowLen,
+                      uint32_t regionCount)
+{
+   if (!wi)
+      return;
+   VkFormat req = wi->info.format;
+   int emu = is_emulated_bcn(device->physical, req);
+   wrapper_diag_append(
+      "[COPY] img=%04x fmt=%d emulated=%d -> stored=%d %ux%u mip=%u rowLen=%u"
+      " tiling=%d usage=0x%x mips=%u bufTracked=%d regions=%u\n",
+      (unsigned)((uintptr_t)dstImage & 0xffff), req, emu,
+      emu ? get_format_for_bcn(req) : req, w, h, mip, rowLen,
+      (int)wi->info.tiling, wi->info.usage, wi->info.mipLevels,
+      wb ? 1 : 0, regionCount);
 }
 
 VKAPI_ATTR void VKAPI_CALL
@@ -2340,6 +2636,12 @@ wrapper_CmdCopyBufferToImage(VkCommandBuffer commandBuffer,
    struct wrapper_image *wi = get_wrapper_image_from_handle(device, dstImage);
    struct wrapper_buffer *wb = get_wrapper_buffer_from_handle(device, srcBuffer);
    VkFormat format = wi ? wi->info.format : VK_FORMAT_UNDEFINED;
+
+   if (regionCount)
+      wrapper_diag_log_copy(device, dstImage, wi, wb,
+         pRegions[0].imageExtent.width, pRegions[0].imageExtent.height,
+         pRegions[0].imageSubresource.mipLevel, pRegions[0].bufferRowLength,
+         regionCount);
 
    if (!wi || !wb || !is_emulated_bcn(device->physical, format)) {
       device->dispatch_table.CmdCopyBufferToImage(wcb->dispatch_handle,
@@ -2360,6 +2662,12 @@ wrapper_CmdCopyBufferToImage2(VkCommandBuffer commandBuffer,
    struct wrapper_image *wi = get_wrapper_image_from_handle(device, pInfo->dstImage);
    struct wrapper_buffer *wb = get_wrapper_buffer_from_handle(device, pInfo->srcBuffer);
    VkFormat format = wi ? wi->info.format : VK_FORMAT_UNDEFINED;
+
+   if (pInfo->regionCount)
+      wrapper_diag_log_copy(device, pInfo->dstImage, wi, wb,
+         pInfo->pRegions[0].imageExtent.width, pInfo->pRegions[0].imageExtent.height,
+         pInfo->pRegions[0].imageSubresource.mipLevel,
+         pInfo->pRegions[0].bufferRowLength, pInfo->regionCount);
 
    if (!wi || !wb || !is_emulated_bcn(device->physical, format)) {
       device->dispatch_table.CmdCopyBufferToImage2(wcb->dispatch_handle, pInfo);
@@ -2397,6 +2705,12 @@ wrapper_CmdBlitImage(
 {
    VK_FROM_HANDLE(wrapper_command_buffer, wcb, commandBuffer);
    struct wrapper_device *device = wcb->device;
+   struct wrapper_image *dst_img = get_wrapper_image_from_handle(device, dstImage);
+
+   if (dst_img && dst_img->is_emulated_bgra8) {
+      WRAPPER_LOG(error, "vkCmdBlitImage with is_emulated_bgra8 image");
+   }
+
    device->dispatch_table.CmdBlitImage(
       wcb->dispatch_handle,
       srcImage, srcImageLayout,
@@ -2411,6 +2725,11 @@ wrapper_CmdBlitImage2(
 {
    VK_FROM_HANDLE(wrapper_command_buffer, wcb, commandBuffer);
    struct wrapper_device *device = wcb->device;
+   struct wrapper_image *dst_img = get_wrapper_image_from_handle(device, pBlitImageInfo->dstImage);
+
+   if (dst_img && dst_img->is_emulated_bgra8) {
+      WRAPPER_LOG(error, "vkCmdBlitImage2 with is_emulated_bgra8 image");
+   }
 
    if (device->dispatch_table.CmdBlitImage2) {
       device->dispatch_table.CmdBlitImage2(wcb->dispatch_handle, pBlitImageInfo);
