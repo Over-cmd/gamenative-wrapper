@@ -154,7 +154,7 @@ VkResult enumerate_physical_device(struct vk_instance *_instance)
       PFN_vkGetInstanceProcAddr get_instance_proc_addr;
       struct wrapper_physical_device *pdevice;
 
-      pdevice = vk_zalloc(&_instance->alloc, sizeof(*pdevice), 8,
+      pdevice = vk_zalloc(&_instance->alloc, sizeof(*pdevice), sizeof(void*),
                           VK_SYSTEM_ALLOCATION_SCOPE_INSTANCE);
       if (!pdevice) {
          free(physical_devices);
@@ -438,6 +438,30 @@ wrapper_GetPhysicalDeviceFeatures(VkPhysicalDevice physicalDevice,
 {
    VK_FROM_HANDLE(wrapper_physical_device, pdevice, physicalDevice);
    vk_common_GetPhysicalDeviceFeatures(physicalDevice, pFeatures);
+
+   pFeatures->textureCompressionBC = true;
+   pFeatures->fillModeNonSolid = true;
+   pFeatures->shaderClipDistance = true;
+   pFeatures->shaderCullDistance = true;
+   pFeatures->geometryShader = true;
+   pFeatures->tessellationShader = true;
+   pFeatures->shaderInt16 = true;
+   pFeatures->sampleRateShading = true;
+   pFeatures->imageCubeArray = true;
+   pFeatures->shaderSampledImageArrayDynamicIndexing = true;
+   pFeatures->drawIndirectFirstInstance = true;
+   pFeatures->shaderUniformBufferArrayDynamicIndexing = true;
+   pFeatures->shaderStorageBufferArrayDynamicIndexing = true;
+   pFeatures->multiDrawIndirect = true;
+   pFeatures->sparseBinding = true;
+   pFeatures->shaderResourceMinLod = true;
+   pFeatures->shaderTessellationAndGeometryPointSize = true;
+   pFeatures->textureCompressionASTC_LDR = true;
+   pFeatures->occlusionQueryPrecise = true; 
+   pFeatures->shaderStorageImageExtendedFormats = true;
+   pFeatures->shaderStorageImageWriteWithoutFormat = true;
+   pFeatures->independentBlend = true;
+   pFeatures->variableMultisampleRate = false;
 }
 
 VKAPI_ATTR void VKAPI_CALL
