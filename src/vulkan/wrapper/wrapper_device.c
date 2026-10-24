@@ -686,7 +686,7 @@ if (pdf2 && pdf2->features.f) { \
    DISABLE_FEATURE(multiDrawIndirect);
    DISABLE_FEATURE(robustBufferAccess);
    DISABLE_FEATURE(fullDrawIndexUint32);
-   DISABLE_FEATURE(independentBlending);
+   DISABLE_FEATURE(independentBlend);
    DISABLE_FEATURE(geometryShader);
    DISABLE_FEATURE(tessellationShader);
    DISABLE_FEATURE(sampleRateShading);
