@@ -177,10 +177,37 @@ VkResult enumerate_physical_device(struct vk_instance *_instance)
 
       struct vk_features *supported_features = &pdevice->vk.supported_features;
       pdevice->base_supported_features = *supported_features;
+      
+      // Forzar todas las características críticas a nivel de motor Mesa
       supported_features->presentId = true;
       supported_features->multiViewport = true;
       supported_features->depthClamp = true;
       supported_features->depthBiasClamp = true;
+      supported_features->textureCompressionBC = true;
+      supported_features->fillModeNonSolid = true;
+      supported_features->shaderClipDistance = true;
+      supported_features->shaderCullDistance = true;
+      supported_features->geometryShader = true;
+      supported_features->tessellationShader = true;
+      supported_features->logicOp = true;
+      supported_features->dualSrcBlend = true;
+      supported_features->multiDrawIndirect = true;
+      supported_features->drawIndirectFirstInstance = true;
+      supported_features->shaderInt16 = true;
+      supported_features->shaderInt64 = true;
+      supported_features->sampleRateShading = true;
+      supported_features->imageCubeArray = true;
+      supported_features->shaderSampledImageArrayDynamicIndexing = true;
+      supported_features->shaderUniformBufferArrayDynamicIndexing = true;
+      supported_features->shaderStorageBufferArrayDynamicIndexing = true;
+      supported_features->sparseBinding = true;
+      supported_features->shaderResourceMinLod = true;
+      supported_features->shaderTessellationAndGeometryPointSize = true;
+      supported_features->textureCompressionASTC_LDR = true;
+      supported_features->occlusionQueryPrecise = true;
+      supported_features->shaderStorageImageExtendedFormats = true;
+      supported_features->shaderStorageImageWriteWithoutFormat = true;
+      supported_features->independentBlend = true;
 
       if (!wrapper_disable_placed) {
         pdevice->vk.supported_extensions.EXT_map_memory_placed = true;
@@ -193,10 +220,6 @@ VkResult enumerate_physical_device(struct vk_instance *_instance)
       	supported_features->memoryMapPlaced = false;
       	supported_features->memoryUnmapReserve = false;
       }
-      supported_features->textureCompressionBC = true;
-      supported_features->fillModeNonSolid = true;
-      supported_features->shaderClipDistance = true;
-      supported_features->shaderCullDistance = true;
 
       if (wrapper_disable_present_wait) {
          supported_features->presentWait = false;
