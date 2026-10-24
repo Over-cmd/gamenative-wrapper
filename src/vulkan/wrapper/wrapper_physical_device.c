@@ -177,8 +177,8 @@ VkResult enumerate_physical_device(struct vk_instance *_instance)
 
       struct vk_features *supported_features = &pdevice->vk.supported_features;
       pdevice->base_supported_features = *supported_features;
-      
-      // Forzar todas las características críticas a nivel de motor Mesa
+
+      // FORZAR AQUÍ LAS CARACTERÍSTICAS PARA QUE MESA LAS RECONOZCA DESDE EL INICIO
       supported_features->presentId = true;
       supported_features->multiViewport = true;
       supported_features->depthClamp = true;
