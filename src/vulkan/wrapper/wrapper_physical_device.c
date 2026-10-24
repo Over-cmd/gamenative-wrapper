@@ -497,6 +497,15 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
          if (s->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_GRAPHICS_PIPELINE_LIBRARY_FEATURES_EXT) {
             ((VkPhysicalDeviceGraphicsPipelineLibraryFeaturesEXT *)s)->graphicsPipelineLibrary = VK_TRUE;
          }
+         if (s->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_CUSTOM_BORDER_COLOR_FEATURES_EXT) {
+            VkPhysicalDeviceCustomBorderColorFeaturesEXT *cbc = (VkPhysicalDeviceCustomBorderColorFeaturesEXT *)s;
+            cbc->customBorderColors = VK_TRUE;
+            cbc->customBorderColorWithoutFormat = VK_TRUE;
+         }
+         if (s->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DEPTH_CLIP_ENABLE_FEATURES_EXT) {
+            VkPhysicalDeviceDepthClipEnableFeaturesEXT *dce = (VkPhysicalDeviceDepthClipEnableFeaturesEXT *)s;
+            dce->depthClipEnable = VK_TRUE;
+         }
       }
    }
 
@@ -568,6 +577,7 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
    pdevice->vk.supported_extensions.KHR_shader_float_controls = true;
    pdevice->vk.supported_extensions.EXT_shader_subgroup_ballot = true;
    pdevice->vk.supported_extensions.EXT_texture_compression_astc_hdr = true;
+   pdevice->vk.supported_extensions.EXT_depth_clip_enable = true;
 }
 
 VKAPI_ATTR void VKAPI_CALL
