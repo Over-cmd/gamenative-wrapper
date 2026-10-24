@@ -438,35 +438,6 @@ wrapper_GetPhysicalDeviceFeatures(VkPhysicalDevice physicalDevice,
 {
    VK_FROM_HANDLE(wrapper_physical_device, pdevice, physicalDevice);
    vk_common_GetPhysicalDeviceFeatures(physicalDevice, pFeatures);
-
-   pFeatures->textureCompressionBC = true;
-   pFeatures->fillModeNonSolid = true;
-   pFeatures->shaderClipDistance = true;
-   pFeatures->shaderCullDistance = true;
-   pFeatures->geometryShader = true;
-   pFeatures->tessellationShader = true;
-   pFeatures->shaderInt16 = true;
-   pFeatures->shaderInt64 = true;
-   pFeatures->sampleRateShading = true;
-   pFeatures->imageCubeArray = true;
-   pFeatures->shaderSampledImageArrayDynamicIndexing = true;
-   pFeatures->drawIndirectFirstInstance = true;
-   pFeatures->shaderUniformBufferArrayDynamicIndexing = true;
-   pFeatures->shaderStorageBufferArrayDynamicIndexing = true;
-   pFeatures->multiDrawIndirect = true;
-   pFeatures->sparseBinding = true;
-   pFeatures->shaderResourceMinLod = true;
-   pFeatures->shaderTessellationAndGeometryPointSize = true;
-   pFeatures->textureCompressionASTC_LDR = true;
-   pFeatures->occlusionQueryPrecise = true; 
-   pFeatures->shaderStorageImageExtendedFormats = true;
-   pFeatures->shaderStorageImageWriteWithoutFormat = true;
-   pFeatures->independentBlend = true;
-   pFeatures->logicOp = true;
-   pFeatures->dualSrcBlend = true;
-   pFeatures->depthClamp = true;
-   pFeatures->depthBiasClamp = true;
-   pFeatures->variableMultisampleRate = false;
 }
 
 VKAPI_ATTR void VKAPI_CALL
@@ -475,13 +446,14 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
    VK_FROM_HANDLE(wrapper_physical_device, pdevice, physicalDevice);
    vk_common_GetPhysicalDeviceFeatures2(physicalDevice, pFeatures);
 
-   if (pdevice->driver_properties.driverID == VK_DRIVER_ID_ARM_PROPRIETARY) {
+   if (pdevice->driver_properties.driverID == VK_DRIVER_ID_ARM_PROPRIETARY &&
+       pdevice->vk.supported_extensions.EXT_robustness2) {
       vk_foreach_struct(s, pFeatures->pNext) {
          if (s->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ROBUSTNESS_2_FEATURES_EXT) {
             VkPhysicalDeviceRobustness2FeaturesEXT *r2 = (VkPhysicalDeviceRobustness2FeaturesEXT *)s;
-            r2->robustBufferAccess2 = VK_FALSE;
-            r2->robustImageAccess2 = VK_FALSE;
-            r2->nullDescriptor = VK_FALSE;
+            r2->robustBufferAccess2 = VK_TRUE;
+            r2->robustImageAccess2 = pdevice->is_vkd3d ? VK_TRUE : VK_FALSE;
+            r2->nullDescriptor = VK_TRUE;
          }
          if (s->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTENDED_DYNAMIC_STATE_FEATURES_EXT) {
             ((VkPhysicalDeviceExtendedDynamicStateFeaturesEXT *)s)->extendedDynamicState = VK_TRUE;
@@ -493,22 +465,6 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
             VkPhysicalDeviceVertexAttributeDivisorFeaturesEXT *vad = (VkPhysicalDeviceVertexAttributeDivisorFeaturesEXT *)s;
             vad->vertexAttributeInstanceRateDivisor = VK_TRUE;
             vad->vertexAttributeInstanceRateZeroDivisor = VK_TRUE;
-         }
-         if (s->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_GRAPHICS_PIPELINE_LIBRARY_FEATURES_EXT) {
-            ((VkPhysicalDeviceGraphicsPipelineLibraryFeaturesEXT *)s)->graphicsPipelineLibrary = VK_TRUE;
-         }
-         if (s->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_CUSTOM_BORDER_COLOR_FEATURES_EXT) {
-            VkPhysicalDeviceCustomBorderColorFeaturesEXT *cbc = (VkPhysicalDeviceCustomBorderColorFeaturesEXT *)s;
-            cbc->customBorderColors = VK_TRUE;
-            cbc->customBorderColorWithoutFormat = VK_TRUE;
-         }
-         if (s->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DEPTH_CLIP_ENABLE_FEATURES_EXT) {
-            VkPhysicalDeviceDepthClipEnableFeaturesEXT *dce = (VkPhysicalDeviceDepthClipEnableFeaturesEXT *)s;
-            dce->depthClipEnable = VK_TRUE;
-         }
-         if (s->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_NON_SEAMLESS_CUBE_MAP_FEATURES_EXT) {
-            VkPhysicalDeviceNonSeamlessCubeMapFeaturesEXT *nsm = (VkPhysicalDeviceNonSeamlessCubeMapFeaturesEXT *)s;
-            nsm->nonSeamlessCubeMap = VK_TRUE;
          }
       }
    }
@@ -523,66 +479,6 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
             ((VkPhysicalDeviceMaintenance5Features *)s)->maintenance5 = VK_TRUE;
       }
    }
-
-   pFeatures->features.textureCompressionBC = true;
-   pFeatures->features.fillModeNonSolid = true;
-   pFeatures->features.shaderClipDistance = true;
-   pFeatures->features.shaderCullDistance = true;
-   pFeatures->features.geometryShader = true;
-   pFeatures->features.tessellationShader = true;
-   pFeatures->features.shaderInt16 = true;
-   pFeatures->features.shaderInt64 = true;
-   pFeatures->features.sampleRateShading = true;
-   pFeatures->features.imageCubeArray = true;
-   pFeatures->features.shaderSampledImageArrayDynamicIndexing = true;
-   pFeatures->features.drawIndirectFirstInstance = true;
-   pFeatures->features.shaderUniformBufferArrayDynamicIndexing = true;
-   pFeatures->features.shaderStorageBufferArrayDynamicIndexing = true;
-   pFeatures->features.multiDrawIndirect = true;
-   pFeatures->features.sparseBinding = true;
-   pFeatures->features.shaderResourceMinLod = true;
-   pFeatures->features.shaderTessellationAndGeometryPointSize = true;
-   pFeatures->features.textureCompressionASTC_LDR = true;
-   pFeatures->features.occlusionQueryPrecise = true; 
-   pFeatures->features.shaderStorageImageExtendedFormats = true;
-   pFeatures->features.shaderStorageImageWriteWithoutFormat = true;
-   pFeatures->features.independentBlend = true;
-   pFeatures->features.logicOp = true;
-   pFeatures->features.dualSrcBlend = true;
-   pFeatures->features.depthClamp = true;
-   pFeatures->features.depthBiasClamp = true;
-   pFeatures->features.variableMultisampleRate = false;
-
-   pdevice->vk.supported_extensions.EXT_vertex_attribute_divisor = true;
-   pdevice->vk.supported_extensions.KHR_vertex_attribute_divisor = true;
-   pdevice->vk.supported_extensions.EXT_extended_dynamic_state = false;
-   pdevice->vk.supported_extensions.EXT_extended_dynamic_state2 = true;
-   pdevice->vk.supported_extensions.EXT_vertex_input_dynamic_state = true;
-   pdevice->vk.supported_extensions.KHR_sampler_ycbcr_conversion = true;
-   pdevice->vk.supported_extensions.KHR_shader_draw_parameters = true;
-   pdevice->vk.supported_extensions.EXT_filter_cubic = true;
-   pdevice->vk.supported_extensions.EXT_image_robustness = true;
-   pdevice->vk.supported_extensions.EXT_calibrated_timestamps = false;
-   pdevice->vk.supported_extensions.EXT_blend_operation_advanced = true;
-   pdevice->vk.supported_extensions.EXT_discard_rectangles = true;
-   pdevice->vk.supported_extensions.EXT_sample_locations = true;
-   pdevice->vk.supported_extensions.KHR_multiview = true;
-   pdevice->vk.supported_extensions.KHR_push_descriptor = true;
-   pdevice->vk.supported_extensions.EXT_custom_border_color = true;
-   pdevice->vk.supported_extensions.EXT_private_data = true;
-   pdevice->vk.supported_extensions.EXT_memory_budget = true;
-   pdevice->vk.supported_extensions.KHR_map_memory2 = true;
-   pdevice->vk.supported_extensions.KHR_separate_depth_stencil_layouts = true;
-   pdevice->vk.supported_extensions.KHR_create_renderpass2 = true;
-   pdevice->vk.supported_extensions.KHR_depth_stencil_resolve = true;
-   pdevice->vk.supported_extensions.KHR_dynamic_rendering = false;
-   pdevice->vk.supported_extensions.KHR_image_format_list = true;
-   pdevice->vk.supported_extensions.EXT_color_write_enable = true;
-   pdevice->vk.supported_extensions.KHR_shader_float_controls = true;
-   pdevice->vk.supported_extensions.EXT_shader_subgroup_ballot = true;
-   pdevice->vk.supported_extensions.EXT_texture_compression_astc_hdr = true;
-   pdevice->vk.supported_extensions.EXT_depth_clip_enable = true;
-   pdevice->vk.supported_extensions.EXT_non_seamless_cube_map = true;
 }
 
 VKAPI_ATTR void VKAPI_CALL
