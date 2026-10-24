@@ -506,6 +506,10 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
             VkPhysicalDeviceDepthClipEnableFeaturesEXT *dce = (VkPhysicalDeviceDepthClipEnableFeaturesEXT *)s;
             dce->depthClipEnable = VK_TRUE;
          }
+         if (s->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_NON_SEAMLESS_CUBE_MAP_FEATURES_EXT) {
+            VkPhysicalDeviceNonSeamlessCubeMapFeaturesEXT *nsm = (VkPhysicalDeviceNonSeamlessCubeMapFeaturesEXT *)s;
+            nsm->nonSeamlessCubeMap = VK_TRUE;
+         }
       }
    }
 
@@ -578,6 +582,7 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
    pdevice->vk.supported_extensions.EXT_shader_subgroup_ballot = true;
    pdevice->vk.supported_extensions.EXT_texture_compression_astc_hdr = true;
    pdevice->vk.supported_extensions.EXT_depth_clip_enable = true;
+   pdevice->vk.supported_extensions.EXT_non_seamless_cube_map = true;
 }
 
 VKAPI_ATTR void VKAPI_CALL
